@@ -1,0 +1,47 @@
+syntax = "proto3";
+package openiap;
+message StartAgentRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+}
+message StartAgentResponse { 
+}
+message StopAgentRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+}
+message StopAgentResponse { 
+}
+message GetAgentLogRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+    // Pod name, found with GetAgentPods
+    string podname = 2;
+}
+message GetAgentLogResponse {
+    string result = 1;
+}
+message GetAgentPodsRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+    // get memory and cpu usage per pod, this is resource intensive and should be used sparringly
+    bool stats = 2;
+}
+message GetAgentPodsResponse {
+    // JSON array of pods
+    string results = 1;
+}
+message DeleteAgentPodRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+    // Pod name, found with GetAgentPods
+    string podname = 2;
+}
+message DeleteAgentPodResponse {
+}
+message DeleteAgentRequest { 
+    // _id of an agent from the agents collection
+    string agentid = 1;
+}
+message DeleteAgentResponse {
+}

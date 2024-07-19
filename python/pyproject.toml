@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openiap"
+version = "0.1.1"
+authors = [
+  { name="OpenIAP ApS / Allan Zimmerman", email="info@openiap.io" },
+]
+description = "Simple openiap api wrapper using proto"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/openiap/pyapi"
+"Bug Tracker" = "https://discourse.openiap.io/c/issues-and-feature-requests"
+"Funding" = "https://github.com/sponsors/skadefro"

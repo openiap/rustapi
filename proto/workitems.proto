@@ -1,0 +1,133 @@
+syntax = "proto3";
+package openiap;
+import "google/protobuf/timestamp.proto";
+// using stuct is just to bloated it fills alot more than just json. Sorry, sticking with strings then.
+// import "google/protobuf/struct.proto";
+// google.protobuf.Value payload = 4;
+import "ace.proto";
+message Workitem {
+    string _id = 1;
+    string name = 2;
+    string payload = 3;
+    int32 priority = 4;
+    google.protobuf.Timestamp nextrun = 5;
+    google.protobuf.Timestamp lastrun = 6;
+    repeated WorkitemFile files = 7;
+    string state = 8;
+    string wiq = 9;
+    string wiqid = 10;
+    int32 retries = 11;
+    string username = 12;
+    string success_wiqid = 13;
+    string failed_wiqid = 14;
+    string success_wiq = 15;
+    string failed_wiq = 16;
+    string errormessage = 17;
+    string errorsource = 18;
+    string errortype = 19;
+}
+message WorkitemFile {
+    string filename = 1;
+    string _id = 2;
+    bool compressed = 3;
+    bytes file = 4;
+}
+message PushWorkitemRequest { 
+    string wiq = 1;
+    string wiqid = 2;
+    string name = 3;
+    string payload = 4;
+    google.protobuf.Timestamp nextrun = 5;
+    string success_wiqid = 6;
+    string failed_wiqid = 7;
+    string success_wiq = 8;
+    string failed_wiq = 9;
+    int32 priority = 10;
+    repeated WorkitemFile files = 11;
+}
+message PushWorkitemResponse { 
+    Workitem workitem = 1;
+}
+message PushWorkitemsRequest { 
+    string wiq = 1;
+    string wiqid = 2;
+    google.protobuf.Timestamp nextrun = 3;
+    string success_wiqid = 4;
+    string failed_wiqid = 5;
+    string success_wiq = 6;
+    string failed_wiq = 7;
+    int32 priority = 8;
+    repeated Workitem items = 9;
+}
+message PushWorkitemsResponse { 
+    repeated Workitem workitems = 1;
+}
+message UpdateWorkitemRequest { 
+    Workitem workitem = 1;
+    bool ignoremaxretries = 2;
+    repeated WorkitemFile files = 3;
+}
+message UpdateWorkitemResponse { 
+    Workitem workitem = 1;
+}
+message PopWorkitemRequest { 
+    string wiq = 1;
+    string wiqid = 2;
+    bool includefiles = 3;
+    bool compressed = 4;
+}
+message PopWorkitemResponse { 
+    Workitem workitem = 1;
+}
+message DeleteWorkitemRequest { 
+    string _id = 1;
+}
+message DeleteWorkitemResponse { 
+}
+message WorkItemQueue {
+    string workflowid = 1;
+    string robotqueue = 2;
+    string amqpqueue = 3;
+    string projectid = 4;
+    string usersrole = 5;
+    int32 maxretries = 6;
+    int32 retrydelay = 7;
+    int32 initialdelay = 8;
+    string success_wiqid = 9;
+    string failed_wiqid = 10;
+    string success_wiq = 11;
+    string failed_wiq = 12;
+    string _id = 13;
+    repeated Ace _acl = 14;
+    string name = 15;
+    string _createdbyid = 16;
+    string _createdby = 17;
+    google.protobuf.Timestamp _created = 18;
+    string _modifiedbyid = 19;
+    string _modifiedby = 20;
+    google.protobuf.Timestamp _modified = 21;
+    int32 _version = 22;
+    string packageid = 23;
+}
+message AddWorkItemQueueRequest { 
+    WorkItemQueue workitemqueue = 1;
+    bool skiprole = 2;    
+}
+message AddWorkItemQueueResponse { 
+    WorkItemQueue workitemqueue = 1;
+}
+message UpdateWorkItemQueueRequest { 
+    WorkItemQueue workitemqueue = 1;
+    bool skiprole = 2;
+    bool purge = 3;
+}
+message UpdateWorkItemQueueResponse { 
+    WorkItemQueue workitemqueue = 1;
+}
+message DeleteWorkItemQueueRequest { 
+    string wiq = 1;
+    string wiqid = 2;
+    bool purge = 3;
+}
+message DeleteWorkItemQueueResponse { 
+}

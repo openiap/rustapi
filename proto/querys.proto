@@ -1,0 +1,198 @@
+syntax = "proto3";
+package openiap;
+message ListCollectionsRequest {
+  bool includehist = 1;
+}
+message ListCollectionsResponse {
+  string results = 1;
+}
+message DropCollectionRequest {
+  string collectionname = 1;
+}
+message DropCollectionResponse {
+}
+message col_timeseries {
+  string timeField = 1;
+  string metaField = 2;
+  string granularity = 3;
+}
+message col_collation {
+  string locale = 1;
+  bool caseLevel = 2;
+  string caseFirst = 3;
+  int32 strength = 4;
+  bool numericOrdering = 5;
+  string alternate = 6; 
+  string maxVariable = 7;
+  bool backwards = 8;
+}
+message CreateCollectionRequest {
+    string collectionname = 1;
+    col_collation collation = 2;
+    col_timeseries timeseries = 3;
+    int32 expireAfterSeconds = 4;
+    bool changeStreamPreAndPostImages = 5;
+    bool capped = 6;
+    int32 max = 7;
+    int32 size = 8;
+}
+message CreateCollectionResponse {
+}
+// MongoDB Query Request.
+message QueryRequest {
+  // MongoDB Query to execute. This field is required.
+  string query = 1;
+
+  // MongoDB Collection to query. This field is required.
+  string collectionname = 2;
+
+  // MongoDB Query projection. This field is optional.
+  string projection = 3;
+
+  // MongoDB Maximum number of documents to return. This field is optional with a default of 100.
+  int32 top = 4;
+
+  // MongoDB Number of documents to skip, used for paging on the same query. This field is optional with a default of 0.
+  int32 skip = 5;
+
+  // MongoDB order by. This field is optional with a default of {"_id": 1}. 
+  // You can specify "timestamp" as a string or an object like {"timestamp": -1}.
+  string orderby = 6;
+
+  // Query as if you were this _id. (_id can be a user, role, or customer from the users collection)
+  string queryas = 7;
+
+  // Enabling explain will provides information on the execution of the query
+  bool explain = 8;
+}
+
+message QueryResponse {
+  string results = 1;
+}
+message GetDocumentVersionRequest {
+  string collectionname = 1;
+  string id = 2;
+  int32 version = 3;
+  bool decrypt = 4;
+}
+message GetDocumentVersionResponse {
+  string result = 1;
+}
+message AggregateRequest {
+  string collectionname = 1;
+  string aggregates = 2;
+  string queryas = 3;
+  string hint = 4;
+
+  // Enabling explain will provides information on the execution of the pipelines
+  bool explain = 5;
+}
+message AggregateResponse {
+  string results = 1;
+}
+message CountRequest {
+  string collectionname = 1;
+  string query = 2;
+  string queryas = 3;
+  // Enabling explain will provides information on the execution of the count
+  bool explain = 4;
+}
+message CountResponse {
+  int32 result = 1;
+}
+message DistinctRequest {
+  string collectionname = 1;
+  string field = 3;
+  string query = 4;
+  string queryas = 5;
+  string options = 6;
+  // Enabling explain will provides information on the execution of the distinct
+  bool explain = 7;
+}
+message DistinctResponse {
+  repeated string results = 1;
+}
+message InsertOneRequest {
+  string collectionname = 1;
+  string item = 2;
+  int32 w = 3;
+  bool j = 4;
+}
+message InsertOneResponse {
+  string result = 1;
+}
+message InsertManyRequest {
+  string collectionname = 1;
+  string items = 2;
+  int32 w = 3;
+  bool j = 4;
+  bool skipresults = 5;
+}
+message InsertManyResponse {
+  string results = 1;
+}
+message UpdateOneRequest {
+  string collectionname = 1;
+  string item = 2;
+  int32 w = 3;
+  bool j = 4;
+}
+message UpdateOneResponse {
+  string result = 1;
+}
+message UpdateDocumentRequest {
+  string collectionname = 1;
+  string query = 2;
+  string document = 3;
+  int32 w = 4;
+  bool j = 5;
+}
+message UpdateResult {
+  bool acknowledged = 1;
+  int32 matchedCount = 2;
+  int32 modifiedCount = 3;
+  int32 upsertedCount = 4;
+  string upsertedId = 5;
+}
+message UpdateDocumentResponse {
+  UpdateResult opresult = 1;
+}
+message InsertOrUpdateOneRequest {
+  string collectionname = 1;
+  string uniqeness = 2;
+  string item = 3;
+  int32 w = 4;
+  bool j = 5;
+}
+message InsertOrUpdateOneResponse {
+  string result = 1;
+}
+message InsertOrUpdateManyRequest {
+  string collectionname = 1;
+  string uniqeness = 2;
+  string items = 3;
+  int32 w = 4;
+  bool j = 5;
+  bool skipresults = 6;
+}
+message InsertOrUpdateManyResponse {
+  string results = 1;
+}
+message DeleteOneRequest {
+  string collectionname = 1;
+  string id = 2;
+  bool recursive = 3;
+}
+message DeleteOneResponse {
+  int32 affectedrows = 1;
+}
+message DeleteManyRequest {
+  string collectionname = 1;
+  string query = 2;
+  bool recursive = 3;
+  repeated string ids = 4;
+}
+message DeleteManyResponse {
+  int32 affectedrows = 1;
+}
+

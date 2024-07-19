@@ -1,0 +1,18 @@
+syntax = "proto3";
+package openiap;
+message WatchRequest { 
+  string collectionname = 1;
+  repeated string paths = 2;
+}
+message WatchResponse { 
+  string id = 1;
+}
+message WatchEvent {
+  string id = 1;
+  string operation = 2;
+  string document = 3;
+}
+message UnWatchRequest { 
+  string id = 1;
+}
+message UnWatchResponse { }

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>OpenIAP</id>
+    <version>0.1.0</version>
+    <title>OpenIAP API Wrapper</title>
+    <authors>OpenIAP ApS / Allan Zimmermann</authors>
+    <owners>OpenIAP ApS</owners>
+    <license type="expression">MPL-2.0</license>
+    <projectUrl>https://github.com/openiap/rustapi</projectUrl>
+    <icon>icon.png</icon>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>A .NET wrapper for the OpenIAP API using Rust bindings</description>
+    <releaseNotes>Initial release</releaseNotes>
+    <tags>openiap, rust, api</tags>
+    <dependencies>
+      <group targetFramework=".NETCoreApp,Version=v7.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="bin/Debug/net7.0/**" target="lib/net7.0" />
+    <file src="icon.png" target="" />
+  </files>
+</package>

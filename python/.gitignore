@@ -1,0 +1,9 @@
+/target
+node_modules
+bin
+obj
+openiap.egg-info
+__pycache__
+build
+dist
+lib

@@ -1,0 +1,71 @@
+syntax = "proto3";
+package openiap;
+message RegisterQueueRequest {
+    string queuename = 1;
+}
+message RegisterQueueResponse { 
+    string queuename = 1;
+}
+message RegisterExchangeRequest {
+    string exchangename = 1;
+    string algorithm = 2;
+    string routingkey = 3;
+    bool addqueue = 4;
+}
+message RegisterExchangeResponse { 
+    string queuename = 1;
+}
+message QueueMessageRequest {
+    string queuename = 1;
+    string correlationId = 2;
+    string replyto = 3;
+    string routingkey = 4;
+    string exchangename = 5;
+    string data = 6;
+    bool striptoken = 7;
+    int32 expiration = 8;
+}
+message QueueMessageResponse {
+    string queuename = 1;
+    string correlationId = 2;
+    string replyto = 3;
+    string routingkey = 4;
+    string exchangename = 5;
+    string data = 6;
+}
+message QueueEvent {
+    string queuename = 1;
+    string correlationId = 2;
+    string replyto = 3;
+    string routingkey = 4;
+    string exchangename = 5;
+    string data = 6;
+}
+message UnRegisterQueueRequest { 
+    string queuename = 1;
+}
+message UnRegisterQueueResponse { }
+message CreateWorkflowInstanceRequest {
+    string targetid = 1;
+    string workflowid = 2;
+    string name = 3;
+    string resultqueue = 4;
+    string data = 5;
+    bool initialrun = 6;
+}
+message CreateWorkflowInstanceResponse {
+    string instanceid = 1;
+}
+message InvokeOpenRPARequest {
+    // _id from either a {"_type": "role", "rparole": true} role or {"_type": "user"} from the users colletion.
+    string robotid = 1;
+    // _id from a {"_type": "workflow"} from the openrpa collection. The Parameters property will show what arguments the workflow takes and returns. (in/inout/out)
+    string workflowid = 2;
+    // if true will not return a result until the robot has completed the run, if false will simply query the reqesut
+    bool rpc = 3;
+    // a JSON string with each of the arguments to send to the workflow ( each value must corrospond with a `in` or `inout` Parameter found on the workflow )
+    string payload = 4;
+}
+message InvokeOpenRPAResponse { 
+    string payload = 1;
+}

@@ -1,0 +1,83 @@
+syntax = "proto3";
+package openiap;
+message StripeCoupon {
+    string duration = 1;
+    int32 duration_in_months = 2;
+    string name = 3;
+  }
+  message StripeCustomerDiscount {
+    string subscription = 1;
+    int32 start = 2;
+    string customer = 3;
+    StripeCoupon coupon = 4;
+  }
+  message StripeCustomerAddress {
+    string line1 = 1;
+    string line2 = 2;
+    string postal_code = 3;
+    string city = 4;
+    string state = 5;
+    string country = 6;
+  }
+  message StripeTaxVerification {
+    string status = 1;
+    string verified_address = 2;
+    string verified_name = 3;
+  }
+  message StripeTaxId {
+    string country = 1;
+    string customer = 2;
+    string type = 3;
+    string value = 4;
+    StripeTaxVerification verification = 5;
+  }
+  message StripeRecurring {
+    string interval = 1;
+    int32 interval_count = 2;
+    int32 trial_period_days = 3;
+    string usage_type = 4;
+    // string aggregate_usage = 5;
+  }
+  message StripePrice {
+    string nickname = 1;
+    string product = 2;
+    bool active = 3;
+    string billing_scheme = 4;
+    string currency = 5;
+    StripeRecurring recurring = 6;
+    // string lookup_key = 7;
+    // string tiers_mode = 8;
+  }
+  message StripePlan {
+    bool status = 1;
+    string nickname = 2;
+    string product = 3;
+    int32 amount = 4;
+    string usage_type = 5;
+  }
+  message StripeSubscriptionItem {
+    string id = 1;
+    string quantity = 2;
+    string subscription = 3;
+    StripePlan plan = 4;
+    StripePrice price = 5;
+  }
+  message StripeSubscription {
+    string address = 1;
+    int32 balance = 2;
+    string currency = 3;
+    repeated StripeSubscription subscriptions = 4;
+    repeated StripeTaxId tax_ids = 5;
+    repeated StripeSubscriptionItem items = 6;
+    repeated string default_tax_rates = 7;
+  }
+  message StripeCustomer {
+    StripeCustomerAddress address = 1;
+    string description = 2;
+    string name = 3;
+    string email = 4;
+    repeated StripeTaxId tax_ids = 5;
+    repeated StripeSubscription subscriptions = 6;
+    StripeCustomerDiscount discount = 7;
+  }
+  

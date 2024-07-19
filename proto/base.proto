@@ -1,0 +1,430 @@
+syntax = "proto3";
+package openiap;
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+import "querys.proto";
+import "queues.proto";
+import "watch.proto";
+import "workitems.proto";
+import "stripe.proto";
+import "agent.proto";
+// Service for managing OpenIAP Flow (OpenFlow)
+service FlowService {
+  // Establishes a bidirectional streaming connection for sending and receiving Envelopes.
+  // This method is used to set up a real-time data stream for communication.
+  // Returns a bidirectional stream of Envelopes.
+  rpc SetupStream (stream Envelope) returns (stream Envelope) {}
+
+  // Signs in a user with the provided SigninRequest and returns a SigninResponse.
+  // This method authenticates a user and provides access to the OpenFlow system.
+  // Returns a SigninResponse containing authentication details.
+  rpc Signin(SigninRequest) returns (SigninResponse);
+
+  // Downloads a file from OpenFlow
+  // This method retrieves files from the OpenFlow system based on the specified criteria.
+  // This will initiaize a DownLoad stream, and once completed send send a DownloadResponse
+  rpc Download(DownloadRequest) returns (DownloadResponse);
+
+  // Uploads data based on the provided UploadRequest and returns an UploadResponse.
+  // This method allows users to upload data to the OpenFlow system.
+  // Returns an UploadResponse confirming the successful upload.
+  rpc Upload(UploadRequest) returns (UploadResponse);
+
+  // Executes a custom command in OpenIAP Flow.
+  // This method enables the execution of custom commands within the OpenFlow system.
+  // Returns a CustomCommandResponse with the result of the command execution.
+  rpc CustomCommand(CustomCommandRequest) returns (CustomCommandResponse);
+
+  // Lists all MongoDB collections the user has access to.
+  // This method provides a list of collections that the user can interact with in the MongoDB database.
+  // Returns a ListCollectionsResponse containing collection names.
+  rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
+
+  // Drops a MongoDB Collection, requires user is a member of admins role.
+  // This method allows administrators to delete a MongoDB collection.
+  // Returns a DropCollectionResponse confirming the deletion.
+  rpc DropCollection(DropCollectionRequest) returns (DropCollectionResponse);
+
+  // Creates a new MongoDB collection, useful if you need to create with parameters like creating a TimeSeries Collection.
+  // This method creates a new MongoDB collection with optional parameters.
+  // Returns a CreateCollectionResponse indicating the success of collection creation.
+  rpc CreateCollection(CreateCollectionRequest) returns (CreateCollectionResponse);
+
+  // Performs a query using QueryRequest and returns a QueryResponse.
+  // This method executes a query operation in the MongoDB database.
+  // Returns a QueryResponse with query results.
+  rpc Query(QueryRequest) returns (QueryResponse);
+
+  // Retrieves a document's version using GetDocumentVersionRequest and returns a GetDocumentVersionResponse.
+  // This method retrieves a specific version of a document.
+  // Returns a GetDocumentVersionResponse with the requested document version.
+  rpc GetDocumentVersion(GetDocumentVersionRequest) returns (GetDocumentVersionResponse);
+
+  // Aggregates data based on AggregateRequest and returns an AggregateResponse.
+  // This method performs data aggregation operations on the MongoDB database.
+  // Returns an AggregateResponse with the aggregated data.
+  rpc Aggregate(AggregateRequest) returns (AggregateResponse);
+
+  // Counts documents based on CountRequest and returns a CountResponse.
+  // This method counts documents in the MongoDB database based on specified criteria.
+  // Returns a CountResponse with the count result.
+  rpc Count(CountRequest) returns (CountResponse);
+
+  // Inserts a single document using InsertOneRequest and returns an InsertOneResponse.
+  // This method inserts a single document into the MongoDB database.
+  // Returns an InsertOneResponse confirming the insertion.
+  rpc InsertOne(InsertOneRequest) returns (InsertOneResponse);
+
+  // Inserts multiple documents using InsertManyRequest and returns an InsertManyResponse.
+  // This method inserts multiple documents into the MongoDB database.
+  // Returns an InsertManyResponse confirming the insertions.
+  rpc InsertMany(InsertManyRequest) returns (InsertManyResponse);
+
+  // Updates a single document using UpdateOneRequest and returns an UpdateOneResponse.
+  // This method updates a single document in the MongoDB database.
+  // Returns an UpdateOneResponse confirming the update.
+  rpc UpdateOne(UpdateOneRequest) returns (UpdateOneResponse);
+
+  // Updates documents using UpdateDocumentRequest and returns an UpdateDocumentResponse.
+  // This method updates multiple documents in the MongoDB database.
+  // Returns an UpdateDocumentResponse confirming the updates.
+  rpc UpdateDocument(UpdateDocumentRequest) returns (UpdateDocumentResponse);
+
+  // Inserts or updates a single document using InsertOrUpdateOneRequest and returns an InsertOrUpdateOneResponse.
+  // This method either inserts or updates a single document in the MongoDB database.
+  // Returns an InsertOrUpdateOneResponse confirming the operation.
+  rpc InsertOrUpdateOne(InsertOrUpdateOneRequest) returns (InsertOrUpdateOneResponse);
+
+  // Inserts or updates multiple documents using InsertOrUpdateManyRequest and returns an InsertOrUpdateManyResponse.
+  // This method either inserts or updates multiple documents in the MongoDB database.
+  // Returns an InsertOrUpdateManyResponse confirming the operation.
+  rpc InsertOrUpdateMany(InsertOrUpdateManyRequest) returns (InsertOrUpdateManyResponse);
+
+  // Deletes a single document using DeleteOneRequest and returns a DeleteOneResponse.
+  // This method deletes a single document from the MongoDB database.
+  // Returns a DeleteOneResponse confirming the deletion.
+  rpc DeleteOne(DeleteOneRequest) returns (DeleteOneResponse);
+
+  // Deletes multiple documents using DeleteManyRequest and returns a DeleteManyResponse.
+  // This method deletes multiple documents from the MongoDB database.
+  // Returns a DeleteManyResponse confirming the deletions.
+  rpc DeleteMany(DeleteManyRequest) returns (DeleteManyResponse);
+
+  // Registers a queue using RegisterQueueRequest and returns a RegisterQueueResponse.
+  // This method registers and starts consuming a queue for message routing using AMQP
+  // Returns a RegisterQueueResponse confirming the registration.
+  rpc RegisterQueue(RegisterQueueRequest) returns (RegisterQueueResponse);
+
+  // Registers an exchange using RegisterExchangeRequest and returns a RegisterExchangeResponse.
+  // This method registers an exchange and start consuming if for message routing using AMQP
+  // Returns a RegisterExchangeResponse confirming the registration.
+  rpc RegisterExchange(RegisterExchangeRequest) returns (RegisterExchangeResponse);
+
+  // Sends a message to a queue using QueueMessageRequest and returns a QueueMessageResponse.
+  // This method sends a message to a registered queue for processing.
+  // Returns a QueueMessageResponse confirming the message transmission.
+  rpc QueueMessage(QueueMessageRequest) returns (QueueMessageResponse);
+
+  // Unregisters a queue using UnRegisterQueueRequest and returns an UnRegisterQueueResponse.
+  // This method unregisters a previously registered queue or Exchange.
+  // Returns an UnRegisterQueueResponse confirming the unregistration.
+  rpc UnRegisterQueue(UnRegisterQueueRequest) returns (UnRegisterQueueResponse);
+
+  // Watches for changes using WatchRequest and returns a WatchResponse.
+  // This method enables clients to watch for changes in a MongoDB collections, use paths (JSONQuerys) to limit what documents to wath.
+  // Returns a WatchResponse with relevant notifications.
+  rpc Watch(WatchRequest) returns (WatchResponse);
+
+  // Stops watching for changes using UnWatchRequest and returns an UnWatchResponse.
+  // This method stops the client from watching for changes formerly registered using Watch 
+  // Returns an UnWatchResponse confirming the cessation of watching.
+  rpc UnWatch(UnWatchRequest) returns (UnWatchResponse);
+
+  // This method pushes (adds) a `Workitem` to a 'WorkItemQueue'
+  // Returns a PushWorkitemResponse confirming the operation.
+  rpc PushWorkitem(PushWorkitemRequest) returns (PushWorkitemResponse);
+
+  // Pushes multiple `Workitem`s using PushWorkitemsRequest and returns a PushWorkitemsResponse.
+  // This method pushes multiple `Workitem`s to a 'WorkItemQueue'.
+  // Returns a PushWorkitemsResponse confirming the operation.
+  rpc PushWorkitems(PushWorkitemsRequest) returns (PushWorkitemsResponse);
+
+  // Updates a `Workitem` using UpdateWorkitemRequest and returns an UpdateWorkitemResponse.
+  // This method updates a `Workitem` in the 'WorkItemQueue'.
+  // Returns an UpdateWorkitemResponse confirming the update.
+  rpc UpdateWorkitem(UpdateWorkitemRequest) returns (UpdateWorkitemResponse);
+
+  // Pops a `Workitem` using PopWorkitemRequest and returns a PopWorkitemResponse.
+  // This method pops a `Workitem` from the 'WorkItemQueue' for execution.
+  // Returns a PopWorkitemResponse with the popped `Workitem`.
+  rpc PopWorkitem(PopWorkitemRequest) returns (PopWorkitemResponse);
+
+  // Deletes a `Workitem` using DeleteWorkitemRequest and returns a DeleteWorkitemResponse.
+  // This method deletes a `Workitem` from the 'WorkItemQueue'.
+  // Returns a DeleteWorkitemResponse confirming the deletion.
+  rpc DeleteWorkitem(DeleteWorkitemRequest) returns (DeleteWorkitemResponse);
+
+  // This Created a new `WorkitemQueue'. These Queues can store `Workitem`s 
+  // Returns an AddWorkItemQueueResponse confirming the addition.
+  rpc AddWorkItemQueue(AddWorkItemQueueRequest) returns (AddWorkItemQueueResponse);
+
+  // Updates an existing `WorkitemQueue'
+  // This method updates the configuration of a `WorkitemQueue'.
+  // Will also deleted all associated `Workitem`s if purge is enabled.
+  // Returns an UpdateWorkItemQueueResponse confirming the update.
+  rpc UpdateWorkItemQueue(UpdateWorkItemQueueRequest) returns (UpdateWorkItemQueueResponse);
+
+  // Deletes a `WorkitemQueue'
+  // This method deletes a `WorkitemQueue' queue. Will also deleted all associated `Workitem`s if purge is enabled.
+  // Returns a DeleteWorkItemQueueResponse confirming the deletion.
+  rpc DeleteWorkItemQueue(DeleteWorkItemQueueRequest) returns (DeleteWorkItemQueueResponse);
+
+  // Ensures the existence of a customer using EnsureCustomerRequest and returns an EnsureCustomerResponse.
+  // This method ensures that a customer exists in the system and performs necessary actions.
+  // Returns an EnsureCustomerResponse confirming the operation.
+  rpc EnsureCustomer(EnsureCustomerRequest) returns (EnsureCustomerResponse);
+
+  // Execute a workflow on a OpenRPA robot. If rpc is true, will wait for reply and return reply ( this can take a long time !)
+  rpc InvokeOpenRPA(InvokeOpenRPARequest) returns (InvokeOpenRPAResponse);
+
+  // Start an agent inside Docker or Kubernetes
+  // agentid is the _id of an agent from the agents collection
+  // Requires invoke permission on agent
+  rpc StartAgent(StartAgentRequest) returns (StartAgentResponse);
+  // Stop an agent running inside Docker or Kubernetes
+  // agentid is the _id of an agent from the agents collection
+  // Requires invoke permission on agent
+  rpc StopAgent(StopAgentRequest) returns (StopAgentResponse);
+  // Return the console output of an running agent, can be in docker, kubernetes or running remote.
+  // agentid is the _id of an agent from the agents collection
+  // Requires invoke permission on agent
+  rpc GetAgentLog(GetAgentLogRequest) returns (GetAgentLogResponse);
+  // Return a list of pods for an running agent. Docker and Kubernetes only.
+  // agentid is the _id of an agent from the agents collection
+  // Requires invoke permission on agent
+  rpc GetAgentPods(GetAgentPodsRequest) returns (GetAgentPodsResponse);
+  // Remove an agent pod, found with GetAgentPods. Docker and Kubernetes only.
+  // On kubernetes this will restart it, on Docker this will kill it
+  // agentid is the _id of an agent from the agents collection
+  // Requires invoke permission on agent
+  rpc DeleteAgentPod(DeleteAgentPodRequest) returns (DeleteAgentPodResponse);
+  // Remove an agent if running. Docker and Kubernetes only.
+  // Removes instance on docker, remove deployment, ingress and other resources on Kubernetes
+  // agentid is the _id of an agent from the agents collection
+  // Requires delete permission on agent
+  rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+
+  // Create an Index on a MongoDB Collection
+  // Will not fail if exists, but will fail if spec is different from existing.
+  // Require admins rights
+  rpc CreateIndex(CreateIndexRequest) returns (CreateIndexResponse);
+
+  // Create an Index on a MongoDB Collection
+  // Will not fail if exists, but will fail if spec is different from existing.
+  // Require admins rights
+  rpc GetIndexes(GetIndexesRequest) returns (GetIndexesResponse);
+
+  // Delete an Index from a MongoDB Collection
+  // Require admins rights
+  rpc DropIndex(DropIndexRequest) returns (DropIndexResponse);
+
+  // Delete an agent Package.
+  // Removes the associated file and then delete te package from the agents collection.
+  // Requires delete permission on the Package
+  rpc DeletePackage(DeletePackageRequest) returns (DeletePackageResponse);
+}
+
+message Envelope {
+  string command = 1;
+  int32 priority = 2;
+  int32 seq = 3;
+  string id = 4;
+  string rid = 5;
+  google.protobuf.Any data = 6;
+  string jwt = 7;
+  string traceid = 8;
+  string spanid = 9;
+}
+message PingRequest {}
+message PingResponse {}
+message Noop {}
+message ErrorResponse {
+  string message = 1;
+  int32 code = 2;
+  string stack = 3;
+}
+message GetElementRequest {
+  string xpath = 1;
+}
+message GetElementResponse {
+  string xpath = 1;
+}
+message DownloadRequest {
+  string id = 1;
+  string filename = 2;
+  string collectionname = 3;
+}
+message DownloadResponse {
+  string id = 1;
+  string filename = 2;
+  string mimetype = 3;
+}
+message UploadRequest {
+  string filename = 1;
+  string mimetype = 2;
+  string metadata = 3;
+  string collectionname = 4;
+}
+message UploadResponse {
+  string id = 1;
+  string filename = 2;
+  int32 bytes = 3;
+  int32 chunks = 4;
+  float mb = 5;
+  int32 elapsedTime = 6;
+  float mbps = 7;
+}
+message BeginStream { 
+  string checksum = 1;
+  Stat stat = 2;
+}
+message Stream { 
+  bytes data = 1;
+}
+message EndStream { }
+
+message Stat {
+  float birthtimeMs = 1;
+  int32 blksize = 2;
+  int32 blocks = 3;
+  google.protobuf.Timestamp ctime = 4;
+  float ctimeMs = 5;
+  int32 dev = 6;
+  int32 gid = 7;
+  int32 ino = 8;
+  int32 mode = 9;
+  google.protobuf.Timestamp mtime = 10;
+  float mtimeMs = 11;
+  int32 nlink = 12;
+  int32 rdev = 13;
+  int32 size = 14;
+  int32 uid = 15;
+}
+message CustomCommandRequest {
+  string command = 1;
+  string id = 2;
+  string name = 3;
+  string data = 4;
+}
+message CustomCommandResponse {
+  string result = 1;
+}
+message SigninRequest {
+  string username = 1;
+  string password = 2;
+  string jwt = 3;
+  bool ping = 4;
+  bool validateonly = 5;
+  string agent = 6;
+  string version = 7;
+  bool longtoken = 8;
+}
+message SigninResponse {
+  string jwt = 1;
+  User user = 2;
+  string config = 3;
+}
+message RefreshToken {
+  string username = 1;
+  string jwt = 2;
+  User user = 3;
+}
+message Role {
+  string _id = 1;
+  string name = 2;
+}
+message User {
+  string _id = 1;
+  string name = 2;
+  string username = 3;
+  string email = 4;
+  repeated Role roles = 5;
+}
+message Customer {
+  string _id = 1;
+  string _type = 2;
+  string stripeid = 3;
+  string userid = 4;
+  string name = 5;
+  string country = 6;
+  string email = 7;
+  string address = 8;
+  string vattype = 9;
+  string vatnumber = 10; 
+  string taxrate = 11;
+  int32 tax = 12;
+  string coupon = 13;
+  bool hascard = 14;
+  string memory = 15;
+  string openflowuserplan = 16;
+  string supportplan = 17;
+  string supporthourplan = 18;
+  string subscriptionid = 19;
+  string admins = 20;
+  string users = 21;
+  string customattr1 = 22;
+  string customattr2 = 23;
+  string customattr3 = 24;
+  string customattr4 = 25;
+  string customattr5 = 26;
+  repeated string domains = 27;
+  int32 dbusage = 28;
+  bool dblocked = 29;
+}
+message EnsureCustomerRequest {
+  Customer customer = 1;
+  StripeCustomer stripe = 2;
+  string ensureas = 3;
+}
+message EnsureCustomerResponse {
+  Customer customer = 1;
+  StripeCustomer stripe = 2;
+}
+message CreateIndexRequest {
+  // Collection to create index on
+  string collectionname = 1;
+  // JSON string with indexes to create, for instance {"age": 1, "name": "text"}
+  string index = 2;
+  // optional JSON string with index option, for instance { unique: true }
+  string options = 3;
+  // Index name. Leave blank to let mongodb auto generate it
+  string name = 4;
+}
+message CreateIndexResponse {
+  // Index name
+  string result = 1;
+}
+message GetIndexesRequest {
+  // Collection to create index on
+  string collectionname = 1;
+}
+message GetIndexesResponse {
+  // List of indexes for collection
+  string results = 1;
+}
+
+message DropIndexRequest {
+  // Collection to create index on
+  string collectionname = 1;
+  // Index name
+  string name = 2;
+}
+message DropIndexResponse {
+}
+
+message DeletePackageRequest {
+  // id of package to delete,found in `agents` collection with {"_type": "package"}
+  string packageid = 1;
+}
+message DeletePackageResponse {
+}
