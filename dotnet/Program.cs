@@ -8,13 +8,15 @@ class Program
     {
         try
         {
-            Client client = new Client("http://localhost:50051");
+            Client client = new Client("grpc://grpc.demo.openiap.io");
+            Console.WriteLine("Client connection success: " + client.connected());
+            Console.WriteLine("Client connection error: " + client.connectionerror());
 
-            Console.WriteLine("Client connection success: " + client.client.success);
-            Console.WriteLine("Client connection error: " + Marshal.PtrToStringAnsi(client.client.error));
-
-            string jwt = client.Signin();
+            var (jwt, error, success) = client.Signin();
             Console.WriteLine("Signin JWT: " + jwt);
+
+            string results = client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
+            Console.WriteLine("results: " + results);
 
             client.Dispose();
         }

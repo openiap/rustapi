@@ -6,6 +6,7 @@ const path = require('path');
 const CString = ref.types.CString;
 const voidPtr = ref.refType(ref.types.void);
 const bool = ref.types.bool;
+const int = ref.types.int;
 
 // Define the ClientWrapper struct
 const ClientWrapper = StructType({
@@ -37,6 +38,27 @@ const SigninResponseWrapper = StructType({
 });
 const SigninResponseWrapperPtr = ref.refType(SigninResponseWrapper);
 
+// Define the SigninRequestWrapper struct
+const QueryRequestWrapper = StructType({
+    collectionname: CString,
+    query: CString,
+    projection: CString,
+    orderby: CString,
+    queryas: CString,
+    explain: bool,
+    skip: int,
+    top: int,
+});
+const QueryRequestWrapperPtr = ref.refType(QueryRequestWrapper);
+
+// Define the SigninResponseWrapper struct
+const QueryResponseWrapper = StructType({
+    success: bool,
+    results: CString,
+    error: CString
+});
+const QueryResponseWrapperPtr = ref.refType(QueryResponseWrapper);
+
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
     const libDir = path.join(__dirname, 'lib');
@@ -59,7 +81,9 @@ function loadLibrary() {
             'client_connect': [ClientWrapperPtr, [CString]],
             'free_client': ['void', [ClientWrapperPtr]],
             'client_signin': [SigninResponseWrapperPtr, [voidPtr, SigninRequestWrapperPtr]],
-            'free_signin_response': ['void', [SigninResponseWrapperPtr]]
+            'free_signin_response': ['void', [SigninResponseWrapperPtr]],
+            'client_query': [QueryResponseWrapperPtr, [voidPtr, QueryRequestWrapperPtr]],
+            'free_query_response': ['void', [QueryResponseWrapperPtr]],
         });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -91,7 +115,7 @@ class ClientCreationError extends ClientError {
 
 // Client class
 class Client {
-    constructor(url) {
+    constructor(url = "") {
         this.lib = loadLibrary();
         this.client = this.createClient(url);
     }
@@ -126,18 +150,45 @@ class Client {
         });
 
         // Call the client_signin function
-        const user = this.lib.client_signin(this.client, req.ref());
-        if (ref.isNull(user)) {
+        const response = this.lib.client_signin(this.client, req.ref());
+        if (ref.isNull(response)) {
             throw new ClientError('Signin failed or user is null');
         }
-        const userObj = user.deref();
+        const Obj = response.deref();
         const result = {
-            success: userObj.success,
-            jwt: userObj.jwt,
-            error: userObj.error
+            success: Obj.success,
+            jwt: Obj.jwt,
+            error: Obj.error
         };
-        this.lib.free_signin_response(user);
+        this.lib.free_signin_response(response);
         return result;
+    }
+
+    query({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
+        // Allocate C strings for the QueryRequestWrapper fields
+        const req = new QueryRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            query: ref.allocCString(query),
+            projection: ref.allocCString(projection),
+            orderby: ref.allocCString(orderby),
+            queryas: ref.allocCString(queryas),
+            explain: explain,
+            skip: skip,
+            top: top
+        });
+        const response = this.lib.client_query(this.client, req.ref());
+        if (ref.isNull(response)) {
+            throw new ClientError('Signin failed or user is null');
+        }
+        const Obj = response.deref();
+        const result = {
+            success: Obj.success,
+            results: JSON.parse(Obj.results),
+            error: Obj.error
+        };
+        this.lib.free_query_response(response);
+        return result;
+
     }
 
     free() {

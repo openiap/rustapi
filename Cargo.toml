@@ -7,14 +7,18 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-tonic={ version = "0.12.0", features = ["transport", "gzip"] }
+tonic={ version = "0.12.0", features = ["transport", "gzip",  "tls", "tls-webpki-roots" ] }
+async-stream = "0.3.5"
+hyper-util = "0.1.6"
 prost="0.13.1"
 prost-types="0.13.1"
 tokio={ version="1.38.0", features =  ["rt", "rt-multi-thread", "macros"] }
 tokio-stream = "0.1.15"
 tracing = { version="0.1", features = ["log", "attributes" ] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter","json"] }
-serde = { version = "1.0", features = ["derive"] }
+# serde = { version = "1.0", features = ["derive"] }
+url = "2.5.2"
+
 
 [build-dependencies]
 tonic-build = "0.12.0"

@@ -41,6 +41,30 @@ public class Client : IDisposable
         public IntPtr error;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueryRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr query;
+        public IntPtr projection;
+        public IntPtr orderby;
+        public IntPtr queryas;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool explain;
+        [MarshalAs(UnmanagedType.I4)]
+        public int skip;
+        [MarshalAs(UnmanagedType.I4)]
+        public int top;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueryResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public IntPtr error;
+    }
+
     // Custom exception classes
     public class ClientError : Exception
     {
@@ -109,8 +133,17 @@ public class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_signin_response(IntPtr response);
 
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_query(IntPtr client, ref QueryRequestWrapper request);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_query_response(IntPtr response);
+
     public IntPtr clientPtr;
-    public ClientWrapper client;
+    ClientWrapper client;
+
+
+    public Client(): this("") { }
 
     public Client(string url)
     {
@@ -132,8 +165,14 @@ public class Client : IDisposable
             throw new ClientCreationError(Marshal.PtrToStringAnsi(client.error) ?? "Unknown error");
         }
     }
+    public bool connected() {
+        return client.success;
+    }
+    public string connectionerror() {
+        return Marshal.PtrToStringAnsi(client.error);
+    }
 
-    public string Signin(string username = "", string password = "")
+    public (string jwt, string error, bool success) Signin(string username = "", string password = "")
     {
         IntPtr usernamePtr = Marshal.StringToHGlobalAnsi(username);
         IntPtr passwordPtr = Marshal.StringToHGlobalAnsi(password);
@@ -164,9 +203,11 @@ public class Client : IDisposable
 
             SigninResponseWrapper user = Marshal.PtrToStructure<SigninResponseWrapper>(userPtr);
             string jwt = Marshal.PtrToStringAnsi(user.jwt) ?? string.Empty;
+            string error = Marshal.PtrToStringAnsi(user.error) ?? string.Empty;
+            string success = user.success ? "true" : "false";
             free_signin_response(userPtr);
 
-            return jwt;
+            return (jwt, error, user.success);
         }
         finally
         {
@@ -177,6 +218,52 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(versionPtr);
         }
     }
+
+    public string Query(string collectionname, string query, string projection, string orderby, string queryas, bool explain, int skip, int top)
+    {
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
+        IntPtr projectionPtr = Marshal.StringToHGlobalAnsi(projection);
+        IntPtr orderbyPtr = Marshal.StringToHGlobalAnsi(orderby);
+        IntPtr queryasPtr = Marshal.StringToHGlobalAnsi(queryas);
+
+        try
+        {
+            QueryRequestWrapper request = new QueryRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                query = queryPtr,
+                projection = projectionPtr,
+                orderby = orderbyPtr,
+                queryas = queryasPtr,
+                explain = explain,
+                skip = skip,
+                top = top
+            };
+
+            IntPtr responsePtr = client_query(clientPtr, ref request);
+
+            if (responsePtr == IntPtr.Zero)
+            {
+                throw new ClientError("Query failed or response is null");
+            }
+
+            QueryResponseWrapper response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
+            string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+            free_query_response(responsePtr);
+
+            return results;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(queryPtr);
+            Marshal.FreeHGlobal(projectionPtr);
+            Marshal.FreeHGlobal(orderbyPtr);
+            Marshal.FreeHGlobal(queryasPtr);
+        }
+    }
+
 
     public void Dispose()
     {

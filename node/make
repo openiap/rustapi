@@ -1,1 +1,0 @@
-rm -rf lib *.tgz && mkdir lib && cp ../target/debug/libopeniap.so ./lib && npm pack

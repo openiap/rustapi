@@ -5,7 +5,7 @@ import time
 # Example usage
 if __name__ == "__main__":
     try:
-        client = Client('http://localhost:50051')
+        client = Client()
         signin_result = client.signin()
         print(signin_result)
     except ClientError as e:

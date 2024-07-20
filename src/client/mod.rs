@@ -13,6 +13,8 @@ use std::io::{Read, Write};
 use tokio::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use tonic::transport::{Channel, ClientTlsConfig};
+
 
 pub mod openiap {
     tonic::include_proto!("openiap");
@@ -32,10 +34,10 @@ type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: Arc<Mutex<ClientInner>>,
+    pub inner: Arc<Mutex<ClientInner>>,
 }
 #[derive(Debug, Clone)]
-struct ClientInner {
+pub struct ClientInner {
     client: FlowServiceClient<tonic::transport::Channel>,
     signedin: bool,
     connected: bool,
@@ -67,10 +69,89 @@ impl Client {
     #[tracing::instrument(level = "debug", target = "openiap::client", name = "connect")]
     pub async fn connect(dst: &str) -> Result<Self>
     {
-        println!("Connecting to {}", dst); // Log connection attempt
-        let innerclient = FlowServiceClient::connect(dst.to_string()).await?;
-        // innerclient = innerclient.send_compressed(tonic::codec::CompressionEncoding::Gzip);
+        // tracing_subscriber::fmt::fmt()
+        // .with_max_level(tracing::Level::DEBUG)
+        // .init();
 
+        let mut strurl = dst.to_string();
+        if strurl.is_empty() {
+            strurl = std::env::var("apiurl").unwrap_or("".to_string());
+        }
+        if strurl.is_empty() {
+            strurl = std::env::var("grpcapiurl").unwrap_or("".to_string());
+        }
+        if strurl.is_empty() {
+            strurl = std::env::var("wsapiurl").unwrap_or("".to_string());
+        }
+        if strurl.is_empty() {
+            return Err(Box::new(tonic::Status::cancelled("No URL provided")));
+        }
+        let url = url::Url::parse(strurl.as_str()).map_err(|e| {
+            tonic::Status::cancelled(format!("Failed to parse URL: {}", e))
+        })?;
+        if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "grpc" {
+            return Err(Box::new(tonic::Status::cancelled("Invalid URL scheme")));
+        }
+        if url.scheme() == "grpc" {
+            if url.port() == Some(443) {
+                strurl = format!("https://{}", url.host_str().unwrap());
+            } else {
+                strurl = format!("http://{}", url.host_str().unwrap());
+            }
+        }
+        let mut url = url::Url::parse(strurl.as_str()).map_err(|e| {
+            tonic::Status::cancelled(format!("Failed to parse URL: {}", e))
+        })?;
+        if url.port().is_none() {
+            if url.scheme() == "https" {
+                strurl = format!("{}:{}", strurl, 443);
+            } else {
+                strurl = format!("{}:{}", strurl, 80);
+            }
+        }
+        let mut username = "".to_string();
+        let mut password= "".to_string();
+        if url.username().is_empty() == false && url.password().is_none() == false {
+            username = url.username().to_string();
+            password = url.password().unwrap().to_string();
+        } 
+        url = url::Url::parse(strurl.as_str()).map_err(|e| {
+            tonic::Status::cancelled(format!("Failed to parse URL: {}", e))
+        })?;
+
+        if url.port().is_none() {
+            if url.scheme() == "https" {
+                strurl = format!("https://{}:443", url.host_str().unwrap());
+            } else {
+                strurl = format!("http://{}:80", url.host_str().unwrap());
+            }
+        } else {
+            strurl = format!("http://{}:{}", url.host_str().unwrap(), url.port().unwrap());
+        }
+        println!("Connecting to {}", strurl);
+        
+        let innerclient;
+        if url.scheme() == "http" {
+            innerclient = FlowServiceClient::connect(strurl).await?;
+        } else {            
+            let tls = ClientTlsConfig::new()
+            .with_webpki_roots()
+            .domain_name(url.host().unwrap().to_string());
+            let uri = tonic::transport::Uri::builder()
+                .scheme(url.scheme())
+                .authority(url.host().unwrap().to_string() )
+                .path_and_query("/")
+                .build()?;
+            let channel = Channel::builder(uri)
+                .tls_config(tls)?
+                .connect()
+                .await?;
+    
+            innerclient = FlowServiceClient::new(channel);
+        }
+
+
+        
         let (stream_tx, stream_rx) = mpsc::channel(4);
         let in_stream = ReceiverStream::new(stream_rx);
 
@@ -86,10 +167,13 @@ impl Client {
         let client = Client {
             inner: Arc::new(Mutex::new(inner)),
         };
-        debug!("Client created, setting up stream");
+        client.ping().await;
         client.setup_stream(in_stream).await?;
-        // client.ping().await;
-        debug!("Client connected and stream set up"); 
+        if username.is_empty() == false && password.is_empty() == false {
+            println!("Signing in with username: {}", username);
+            let signin = SigninRequest::with_userpass(username.as_str(), password.as_str());
+            let _ = client.signin(signin);
+        }                
         Ok(client)
     }
     #[tracing::instrument(level = "debug", target = "openiap::client", name = "setup_stream")]
@@ -113,7 +197,12 @@ impl Client {
                             command: "pong".into(),
                             ..Default::default()
                         };
-                        let _ = inner.stream_tx.send(envelope).await;
+                        // let _ = inner.stream_tx.send(envelope).await;
+                        match inner.stream_tx.send(envelope).await {
+                            Ok(_) => _ = (),
+                            Err(e) => error!("Failed to send data: {}", e),
+                        }
+
                     } else if received.command == "beginstream"
                         || received.command == "stream"
                         || received.command == "endstream"
@@ -138,15 +227,14 @@ impl Client {
                             let _ = streams.remove(rid.as_str());
                         }
                     } else if let Some(response_tx) = queries.remove(&received.rid) {
-                        // println!("Received {} message", received.command);
+                        // Send to response to waiting call
                         let _ = response_tx.send(received);
                     } else {
-                        // println!("Received unhandled {} message: {:?}", received.command, received);
+                        println!("Received unhandled {} message: {:?}", received.command, received);
                     }
                 }
             }
         });
-
         Ok(())
     }
     #[allow(dead_code, unused_variables)]
@@ -178,8 +266,10 @@ impl Client {
         {
             let inner = self.inner.lock().await;
             inner.queries.lock().await.insert(id.clone(), response_tx);
-            if inner.stream_tx.send(msg).await.is_err() == true {
-                return Err(tonic::Status::cancelled("Connection closed"));
+            let res = inner.stream_tx.send(msg).await;
+            if res.is_err() {
+                let e = res.err().unwrap();
+                return Err(tonic::Status::cancelled(e.to_string()));
             }
         }
         Ok((response_rx,id))
@@ -202,8 +292,10 @@ impl Client {
             let inner = self.inner.lock().await;
             inner.queries.lock().await.insert(id.clone(), response_tx);
             inner.streams.lock().await.insert(id.clone(), stream_tx);
-            if inner.stream_tx.send(msg).await.is_err() {
-                return Err(tonic::Status::cancelled("Connection closed"));
+            let res = inner.stream_tx.send(msg).await;
+            if res.is_err() {
+                let e = res.err().unwrap();
+                return Err(tonic::Status::cancelled(e.to_string()));
             }
         }
         Ok((response_rx, stream_rx))
@@ -220,7 +312,6 @@ impl Client {
         }
     }
     pub async fn signin(&self, mut config: SigninRequest) -> Result<SigninResponse, tonic::Status> {
-        debug!("Attempting sign-in using {:?}", config);
         if config.username.is_empty() {
             config.username = std::env::var("OPENIAP_USERNAME").unwrap_or("".to_string());
         }
@@ -233,9 +324,19 @@ impl Client {
         if config.jwt.is_empty() {
             config.jwt = std::env::var("JWT").unwrap_or("".to_string());
         }
+        let version = env!("CARGO_PKG_VERSION");
+        if version.is_empty() == false && config.version.is_empty() {
+            config.version = version.to_string();
+        }
+        if config.agent.is_empty() {
+            config.agent = "rust".to_string();
+        }
+
+        debug!("Attempting sign-in using {:?}", config);
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
         if result.is_ok() {
+            debug!("Sign-in reply received");
             let mut inner = self.inner.lock().await;
             let m = result.unwrap();
             if m.command == "error" {
@@ -247,6 +348,7 @@ impl Client {
             debug!("Sign-in successful");
             Ok(prost::Message::decode(m.data.unwrap().value.as_ref()).unwrap())
         } else {
+            debug!("Sending Sign-in request failed {:?}", result);
             let e = result.err().unwrap();
             debug!("Sign-in failed: {}", e.to_string());
             Err(tonic::Status::cancelled(e.to_string()))
