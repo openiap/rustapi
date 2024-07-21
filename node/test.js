@@ -1,7 +1,8 @@
 const { Client, ClientError } = require('./main');
 (async () => {
     try {
-        const client = new Client('http://localhost:50051');
+        const client = new Client('');
+        // const client = new Client('http://localhost:50051');
         // const client = new Client('http://grpc.localhost.openiap.io/');
         // const client = new Client('https://grpc.localhost.openiap.io/');
         // const client = new Client('https://grpc.demo.openiap.io/');
@@ -15,8 +16,9 @@ const { Client, ClientError } = require('./main');
             }
 
             // stay around a little, so we can enjoy watching the client connected to the server
-            // await new Promise(resolve => setTimeout(resolve, 30000));
+            // await new Promise(resolve => setTimeout(resolve, 60000));
 
+            client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '/tmp', filename: 'test.test' });
 
 
             client.free();

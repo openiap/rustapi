@@ -22,7 +22,7 @@ impl UploadRequest {
             type_url: "type.googleapis.com/openiap.UploadRequest".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };
@@ -39,7 +39,7 @@ impl BeginStream {
             type_url: "type.googleapis.com/openiap.BeginStream".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };
@@ -57,7 +57,7 @@ impl BeginStream {
         };
         let envelope = req.to_envelope(rid);
         let mut buf = Vec::new();
-        prost::Message::encode(&envelope, &mut buf).unwrap();
+        prost::Message::encode(&envelope, &mut buf).unwrap_or(());
         envelope
     }   
 }
@@ -67,7 +67,7 @@ impl EndStream {
             type_url: "type.googleapis.com/openiap.EndStream".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };
@@ -83,7 +83,7 @@ impl EndStream {
         };
         let envelope = req.to_envelope(rid);
         let mut buf = Vec::new();
-        prost::Message::encode(&envelope, &mut buf).unwrap();
+        prost::Message::encode(&envelope, &mut buf).unwrap_or(());
         envelope
     }   
 }
@@ -93,7 +93,7 @@ impl Stream {
             type_url: "type.googleapis.com/openiap.Stream".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };
@@ -110,7 +110,7 @@ impl Stream {
         };
         let envelope = req.to_envelope(rid);
         let mut buf = Vec::new();
-        prost::Message::encode(&envelope, &mut buf).unwrap();
+        prost::Message::encode(&envelope, &mut buf).unwrap_or(());
         envelope
     }    
 }

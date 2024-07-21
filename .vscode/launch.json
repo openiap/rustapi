@@ -1,0 +1,60 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Node: debug test.js",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/node/test.js"
+        },
+        {
+            "name": "C#: debug Program",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/dotnet/openiap.csproj"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Rust: debug binary",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=openiap",
+                    "--package=openiap"
+                ],
+                "filter": {
+                    "name": "openiap",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Rust: debug test",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=openiap",
+                    "--package=openiap"
+                ],
+                "filter": {
+                    "name": "openiap",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

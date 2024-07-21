@@ -1,8 +1,7 @@
-# cargo build --target x86_64-apple-darwin --release
 [target.x86_64-apple-darwin]
 linker = "x86_64-apple-darwin14-clang"
 ar = "x86_64-apple-darwin14-ar"
 
-# cargo build --target x86_64-pc-windows-gnu --release
-[x86_64-pc-windows-gnu]
+[target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-ar"

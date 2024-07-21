@@ -8,7 +8,8 @@ class Program
     {
         try
         {
-            Client client = new Client("grpc://grpc.demo.openiap.io");
+            // Client client = new Client("grpc://grpc.demo.openiap.io:443");
+            Client client = new Client("");
             Console.WriteLine("Client connection success: " + client.connected());
             Console.WriteLine("Client connection error: " + client.connectionerror());
 
@@ -17,6 +18,9 @@ class Program
 
             string results = client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
             Console.WriteLine("results: " + results);
+
+
+            // System.Threading.Thread.Sleep(120000);
 
             client.Dispose();
         }

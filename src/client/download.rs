@@ -29,7 +29,7 @@ impl DownloadRequest {
             type_url: "type.googleapis.com/openiap.DownloadRequest".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };

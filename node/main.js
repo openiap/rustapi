@@ -2,6 +2,7 @@ const StructType = require('ref-struct-napi');
 const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const path = require('path');
+const fs = require('fs');
 
 const CString = ref.types.CString;
 const voidPtr = ref.refType(ref.types.void);
@@ -59,11 +60,25 @@ const QueryResponseWrapper = StructType({
 });
 const QueryResponseWrapperPtr = ref.refType(QueryResponseWrapper);
 
+const DownloadResponseWrapper = StructType({
+    success: bool,
+    filename: CString,
+    error: CString
+});
+const DownloadResponseWrapperPtr = ref.refType(DownloadResponseWrapper);
+
+const DownloadRequestWrapper = StructType({
+    collectionname: CString,
+    id: CString,
+    folder: CString,
+    filename: CString
+});
+const DownloadRequestWrapperPtr = ref.refType(DownloadRequestWrapper);
+
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
-    const libDir = path.join(__dirname, 'lib');
+    let libDir = path.join(__dirname, 'lib');
     let libPath;
-    
     switch (process.platform) {
         case 'win32':
             libPath = path.join(libDir, 'libopeniap.dll');
@@ -75,6 +90,21 @@ function loadLibrary() {
             libPath = path.join(libDir, 'libopeniap.so');
             break;
     }
+    if(!fs.existsSync(libPath)) {
+        libDir = path.join(__dirname, '../target/debug/');
+        switch (process.platform) {
+            case 'win32':
+                libPath = path.join(libDir, 'libopeniap.dll');
+                break;
+            case 'darwin':
+                libPath = path.join(libDir, 'libopeniap.dylib');
+                break;
+            default:
+                libPath = path.join(libDir, 'libopeniap.so');
+                break;
+        }
+    
+    }
 
     try {
         return ffi.Library(libPath, {
@@ -84,6 +114,8 @@ function loadLibrary() {
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
             'client_query': [QueryResponseWrapperPtr, [voidPtr, QueryRequestWrapperPtr]],
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
+            'client_download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
+            'free_download_response': ['void', [DownloadResponseWrapperPtr]],
         });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -178,7 +210,7 @@ class Client {
         });
         const response = this.lib.client_query(this.client, req.ref());
         if (ref.isNull(response)) {
-            throw new ClientError('Signin failed or user is null');
+            throw new ClientError('Query failed');
         }
         const Obj = response.deref();
         const result = {
@@ -189,6 +221,27 @@ class Client {
         this.lib.free_query_response(response);
         return result;
 
+    }
+    download({collectionname, id, folder, filename}) {
+        // Allocate C strings for the DownloadRequestWrapper fields
+        const req = new DownloadRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            id: ref.allocCString(id),
+            folder: ref.allocCString(folder),
+            filename: ref.allocCString(filename)
+        });
+        const response = this.lib.client_download(this.client, req.ref());
+        if (ref.isNull(response)) {
+            throw new ClientError('Download failed');
+        }
+        const Obj = response.deref();
+        const result = {
+            success: Obj.success,
+            filename: Obj.filename,
+            error: Obj.error
+        };
+        this.lib.free_download_response(response);
+        return result;
     }
 
     free() {

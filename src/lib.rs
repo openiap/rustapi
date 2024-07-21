@@ -1,6 +1,6 @@
-use std::os::raw::{c_char};
+use client::openiap::{Envelope, QueryRequest, SigninRequest, DownloadRequest};
 use std::ffi::CStr;
-use client::openiap::{ SigninRequest , QueryRequest};
+use std::os::raw::c_char;
 use tokio::runtime::Runtime;
 pub mod client;
 use client::Client;
@@ -12,22 +12,24 @@ pub struct ClientWrapper {
     success: bool,
     error: *const c_char,
     client: Option<Client>,
-    runtime: Runtime,
+    runtime: std::sync::Arc<Runtime>,
 }
 #[no_mangle]
 pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWrapper {
     let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap() };
-    let runtime = Runtime::new().unwrap();
+    let runtime = std::sync::Arc::new(Runtime::new().unwrap());
     let client = runtime.block_on(Client::connect(server_address));
     if client.is_err() == true {
         let e = client.err().unwrap();
-        let error_msg = CString::new(format!("Connaction failed: {:?}", e)).unwrap().into_raw();
+        let error_msg = CString::new(format!("Connaction failed: {:?}", e))
+            .unwrap()
+            .into_raw();
         return Box::into_raw(Box::new(ClientWrapper {
             client: None,
             runtime,
             success: false,
             error: error_msg,
-        }))
+        }));
     }
     Box::into_raw(Box::new(ClientWrapper {
         client: Some(client.unwrap()),
@@ -36,54 +38,77 @@ pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWr
         error: std::ptr::null(),
     }))
 }
+
 #[no_mangle]
 pub extern "C" fn free_client(response: *mut ClientWrapper) {
-    println!("free_client 1");
-    if response.is_null() { return; }
-    println!("free_client 2");
-    unsafe {
-        println!("free_client 3");
-        let _ = Box::from_raw(response);
-        println!("free_client 4");
+    if response.is_null() {
+        println!("free_client: response is null");
+        return;
     }
+    unsafe {
+        let response_ref: &ClientWrapper = &*response;
+        if !response_ref.error.is_null() {
+            let error_cstr = CStr::from_ptr(response_ref.error);
+            if let Ok(error_str) = error_cstr.to_str() {
+                println!("free_client: error = {}", error_str);
+            } else {
+                println!("free_client: error = <invalid UTF-8>");
+            }
+        }
+
+        if let Some(client) = &response_ref.client {
+            let client_clone = client.clone();
+            let runtime = &response_ref.runtime;
+
+            // Ensure that the runtime properly shuts down after the block_on call
+            runtime.block_on(async move {
+                {
+                    let inner = client_clone.inner.lock().await;
+                    let mut queries = inner.queries.lock().await;
+
+                    // Cancel pending requests
+                    for (id, response_tx) in queries.drain() {
+                        println!("free_client: canceling request with id: {:?}", id);
+                        let _ = response_tx.send(Envelope {
+                            command: "cancelled".to_string(),
+                            ..Default::default()
+                        });
+                    }
+
+                    // println!("free_client: released queries lock");
+                } // Ensure locks are dropped before proceeding
+
+                {
+                    let inner = client_clone.inner.lock().await;
+                    let mut streams = inner.streams.lock().await;
+                    let stream_keys = streams.keys().cloned().collect::<Vec<String>>();
+                    stream_keys.iter().for_each(|k| {
+                        println!("free_client: client inner state: stream: {:?}", k);
+                        streams.remove(k.clone().as_str());
+                    });
+                    // println!("free_client: released streams lock");
+                } // Ensure locks are dropped before proceeding
+            });
+        }
+        // Free the client
+        // let _client_wrapper: Box<ClientWrapper> = Box::from_raw(response);
+        // println!("free_client 5");
+    }
+    println!("free_client 6");
 }
+
 // #[no_mangle]
 // pub extern "C" fn free_client(response: *mut ClientWrapper) {
-//     println!("free_client 1");
-//     if response.is_null() {
-//         println!("free_client: response is null");
-//         return;
-//     }
-//     println!("free_client 2");
+//     println!n!("free_client 1");
+//     if response.is_null() { return; }
+//     println!n!("free_client 2");
 //     unsafe {
-//         println!("free_client 3");
-//         let response_ref: &ClientWrapper = &*response;
-//         if !response_ref.error.is_null() {
-//             let error_cstr = CStr::from_ptr(response_ref.error);
-//             if let Ok(error_str) = error_cstr.to_str() {
-//                 println!("free_client: error = {}", error_str);
-//             } else {
-//                 println!("free_client: error = <invalid UTF-8>");
-//             }
-//         } else {
-//             println!("free_client: no error message");
-//         }
-        
-//         // Additional debug for client
-//         if let Some(client) = &response_ref.client {
-//             println!("free_client: client exists, checking inner state");
-//             let inner = client.inner.lock().unwrap();
-//             println!("free_client: client inner state: {:?}", inner);
-//         } else {
-//             println!("free_client: no client to free");
-//         }
-        
-//         // Free the client
-//         let _client_wrapper: Box<ClientWrapper> = Box::from_raw(response);
-//         println!("free_client 4");
+//         println!n!("free_client 3");
+//         let _ = Box::from_raw(response);
+//         println!n!("free_client 4");
 //     }
-//     println!("free_client 5");
 // }
+
 #[repr(C)]
 pub struct SigninRequestWrapper {
     username: *const c_char,
@@ -102,7 +127,10 @@ pub struct SigninResponseWrapper {
     error: *const c_char,
 }
 #[no_mangle]
-pub extern "C" fn client_signin(client: *mut ClientWrapper, options: *mut SigninRequestWrapper) -> *mut SigninResponseWrapper {
+pub extern "C" fn client_signin(
+    client: *mut ClientWrapper,
+    options: *mut SigninRequestWrapper,
+) -> *mut SigninResponseWrapper {
     let options = unsafe { &*options };
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
@@ -120,22 +148,36 @@ pub extern "C" fn client_signin(client: *mut ClientWrapper, options: *mut Signin
     };
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = SigninResponseWrapper { success: false, jwt: std::ptr::null(), error: error_msg };
+        let response = SigninResponseWrapper {
+            success: false,
+            jwt: std::ptr::null(),
+            error: error_msg,
+        };
         return Box::into_raw(Box::new(response));
     }
     let result = runtime.block_on(async {
         let c = client.as_ref().unwrap();
-        c.signin(request ).await
+        c.signin(request).await
     });
     match result {
         Ok(data) => {
             let jwt = CString::new(data.jwt).unwrap().into_raw();
-            let response = SigninResponseWrapper { success: true, jwt, error: std::ptr::null() };
+            let response = SigninResponseWrapper {
+                success: true,
+                jwt,
+                error: std::ptr::null(),
+            };
             Box::into_raw(Box::new(response))
         }
         Err(e) => {
-            let error_msg = CString::new(format!("Signin failed: {:?}", e)).unwrap().into_raw();
-            let response = SigninResponseWrapper { success: false, jwt: std::ptr::null(), error: error_msg };
+            let error_msg = CString::new(format!("Signin failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = SigninResponseWrapper {
+                success: false,
+                jwt: std::ptr::null(),
+                error: error_msg,
+            };
             Box::into_raw(Box::new(response))
         }
     }
@@ -143,7 +185,9 @@ pub extern "C" fn client_signin(client: *mut ClientWrapper, options: *mut Signin
 
 #[no_mangle]
 pub extern "C" fn free_signin_response(response: *mut SigninResponseWrapper) {
-    if response.is_null() { return; }
+    if response.is_null() {
+        return;
+    }
     unsafe {
         let _ = Box::from_raw(response);
     }
@@ -174,13 +218,17 @@ pub struct QueryResponseWrapper {
     error: *const c_char,
 }
 #[no_mangle]
-pub extern "C" fn client_query(client: *mut ClientWrapper, options: *mut QueryRequestWrapper) -> *mut QueryResponseWrapper {
+pub extern "C" fn client_query(
+    client: *mut ClientWrapper,
+    options: *mut QueryRequestWrapper,
+) -> *mut QueryResponseWrapper {
     let options = unsafe { &*options };
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
     let request = QueryRequest {
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
         query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
         projection: unsafe { CStr::from_ptr(options.projection).to_str().unwrap() }.to_string(),
         orderby: unsafe { CStr::from_ptr(options.orderby).to_str().unwrap() }.to_string(),
@@ -192,22 +240,36 @@ pub extern "C" fn client_query(client: *mut ClientWrapper, options: *mut QueryRe
     };
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = QueryResponseWrapper { success: false, results: std::ptr::null(), error: error_msg };
+        let response = QueryResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
         return Box::into_raw(Box::new(response));
     }
     let result = runtime.block_on(async {
         let c = client.as_ref().unwrap();
-        c.query(request ).await
+        c.query(request).await
     });
     match result {
         Ok(data) => {
             let results = CString::new(data.results).unwrap().into_raw();
-            let response = QueryResponseWrapper { success: true, results, error: std::ptr::null() };
+            let response = QueryResponseWrapper {
+                success: true,
+                results,
+                error: std::ptr::null(),
+            };
             Box::into_raw(Box::new(response))
         }
         Err(e) => {
-            let error_msg = CString::new(format!("Query failed: {:?}", e)).unwrap().into_raw();
-            let response = QueryResponseWrapper { success: false, results: std::ptr::null(), error: error_msg };
+            let error_msg = CString::new(format!("Query failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = QueryResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            };
             Box::into_raw(Box::new(response))
         }
     }
@@ -215,7 +277,84 @@ pub extern "C" fn client_query(client: *mut ClientWrapper, options: *mut QueryRe
 
 #[no_mangle]
 pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
-    if response.is_null() { return; }
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+#[repr(C)]
+pub struct DownloadRequestWrapper {
+    collectionname: *const c_char,
+    id: *const c_char,
+    folder: *const c_char,
+    filename: *const c_char,
+}
+#[repr(C)]
+pub struct DownloadResponseWrapper {
+    success: bool,
+    filename: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+pub extern "C" fn client_download(
+    client: *mut ClientWrapper,
+    options: *mut DownloadRequestWrapper,
+) -> *mut DownloadResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let folder = unsafe { CStr::from_ptr(options.folder).to_str().unwrap() };
+    let filename = unsafe { CStr::from_ptr(options.filename).to_str().unwrap() };
+    let request = DownloadRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        filename: unsafe { CStr::from_ptr(options.filename).to_str().unwrap() }.to_string(),
+        id: unsafe { CStr::from_ptr(options.id).to_str().unwrap() }.to_string(),
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DownloadResponseWrapper {
+            success: false,
+            filename: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let result = runtime.block_on(async {
+        let c = client.as_ref().unwrap();
+        c.download(request, Some(folder), Some(filename)).await
+    });
+    match result {
+        Ok(data) => {
+            let filename = CString::new(data.filename).unwrap().into_raw();
+            let response = DownloadResponseWrapper {
+                success: true,
+                filename,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Download failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = DownloadResponseWrapper {
+                success: false,
+                filename: std::ptr::null(),
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+#[no_mangle]
+pub extern "C" fn free_download_response(response: *mut DownloadResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
     unsafe {
         let _ = Box::from_raw(response);
     }

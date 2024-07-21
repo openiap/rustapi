@@ -104,7 +104,7 @@ public class Client : IDisposable
             return libPath;
         }
         // when testing before publishing
-        libDir = AppDomain.CurrentDomain.BaseDirectory + "/../../../lib";
+        libDir = AppDomain.CurrentDomain.BaseDirectory + "../../../../target/debug/";
         switch (Environment.OSVersion.Platform)
         {
             case PlatformID.Win32NT:
@@ -169,7 +169,11 @@ public class Client : IDisposable
         return client.success;
     }
     public string connectionerror() {
-        return Marshal.PtrToStringAnsi(client.error);
+        var res = Marshal.PtrToStringAnsi(client.error);
+        if(res == null) {
+            return "";
+        }
+        return res;
     }
 
     public (string jwt, string error, bool success) Signin(string username = "", string password = "")

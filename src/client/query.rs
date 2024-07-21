@@ -8,6 +8,14 @@ impl QueryRequest {
             ..Default::default()
         }
     }
+    pub fn with_projection(collectionname: &str, query: &str, projection: &str) -> Self {
+        Self {
+            collectionname: collectionname.to_string(),
+            query: query.to_string(),
+            projection: projection.to_string(),
+            ..Default::default()
+        }
+    }
 }
 impl QueryRequest {
     pub fn to_envelope(&self) -> Envelope {
@@ -15,7 +23,7 @@ impl QueryRequest {
             type_url: "type.googleapis.com/openiap.QueryRequest".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };

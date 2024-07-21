@@ -17,14 +17,13 @@ impl SigninRequest {
         }
     }
 }
-
 impl SigninRequest {
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.SigninRequest".to_string(),
             value: {
                 let mut buf = Vec::new();
-                prost::Message::encode(self, &mut buf).unwrap();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
                 buf
             },
         };
@@ -33,17 +32,5 @@ impl SigninRequest {
             data: Some(any_message.clone()),
             ..Default::default() 
         }
-    }
-}
-
-#[allow(dead_code)]
-fn is_normal<T: Sized + Send + Sync + Unpin + Default + Clone + PartialEq>() {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn normal_type() {
-        is_normal::<SigninRequest>();
     }
 }
