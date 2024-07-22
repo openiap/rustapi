@@ -60,13 +60,6 @@ const QueryResponseWrapper = StructType({
 });
 const QueryResponseWrapperPtr = ref.refType(QueryResponseWrapper);
 
-const DownloadResponseWrapper = StructType({
-    success: bool,
-    filename: CString,
-    error: CString
-});
-const DownloadResponseWrapperPtr = ref.refType(DownloadResponseWrapper);
-
 const DownloadRequestWrapper = StructType({
     collectionname: CString,
     id: CString,
@@ -74,6 +67,27 @@ const DownloadRequestWrapper = StructType({
     filename: CString
 });
 const DownloadRequestWrapperPtr = ref.refType(DownloadRequestWrapper);
+const DownloadResponseWrapper = StructType({
+    success: bool,
+    filename: CString,
+    error: CString
+});
+const DownloadResponseWrapperPtr = ref.refType(DownloadResponseWrapper);
+
+const UploadRequestWrapper = StructType({
+    filepath: CString,
+    filename: CString,
+    mimetype: CString,
+    metadata: CString,
+    collectionname: CString
+});
+const UploadRequestWrapperPtr = ref.refType(UploadRequestWrapper);
+const UploadResponseWrapper = StructType({
+    success: bool,
+    id: CString,
+    error: CString
+});
+const UploadResponseWrapperPtr = ref.refType(UploadResponseWrapper);
 
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
@@ -116,6 +130,8 @@ function loadLibrary() {
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
             'client_download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
+            'client_upload': [UploadResponseWrapperPtr, [voidPtr, UploadRequestWrapperPtr]],
+            'free_upload_response': ['void', [UploadResponseWrapperPtr]]
         });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -241,6 +257,28 @@ class Client {
             error: Obj.error
         };
         this.lib.free_download_response(response);
+        return result;
+    }
+    upload({filepath, filename, mimetype, metadata, collectionname}) {
+        // Allocate C strings for the UploadRequestWrapper fields
+        const req = new UploadRequestWrapper({
+            filepath: ref.allocCString(filepath),
+            filename: ref.allocCString(filename),
+            mimetype: ref.allocCString(mimetype),
+            metadata: ref.allocCString(metadata),
+            collectionname: ref.allocCString(collectionname)
+        });
+        const response = this.lib.client_upload(this.client, req.ref());
+        if (ref.isNull(response)) {
+            throw new ClientError('Upload failed');
+        }
+        const Obj = response.deref();
+        const result = {
+            success: Obj.success,
+            id: Obj.id,
+            error: Obj.error
+        };
+        this.lib.free_upload_response(response);
         return result;
     }
 

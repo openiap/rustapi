@@ -1,4 +1,4 @@
-use client::openiap::{Envelope, QueryRequest, SigninRequest, DownloadRequest};
+use client::openiap::{Envelope, QueryRequest, SigninRequest, DownloadRequest, UploadRequest};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use tokio::runtime::Runtime;
@@ -352,6 +352,103 @@ pub extern "C" fn client_download(
 }
 #[no_mangle]
 pub extern "C" fn free_download_response(response: *mut DownloadResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct UploadRequestWrapper {
+    filepath: *const c_char,
+    filename: *const c_char,
+    mimetype: *const c_char,
+    metadata: *const c_char,
+    collectionname: *const c_char,
+}
+#[repr(C)]
+pub struct UploadResponseWrapper {
+    success: bool,
+    id: *const c_char,
+    error: *const c_char
+}
+#[no_mangle]
+pub extern "C" fn client_upload(
+    client: *mut ClientWrapper,
+    options: *mut UploadRequestWrapper,
+) -> *mut UploadResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let filepath = unsafe { CStr::from_ptr(options.filepath).to_str().unwrap() };
+    if filepath.is_empty() {
+        let error_msg = CString::new("Filepath is required").unwrap().into_raw();
+        let response = UploadResponseWrapper {
+            success: false,
+            id: std::ptr::null(),
+            error: error_msg
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let filename = unsafe { CStr::from_ptr(options.filename).to_str().unwrap() };
+    if filename.is_empty() {
+        let error_msg = CString::new("Filename is required").unwrap().into_raw();
+        let response = UploadResponseWrapper {
+            success: false,
+            id: std::ptr::null(),
+            error: error_msg
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let request = UploadRequest {
+        filename: filename.to_string(),
+        mimetype: unsafe { CStr::from_ptr(options.mimetype).to_str().unwrap() }.to_string(),
+        metadata: unsafe { CStr::from_ptr(options.metadata).to_str().unwrap() }.to_string(),
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UploadResponseWrapper {
+            success: false,
+            id: std::ptr::null(),
+            error: error_msg
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let result = runtime.block_on(async {
+        let c = client.as_ref().unwrap();
+        c.upload(request, filepath).await
+    });
+    match result {
+        Ok(data) => {
+            let id = CString::new(data.id).unwrap().into_raw();
+            let response = UploadResponseWrapper {
+                success: true,
+                id,
+                error: std::ptr::null()
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Upload failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = UploadResponseWrapper {
+                success: false,
+                id: std::ptr::null(),
+                error: error_msg
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+#[no_mangle]
+pub extern "C" fn free_upload_response(response: *mut UploadResponseWrapper) {
     if response.is_null() {
         return;
     }

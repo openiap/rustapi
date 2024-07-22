@@ -491,15 +491,22 @@ impl Client {
                 let mut downloadresponse: DownloadResponse =
                     prost::Message::decode(response.data.unwrap().value.as_ref()).unwrap();
 
-                let final_filename = match &filename {
+                let mut final_filename = match &filename {
                     Some(f) => f,
                     None => downloadresponse.filename.as_str(),
                 };
-                let folder = match &folder {
+                if final_filename.is_empty() {
+                    final_filename = downloadresponse.filename.as_str();
+                }
+                let mut folder = match &folder {
                     Some(f) => f,
                     None => ".",
                 };
+                if folder.is_empty() {
+                    folder = ".";
+                }
                 let filepath = format!("{}/{}", folder, final_filename);
+                debug!("Moving file to {}", filepath);
                 move_file(temp_file_path.to_str().unwrap(), filepath.as_str()).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to move file: {}", e))
                 })?;
@@ -644,7 +651,7 @@ mod tests {
     async fn test_upload() {
         let client = Client::connect(TEST_URL).await.unwrap();
         let response = client
-            .upload(UploadRequest::filename("testfile.csv"), "testfile.csv")
+            .upload(UploadRequest::filename("testfile.csv"), "rust-test.csv")
             .await;
         assert!(
             !response.is_err(),
@@ -657,7 +664,7 @@ mod tests {
         let client = Client::connect(TEST_URL).await.unwrap();
         client.signin(SigninRequest::with_userpass("guest", "password")).await.unwrap();
         let response = client
-            .upload(UploadRequest::filename("testfile.csv"), "testfile.csv")
+            .upload(UploadRequest::filename("testfile.csv"), "rust-test.csv")
             .await;
         assert!(
             response.is_err(),

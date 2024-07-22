@@ -19,8 +19,16 @@ class Program
             string results = client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
             Console.WriteLine("results: " + results);
 
-
             // System.Threading.Thread.Sleep(120000);
+
+            client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
+
+            var filepath = "testfile.csv";
+            if(!System.IO.File.Exists(filepath))
+            {
+                filepath = "../testfile.csv";
+            }
+            client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
 
             client.Dispose();
         }

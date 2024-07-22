@@ -64,6 +64,39 @@ public class Client : IDisposable
         public IntPtr results;
         public IntPtr error;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DownloadRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr id;
+        public IntPtr folder;
+        public IntPtr filename;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DownloadResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr filename;
+        public IntPtr error;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UploadRequestWrapper
+    {
+        public IntPtr filepath;
+        public IntPtr filename;
+        public IntPtr mimetype;
+        public IntPtr metadata;
+        public IntPtr collectionname;
+    }
+        [StructLayout(LayoutKind.Sequential)]
+    public struct UploadResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr id;
+        public IntPtr error;
+    }
 
     // Custom exception classes
     public class ClientError : Exception
@@ -138,6 +171,18 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_query_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_download_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_upload(IntPtr client, ref UploadRequestWrapper request);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_upload_response(IntPtr response);
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -265,6 +310,87 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(projectionPtr);
             Marshal.FreeHGlobal(orderbyPtr);
             Marshal.FreeHGlobal(queryasPtr);
+        }
+    }
+
+    public string download(string collectionname, string id, string folder, string filename)
+    {
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr idPtr = Marshal.StringToHGlobalAnsi(id);
+        IntPtr folderPtr = Marshal.StringToHGlobalAnsi(folder);
+        IntPtr filenamePtr = Marshal.StringToHGlobalAnsi(filename);
+
+        try
+        {
+            DownloadRequestWrapper request = new DownloadRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                id = idPtr,
+                folder = folderPtr,
+                filename = filenamePtr
+            };
+
+            IntPtr responsePtr = client_download(clientPtr, ref request);
+
+            if (responsePtr == IntPtr.Zero)
+            {
+                throw new ClientError("Download failed or response is null");
+            }
+
+            DownloadResponseWrapper response = Marshal.PtrToStructure<DownloadResponseWrapper>(responsePtr);
+            string result = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
+            free_download_response(responsePtr);
+
+            return result;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(idPtr);
+            Marshal.FreeHGlobal(folderPtr);
+            Marshal.FreeHGlobal(filenamePtr);
+        }
+    }
+
+    public string upload(string filepath, string filename, string mimetype, string metadata, string collectionname)
+    {
+        IntPtr filepathPtr = Marshal.StringToHGlobalAnsi(filepath);
+        IntPtr filenamePtr = Marshal.StringToHGlobalAnsi(filename);
+        IntPtr mimetypePtr = Marshal.StringToHGlobalAnsi(mimetype);
+        IntPtr metadataPtr = Marshal.StringToHGlobalAnsi(metadata);
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+
+        try
+        {
+            UploadRequestWrapper request = new UploadRequestWrapper
+            {
+                filepath = filepathPtr,
+                filename = filenamePtr,
+                mimetype = mimetypePtr,
+                metadata = metadataPtr,
+                collectionname = collectionnamePtr
+            };
+
+            IntPtr responsePtr = client_upload(clientPtr, ref request);
+
+            if (responsePtr == IntPtr.Zero)
+            {
+                throw new ClientError("Upload failed or response is null");
+            }
+
+            UploadResponseWrapper response = Marshal.PtrToStructure<UploadResponseWrapper>(responsePtr);
+            string result = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
+            free_upload_response(responsePtr);
+
+            return result;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(filepathPtr);
+            Marshal.FreeHGlobal(filenamePtr);
+            Marshal.FreeHGlobal(mimetypePtr);
+            Marshal.FreeHGlobal(metadataPtr);
+            Marshal.FreeHGlobal(collectionnamePtr);
         }
     }
 
