@@ -30,6 +30,17 @@ class Program
             }
             client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
 
+            var eventcount = 0;
+            client.watch("entities", "", (eventObj) => {
+                Console.WriteLine("watch event " + eventObj.operation + " on " + eventObj.document);
+                eventcount++;
+            });
+
+            while (eventcount < 2)
+            {
+                Thread.Sleep(1000);                
+            }
+
             client.Dispose();
         }
         catch (Client.ClientError e)

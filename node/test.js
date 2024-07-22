@@ -16,8 +16,6 @@ const fs = require('fs');
                 console.log(query_result.results);
             }
 
-            // stay around a little, so we can enjoy watching the client connected to the server
-            // await new Promise(resolve => setTimeout(resolve, 60000));
 
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
             if(download_result.success == false) {
@@ -38,6 +36,30 @@ const fs = require('fs');
                 console.log("upload success", upload_result.id);
             }
 
+            let eventcount = 0;
+            const watch_result = client.watch({ collectionname: 'entities', paths: ''}, (event) => {
+                console.log("watch");
+                console.log("watch event", event);
+                eventcount++;
+            });
+            if(watch_result.success == false) {
+                console.log("watch failed", watch_result.error);
+            } else {
+                console.log("watch created as", watch_result.watchid);
+            }
+
+            while(eventcount < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            const unwatch_result = client.unwatch(watch_result.watchid);
+            if(unwatch_result.success == false) {
+                console.log("remove watch failed", unwatch_result.error);
+            } else {
+                console.log("remove watch success");
+            }
+
+            console.log("done, free client");
             client.free();
         } else {
             console.log("signed failed", signin_result.error);

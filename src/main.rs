@@ -19,6 +19,13 @@ pub async fn keyboard_input() -> String {
     inp.trim().to_string()
 }
 
+fn onwatch(event: client::openiap::WatchEvent) {
+    let document = event.document;
+    let operation = event.operation;
+    let document = document;
+    println!("{} on {}", operation, document);
+}
+
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     // let res = Client::connect("http://localhost:50051").await;
     // let res = Client::connect("grpc://grpc.app.openiap.io:443").await;
@@ -28,6 +35,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let b = res.unwrap();
+
+    let watchid = "";
 
     let mut input = String::from("bum");
     while !input.eq_ignore_ascii_case("") {
@@ -156,6 +165,42 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     println!("uploaded as {}", s.unwrap().filename);
                 }
             });
+        }
+        if input.eq_ignore_ascii_case("w") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let s = client
+                    .watch(
+                        client::openiap::WatchRequest::new("", vec!["".to_string()]), 
+                        Box::new(onwatch)
+                )
+                    .await;
+                if let Err(e) = s {
+                    println!("Failed to watch: {:?}", e);
+                } else {
+                    let watchid = s.unwrap();
+                    println!("Watch created with id {}", watchid);
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("uw") {
+            if !watchid.is_empty() {
+                let client = b.clone();
+                tokio::task::spawn(async move {
+                    let watchid = "".to_string();
+                    let s = client
+                        .unwatch(&watchid
+                    )
+                        .await;
+                    if let Err(e) = s {
+                        println!("Failed to watch: {:?}", e);
+                    } else {
+                        println!("Removed watch for id {}", watchid);
+                    }
+                });
+            } else {
+                println!("No watch to unwatch");
+            }
         }
         input = keyboard_input().await;
     }

@@ -1,6 +1,7 @@
+import json
 import os
 import sys
-from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, POINTER, byref
+from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, CFUNCTYPE, POINTER, byref
 import time
 
 # Define the ctypes types for C types
@@ -8,6 +9,8 @@ CString = c_char_p
 voidPtr = c_void_p
 bool = c_bool
 c_int = c_int
+CALLBACK = CFUNCTYPE(None, c_char_p)
+
 
 # Define the ClientWrapper struct
 class ClientWrapper(Structure):
@@ -68,6 +71,18 @@ class UploadResponseWrapper(Structure):
                 ("id", CString),
                 ("error", CString)]
 
+class WatchRequestWrapper(Structure):
+    _fields_ = [("collectionname", CString),
+                ("paths", CString)]
+class WatchResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ("watchid", CString),
+                ("error", CString)]
+
+class UnWatchResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ("error", CString)]
+
 # Custom exception classes
 class ClientError(Exception):
     """Base class for exceptions in this module."""
@@ -89,6 +104,7 @@ class Client:
     def __init__(self, url = ""):
         self.lib = self._load_library()
         self.client = self._create_client(url)
+        self.callbacks = []  # Keep a reference to the callbacks
     
     def _load_library(self):
         # Determine the path to the shared library
@@ -219,6 +235,59 @@ class Client:
             return result
         else:
             raise ClientError('Upload failed or upload is null')
+    
+    def watch(self, collectionname = "", paths = "", callback = None):
+        if not callable(callback):
+            raise ValueError("Callback must be a callable function")
+
+        def internal_callback(event_str):
+            event_json = event_str.decode('utf-8')
+            event_obj = json.loads(event_json)
+            callback(event_obj)
+        
+        c_callback = CALLBACK(internal_callback)
+        self.callbacks.append(c_callback)  # Keep a reference to the callback to prevent garbage collection
+
+        self.lib.client_watch.argtypes = [voidPtr, POINTER(WatchRequestWrapper)]
+        self.lib.client_watch.restype = POINTER(WatchResponseWrapper)
+        
+        req = WatchRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
+                                  paths=CString(paths.encode('utf-8'))
+                                  )
+        
+        watch = self.lib.client_watch(self.client, byref(req), c_callback)
+        
+        if watch:
+            watchObj = watch.contents
+            result = {
+                'success': watchObj.success,
+                'watchid': watchObj.watchid.decode('utf-8') if watchObj.watchid else None,
+                'error': watchObj.error.decode('utf-8') if watchObj.error else None
+            }
+            self.lib.free_watch_response(watch)
+            return result
+        else:
+            raise ClientError('Watch failed or watch is null')
+        
+    def unwatch(self, watchid):
+        if not watchid or watchid == "":
+            raise ValueError("Watch ID must be provided")
+        self.lib.client_unwatch.argtypes = [voidPtr, CString]
+        self.lib.client_unwatch.restype = POINTER(UnWatchResponseWrapper)
+        
+        unwatch = self.lib.client_unwatch(self.client, CString(watchid.encode('utf-8')))
+        
+        if unwatch:
+            unwatchObj = unwatch.contents
+            result = {
+                'success': unwatchObj.success,
+                'error': unwatchObj.error.decode('utf-8') if unwatchObj.error else None
+            }
+            self.lib.free_unwatch_response(unwatch)
+            return result
+        else:
+            raise ClientError('Unwatch failed or unwatch is null')
+
 
     def __del__(self):
         if hasattr(self, 'lib'):

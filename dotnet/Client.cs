@@ -1,6 +1,12 @@
 using System;
 using System.Runtime.InteropServices;
 
+public class WatchEvent {
+    public required string id { get; set; }
+    public required string operation { get; set; }
+    public required object document { get; set; }
+
+}
 public class Client : IDisposable
 {
     // Define the ClientWrapper struct
@@ -89,12 +95,26 @@ public class Client : IDisposable
         public IntPtr metadata;
         public IntPtr collectionname;
     }
-        [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential)]
     public struct UploadResponseWrapper
     {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr id;
+        public IntPtr error;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WatchRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr paths;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WatchResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr watchid;
         public IntPtr error;
     }
 
@@ -132,7 +152,7 @@ public class Client : IDisposable
                 libPath = System.IO.Path.Combine(libDir, "libopeniap.so");
                 break;
         }
-        if(System.IO.File.Exists(libPath))
+        if (System.IO.File.Exists(libPath))
         {
             return libPath;
         }
@@ -184,11 +204,20 @@ public class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_upload_response(IntPtr response);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void WatchCallback(IntPtr eventStr);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_watch(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_watch_response(IntPtr response);
+
     public IntPtr clientPtr;
     ClientWrapper client;
 
 
-    public Client(): this("") { }
+    public Client() : this("") { }
 
     public Client(string url)
     {
@@ -210,12 +239,15 @@ public class Client : IDisposable
             throw new ClientCreationError(Marshal.PtrToStringAnsi(client.error) ?? "Unknown error");
         }
     }
-    public bool connected() {
+    public bool connected()
+    {
         return client.success;
     }
-    public string connectionerror() {
+    public string connectionerror()
+    {
         var res = Marshal.PtrToStringAnsi(client.error);
-        if(res == null) {
+        if (res == null)
+        {
             return "";
         }
         return res;
@@ -391,6 +423,50 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(mimetypePtr);
             Marshal.FreeHGlobal(metadataPtr);
             Marshal.FreeHGlobal(collectionnamePtr);
+        }
+    }
+    public string watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
+    {
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr pathsPtr = Marshal.StringToHGlobalAnsi(paths);
+
+        try
+        {
+            WatchRequestWrapper request = new WatchRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                paths = pathsPtr
+            };
+
+            WatchCallback callback = new WatchCallback((IntPtr eventStr) =>
+           {
+            string eventJson = Marshal.PtrToStringAnsi(eventStr) ?? string.Empty;
+               if (eventJson != null && eventJson != "")
+               {
+                   var eventObj = System.Text.Json.JsonSerializer.Deserialize<WatchEvent>(eventJson);
+                   if(eventObj != null) {                    
+                    eventHandler?.Invoke(eventObj);                    
+                   }                   
+               }
+           });
+
+            IntPtr responsePtr = client_watch(clientPtr, ref request, callback);
+
+            if (responsePtr == IntPtr.Zero)
+            {
+                throw new ClientError("Watch failed or response is null");
+            }
+
+            WatchResponseWrapper response = Marshal.PtrToStructure<WatchResponseWrapper>(responsePtr);
+            string result = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
+            free_watch_response(responsePtr);
+
+            return result;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(pathsPtr);
         }
     }
 

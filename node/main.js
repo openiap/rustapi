@@ -89,6 +89,24 @@ const UploadResponseWrapper = StructType({
 });
 const UploadResponseWrapperPtr = ref.refType(UploadResponseWrapper);
 
+const WatchRequestWrapper = StructType({
+    collectionname: CString,
+    paths: CString,
+});
+const WatchRequestWrapperPtr = ref.refType(WatchRequestWrapper);
+const WatchResponseWrapper = StructType({
+    success: bool,
+    watchid: CString,
+    error: CString
+});
+const WatchResponseWrapperPtr = ref.refType(WatchResponseWrapper);
+
+const UnWatchResponseWrapper = StructType({
+    success: bool,
+    error: CString
+});
+const UnWatchResponseWrapperPtr = ref.refType(UnWatchResponseWrapper);
+
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
     let libDir = path.join(__dirname, 'lib');
@@ -131,7 +149,11 @@ function loadLibrary() {
             'client_download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
             'client_upload': [UploadResponseWrapperPtr, [voidPtr, UploadRequestWrapperPtr]],
-            'free_upload_response': ['void', [UploadResponseWrapperPtr]]
+            'free_upload_response': ['void', [UploadResponseWrapperPtr]],
+            'client_watch': [WatchResponseWrapperPtr, [voidPtr, WatchRequestWrapperPtr, 'pointer']],
+            'free_watch_response': ['void', [WatchResponseWrapperPtr]],
+            'client_unwatch': [UnWatchResponseWrapperPtr, [voidPtr, CString]],
+            'free_unwatch_response': ['void', [UnWatchResponseWrapperPtr]],
         });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -279,6 +301,46 @@ class Client {
             error: Obj.error
         };
         this.lib.free_upload_response(response);
+        return result;
+    }
+    watch({collectionname, paths}, callback) {
+        const callbackPtr = ffi.Callback('void', ['string'], (data) => {
+            try {
+                const event = JSON.parse(data);
+                callback(event);
+            } catch (error) {
+                console.error(`watch callback error: ${error}`);                
+            }            
+        });
+        // Allocate C strings for the WatchRequestWrapper fields
+        const req = new WatchRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            paths: ref.allocCString(paths)
+        });
+        const response = this.lib.client_watch(this.client, req.ref(), callbackPtr);
+        if (ref.isNull(response)) {
+            throw new ClientError('Watch failed');
+        }
+        const Obj = response.deref();
+        const result = {
+            success: Obj.success,
+            watchid: Obj.watchid,
+            error: Obj.error
+        };
+        this.lib.free_watch_response(response);
+        return result;
+    }
+    unwatch(watchid) {
+        const response = this.lib.client_unwatch(this.client, watchid);
+        if (ref.isNull(response)) {
+            throw new ClientError('UnWatch failed');
+        }
+        const Obj = response.deref();
+        const result = {
+            success: Obj.success,
+            error: Obj.error
+        };
+        this.lib.free_unwatch_response(response);
         return result;
     }
 

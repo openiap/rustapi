@@ -1,4 +1,6 @@
-use client::openiap::{Envelope, QueryRequest, SigninRequest, DownloadRequest, UploadRequest};
+use client::openiap::{
+    DownloadRequest, Envelope, QueryRequest, SigninRequest, UploadRequest, WatchRequest,
+};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use tokio::runtime::Runtime;
@@ -309,7 +311,8 @@ pub extern "C" fn client_download(
     let folder = unsafe { CStr::from_ptr(options.folder).to_str().unwrap() };
     let filename = unsafe { CStr::from_ptr(options.filename).to_str().unwrap() };
     let request = DownloadRequest {
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
         filename: unsafe { CStr::from_ptr(options.filename).to_str().unwrap() }.to_string(),
         id: unsafe { CStr::from_ptr(options.id).to_str().unwrap() }.to_string(),
         ..Default::default()
@@ -372,7 +375,7 @@ pub struct UploadRequestWrapper {
 pub struct UploadResponseWrapper {
     success: bool,
     id: *const c_char,
-    error: *const c_char
+    error: *const c_char,
 }
 #[no_mangle]
 pub extern "C" fn client_upload(
@@ -389,7 +392,7 @@ pub extern "C" fn client_upload(
         let response = UploadResponseWrapper {
             success: false,
             id: std::ptr::null(),
-            error: error_msg
+            error: error_msg,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -399,7 +402,7 @@ pub extern "C" fn client_upload(
         let response = UploadResponseWrapper {
             success: false,
             id: std::ptr::null(),
-            error: error_msg
+            error: error_msg,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -408,7 +411,8 @@ pub extern "C" fn client_upload(
         filename: filename.to_string(),
         mimetype: unsafe { CStr::from_ptr(options.mimetype).to_str().unwrap() }.to_string(),
         metadata: unsafe { CStr::from_ptr(options.metadata).to_str().unwrap() }.to_string(),
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
         ..Default::default()
     };
     if client.is_none() {
@@ -416,7 +420,7 @@ pub extern "C" fn client_upload(
         let response = UploadResponseWrapper {
             success: false,
             id: std::ptr::null(),
-            error: error_msg
+            error: error_msg,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -430,7 +434,7 @@ pub extern "C" fn client_upload(
             let response = UploadResponseWrapper {
                 success: true,
                 id,
-                error: std::ptr::null()
+                error: std::ptr::null(),
             };
             Box::into_raw(Box::new(response))
         }
@@ -441,7 +445,7 @@ pub extern "C" fn client_upload(
             let response = UploadResponseWrapper {
                 success: false,
                 id: std::ptr::null(),
-                error: error_msg
+                error: error_msg,
             };
             Box::into_raw(Box::new(response))
         }
@@ -449,6 +453,143 @@ pub extern "C" fn client_upload(
 }
 #[no_mangle]
 pub extern "C" fn free_upload_response(response: *mut UploadResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct WatchRequestWrapper {
+    collectionname: *const c_char,
+    paths: *const c_char,
+}
+#[repr(C)]
+pub struct WatchResponseWrapper {
+    success: bool,
+    watchid: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+pub extern "C" fn client_watch(    client: *mut ClientWrapper,    options: *mut WatchRequestWrapper,    callback: extern "C" fn(*const c_char),
+) -> *mut WatchResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let paths = unsafe { CStr::from_ptr(options.paths).to_str().unwrap() };
+    let paths = paths.split(",").map(|s| s.to_string()).collect();
+    let request = WatchRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        paths: paths,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = WatchResponseWrapper {
+            success: false,
+            watchid: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        let c = client.as_ref().unwrap();
+        c.watch(
+            request,
+            Box::new(move |event: client::openiap::WatchEvent| {
+                // convert event to json
+                let event = serde_json::to_string(&event).unwrap();
+                let c_event = std::ffi::CString::new(event).unwrap();
+                callback(c_event.as_ptr());
+            }),
+        )
+        .await
+    });
+    match result {
+        Ok(data) => {
+            let watchid = CString::new(data).unwrap().into_raw();
+            let response = WatchResponseWrapper {
+                success: true,
+                watchid,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Query failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = WatchResponseWrapper {
+                success: false,
+                watchid: std::ptr::null(),
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+#[no_mangle]
+pub extern "C" fn free_watch_response(response: *mut WatchResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+#[repr(C)]
+pub struct UnWatchResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn client_unwatch(client: *mut ClientWrapper, watchid: *const c_char)  -> *mut UnWatchResponseWrapper {
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let watchid = unsafe { CStr::from_ptr(watchid).to_str().unwrap() };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UnWatchResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        let c = client.as_ref().unwrap();
+        c.unwatch(watchid)
+        .await
+    });
+    match result {
+        Ok(_) => {
+            let response = UnWatchResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Query failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = UnWatchResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn free_unwatch_response(response: *mut UnWatchResponseWrapper) {
     if response.is_null() {
         return;
     }

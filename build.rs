@@ -6,6 +6,7 @@ fn main() {
         // .type_attribute(".", "#[repr(C)]")
         // .type_attribute("SigninRequest", "#[derive(serde::Serialize, serde::Deserialize)]")
         // .type_attribute("QueryRequest", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .type_attribute("WatchEvent", "#[derive(serde::Serialize, serde::Deserialize)]")
         .compile_well_known_types(false)
         .compile(&["proto/base.proto"], &["proto"])
         .unwrap();

@@ -4,8 +4,9 @@ use tracing::{debug, error};
 use openiap::{
     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UploadRequest, UploadResponse,
+    WatchRequest, UnWatchRequest,
 };
-use openiap::{BeginStream, EndStream, ErrorResponse, Stream};
+use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = StdError> = ::std::result::Result<T, E>;
@@ -27,6 +28,7 @@ pub mod download;
 pub mod query;
 pub mod signin;
 pub mod upload;
+pub mod queue;
 use std::env;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -39,7 +41,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 pub struct Client {
     pub inner: Arc<Mutex<ClientInner>>,
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ClientInner {
     pub client: FlowServiceClient<tonic::transport::Channel>,
     pub signedin: bool,
@@ -47,6 +49,20 @@ pub struct ClientInner {
     pub stream_tx: mpsc::Sender<Envelope>,
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
+    pub watches: Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+}
+// implement debug for ClientInner
+impl std::fmt::Debug for ClientInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientInner")
+            .field("client", &self.client)
+            .field("signedin", &self.signedin)
+            .field("connected", &self.connected)
+            .field("stream_tx", &self.stream_tx)
+            .field("queries", &self.queries)
+            .field("streams", &self.streams)
+            .finish()
+    }
 }
 
 fn generate_unique_filename(base: &str) -> PathBuf {
@@ -183,6 +199,7 @@ impl Client {
             stream_tx,
             queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
             streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
         };
 
         let client = Client {
@@ -232,6 +249,7 @@ impl Client {
                     let inner = inner.lock().await;
                     let mut queries = inner.queries.lock().await;
                     let mut streams = inner.streams.lock().await;
+                    let watches = inner.watches.lock().await;
                     debug!(
                         "Received #{} #{} {} message",
                         received.id, rid, command
@@ -264,6 +282,13 @@ impl Client {
 
                         if command == "endstream" {
                             let _ = streams.remove(rid.as_str());
+                        }
+                    } else if command == "watchevent"
+                    {
+                        let watchevent: WatchEvent =
+                        prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+                        if let Some(callback) = watches.get(watchevent.id.as_str()) {
+                            callback(watchevent);
                         }
                     } else if let Some(response_tx) = queries.remove(&rid) {
                         let stream = streams.get(rid.as_str());
@@ -589,10 +614,55 @@ impl Client {
                     })?;
                 Ok(upload_response)
             }
-            Err(_) => Err(OpenIAPError::ClientError("Failed to receive response".to_string())),
+            Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
-        // Ok(UploadResponse::default())
     }
+    pub async fn watch(&self, mut config: WatchRequest, callback: Box<dyn Fn(WatchEvent) + Send + Sync>
+    ) -> Result<String, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            config.collectionname = "entities".to_string();
+        }
+        if config.paths.is_empty() {
+            config.paths = vec!["".to_string()];
+        }
+
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: WatchResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+
+                let inner = self.inner.lock().await;
+                inner.watches.lock().await.insert(response.id.clone(), callback);
+
+                Ok(response.id)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    pub async fn unwatch(&self, id: &str) -> Result<(), OpenIAPError> {
+        let config = UnWatchRequest::byid(id);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+
 }
 
 #[allow(dead_code)]
