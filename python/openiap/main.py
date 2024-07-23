@@ -1,7 +1,9 @@
+import ctypes
 import json
 import os
 import sys
 from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, CFUNCTYPE, POINTER, byref
+import threading
 import time
 
 # Define the ctypes types for C types
@@ -11,13 +13,14 @@ bool = c_bool
 c_int = c_int
 CALLBACK = CFUNCTYPE(None, c_char_p)
 
-
 # Define the ClientWrapper struct
 class ClientWrapper(Structure):
     _fields_ = [("success", bool),
                 ("error", CString),
                 ("client", voidPtr),
                 ("runtime", voidPtr)]
+
+ConnectCallback = CFUNCTYPE(None, POINTER(ClientWrapper))
 
 # Define the SigninRequestWrapper struct
 class SigninRequestWrapper(Structure):
@@ -101,9 +104,9 @@ class ClientCreationError(ClientError):
         super().__init__(self.message)
 
 class Client:
-    def __init__(self, url = ""):
+    def __init__(self):
         self.lib = self._load_library()
-        self.client = self._create_client(url)
+        # self.client = self._create_client(url)
         self.callbacks = []  # Keep a reference to the callbacks
     
     def _load_library(self):
@@ -125,13 +128,36 @@ class Client:
         except OSError as e:
             raise LibraryLoadError(f"Failed to load library: {e}")
     
-    def _create_client(self, url):
-        self.lib.client_connect.argtypes = [CString]
-        self.lib.client_connect.restype = POINTER(ClientWrapper)
-        client = self.lib.client_connect(url.encode('utf-8'))
-        if not client.contents.success:
-            raise ClientCreationError(f"Failed to create client: {client.contents.error.decode('utf-8')}")
-        return client
+    def connect(self, url=""):
+        # Event to wait for the callback
+        event = threading.Event()
+        result = {"client": None, "error": None}
+
+        def callback(client_ptr):
+            try:
+                self.client = client_ptr;
+                client = client_ptr.contents
+                print("Python: Callback invoked")
+                if not client.success:
+                    error_message = ctypes.cast(client.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientCreationError(f"Failed to create client: {error_message}")
+                else:
+                    result["client"] = client_ptr
+            finally:
+                event.set()
+
+        cb = ConnectCallback(callback)
+
+        print("Python: Calling client_connect")
+        self.lib.client_connect(url.encode('utf-8'), cb)
+        print("Python: client_connect called")
+
+        # Wait for the callback to be invoked
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        return result["client"]
     
     def signin(self, username = "", password = ""):
         self.lib.client_signin.argtypes = [voidPtr, POINTER(SigninRequestWrapper)]

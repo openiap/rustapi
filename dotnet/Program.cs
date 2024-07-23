@@ -4,12 +4,16 @@ using System.Runtime.InteropServices;
 
 class Program
 {
-    static void Main(string[] args)
+     static void Main(string[] args)
+    {
+        MainAsync(args).GetAwaiter().GetResult();
+    }
+    static async Task MainAsync(string[] args)
     {
         try
         {
-            // Client client = new Client("grpc://grpc.demo.openiap.io:443");
-            Client client = new Client("");
+            Client client = new Client();
+            await client.connect();
             Console.WriteLine("Client connection success: " + client.connected());
             Console.WriteLine("Client connection error: " + client.connectionerror());
 

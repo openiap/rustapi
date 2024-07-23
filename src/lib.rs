@@ -1,6 +1,7 @@
 use client::openiap::{
     DownloadRequest, Envelope, QueryRequest, SigninRequest, UploadRequest, WatchRequest,
 };
+use tracing::debug;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use tokio::runtime::Runtime;
@@ -16,35 +17,58 @@ pub struct ClientWrapper {
     client: Option<Client>,
     runtime: std::sync::Arc<Runtime>,
 }
+
+
+// Define the callback type
+type ConnectCallback = extern "C" fn(wrapper: *mut ClientWrapper);
+
 #[no_mangle]
-pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWrapper {
-    let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap() };
+pub extern "C" fn client_connect(server_address: *const c_char, callback: ConnectCallback) {
+    debug!("rust::client_connect");
+    let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap().to_string() };
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
-    let client = runtime.block_on(Client::connect(server_address));
-    if client.is_err() == true {
-        let e = client.err().unwrap();
-        let error_msg = CString::new(format!("Connaction failed: {:?}", e))
-            .unwrap()
-            .into_raw();
-        return Box::into_raw(Box::new(ClientWrapper {
-            client: None,
-            runtime,
-            success: false,
-            error: error_msg,
-        }));
-    }
-    Box::into_raw(Box::new(ClientWrapper {
-        client: Some(client.unwrap()),
-        runtime,
-        success: true,
-        error: std::ptr::null(),
-    }))
+
+    debug!("rust::Spawn the async task");
+    let runtime_clone = std::sync::Arc::clone(&runtime);
+    runtime.spawn(async move {
+        debug!("rust::Simulated async task started");
+        // Simulated async task (or replace with actual Client::connect)
+        let client_result = Client::connect(&server_address).await;
+        debug!("rust::Client::connect::done");
+        let wrapper = if let Ok(client) = client_result {
+            Box::into_raw(Box::new(ClientWrapper {
+                client: Some(client),
+                runtime: runtime_clone,
+                success: true,
+                error: std::ptr::null(),
+            }))
+        } else {
+            let e = client_result.err().unwrap();
+            let error_msg = CString::new(format!("Connection failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            Box::into_raw(Box::new(ClientWrapper {
+                client: None,
+                runtime: runtime_clone,
+                success: false,
+                error: error_msg,
+            }))
+        };
+
+        debug!("rust::Client::Calling callback with result");
+        callback(wrapper);
+    });
+
+    // Keep the main thread alive for a short time to ensure the async task completes
+    std::thread::sleep(std::time::Duration::from_secs(2));
 }
+
+
 
 #[no_mangle]
 pub extern "C" fn free_client(response: *mut ClientWrapper) {
     if response.is_null() {
-        println!("free_client: response is null");
+        debug!("free_client: response is null");
         return;
     }
     unsafe {
@@ -52,9 +76,9 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
         if !response_ref.error.is_null() {
             let error_cstr = CStr::from_ptr(response_ref.error);
             if let Ok(error_str) = error_cstr.to_str() {
-                println!("free_client: error = {}", error_str);
+                debug!("free_client: error = {}", error_str);
             } else {
-                println!("free_client: error = <invalid UTF-8>");
+                debug!("free_client: error = <invalid UTF-8>");
             }
         }
 
@@ -70,14 +94,14 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
 
                     // Cancel pending requests
                     for (id, response_tx) in queries.drain() {
-                        println!("free_client: canceling request with id: {:?}", id);
+                        debug!("free_client: canceling request with id: {:?}", id);
                         let _ = response_tx.send(Envelope {
                             command: "cancelled".to_string(),
                             ..Default::default()
                         });
                     }
 
-                    // println!("free_client: released queries lock");
+                    // debug!("free_client: released queries lock");
                 } // Ensure locks are dropped before proceeding
 
                 {
@@ -85,29 +109,29 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
                     let mut streams = inner.streams.lock().await;
                     let stream_keys = streams.keys().cloned().collect::<Vec<String>>();
                     stream_keys.iter().for_each(|k| {
-                        println!("free_client: client inner state: stream: {:?}", k);
+                        debug!("free_client: client inner state: stream: {:?}", k);
                         streams.remove(k.clone().as_str());
                     });
-                    // println!("free_client: released streams lock");
+                    // debug!("free_client: released streams lock");
                 } // Ensure locks are dropped before proceeding
             });
         }
         // Free the client
         // let _client_wrapper: Box<ClientWrapper> = Box::from_raw(response);
-        // println!("free_client 5");
+        // debug!("free_client 5");
     }
-    println!("free_client 6");
+    debug!("free_client::complete");
 }
 
 // #[no_mangle]
 // pub extern "C" fn free_client(response: *mut ClientWrapper) {
-//     println!n!("free_client 1");
+//     debug!n!("free_client 1");
 //     if response.is_null() { return; }
-//     println!n!("free_client 2");
+//     debug!n!("free_client 2");
 //     unsafe {
-//         println!n!("free_client 3");
+//         debug!n!("free_client 3");
 //         let _ = Box::from_raw(response);
-//         println!n!("free_client 4");
+//         debug!n!("free_client 4");
 //     }
 // }
 

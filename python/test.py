@@ -8,6 +8,7 @@ import time, os
 if __name__ == "__main__":
     try:
         client = Client()
+        client.connect()
         signin_result = client.signin()
         print(signin_result)
 

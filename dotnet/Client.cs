@@ -1,4 +1,5 @@
 using System;
+using System.Data;
 using System.Runtime.InteropServices;
 
 public class WatchEvent {
@@ -173,9 +174,10 @@ public class Client : IDisposable
         return libPath;
     }
 
+    public delegate void ConnectCallback(IntPtr clientWrapperPtr);
     // Import the Rust library functions
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_connect(string url);
+    public static extern IntPtr client_connect(string url, ConnectCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
@@ -217,9 +219,7 @@ public class Client : IDisposable
     ClientWrapper client;
 
 
-    public Client() : this("") { }
-
-    public Client(string url)
+    public Client()
     {
         string libPath = GetLibraryPath();
         NativeLibrary.SetDllImportResolver(typeof(Client).Assembly, (name, assembly, path) =>
@@ -230,14 +230,39 @@ public class Client : IDisposable
             }
             return IntPtr.Zero;
         });
+    }
+    public async Task connect(string url = "")
+    {
+        var tcs = new TaskCompletionSource<ClientWrapper>();
 
-        clientPtr = client_connect(url);
-        client = Marshal.PtrToStructure<ClientWrapper>(clientPtr);
-
-        if (!client.success)
+        void Callback(IntPtr clientWrapperPtr)
         {
-            throw new ClientCreationError(Marshal.PtrToStringAnsi(client.error) ?? "Unknown error");
+            try
+            {
+                var clientWrapper = Marshal.PtrToStructure<ClientWrapper>(clientWrapperPtr);
+                if (!clientWrapper.success)
+                {
+                    var errorMsg = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
+                    tcs.SetException(new ClientCreationError(errorMsg));
+                }
+                else
+                {
+                    clientPtr = clientWrapperPtr;
+                    client = clientWrapper;
+                    tcs.SetResult(clientWrapper);
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
         }
+
+        var callbackDelegate = new ConnectCallback(Callback);
+
+        client_connect(url, callbackDelegate);
+
+        client = await tcs.Task;
     }
     public bool connected()
     {

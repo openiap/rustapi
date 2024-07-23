@@ -140,7 +140,7 @@ function loadLibrary() {
 
     try {
         return ffi.Library(libPath, {
-            'client_connect': [ClientWrapperPtr, [CString]],
+            'client_connect': ['void', [CString, 'pointer']],
             'free_client': ['void', [ClientWrapperPtr]],
             'client_signin': [SigninResponseWrapperPtr, [voidPtr, SigninRequestWrapperPtr]],
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
@@ -185,18 +185,35 @@ class ClientCreationError extends ClientError {
 
 // Client class
 class Client {
-    constructor(url = "") {
+    constructor() {
         this.lib = loadLibrary();
-        this.client = this.createClient(url);
     }
 
-    createClient(url) {
-        const client = this.lib.client_connect(url);
-        const clientres = client.deref();
-        if (!clientres.success) {
-            throw new ClientCreationError(clientres.error);
-        }
-        return client;
+    connect(url) {
+        return new Promise((resolve, reject) => {
+            try {
+                const callback = ffi.Callback('void', [ClientWrapperPtr], (clientPtr) => {
+                    console.log('Node.js: Callback invoked');
+                    try {
+                        this.client = clientPtr;
+                        const clientres = clientPtr.deref();
+                        console.log('Node.js: Client result:', clientres);
+                        if (!clientres.success) {
+                            reject(new ClientCreationError(clientres.error));
+                        } else {
+                            resolve(clientPtr);
+                        }
+                    } catch (error) {
+                        reject(new ClientCreationError(error.message));                        
+                    }
+                });
+                console.log('Node.js: Calling client_connect');
+                this.lib.client_connect(url, callback);
+                console.log('Node.js: client_connect called');
+            } catch (error) {
+                reject(new ClientCreationError(error.message));
+            }
+        });
     }
 
     signin(username, password) {

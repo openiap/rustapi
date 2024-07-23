@@ -2,12 +2,17 @@ const { Client, ClientError } = require('./main');
 const fs = require('fs');
 (async () => {
     try {
-        const client = new Client('');
-        // const client = new Client('http://localhost:50051');
-        // const client = new Client('http://grpc.localhost.openiap.io/');
-        // const client = new Client('https://grpc.localhost.openiap.io/');
-        // const client = new Client('https://grpc.demo.openiap.io/');
+        // const url = 'http://localhost:50051';
+        // const url = 'http://grpc.localhost.openiap.io/';
+        // const url = 'https://grpc.localhost.openiap.io/';
+        // const url = 'https://grpc.demo.openiap.io/';
+        // const url = 'https://grpc.app.openiap.io/';
+        const url = '';
+        const client = new Client();
+        await client.connect(url);
+        console.log("NodeJS:: connect completed, now call signin() again")
         const signin_result = client.signin();
+        console.log("NodeJS:: signin() complete")
         // console.log(signinResult);
         if(signin_result.success) {
             console.log("signed in", signin_result.success);
