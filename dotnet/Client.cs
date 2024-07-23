@@ -74,6 +74,8 @@ public class Client : IDisposable
         public IntPtr results;
         public IntPtr error;
     }
+    public delegate void QueryCallback(IntPtr responsePtr);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct DownloadRequestWrapper
     {
@@ -186,13 +188,13 @@ public class Client : IDisposable
     public static extern void free_client(IntPtr client);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_signin(IntPtr client, ref SigninRequestWrapper request, SigninCallback callback);
+    public static extern void client_signin(IntPtr client, ref SigninRequestWrapper request, SigninCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_signin_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_query(IntPtr client, ref QueryRequestWrapper request);
+    public static extern void client_query(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_query_response(IntPtr response);
@@ -346,8 +348,10 @@ public class Client : IDisposable
         return tcs.Task;
     }
 
-    public string Query(string collectionname, string query, string projection, string orderby, string queryas, bool explain, int skip, int top)
+    public Task<string> Query(string collectionname, string query, string projection, string orderby, string queryas, bool explain, int skip, int top)
     {
+        var tcs = new TaskCompletionSource<string>();
+
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
         IntPtr projectionPtr = Marshal.StringToHGlobalAnsi(projection);
@@ -368,18 +372,42 @@ public class Client : IDisposable
                 top = top
             };
 
-            IntPtr responsePtr = client_query(clientPtr, ref request);
-
-            if (responsePtr == IntPtr.Zero)
+            void Callback(IntPtr responsePtr)
             {
-                throw new ClientError("Query failed or response is null");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Query failed"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_query_response(responsePtr);
+
+                    if(!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(results);
+                    }
+
+                    // tcs.SetResult((results, error, success));
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
             }
 
-            QueryResponseWrapper response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
-            string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-            free_query_response(responsePtr);
+            var callbackDelegate = new QueryCallback(Callback);
 
-            return results;
+            client_query(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -389,6 +417,7 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(orderbyPtr);
             Marshal.FreeHGlobal(queryasPtr);
         }
+        return tcs.Task;
     }
 
     public string download(string collectionname, string id, string folder, string filename)

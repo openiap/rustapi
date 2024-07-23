@@ -160,15 +160,14 @@ pub extern "C" fn client_signin(
     
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = Box::new(SigninResponseWrapper {
+        let response = SigninResponseWrapper {
             success: false,
             jwt: std::ptr::null(),
             error: error_msg,
-        });
-        return callback(Box::into_raw(response));
+        };
+        return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let runtime_clone = runtime.clone();
     let client_clone = client.clone();
 
     runtime.spawn(async move {
@@ -237,11 +236,13 @@ pub struct QueryResponseWrapper {
     results: *const c_char,
     error: *const c_char,
 }
+type QueryCallback = extern "C" fn(wrapper: *mut QueryResponseWrapper);
 #[no_mangle]
 pub extern "C" fn client_query(
     client: *mut ClientWrapper,
     options: *mut QueryRequestWrapper,
-) -> *mut QueryResponseWrapper {
+    callback: QueryCallback,
+) {
     let options = unsafe { &*options };
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
@@ -265,34 +266,41 @@ pub extern "C" fn client_query(
             results: std::ptr::null(),
             error: error_msg,
         };
-        return Box::into_raw(Box::new(response));
+        return callback(Box::into_raw(Box::new(response)));
     }
-    let result = runtime.block_on(async {
-        let c = client.as_ref().unwrap();
-        c.query(request).await
+
+    let client_clone = client.clone();
+
+    runtime.spawn(async move {
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.query(request).await
+        // });
+        let result = client_clone.unwrap().query(request).await;
+        
+        let response = match result {
+            Ok(data) => {
+                let results = CString::new(data.results).unwrap().into_raw();
+                QueryResponseWrapper {
+                    success: true,
+                    results,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Query failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                QueryResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
     });
-    match result {
-        Ok(data) => {
-            let results = CString::new(data.results).unwrap().into_raw();
-            let response = QueryResponseWrapper {
-                success: true,
-                results,
-                error: std::ptr::null(),
-            };
-            Box::into_raw(Box::new(response))
-        }
-        Err(e) => {
-            let error_msg = CString::new(format!("Query failed: {:?}", e))
-                .unwrap()
-                .into_raw();
-            let response = QueryResponseWrapper {
-                success: false,
-                results: std::ptr::null(),
-                error: error_msg,
-            };
-            Box::into_raw(Box::new(response))
-        }
-    }
 }
 
 #[no_mangle]

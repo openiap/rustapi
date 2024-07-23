@@ -20,7 +20,7 @@ class Program
             var (jwt, error, success) = await client.Signin();
             Console.WriteLine("Signin JWT: " + jwt);
 
-            string results = client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
+            string results = await client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
             Console.WriteLine("results: " + results);
 
             // System.Threading.Thread.Sleep(120000);

@@ -17,7 +17,7 @@ const fs = require('fs');
         if(signin_result.success) {
             console.log("signed in", signin_result.success);
             for(let i = 0; i < 1; i++) {
-                const query_result = client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
                 console.log(query_result.results);
             }
 

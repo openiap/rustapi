@@ -53,6 +53,7 @@ class QueryResponseWrapper(Structure):
     _fields_ = [("success", bool),
                 ("results", CString),
                 ("error", CString)]
+QueryCallback = CFUNCTYPE(None, POINTER(QueryResponseWrapper))
 
 class DownloadRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
@@ -161,7 +162,6 @@ class Client:
         return result["client"]
     
     def signin(self, username="", password=""):
-        # Event to wait for the callback
         event = threading.Event()
         result = {"success": None, "jwt": None, "error": None}
 
@@ -175,6 +175,7 @@ class Client:
                 else:
                     result["success"] = response.success
                     result["jwt"] = ctypes.cast(response.jwt, c_char_p).value.decode('utf-8')
+                self.lib.free_signin_response(response_ptr)
             finally:
                 event.set()
 
@@ -201,7 +202,6 @@ class Client:
         self.lib.client_signin(self.client, byref(req), cb)
         print("Python: client_signin called")
 
-        # Wait for the callback to be invoked
         event.wait()
 
         if result["error"]:
@@ -211,7 +211,25 @@ class Client:
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):
         self.lib.client_query.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]
         self.lib.client_query.restype = POINTER(QueryResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "jwt": None, "error": None}
         
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Query callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Query failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["results"] = ctypes.cast(response.results, c_char_p).value.decode('utf-8')
+                self.lib.free_query_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
         req = QueryRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
                                   query=CString(query.encode('utf-8')),
                                   projection=CString(projection.encode('utf-8')),
@@ -221,19 +239,16 @@ class Client:
                                   skip=skip,
                                   top=top)
         
-        query = self.lib.client_query(self.client, byref(req))
+        print("Python: Calling client_query")
+        self.lib.client_query(self.client, byref(req), cb)
+        print("Python: client_query called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
         
-        if query:
-            queryObj = query.contents
-            result = {
-                'success': queryObj.success,
-                'results': queryObj.results.decode('utf-8') if queryObj.results else None,
-                'error': queryObj.error.decode('utf-8') if queryObj.error else None
-            }
-            self.lib.free_query_response(query)
-            return result
-        else:
-            raise ClientError('Query failed or query is null')
+        return result["results"]
     
     def download(self, collectionname = "", id = "", folder = "", filename = ""):
         self.lib.client_download.argtypes = [voidPtr, POINTER(DownloadRequestWrapper)]

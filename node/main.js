@@ -144,7 +144,7 @@ function loadLibrary() {
             'free_client': ['void', [ClientWrapperPtr]],
             'client_signin': ['void', [voidPtr, SigninRequestWrapperPtr, 'pointer']],
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
-            'client_query': [QueryResponseWrapperPtr, [voidPtr, QueryRequestWrapperPtr]],
+            'client_query': ['void', [voidPtr, QueryRequestWrapperPtr, 'pointer']],
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
             'client_download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
@@ -226,7 +226,6 @@ class Client {
                 jwt = username;
                 username = "";
             }
-            // Allocate C strings for the SigninRequestWrapper fields
             const req = new SigninRequestWrapper({
                 username: ref.allocCString(username),
                 password: ref.allocCString(password),
@@ -267,33 +266,46 @@ class Client {
     
 
     query({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
-        // Allocate C strings for the QueryRequestWrapper fields
-        const req = new QueryRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            query: ref.allocCString(query),
-            projection: ref.allocCString(projection),
-            orderby: ref.allocCString(orderby),
-            queryas: ref.allocCString(queryas),
-            explain: explain,
-            skip: skip,
-            top: top
-        });
-        const response = this.lib.client_query(this.client, req.ref());
-        if (ref.isNull(response)) {
-            throw new ClientError('Query failed');
-        }
-        const Obj = response.deref();
-        const result = {
-            success: Obj.success,
-            results: JSON.parse(Obj.results),
-            error: Obj.error
-        };
-        this.lib.free_query_response(response);
-        return result;
+        console.log('Node.js: query invoked');
+        return new Promise((resolve, reject) => {
+            const req = new QueryRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                query: ref.allocCString(query),
+                projection: ref.allocCString(projection),
+                orderby: ref.allocCString(orderby),
+                queryas: ref.allocCString(queryas),
+                explain: explain,
+                skip: skip,
+                top: top
+            });
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(QueryResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_query callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        results: JSON.parse(response.results),
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_query_response(responsePtr);
+            });
 
+
+            console.log('Node.js: call client_query');
+            this.lib.client_query.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Query failed'));
+                }
+            });
+        });
     }
     download({collectionname, id, folder, filename}) {
-        // Allocate C strings for the DownloadRequestWrapper fields
         const req = new DownloadRequestWrapper({
             collectionname: ref.allocCString(collectionname),
             id: ref.allocCString(id),
@@ -314,7 +326,6 @@ class Client {
         return result;
     }
     upload({filepath, filename, mimetype, metadata, collectionname}) {
-        // Allocate C strings for the UploadRequestWrapper fields
         const req = new UploadRequestWrapper({
             filepath: ref.allocCString(filepath),
             filename: ref.allocCString(filename),
@@ -344,7 +355,6 @@ class Client {
                 console.error(`watch callback error: ${error}`);                
             }            
         });
-        // Allocate C strings for the WatchRequestWrapper fields
         const req = new WatchRequestWrapper({
             collectionname: ref.allocCString(collectionname),
             paths: ref.allocCString(paths)
