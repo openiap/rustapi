@@ -47,6 +47,9 @@ public class Client : IDisposable
         public IntPtr jwt;
         public IntPtr error;
     }
+    public delegate void SigninCallback(IntPtr responsePtr);
+
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct QueryRequestWrapper
@@ -183,7 +186,7 @@ public class Client : IDisposable
     public static extern void free_client(IntPtr client);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_signin(IntPtr client, ref SigninRequestWrapper request);
+    public static extern IntPtr client_signin(IntPtr client, ref SigninRequestWrapper request, SigninCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_signin_response(IntPtr response);
@@ -278,8 +281,10 @@ public class Client : IDisposable
         return res;
     }
 
-    public (string jwt, string error, bool success) Signin(string username = "", string password = "")
+    public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
+        var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
+
         IntPtr usernamePtr = Marshal.StringToHGlobalAnsi(username);
         IntPtr passwordPtr = Marshal.StringToHGlobalAnsi(password);
         IntPtr jwtPtr = Marshal.StringToHGlobalAnsi("");
@@ -300,29 +305,45 @@ public class Client : IDisposable
                 ping = false
             };
 
-            IntPtr userPtr = client_signin(clientPtr, ref request);
-
-            if (userPtr == IntPtr.Zero)
+            void Callback(IntPtr responsePtr)
             {
-                throw new ClientError("Signin failed or user is null");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Signin failed or user is null"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<SigninResponseWrapper>(responsePtr);
+                    string jwt = Marshal.PtrToStringAnsi(response.jwt) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_signin_response(responsePtr);
+
+                    tcs.SetResult((jwt, error, success));
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
             }
 
-            SigninResponseWrapper user = Marshal.PtrToStructure<SigninResponseWrapper>(userPtr);
-            string jwt = Marshal.PtrToStringAnsi(user.jwt) ?? string.Empty;
-            string error = Marshal.PtrToStringAnsi(user.error) ?? string.Empty;
-            string success = user.success ? "true" : "false";
-            free_signin_response(userPtr);
+            var callbackDelegate = new SigninCallback(Callback);
 
-            return (jwt, error, user.success);
+            client_signin(clientPtr, ref request, callbackDelegate);
         }
-        finally
+        catch (Exception ex)
         {
+            tcs.SetException(ex);
             Marshal.FreeHGlobal(usernamePtr);
             Marshal.FreeHGlobal(passwordPtr);
             Marshal.FreeHGlobal(jwtPtr);
             Marshal.FreeHGlobal(agentPtr);
             Marshal.FreeHGlobal(versionPtr);
         }
+
+        return tcs.Task;
     }
 
     public string Query(string collectionname, string query, string projection, string orderby, string queryas, bool explain, int skip, int top)

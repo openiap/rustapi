@@ -17,11 +17,7 @@ pub struct ClientWrapper {
     client: Option<Client>,
     runtime: std::sync::Arc<Runtime>,
 }
-
-
-// Define the callback type
 type ConnectCallback = extern "C" fn(wrapper: *mut ClientWrapper);
-
 #[no_mangle]
 pub extern "C" fn client_connect(server_address: *const c_char, callback: ConnectCallback) {
     debug!("rust::client_connect");
@@ -62,9 +58,6 @@ pub extern "C" fn client_connect(server_address: *const c_char, callback: Connec
     // Keep the main thread alive for a short time to ensure the async task completes
     std::thread::sleep(std::time::Duration::from_secs(2));
 }
-
-
-
 #[no_mangle]
 pub extern "C" fn free_client(response: *mut ClientWrapper) {
     if response.is_null() {
@@ -122,19 +115,6 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
     }
     debug!("free_client::complete");
 }
-
-// #[no_mangle]
-// pub extern "C" fn free_client(response: *mut ClientWrapper) {
-//     debug!n!("free_client 1");
-//     if response.is_null() { return; }
-//     debug!n!("free_client 2");
-//     unsafe {
-//         debug!n!("free_client 3");
-//         let _ = Box::from_raw(response);
-//         debug!n!("free_client 4");
-//     }
-// }
-
 #[repr(C)]
 pub struct SigninRequestWrapper {
     username: *const c_char,
@@ -152,15 +132,20 @@ pub struct SigninResponseWrapper {
     jwt: *const c_char,
     error: *const c_char,
 }
+
+type SigninCallback = extern "C" fn(wrapper: *mut SigninResponseWrapper);
+
 #[no_mangle]
 pub extern "C" fn client_signin(
     client: *mut ClientWrapper,
     options: *mut SigninRequestWrapper,
-) -> *mut SigninResponseWrapper {
+    callback: SigninCallback,
+) {
     let options = unsafe { &*options };
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
+    
     let request = SigninRequest {
         username: unsafe { CStr::from_ptr(options.username).to_str().unwrap() }.to_string(),
         password: unsafe { CStr::from_ptr(options.password).to_str().unwrap() }.to_string(),
@@ -172,42 +157,51 @@ pub extern "C" fn client_signin(
         validateonly: options.validateonly,
         ..Default::default()
     };
+    
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = SigninResponseWrapper {
+        let response = Box::new(SigninResponseWrapper {
             success: false,
             jwt: std::ptr::null(),
             error: error_msg,
+        });
+        return callback(Box::into_raw(response));
+    }
+
+    // let runtime_clone = runtime.clone();
+    let client_clone = client.clone();
+
+    runtime.spawn(async move {
+        let result = client_clone.unwrap().signin(request).await;
+        
+        let response = match result {
+            Ok(data) => {
+                let jwt = CString::new(data.jwt).unwrap().into_raw();
+                Box::new(SigninResponseWrapper {
+                    success: true,
+                    jwt,
+                    error: std::ptr::null(),
+                })
+            },
+            Err(e) => {
+                let error_msg = CString::new(format!("Signin failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                Box::new(SigninResponseWrapper {
+                    success: false,
+                    jwt: std::ptr::null(),
+                    error: error_msg,
+                })
+            }
         };
-        return Box::into_raw(Box::new(response));
-    }
-    let result = runtime.block_on(async {
-        let c = client.as_ref().unwrap();
-        c.signin(request).await
+
+        callback(Box::into_raw(response));
     });
-    match result {
-        Ok(data) => {
-            let jwt = CString::new(data.jwt).unwrap().into_raw();
-            let response = SigninResponseWrapper {
-                success: true,
-                jwt,
-                error: std::ptr::null(),
-            };
-            Box::into_raw(Box::new(response))
-        }
-        Err(e) => {
-            let error_msg = CString::new(format!("Signin failed: {:?}", e))
-                .unwrap()
-                .into_raw();
-            let response = SigninResponseWrapper {
-                success: false,
-                jwt: std::ptr::null(),
-                error: error_msg,
-            };
-            Box::into_raw(Box::new(response))
-        }
-    }
+
+    // Keep the main thread alive for a short time to ensure the async task completes
+    std::thread::sleep(std::time::Duration::from_secs(2));
 }
+
 
 #[no_mangle]
 pub extern "C" fn free_signin_response(response: *mut SigninResponseWrapper) {

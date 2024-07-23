@@ -142,7 +142,7 @@ function loadLibrary() {
         return ffi.Library(libPath, {
             'client_connect': ['void', [CString, 'pointer']],
             'free_client': ['void', [ClientWrapperPtr]],
-            'client_signin': [SigninResponseWrapperPtr, [voidPtr, SigninRequestWrapperPtr]],
+            'client_signin': ['void', [voidPtr, SigninRequestWrapperPtr, 'pointer']],
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
             'client_query': [QueryResponseWrapperPtr, [voidPtr, QueryRequestWrapperPtr]],
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
@@ -217,39 +217,54 @@ class Client {
     }
 
     signin(username, password) {
-        let jwt = "";
-        if(username == null) username = '';
-        if(password == null) password = '';
-        if(username != "" && password == "") {
-            jwt = username;
-            username = "";
-        }
-        // Allocate C strings for the SigninRequestWrapper fields
-        const req = new SigninRequestWrapper({
-            username: ref.allocCString(username),
-            password: ref.allocCString(password),
-            jwt: ref.allocCString(jwt),
-            agent: ref.allocCString('node'),
-            version: ref.allocCString(''),
-            longtoken: false,
-            validateonly: false,
-            ping: false
+        console.log('Node.js: signin invoked');
+        return new Promise((resolve, reject) => {
+            let jwt = "";
+            if (username == null) username = '';
+            if (password == null) password = '';
+            if (username != "" && password == "") {
+                jwt = username;
+                username = "";
+            }
+            // Allocate C strings for the SigninRequestWrapper fields
+            const req = new SigninRequestWrapper({
+                username: ref.allocCString(username),
+                password: ref.allocCString(password),
+                jwt: ref.allocCString(jwt),
+                agent: ref.allocCString('node'),
+                version: ref.allocCString(''),
+                longtoken: false,
+                validateonly: false,
+                ping: false
+            });
+    
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(SigninResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_signin callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        jwt: response.jwt,
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_signin_response(responsePtr);
+            });
+    
+            console.log('Node.js: call client_signin');
+            this.lib.client_signin.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Signin failed or user is null'));
+                }
+            });
         });
-
-        // Call the client_signin function
-        const response = this.lib.client_signin(this.client, req.ref());
-        if (ref.isNull(response)) {
-            throw new ClientError('Signin failed or user is null');
-        }
-        const Obj = response.deref();
-        const result = {
-            success: Obj.success,
-            jwt: Obj.jwt,
-            error: Obj.error
-        };
-        this.lib.free_signin_response(response);
-        return result;
     }
+    
 
     query({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
         // Allocate C strings for the QueryRequestWrapper fields

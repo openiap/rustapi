@@ -11,7 +11,7 @@ const fs = require('fs');
         const client = new Client();
         await client.connect(url);
         console.log("NodeJS:: connect completed, now call signin() again")
-        const signin_result = client.signin();
+        const signin_result = await client.signin();
         console.log("NodeJS:: signin() complete")
         // console.log(signinResult);
         if(signin_result.success) {

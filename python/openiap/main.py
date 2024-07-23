@@ -38,6 +38,7 @@ class SigninResponseWrapper(Structure):
     _fields_ = [("success", bool),
                 ("jwt", CString),
                 ("error", CString)]
+SigninCallback = CFUNCTYPE(None, POINTER(SigninResponseWrapper))
     
 class QueryRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
@@ -159,32 +160,53 @@ class Client:
             raise result["error"]
         return result["client"]
     
-    def signin(self, username = "", password = ""):
-        self.lib.client_signin.argtypes = [voidPtr, POINTER(SigninRequestWrapper)]
-        self.lib.client_signin.restype = POINTER(SigninResponseWrapper)
-        
-        req = SigninRequestWrapper(username=CString(username.encode('utf-8')),
-                                   password=CString(password.encode('utf-8')),
-                                   jwt=CString(b''),
-                                   agent=CString(b''),
-                                   version=CString(b''),
-                                   longtoken=False,
-                                   validateonly=False,
-                                   ping=False)
-        
-        user = self.lib.client_signin(self.client, byref(req))
-        
-        if user:
-            userObj = user.contents
-            result = {
-                'success': userObj.success,
-                'jwt': userObj.jwt.decode('utf-8') if userObj.jwt else None,
-                'error': userObj.error.decode('utf-8') if userObj.error else None
-            }
-            self.lib.free_signin_response(user)
-            return result
-        else:
-            raise ClientError('Signin failed or user is null')
+    def signin(self, username="", password=""):
+        # Event to wait for the callback
+        event = threading.Event()
+        result = {"success": None, "jwt": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Signin callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Signin failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["jwt"] = ctypes.cast(response.jwt, c_char_p).value.decode('utf-8')
+            finally:
+                event.set()
+
+        cb = SigninCallback(callback)
+
+        # Prepare the SigninRequestWrapper
+        jwt = ""
+        if username and not password:
+            jwt = username
+            username = ""
+
+        req = SigninRequestWrapper(
+            username=username.encode('utf-8'),
+            password=password.encode('utf-8'),
+            jwt=jwt.encode('utf-8'),
+            agent=b'node',
+            version=b'',
+            longtoken=False,
+            validateonly=False,
+            ping=False
+        )
+
+        print("Python: Calling client_signin")
+        self.lib.client_signin(self.client, byref(req), cb)
+        print("Python: client_signin called")
+
+        # Wait for the callback to be invoked
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        return {"success": result["success"], "jwt": result["jwt"]}
 
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):
         self.lib.client_query.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]

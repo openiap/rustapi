@@ -17,7 +17,7 @@ class Program
             Console.WriteLine("Client connection success: " + client.connected());
             Console.WriteLine("Client connection error: " + client.connectionerror());
 
-            var (jwt, error, success) = client.Signin();
+            var (jwt, error, success) = await client.Signin();
             Console.WriteLine("Signin JWT: " + jwt);
 
             string results = client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
