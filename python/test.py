@@ -22,6 +22,10 @@ if __name__ == "__main__":
 
         aggregate_result = client.aggregate(collectionname="entities", aggregates="[]")
         print(aggregate_result)
+        
+        insert_one_result = client.insert_one(collectionname="entities", item="{\"name\": \"test from python\", \"_type\": \"test\"}")
+        print(insert_one_result)
+
 
         download_result = client.download(collectionname="fs.files", id="65a3aaf66d52b8c15131aebd", folder="", filename="")
         print(download_result)

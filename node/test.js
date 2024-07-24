@@ -44,6 +44,12 @@ const fs = require('fs');
                 console.log("aggregate success", aggregate_result.results);
             }
 
+            const insert_one_result = await client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+            if(insert_one_result.success == false) {
+                console.log("insert_one failed", insert_one_result.error);
+            } else {
+                console.log("insert_one success", insert_one_result.id);
+            }
 
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
             if(download_result.success == false) {

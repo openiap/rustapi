@@ -4,7 +4,7 @@ use tracing::{debug, error};
 use openiap::{
     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
-    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, 
+    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse
 };
 use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -511,6 +511,25 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    #[allow(dead_code)]
+    pub async fn insert_one(&self, config: InsertOneRequest) -> Result<InsertOneResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: InsertOneResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     pub async fn download(
         &self,
         config: DownloadRequest,
@@ -815,6 +834,22 @@ mod tests {
         // }
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
+    }
+    #[tokio::test()]
+    async fn test_insert_one() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item: "{\"name\": \"test from rust\", \"_type\": \"test\"}".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Response: {:?}", response);
     }
     #[tokio::test()]
     async fn test_bad_login() {

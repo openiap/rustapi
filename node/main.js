@@ -78,6 +78,23 @@ const AggregateResponseWrapper = StructType({
 });
 const AggregateResponseWrapperPtr = ref.refType(AggregateResponseWrapper);
 
+// Define the SigninRequestWrapper struct
+const InsertOneRequestWrapper = StructType({
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOneRequestWrapperPtr = ref.refType(InsertOneRequestWrapper);
+
+// Define the SigninResponseWrapper struct
+const InsertOneResponseWrapper = StructType({
+    success: bool,
+    rresult: CString,
+    error: CString
+});
+const InsertOneResponseWrapperPtr = ref.refType(InsertOneResponseWrapper);
+
 const DownloadRequestWrapper = StructType({
     collectionname: CString,
     id: CString,
@@ -166,6 +183,8 @@ function loadLibrary() {
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
             'client_aggregate': ['void', [voidPtr, AggregateRequestWrapperPtr, 'pointer']],
             'free_aggregate_response': ['void', [AggregateResponseWrapperPtr]],
+            'client_insert_one': ['void', [voidPtr, InsertOneRequestWrapperPtr, 'pointer']],
+            'free_insert_one_response': ['void', [InsertOneResponseWrapperPtr]],
             'client_download': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
             'client_upload': ['void', [voidPtr, UploadRequestWrapperPtr, 'pointer']],
@@ -363,6 +382,41 @@ class Client {
             });
         });
     }
+    insert_one({collectionname, document, w, j}) {
+        console.log('Node.js: insert_one invoked');
+        return new Promise((resolve, reject) => {
+            const req = new InsertOneRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                item: ref.allocCString(document),
+                w: w,
+                j: j
+            });
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(InsertOneResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_insert_one callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        rresult: JSON.parse(response.rresult),
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_insert_one_response(responsePtr);
+            });
+
+            console.log('Node.js: call client_insert_one');
+            this.lib.client_insert_one.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('InsertOne failed'));
+                }
+            });
+        });
+    };
     download({collectionname, id, folder, filename}) {
         console.log('Node.js: download invoked');
         return new Promise((resolve, reject) => {

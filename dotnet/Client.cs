@@ -96,6 +96,24 @@ public class Client : IDisposable
     public delegate void AggregateCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct InsertOneRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr item;
+        public int w;
+        public bool j;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct InsertOneResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr result;
+        public IntPtr error;
+    }
+    public delegate void InsertOneCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct DownloadRequestWrapper
     {
         public IntPtr collectionname;
@@ -226,6 +244,12 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_aggregate_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void client_insert_one(IntPtr client, ref InsertOneRequestWrapper request, InsertOneCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_insert_one_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
@@ -378,7 +402,7 @@ public class Client : IDisposable
         return tcs.Task;
     }
 
-    public Task<string> Query(string collectionname, string query, string projection, string orderby, string queryas, bool explain, int skip, int top)
+    public Task<string> Query(string collectionname, string query, string projection = "", string orderby = "", string queryas = "", bool explain = false, int skip = 0, int top = 100)
     {
         var tcs = new TaskCompletionSource<string>();
 
@@ -450,7 +474,7 @@ public class Client : IDisposable
         return tcs.Task;
     }
 
-    public Task<string> Aggregate(string collectionname, string aggregates, string queryas, string hint, bool explain)
+    public Task<string> Aggregate(string collectionname, string aggregates, string queryas = "", string hint = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
@@ -511,6 +535,66 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(aggregatesPtr);
             Marshal.FreeHGlobal(queryasPtr);
             Marshal.FreeHGlobal(hintPtr);
+        }
+        return tcs.Task;
+    }
+
+    public Task<string> InsertOne(string collectionname, string item, int w = 1, bool j = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
+
+        try
+        {
+            InsertOneRequestWrapper request = new InsertOneRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                item = itemPtr,
+                w = w,
+                j = j
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<InsertOneResponseWrapper>(responsePtr);
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_insert_one_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new InsertOneCallback(Callback);
+
+            client_insert_one(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(itemPtr);
         }
         return tcs.Task;
     }

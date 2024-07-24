@@ -67,6 +67,17 @@ class AggregateResponseWrapper(Structure):
                 ("error", CString)]
 AggregateCallback = CFUNCTYPE(None, POINTER(AggregateResponseWrapper))
 
+class InsertOneRequestWrapper(Structure):
+    _fields_ = [("collectionname", CString),
+                ("item", CString),
+                ("w", c_int),
+                ("j", bool)]
+class InsertOneResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ("result", CString),
+                ("error", CString)]
+InsertOneCallback = CFUNCTYPE(None, POINTER(InsertOneResponseWrapper))
+
 class DownloadRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
                 ("id", CString),
@@ -306,6 +317,45 @@ class Client:
             raise result["error"]
         
         return result["results"]
+    
+    def insert_one(self, collectionname = "", item = "", w = 0, j = False):
+        print("Python: Inside insert_one")
+        # self.lib.client_insert_one.argtypes = [voidPtr, POINTER(InsertOneRequestWrapper)]
+        # self.lib.client_insert_one.restype = POINTER(InsertOneResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "result": None, "error": None}
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: InsertOne callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"InsertOne failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["result"] = ctypes.cast(response.result, c_char_p).value.decode('utf-8')
+                self.lib.free_insert_one_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = InsertOneCallback(callback)
+
+        req = InsertOneRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
+                                      item=CString(item.encode('utf-8')),
+                                      w=w,
+                                      j=j)
+        
+        print("Python: Calling client_insert_one")
+        self.lib.client_insert_one(self.client, byref(req), cb)
+        print("Python: client_insert_one called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["result"]
     
     def download(self, collectionname = "", id = "", folder = "", filename = ""):
         print("Python: Inside download")

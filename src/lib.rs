@@ -1,5 +1,5 @@
 use client::openiap::{
-    DownloadRequest, Envelope, QueryRequest, AggregateRequest, SigninRequest, UploadRequest, WatchRequest,
+    DownloadRequest, Envelope, QueryRequest, AggregateRequest, InsertOneRequest, SigninRequest, UploadRequest, WatchRequest,
 };
 use std::ffi::CStr;
 use std::os::raw::c_char;
@@ -407,9 +407,95 @@ pub extern "C" fn client_aggregate(
         callback(Box::into_raw(Box::new(response)));
     });
 }
-
 #[no_mangle]
 pub extern "C" fn free_aggregate_response(response: *mut AggregateResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct InsertOneRequestWrapper {
+    collectionname: *const c_char,
+    item: *const c_char,
+    w: i32,
+    j: bool
+}
+#[repr(C)]
+pub struct InsertOneResponseWrapper {
+    success: bool,
+    result: *const c_char,
+    error: *const c_char,
+}
+type InsertOneCallback = extern "C" fn(wrapper: *mut InsertOneResponseWrapper);
+#[no_mangle]
+pub extern "C" fn client_insert_one(
+    client: *mut ClientWrapper,
+    options: *mut InsertOneRequestWrapper,
+    callback: InsertOneCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = InsertOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = InsertOneResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().insert_one(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.insert_one(request).await
+        // });
+        // let result = client_clone.unwrap().insert_one(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let result = CString::new(data.result).unwrap().into_raw();
+                InsertOneResponseWrapper {
+                    success: true,
+                    result,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("InsertOne failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                InsertOneResponseWrapper {
+                    success: false,
+                    result: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+pub extern "C" fn free_insert_one_response(response: *mut InsertOneResponseWrapper) {
     if response.is_null() {
         return;
     }
