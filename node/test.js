@@ -17,11 +17,13 @@ const fs = require('fs');
         if(signin_result.success) {
             console.log("signed in", signin_result.success);
             let promises = [];
-            for(y = 0; y < 2; y++) {
-                for(let i = 0; i < 10; i++) {
-                    // const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-                    // console.log(query_result.results);
-                    promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+            for(y = 0; y < 1; y++) {
+                for(let i = 0; i < 5; i++) {
+                    const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                    console.log(query_result.results);
+                    // promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+
+                    
                 }
                 console.log(
                     (await Promise.all(promises)).map(result => result.results)

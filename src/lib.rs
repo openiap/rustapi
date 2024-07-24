@@ -84,13 +84,14 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
         }
 
         if let Some(client) = &response_ref.client {
-            let client_clone = client.clone();
+            // let client_clone = client.clone();
             let runtime = &response_ref.runtime;
 
             // Ensure that the runtime properly shuts down after the block_on call
             runtime.block_on(async move {
                 {
-                    let inner = client_clone.inner.lock().await;
+                    // let inner = client_clone.inner.lock().await;
+                    let inner = client.inner.lock().await;
                     let mut queries = inner.queries.lock().await;
 
                     // Cancel pending requests
@@ -106,7 +107,7 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
                 } // Ensure locks are dropped before proceeding
 
                 {
-                    let inner = client_clone.inner.lock().await;
+                    let inner = client.inner.lock().await;
                     let mut streams = inner.streams.lock().await;
                     let stream_keys = streams.keys().cloned().collect::<Vec<String>>();
                     stream_keys.iter().for_each(|k| {
@@ -176,10 +177,11 @@ pub extern "C" fn client_signin(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    let client_clone = client.clone();
+    // let client_clone = client.clone();
 
     runtime.spawn(async move {
-        let result = client_clone.unwrap().signin(request).await;
+        // let result = client_clone.unwrap().signin(request).await;
+        let result = client.as_ref().unwrap().signin(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -367,17 +369,19 @@ pub extern "C" fn client_download(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    let client_clone = client.clone();
+    // let client_clone = client.clone();
 
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
         //     c.query(request).await
         // });
-        let result = client_clone
-            .unwrap()
-            .download(request, Some(folder), Some(filename))
-            .await;
+        // let result = client_clone
+        //     .unwrap()
+        //     .download(request, Some(folder), Some(filename))
+        //     .await;
+        let result = client.as_ref().unwrap().
+            download(request, Some(folder), Some(filename)).await;
 
         let response = match result {
             Ok(data) => {
@@ -479,7 +483,7 @@ pub extern "C" fn client_upload(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    let client_clone = client.clone();
+    // let client_clone = client.clone();
 
     println!("Rust::client_upload: runtime.spawn");
     runtime.spawn(async move {
@@ -488,7 +492,8 @@ pub extern "C" fn client_upload(
         //     c.query(request).await
         // });
         println!("Rust::client_upload: call client.upload");
-        let result = client_clone.unwrap().upload(request, &filepath).await;
+        // let result = client_clone.unwrap().upload(request, &filepath).await;
+        let result = client.as_ref().unwrap().upload(request, &filepath).await;
 
         println!("Rust::client_upload: call client.upload done");
         let response = match result {
@@ -566,7 +571,7 @@ pub extern "C" fn client_watch(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    let client_clone = client.clone();
+    // let client_clone = client.clone();
 
     println!("Rust::client_watch: runtime.spawn");
     runtime.spawn(async move {
@@ -576,7 +581,15 @@ pub extern "C" fn client_watch(
         // });
         // let result = client_clone.unwrap().query(request).await;
         println!("Rust::client_watch: call client.watch");
-        let result = client_clone.unwrap().watch(request, 
+        // let result = client_clone.unwrap().watch(request, 
+        //     Box::new(move |event: client::openiap::WatchEvent| {
+        //         // convert event to json
+        //         let event = serde_json::to_string(&event).unwrap();
+        //         let c_event = std::ffi::CString::new(event).unwrap();
+        //         event_callback(c_event.as_ptr());
+        //     })
+        // ).await;
+        let result = client.as_ref().unwrap().watch(request, 
             Box::new(move |event: client::openiap::WatchEvent| {
                 // convert event to json
                 let event = serde_json::to_string(&event).unwrap();
@@ -584,6 +597,8 @@ pub extern "C" fn client_watch(
                 event_callback(c_event.as_ptr());
             })
         ).await;
+
+        
     
 
         let response = match result {

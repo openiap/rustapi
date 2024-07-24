@@ -3,8 +3,8 @@ use tracing::{debug, error};
 
 use openiap::{
     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
-    QueryRequest, QueryResponse, SigninRequest, SigninResponse, UploadRequest, UploadResponse,
-    WatchRequest, UnWatchRequest,
+    QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
+    UploadResponse, WatchRequest,
 };
 use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -26,9 +26,9 @@ use tonic::Request;
 
 pub mod download;
 pub mod query;
+pub mod queue;
 pub mod signin;
 pub mod upload;
-pub mod queue;
 use std::env;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -49,7 +49,8 @@ pub struct ClientInner {
     pub stream_tx: mpsc::Sender<Envelope>,
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
-    pub watches: Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+    pub watches:
+        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
 }
 // implement debug for ClientInner
 impl std::fmt::Debug for ClientInner {
@@ -143,7 +144,10 @@ impl Client {
                     innerclient = client;
                 }
                 Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!("Failed to connect: {}", e)));
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to connect: {}",
+                        e
+                    )));
                 }
             }
         } else {
@@ -158,21 +162,30 @@ impl Client {
             let uri = match uri {
                 Ok(uri) => uri,
                 Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!("Failed to build URI: {}", e)));
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to build URI: {}",
+                        e
+                    )));
                 }
             };
             let channel = Channel::builder(uri).tls_config(tls);
             let channel = match channel {
                 Ok(channel) => channel,
                 Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!("Failed to build channel: {}", e)));
-                }                
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to build channel: {}",
+                        e
+                    )));
+                }
             };
             let channel = channel.connect().await;
             let channel = match channel {
                 Ok(channel) => channel,
                 Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!("Failed to connect: {}", e)));
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to connect: {}",
+                        e
+                    )));
                 }
             };
             innerclient = FlowServiceClient::new(channel);
@@ -185,8 +198,6 @@ impl Client {
             //         return Err(OpenIAPError::ClientError(format!("Failed to connect: {}", e)));
             //     }
             // }
-
-
         }
 
         let (stream_tx, stream_rx) = mpsc::channel(4);
@@ -220,9 +231,11 @@ impl Client {
                     println!("Signed in as {}", response.user.as_ref().unwrap().username);
                 }
                 Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!("Failed to sign in: {}", e)));
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to sign in: {}",
+                        e
+                    )));
                 }
-                
             }
         }
         Ok(client)
@@ -234,10 +247,13 @@ impl Client {
         let response = match response {
             Ok(response) => response,
             Err(e) => {
-                return Err(OpenIAPError::ClientError(format!("Failed to setup stream: {}", e)));
+                return Err(OpenIAPError::ClientError(format!(
+                    "Failed to setup stream: {}",
+                    e
+                )));
             }
-        };            
-        
+        };
+
         inner.connected = true;
         let mut resp_stream = response.into_inner();
         let inner = self.inner.clone(); // Clone the Arc to extend its lifetime
@@ -250,10 +266,7 @@ impl Client {
                     let mut queries = inner.queries.lock().await;
                     let mut streams = inner.streams.lock().await;
                     let watches = inner.watches.lock().await;
-                    debug!(
-                        "Received #{} #{} {} message",
-                        received.id, rid, command
-                    );
+                    debug!("Received #{} #{} {} message", received.id, rid, command);
                     if command == "ping" {
                         let envelope = Envelope {
                             command: "pong".into(),
@@ -283,10 +296,9 @@ impl Client {
                         if command == "endstream" {
                             let _ = streams.remove(rid.as_str());
                         }
-                    } else if command == "watchevent"
-                    {
+                    } else if command == "watchevent" {
                         let watchevent: WatchEvent =
-                        prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+                            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
                         if let Some(callback) = watches.get(watchevent.id.as_str()) {
                             callback(watchevent);
                         }
@@ -300,15 +312,12 @@ impl Client {
                                     Err(e) => error!("Failed to send data: {}", e),
                                 }
                             }
-                            None => (),                            
+                            None => (),
                         }
                         // Send to response to waiting call
                         let _ = response_tx.send(received);
                     } else {
-                        println!(
-                            "Received unhandled {} message: {:?}",
-                            command, received
-                        );
+                        println!("Received unhandled {} message: {:?}", command, received);
                     }
                 }
             }
@@ -419,24 +428,26 @@ impl Client {
         if config.agent.is_empty() {
             config.agent = "rust".to_string();
         }
-    
+
         debug!("Attempting sign-in using {:?}", config);
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
-    
+
         match &result {
             Ok(m) => {
                 debug!("Sign-in reply received");
                 let mut inner = self.inner.lock().await;
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
-                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    let e: ErrorResponse =
+                        prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
+                            .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(e.message));
                 }
                 inner.signedin = true;
                 debug!("Sign-in successful");
-                let response: SigninResponse = prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
-                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                let response: SigninResponse =
+                    prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
             Err(e) => {
@@ -446,7 +457,7 @@ impl Client {
             }
         }
     }
-    
+
     pub async fn query(&self, mut config: QueryRequest) -> Result<QueryResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -461,8 +472,9 @@ impl Client {
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
-                let response: QueryResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
-                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                let response: QueryResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
@@ -492,7 +504,10 @@ impl Client {
                             }
                             debug!("Received {} bytes", received.len());
                             temp_file.write_all(&received).map_err(|e| {
-                                OpenIAPError::ClientError(format!("Failed to write to temp file: {}", e))
+                                OpenIAPError::ClientError(format!(
+                                    "Failed to write to temp file: {}",
+                                    e
+                                ))
                             })?;
                         }
                         None => {
@@ -505,9 +520,9 @@ impl Client {
                     OpenIAPError::ClientError(format!("Failed to sync temp file: {}", e))
                 })?;
 
-                let response = response_rx
-                    .await
-                    .map_err(|_| OpenIAPError::ClientError("Failed to receive response".to_string()))?;
+                let response = response_rx.await.map_err(|_| {
+                    OpenIAPError::ClientError("Failed to receive response".to_string())
+                })?;
 
                 if response.command == "error" {
                     let e: ErrorResponse =
@@ -582,11 +597,9 @@ impl Client {
                 let chunk = buffer[..bytes_read].to_vec();
                 let envelope = Stream::from_rid(chunk, rid.clone());
                 debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
-                inner
-                    .stream_tx
-                    .send(envelope)
-                    .await
-                    .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+                inner.stream_tx.send(envelope).await.map_err(|e| {
+                    OpenIAPError::ClientError(format!("Failed to send data: {}", e))
+                })?;
             }
 
             let envelope = EndStream::from_rid(rid.clone());
@@ -620,7 +633,10 @@ impl Client {
             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
     }
-    pub async fn watch(&self, mut config: WatchRequest, callback: Box<dyn Fn(WatchEvent) + Send + Sync>
+    pub async fn watch(
+        &self,
+        mut config: WatchRequest,
+        callback: Box<dyn Fn(WatchEvent) + Send + Sync>,
     ) -> Result<String, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -638,11 +654,16 @@ impl Client {
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
-                let response: WatchResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
-                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                let response: WatchResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 let inner = self.inner.lock().await;
-                inner.watches.lock().await.insert(response.id.clone(), callback);
+                inner
+                    .watches
+                    .lock()
+                    .await
+                    .insert(response.id.clone(), callback);
 
                 Ok(response.id)
             }
@@ -665,18 +686,21 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-
 }
 
 #[allow(dead_code)]
 fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
 #[cfg(test)]
 mod tests {
+    use std::{future::Future, pin::Pin};
+    use futures::stream::FuturesUnordered;
+
     use super::*;
     #[allow(dead_code)]
     // const TEST_URL: &str = "http://localhost:50051";
-    const TEST_URL: &str = "http://grpc.demo.openiap.io";
-        #[test]
+    // const TEST_URL: &str = "http://grpc.demo.openiap.io";
+    const TEST_URL: &str = "";
+    #[test]
     fn normal_type() {
         is_normal::<Client>();
         is_normal::<ClientInner>();
@@ -692,7 +716,7 @@ mod tests {
         is_normal::<Stream>();
         is_normal::<EndStream>();
     }
-    
+
     #[tokio::test()]
     async fn test_query() {
         let client = Client::connect(TEST_URL).await.unwrap();
@@ -710,21 +734,38 @@ mod tests {
         println!("Response: {:?}", response);
     }
     #[tokio::test()]
+    async fn test_multiple_query() {
+        // cargo test test_multiple_query -- --nocapture
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let tasks = FuturesUnordered::<Pin<Box<dyn Future<Output = Result<QueryResponse, OpenIAPError>>>>>::new();
+        for _ in 1..101 {
+                let query = QueryRequest {
+                    query: "{}".to_string(),
+                    projection: "{\"name\": 1}".to_string(),
+                    ..Default::default()
+                };
+                tasks.push(Box::pin(client.query(query)));
+        }
+        // while let Some(result) = tasks.next().await {
+        //     println!("{}", result);
+        // }
+        let result = futures::future::join_all(tasks).await;
+        println!("{:?}", result);
+    }
+
+    #[tokio::test()]
     async fn test_bad_login() {
         let client = Client::connect(TEST_URL).await.unwrap();
         let response = client
             .signin(SigninRequest::with_userpass("testuser", "badpassword"))
             .await;
-        assert!(
-            response.is_err(),
-            "login with bad password, did not fail"
-        );
+        assert!(response.is_err(), "login with bad password, did not fail");
     }
     #[tokio::test()]
     async fn test_upload() {
         let client = Client::connect(TEST_URL).await.unwrap();
         let response = client
-            .upload(UploadRequest::filename("testfile.csv"), "rust-test.csv")
+            .upload(UploadRequest::filename("rust-test.csv"), "testfile.csv")
             .await;
         assert!(
             !response.is_err(),
@@ -735,12 +776,15 @@ mod tests {
     #[tokio::test()]
     async fn test_upload_as_guest() {
         let client = Client::connect(TEST_URL).await.unwrap();
-        client.signin(SigninRequest::with_userpass("guest", "password")).await.unwrap();
+        client
+            .signin(SigninRequest::with_userpass("guest", "password"))
+            .await
+            .unwrap();
         let response = client
-            .upload(UploadRequest::filename("testfile.csv"), "rust-test.csv")
+            .upload(UploadRequest::filename("rust-test.csv"), "testfile.csv")
             .await;
         assert!(
-            response.is_err(),
+            !response.is_err(),
             "Upload of testfile.csv did not fail as guest"
         );
     }
@@ -760,7 +804,10 @@ mod tests {
     #[tokio::test()]
     async fn test_download_as_guest() {
         let client = Client::connect(TEST_URL).await.unwrap();
-        client.signin(SigninRequest::with_userpass("guest", "password")).await.unwrap();
+        client
+            .signin(SigninRequest::with_userpass("guest", "password"))
+            .await
+            .unwrap();
         let response = client
             .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
             .await;
@@ -770,5 +817,4 @@ mod tests {
             "Download of file as guest did not failed"
         );
     }
-
 }
