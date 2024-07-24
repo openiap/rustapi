@@ -37,6 +37,13 @@ const fs = require('fs');
             // console.log("AWAIT ALL complete")
             // await new Promise(resolve => setTimeout(resolve, 2000));
 
+            const aggregate_result = await client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
+            if(aggregate_result.success == false) {
+                console.log("aggregate failed", aggregate_result.error);
+            } else {
+                console.log("aggregate success", aggregate_result.results);
+            }
+
 
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
             if(download_result.success == false) {

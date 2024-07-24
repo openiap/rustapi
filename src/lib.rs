@@ -1,5 +1,5 @@
 use client::openiap::{
-    DownloadRequest, Envelope, QueryRequest, SigninRequest, UploadRequest, WatchRequest,
+    DownloadRequest, Envelope, QueryRequest, AggregateRequest, SigninRequest, UploadRequest, WatchRequest,
 };
 use std::ffi::CStr;
 use std::os::raw::c_char;
@@ -316,7 +316,6 @@ pub extern "C" fn client_query(
         callback(Box::into_raw(Box::new(response)));
     });
 }
-
 #[no_mangle]
 pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
     if response.is_null() {
@@ -326,6 +325,99 @@ pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
         let _ = Box::from_raw(response);
     }
 }
+
+#[repr(C)]
+pub struct AggregateRequestWrapper {
+    collectionname: *const c_char,
+    aggregates: *const c_char,
+    queryas: *const c_char,
+    hint: *const c_char,
+    explain: bool
+}
+#[repr(C)]
+pub struct AggregateResponseWrapper {
+    success: bool,
+    results: *const c_char,
+    error: *const c_char,
+}
+type AggregateCallback = extern "C" fn(wrapper: *mut AggregateResponseWrapper);
+#[no_mangle]
+pub extern "C" fn client_aggregate(
+    client: *mut ClientWrapper,
+    options: *mut AggregateRequestWrapper,
+    callback: AggregateCallback,
+) {
+    println!("Rust: client_aggregate");
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = AggregateRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string(),
+        aggregates: unsafe { CStr::from_ptr(options.aggregates).to_str().unwrap() }.to_string(),
+        queryas: unsafe { CStr::from_ptr(options.queryas).to_str().unwrap() }.to_string(),
+        hint: unsafe { CStr::from_ptr(options.hint).to_str().unwrap() }.to_string(),
+        explain: options.explain,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = AggregateResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    println!("Rust: runtime.spawn");
+    runtime.spawn(async move {
+        println!("Rust: client.aggregate");
+        let result = client.as_ref().unwrap().aggregate(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.aggregate(request).await
+        // });
+        // let result = client_clone.unwrap().aggregate(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let results = CString::new(data.results).unwrap().into_raw();
+                AggregateResponseWrapper {
+                    success: true,
+                    results,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Aggregate failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                AggregateResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+        println!("Rust: callback response");
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn free_aggregate_response(response: *mut AggregateResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
 #[repr(C)]
 pub struct DownloadRequestWrapper {
     collectionname: *const c_char,
@@ -374,7 +466,7 @@ pub extern "C" fn client_download(
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
-        //     c.query(request).await
+        //     c.download(request).await
         // });
         // let result = client_clone
         //     .unwrap()
@@ -489,7 +581,7 @@ pub extern "C" fn client_upload(
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
-        //     c.query(request).await
+        //     c.upload(request).await
         // });
         println!("Rust::client_upload: call client.upload");
         // let result = client_clone.unwrap().upload(request, &filepath).await;
@@ -577,9 +669,9 @@ pub extern "C" fn client_watch(
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
-        //     c.query(request).await
+        //     c.watch(request).await
         // });
-        // let result = client_clone.unwrap().query(request).await;
+        // let result = client_clone.unwrap().watch(request).await;
         println!("Rust::client_watch: call client.watch");
         // let result = client_clone.unwrap().watch(request, 
         //     Box::new(move |event: client::openiap::WatchEvent| {
@@ -611,7 +703,7 @@ pub extern "C" fn client_watch(
                 }
             }
             Err(e) => {
-                let error_msg = CString::new(format!("Query failed: {:?}", e))
+                let error_msg = CString::new(format!("Watch failed: {:?}", e))
                     .unwrap()
                     .into_raw();
                 WatchResponseWrapper {
@@ -674,7 +766,7 @@ pub extern "C" fn client_unwatch(
             Box::into_raw(Box::new(response))
         }
         Err(e) => {
-            let error_msg = CString::new(format!("Query failed: {:?}", e))
+            let error_msg = CString::new(format!("Unwatch failed: {:?}", e))
                 .unwrap()
                 .into_raw();
             let response = UnWatchResponseWrapper {

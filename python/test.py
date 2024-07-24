@@ -20,6 +20,9 @@ if __name__ == "__main__":
         # query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
         # print(query_result)
 
+        aggregate_result = client.aggregate(collectionname="entities", aggregates="[]")
+        print(aggregate_result)
+
         download_result = client.download(collectionname="fs.files", id="65a3aaf66d52b8c15131aebd", folder="", filename="")
         print(download_result)
 

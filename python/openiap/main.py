@@ -55,6 +55,18 @@ class QueryResponseWrapper(Structure):
                 ("error", CString)]
 QueryCallback = CFUNCTYPE(None, POINTER(QueryResponseWrapper))
 
+class AggregateRequestWrapper(Structure):
+    _fields_ = [("collectionname", CString),
+                ("aggregates", CString),
+                ("queryas", CString),
+                ("hint", CString),
+                ("explain", bool)]
+class AggregateResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ("results", CString),
+                ("error", CString)]
+AggregateCallback = CFUNCTYPE(None, POINTER(AggregateResponseWrapper))
+
 class DownloadRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
                 ("id", CString),
@@ -247,6 +259,46 @@ class Client:
         print("Python: Calling client_query")
         self.lib.client_query(self.client, byref(req), cb)
         print("Python: client_query called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["results"]
+    
+    def aggregate(self, collectionname = "", aggregates = "", queryas = "", hint = "", explain = False):
+        print("Python: Inside aggregate")
+        # self.lib.client_aggregate.argtypes = [voidPtr, POINTER(AggregateRequestWrapper)]
+        # self.lib.client_aggregate.restype = POINTER(AggregateResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "jwt": None, "error": None}
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Aggregate callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Aggregate failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["results"] = ctypes.cast(response.results, c_char_p).value.decode('utf-8')
+                self.lib.free_aggregate_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = AggregateCallback(callback)
+
+        req = AggregateRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
+                                      aggregates=CString(aggregates.encode('utf-8')),
+                                      queryas=CString(queryas.encode('utf-8')),
+                                      hint=CString(hint.encode('utf-8')),
+                                      explain=explain)
+        
+        print("Python: Calling client_aggregate")
+        self.lib.client_aggregate(self.client, byref(req), cb)
+        print("Python: client_aggregate called")
 
         event.wait()
 

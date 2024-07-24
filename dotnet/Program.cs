@@ -37,6 +37,9 @@ class Program
 
             // // System.Threading.Thread.Sleep(120000);
 
+            var aggregate_results = await client.Aggregate("entities", "[]", "", "", false);
+            Console.WriteLine("aggregate results: " + aggregate_results);
+
             await client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
 
             var filepath = "testfile.csv";

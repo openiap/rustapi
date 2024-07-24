@@ -4,7 +4,7 @@ use tracing::{debug, error};
 use openiap::{
     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
-    UploadResponse, WatchRequest,
+    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, 
 };
 use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -480,7 +480,37 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[no_mangle]
+    #[allow(dead_code)]
+    pub async fn aggregate(&self, mut config: AggregateRequest) -> Result<AggregateResponse, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            config.collectionname = "entities".to_string();
+        }
+        if config.hint.is_empty() {
+            config.hint = "".to_string();
+        }
+        if config.queryas.is_empty() {
+            config.queryas = "".to_string();
+        }
+        if config.aggregates.is_empty() {
+            return Err(OpenIAPError::ClientError("No aggregates provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: AggregateResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     pub async fn download(
         &self,
         config: DownloadRequest,
@@ -752,7 +782,40 @@ mod tests {
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
     }
-
+    #[tokio::test()]
+    async fn test_aggreate() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let query = AggregateRequest {
+            collectionname: "entities".to_string(),
+            aggregates: "[]".to_string(),
+            ..Default::default()
+        };
+        let response = client.aggregate(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Response: {:?}", response);    
+    }
+    #[tokio::test()]
+    async fn test_aggreate_multiple() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let tasks = FuturesUnordered::<Pin<Box<dyn Future<Output = Result<AggregateResponse, OpenIAPError>>>>>::new();
+        for _ in 1..101 {
+                let query = AggregateRequest {
+                    collectionname: "entities".to_string(),
+                    aggregates: "[]".to_string(),
+                    ..Default::default()
+                };
+                tasks.push(Box::pin(client.aggregate(query)));
+        }
+        // while let Some(result) = tasks.next().await {
+        //     println!("{}", result);
+        // }
+        let result = futures::future::join_all(tasks).await;
+        println!("{:?}", result);
+    }
     #[tokio::test()]
     async fn test_bad_login() {
         let client = Client::connect(TEST_URL).await.unwrap();

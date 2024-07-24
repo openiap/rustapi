@@ -50,9 +50,6 @@ public class Client : IDisposable
         public IntPtr error;
     }
     public delegate void SigninCallback(IntPtr responsePtr);
-
-
-
     [StructLayout(LayoutKind.Sequential)]
     public struct QueryRequestWrapper
     {
@@ -77,6 +74,26 @@ public class Client : IDisposable
         public IntPtr error;
     }
     public delegate void QueryCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AggregateRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr aggregates;
+        public IntPtr queryas;
+        public IntPtr hint;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool explain;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AggregateResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public IntPtr error;
+    }
+    public delegate void AggregateCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DownloadRequestWrapper
@@ -203,6 +220,12 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_query_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void client_aggregate(IntPtr client, ref AggregateRequestWrapper request, AggregateCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_aggregate_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
@@ -423,6 +446,71 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(projectionPtr);
             Marshal.FreeHGlobal(orderbyPtr);
             Marshal.FreeHGlobal(queryasPtr);
+        }
+        return tcs.Task;
+    }
+
+    public Task<string> Aggregate(string collectionname, string aggregates, string queryas, string hint, bool explain)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr aggregatesPtr = Marshal.StringToHGlobalAnsi(aggregates);
+        IntPtr queryasPtr = Marshal.StringToHGlobalAnsi(queryas);
+        IntPtr hintPtr = Marshal.StringToHGlobalAnsi(hint);
+
+        try
+        {
+            AggregateRequestWrapper request = new AggregateRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                aggregates = aggregatesPtr,
+                queryas = queryasPtr,
+                hint = hintPtr,
+                explain = explain
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<AggregateResponseWrapper>(responsePtr);
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_aggregate_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(results);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new AggregateCallback(Callback);
+
+            client_aggregate(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(aggregatesPtr);
+            Marshal.FreeHGlobal(queryasPtr);
+            Marshal.FreeHGlobal(hintPtr);
         }
         return tcs.Task;
     }

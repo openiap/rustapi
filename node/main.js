@@ -60,6 +60,24 @@ const QueryResponseWrapper = StructType({
 });
 const QueryResponseWrapperPtr = ref.refType(QueryResponseWrapper);
 
+// Define the SigninRequestWrapper struct
+const AggregateRequestWrapper = StructType({
+    collectionname: CString,
+    aggregates: CString,
+    queryas: CString,
+    hint: CString,
+    explain: bool,
+});
+const AggregateRequestWrapperPtr = ref.refType(AggregateRequestWrapper);
+
+// Define the SigninResponseWrapper struct
+const AggregateResponseWrapper = StructType({
+    success: bool,
+    results: CString,
+    error: CString
+});
+const AggregateResponseWrapperPtr = ref.refType(AggregateResponseWrapper);
+
 const DownloadRequestWrapper = StructType({
     collectionname: CString,
     id: CString,
@@ -146,6 +164,8 @@ function loadLibrary() {
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
             'client_query': ['void', [voidPtr, QueryRequestWrapperPtr, 'pointer']],
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
+            'client_aggregate': ['void', [voidPtr, AggregateRequestWrapperPtr, 'pointer']],
+            'free_aggregate_response': ['void', [AggregateResponseWrapperPtr]],
             'client_download': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
             'client_upload': ['void', [voidPtr, UploadRequestWrapperPtr, 'pointer']],
@@ -300,6 +320,45 @@ class Client {
             this.lib.client_query.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Query failed'));
+                }
+            });
+        });
+    }
+    aggregate({collectionname, aggregates, queryas, hint, explain}) {
+        console.log('Node.js: aggregate invoked');
+        if(aggregates == null) aggregates = '[]';
+        if(queryas == null) queryas = '';
+        if(hint == null) hint = '';
+        return new Promise((resolve, reject) => {
+            const req = new AggregateRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                aggregates: ref.allocCString(aggregates),
+                queryas: ref.allocCString(queryas),
+                hint: ref.allocCString(hint),
+                explain: explain
+            });
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(AggregateResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_aggregate callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        results: JSON.parse(response.results),
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_aggregate_response(responsePtr);
+            });
+
+            console.log('Node.js: call client_aggregate');
+            this.lib.client_aggregate.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Aggregate failed'));
                 }
             });
         });
