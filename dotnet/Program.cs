@@ -14,35 +14,49 @@ class Program
         {
             Client client = new Client();
             await client.connect();
+            if(client.connected() == false) {
+                Console.WriteLine("Client connection error: " + client.connectionerror());
+                return;
+            }
             Console.WriteLine("Client connection success: " + client.connected());
-            Console.WriteLine("Client connection error: " + client.connectionerror());
 
-            var (jwt, error, success) = await client.Signin();
-            Console.WriteLine("Signin JWT: " + jwt);
+            // var (jwt, error, success) = await client.Signin();
+            // Console.WriteLine("Signin JWT: " + jwt);
 
-            string results = await client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
-            Console.WriteLine("results: " + results);
+            // string results = await client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0);
+            // Console.WriteLine("results: " + results);
 
-            // System.Threading.Thread.Sleep(120000);
+            for(var y = 0; y < 5; y++) {
+                var promises = new List<Task<string>>();
+                for(var x = 0; x < 15; x++) {
+                    promises.Add(client.Query("entities", "{}", "{\"name\": 1}", "", "", false, 0, 0));
+                }
+                var result = await Task.WhenAll(promises);
+                Console.WriteLine("results: " + result.Length);
+            }
 
-            client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
+            // // System.Threading.Thread.Sleep(120000);
+
+            await client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
 
             var filepath = "testfile.csv";
             if(!System.IO.File.Exists(filepath))
             {
                 filepath = "../testfile.csv";
             }
-            client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
+            var upload_response = await client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
+            Console.WriteLine("Dotnet: upload success as " +  upload_response);
 
             var eventcount = 0;
-            client.watch("entities", "", (eventObj) => {
+            var watch_response =  await client.watch("entities", "", (eventObj) => {
                 Console.WriteLine("watch event " + eventObj.operation + " on " + eventObj.document);
                 eventcount++;
             });
+            Console.WriteLine("Dotnet: watch registered success as " +  watch_response);
 
             while (eventcount < 2)
             {
-                Thread.Sleep(1000);                
+                await Task.Delay(1000);
             }
 
             client.Dispose();

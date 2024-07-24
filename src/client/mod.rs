@@ -468,7 +468,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    
+    #[no_mangle]
     pub async fn download(
         &self,
         config: DownloadRequest,
@@ -479,6 +479,7 @@ impl Client {
         match self.sendwithstream(envelope).await {
             Ok((response_rx, mut stream_rx)) => {
                 let temp_file_path = generate_unique_filename("openiap");
+                println!("Temp file: {:?}", temp_file_path);
                 let mut temp_file = File::create(&temp_file_path).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to create temp file: {}", e))
                 })?;
@@ -531,10 +532,11 @@ impl Client {
                     folder = ".";
                 }
                 let filepath = format!("{}/{}", folder, final_filename);
-                debug!("Moving file to {}", filepath);
+                println!("Moving file to {}", filepath);
                 move_file(temp_file_path.to_str().unwrap(), filepath.as_str()).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to move file: {}", e))
                 })?;
+                println!("Downloaded file to {}", filepath);
                 downloadresponse.filename = filepath;
 
                 Ok(downloadresponse)
@@ -547,6 +549,7 @@ impl Client {
         config: UploadRequest,
         filepath: &str,
     ) -> Result<UploadResponse, OpenIAPError> {
+        println!("Rust::upload: Uploading file: {}", filepath);
         let mut file = File::open(filepath)
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to open file: {}", e)))?;
         let chunk_size = 1024 * 1024; // 1 MB

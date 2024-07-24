@@ -64,6 +64,7 @@ class DownloadResponseWrapper(Structure):
     _fields_ = [("success", bool),
                 ("filename", CString),
                 ("error", CString)]
+DownloadCallback = CFUNCTYPE(None, POINTER(DownloadResponseWrapper))
 
 class UploadRequestWrapper(Structure):
     _fields_ = [("filepath", CString),
@@ -75,6 +76,7 @@ class UploadResponseWrapper(Structure):
     _fields_ = [("success", bool),
                 ("id", CString),
                 ("error", CString)]
+UploadCallback = CFUNCTYPE(None, POINTER(UploadResponseWrapper))
 
 class WatchRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
@@ -83,6 +85,7 @@ class WatchResponseWrapper(Structure):
     _fields_ = [("success", bool),
                 ("watchid", CString),
                 ("error", CString)]
+WatchCallback = CFUNCTYPE(None, POINTER(WatchResponseWrapper))
 
 class UnWatchResponseWrapper(Structure):
     _fields_ = [("success", bool),
@@ -162,6 +165,7 @@ class Client:
         return result["client"]
     
     def signin(self, username="", password=""):
+        print("Python: Inside signin")
         event = threading.Event()
         result = {"success": None, "jwt": None, "error": None}
 
@@ -209,8 +213,9 @@ class Client:
         return {"success": result["success"], "jwt": result["jwt"]}
 
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):
-        self.lib.client_query.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]
-        self.lib.client_query.restype = POINTER(QueryResponseWrapper)
+        print("Python: Inside query")
+        # self.lib.client_query.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]
+        # self.lib.client_query.restype = POINTER(QueryResponseWrapper)
         event = threading.Event()
         result = {"success": None, "jwt": None, "error": None}
         
@@ -251,32 +256,69 @@ class Client:
         return result["results"]
     
     def download(self, collectionname = "", id = "", folder = "", filename = ""):
-        self.lib.client_download.argtypes = [voidPtr, POINTER(DownloadRequestWrapper)]
-        self.lib.client_download.restype = POINTER(DownloadResponseWrapper)
+        print("Python: Inside download")
+        # self.lib.client_download.argtypes = [voidPtr, POINTER(DownloadRequestWrapper)]
+        # self.lib.client_download.restype = POINTER(DownloadResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "filename": None, "error": None}
         
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Download callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Download failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["filename"] = ctypes.cast(response.filename, c_char_p).value.decode('utf-8')
+                self.lib.free_download_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = DownloadCallback(callback)
+
+
         req = DownloadRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
                                      id=CString(id.encode('utf-8')),
                                      folder=CString(folder.encode('utf-8')),
                                      filename=CString(filename.encode('utf-8'))
                                      )
-        
-        download = self.lib.client_download(self.client, byref(req))
-        
-        if download:
-            downloadObj = download.contents
-            result = {
-                'success': downloadObj.success,
-                'filename': downloadObj.filename.decode('utf-8') if downloadObj.filename else None,
-                'error': downloadObj.error.decode('utf-8') if downloadObj.error else None
-            }
-            self.lib.free_download_response(download)
-            return result
-        else:
-            raise ClientError('Download failed or download is null')
 
+        print("Python: Calling client_download")
+        self.lib.client_download(self.client, byref(req), cb)
+        print("Python: client_download called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["filename"]
     def upload(self, filepath = "", filename = "", mimetype = "", metadata = "", collectionname = ""):
-        self.lib.client_upload.argtypes = [voidPtr, POINTER(UploadRequestWrapper)]
-        self.lib.client_upload.restype = POINTER(UploadResponseWrapper)
+        print("Python: Inside upload")
+        # self.lib.client_upload.argtypes = [voidPtr, POINTER(UploadRequestWrapper)]
+        # self.lib.client_upload.restype = POINTER(UploadResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "id": None, "error": None}
+        
+        print("Python: create callback")
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Upload callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Upload failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["id"] = ctypes.cast(response.id, c_char_p).value.decode('utf-8')
+                self.lib.free_upload_response(response_ptr)
+            finally:
+                event.set()
+
+        print("Python: create cb")
+        cb = UploadCallback(callback)
         
         req = UploadRequestWrapper(filepath=CString(filepath.encode('utf-8')),
                                    filename=CString(filename.encode('utf-8')),
@@ -285,53 +327,67 @@ class Client:
                                    collectionname=CString(collectionname.encode('utf-8'))
                                    )
         
-        upload = self.lib.client_upload(self.client, byref(req))
+        print("Python: Calling client_upload")
+        self.lib.client_upload(self.client, byref(req), cb)
+        print("Python: client_upload called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
         
-        if upload:
-            uploadObj = upload.contents
-            result = {
-                'success': uploadObj.success,
-                'id': uploadObj.id.decode('utf-8') if uploadObj.id else None,
-                'error': uploadObj.error.decode('utf-8') if uploadObj.error else None
-            }
-            self.lib.free_upload_response(upload)
-            return result
-        else:
-            raise ClientError('Upload failed or upload is null')
+        return result["id"]
     
     def watch(self, collectionname = "", paths = "", callback = None):
+        print("Python: Inside watch")
+        event = threading.Event()
+        result = {"success": None, "watchid": None, "error": None}
         if not callable(callback):
             raise ValueError("Callback must be a callable function")
 
         def internal_callback(event_str):
+            print("Python: Internal callback invoked")
             event_json = event_str.decode('utf-8')
             event_obj = json.loads(event_json)
             callback(event_obj)
+
+        def event_callback(response_ptr):
+            try:
+                print("Python: Watch callback invoked")
+                response = response_ptr.contents
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Watch failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["watchid"] = ctypes.cast(response.watchid, c_char_p).value.decode('utf-8')
+                self.lib.free_watch_response(response_ptr)
+            finally:
+                event.set()
+        cb = WatchCallback(event_callback)
+        self.callbacks.append(cb)
         
         c_callback = CALLBACK(internal_callback)
         self.callbacks.append(c_callback)  # Keep a reference to the callback to prevent garbage collection
 
-        self.lib.client_watch.argtypes = [voidPtr, POINTER(WatchRequestWrapper)]
-        self.lib.client_watch.restype = POINTER(WatchResponseWrapper)
+        # self.lib.client_watch.argtypes = [voidPtr, POINTER(WatchRequestWrapper)]
+        # self.lib.client_watch.restype = POINTER(WatchResponseWrapper)
         
         req = WatchRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
                                   paths=CString(paths.encode('utf-8'))
                                   )
         
-        watch = self.lib.client_watch(self.client, byref(req), c_callback)
+        print("Python: Calling client_watch")
+        watch = self.lib.client_watch(self.client, byref(req), cb, c_callback)
+        print("Python: client_watch called")
         
-        if watch:
-            watchObj = watch.contents
-            result = {
-                'success': watchObj.success,
-                'watchid': watchObj.watchid.decode('utf-8') if watchObj.watchid else None,
-                'error': watchObj.error.decode('utf-8') if watchObj.error else None
-            }
-            self.lib.free_watch_response(watch)
-            return result
-        else:
-            raise ClientError('Watch failed or watch is null')
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
         
+        return result["watchid"]
+
     def unwatch(self, watchid):
         if not watchid or watchid == "":
             raise ValueError("Watch ID must be provided")

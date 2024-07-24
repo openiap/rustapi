@@ -1,8 +1,10 @@
 using System;
 using System.Data;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class WatchEvent {
+public class WatchEvent
+{
     public required string id { get; set; }
     public required string operation { get; set; }
     public required object document { get; set; }
@@ -92,6 +94,8 @@ public class Client : IDisposable
         public IntPtr filename;
         public IntPtr error;
     }
+    public delegate void DownloadCallback(IntPtr responsePtr);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct UploadRequestWrapper
     {
@@ -109,6 +113,7 @@ public class Client : IDisposable
         public IntPtr id;
         public IntPtr error;
     }
+    public delegate void UploadCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
     public struct WatchRequestWrapper
     {
@@ -200,22 +205,24 @@ public class Client : IDisposable
     public static extern void free_query_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request);
+    public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_download_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_upload(IntPtr client, ref UploadRequestWrapper request);
+    public static extern IntPtr client_upload(IntPtr client, ref UploadRequestWrapper request, UploadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_upload_response(IntPtr response);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void WatchCallback(IntPtr eventStr);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void WatchEventCallback(IntPtr eventStr);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_watch(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback);
+    public static extern IntPtr client_watch(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_response(IntPtr response);
@@ -313,7 +320,7 @@ public class Client : IDisposable
                 {
                     if (responsePtr == IntPtr.Zero)
                     {
-                        tcs.SetException(new ClientError("Signin failed or user is null"));
+                        tcs.SetException(new ClientError("Callback got null response"));
                         return;
                     }
 
@@ -378,7 +385,7 @@ public class Client : IDisposable
                 {
                     if (responsePtr == IntPtr.Zero)
                     {
-                        tcs.SetException(new ClientError("Query failed"));
+                        tcs.SetException(new ClientError("Callback got null response"));
                         return;
                     }
 
@@ -388,7 +395,7 @@ public class Client : IDisposable
                     bool success = response.success;
                     free_query_response(responsePtr);
 
-                    if(!success)
+                    if (!success)
                     {
                         tcs.SetException(new ClientError(error));
                     }
@@ -420,8 +427,10 @@ public class Client : IDisposable
         return tcs.Task;
     }
 
-    public string download(string collectionname, string id, string folder, string filename)
+    public Task<string> download(string collectionname, string id, string folder, string filename)
     {
+        var tcs = new TaskCompletionSource<string>();
+
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr idPtr = Marshal.StringToHGlobalAnsi(id);
         IntPtr folderPtr = Marshal.StringToHGlobalAnsi(folder);
@@ -436,19 +445,32 @@ public class Client : IDisposable
                 folder = folderPtr,
                 filename = filenamePtr
             };
-
-            IntPtr responsePtr = client_download(clientPtr, ref request);
-
-            if (responsePtr == IntPtr.Zero)
+            void Callback(IntPtr responsePtr)
             {
-                throw new ClientError("Download failed or response is null");
+                if (responsePtr == IntPtr.Zero)
+                {
+                    tcs.SetException(new ClientError("Callback got null response"));
+                    return;
+                }
+
+                var response = Marshal.PtrToStructure<DownloadResponseWrapper>(responsePtr);
+                string filename = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+                free_query_response(responsePtr);
+
+                if (!success)
+                {
+                    tcs.SetException(new ClientError(error));
+                }
+                else
+                {
+                    tcs.SetResult(filename);
+                }
             }
+            var callbackDelegate = new DownloadCallback(Callback);
 
-            DownloadResponseWrapper response = Marshal.PtrToStructure<DownloadResponseWrapper>(responsePtr);
-            string result = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
-            free_download_response(responsePtr);
-
-            return result;
+            client_download(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -457,10 +479,13 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(folderPtr);
             Marshal.FreeHGlobal(filenamePtr);
         }
+        return tcs.Task;
     }
 
-    public string upload(string filepath, string filename, string mimetype, string metadata, string collectionname)
+    public Task<string> upload(string filepath, string filename, string mimetype, string metadata, string collectionname)
     {
+        var tcs = new TaskCompletionSource<string>();
+
         IntPtr filepathPtr = Marshal.StringToHGlobalAnsi(filepath);
         IntPtr filenamePtr = Marshal.StringToHGlobalAnsi(filename);
         IntPtr mimetypePtr = Marshal.StringToHGlobalAnsi(mimetype);
@@ -478,18 +503,40 @@ public class Client : IDisposable
                 collectionname = collectionnamePtr
             };
 
-            IntPtr responsePtr = client_upload(clientPtr, ref request);
-
-            if (responsePtr == IntPtr.Zero)
+            void Callback(IntPtr responsePtr)
             {
-                throw new ClientError("Upload failed or response is null");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<UploadResponseWrapper>(responsePtr);
+                    string id = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_upload_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
             }
 
-            UploadResponseWrapper response = Marshal.PtrToStructure<UploadResponseWrapper>(responsePtr);
-            string result = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
-            free_upload_response(responsePtr);
+            var callbackDelegate = new UploadCallback(Callback);
 
-            return result;
+            client_upload(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -499,9 +546,11 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(metadataPtr);
             Marshal.FreeHGlobal(collectionnamePtr);
         }
+        return tcs.Task;
     }
-    public string watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
+    public Task<string> watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
     {
+        var tcs = new TaskCompletionSource<string>();
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr pathsPtr = Marshal.StringToHGlobalAnsi(paths);
 
@@ -513,36 +562,62 @@ public class Client : IDisposable
                 paths = pathsPtr
             };
 
-            WatchCallback callback = new WatchCallback((IntPtr eventStr) =>
-           {
-            string eventJson = Marshal.PtrToStringAnsi(eventStr) ?? string.Empty;
-               if (eventJson != null && eventJson != "")
-               {
-                   var eventObj = System.Text.Json.JsonSerializer.Deserialize<WatchEvent>(eventJson);
-                   if(eventObj != null) {                    
-                    eventHandler?.Invoke(eventObj);                    
-                   }                   
-               }
-           });
-
-            IntPtr responsePtr = client_watch(clientPtr, ref request, callback);
-
-            if (responsePtr == IntPtr.Zero)
+            var callback = new WatchEventCallback((IntPtr eventStr) =>
             {
-                throw new ClientError("Watch failed or response is null");
+                Console.WriteLine("dotnet: watch event callback");
+                string eventJson = Marshal.PtrToStringAnsi(eventStr) ?? string.Empty;
+                if (eventJson != null && eventJson != "")
+                {
+                    var eventObj = System.Text.Json.JsonSerializer.Deserialize<WatchEvent>(eventJson);
+                    if (eventObj != null)
+                    {
+                        eventHandler?.Invoke(eventObj);
+                    }
+                }
+            });
+
+            void Callback(IntPtr responsePtr)
+            {
+                Console.WriteLine("dotnet: register watch callback");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<WatchResponseWrapper>(responsePtr);
+                    string watchid = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_watch_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(watchid);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
             }
+            var callbackDelegate = new WatchCallback(Callback);
 
-            WatchResponseWrapper response = Marshal.PtrToStructure<WatchResponseWrapper>(responsePtr);
-            string result = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
-            free_watch_response(responsePtr);
+            client_watch(clientPtr, ref request, callbackDelegate, callback);
 
-            return result;
         }
         finally
         {
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(pathsPtr);
         }
+        return tcs.Task;
     }
 
 

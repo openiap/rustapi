@@ -12,8 +12,13 @@ if __name__ == "__main__":
         signin_result = client.signin()
         print(signin_result)
 
-        query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
-        print(query_result)
+        for y in range(1, 3):
+            promises = []
+            for x in range(1, 10):
+                client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
+            
+        # query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
+        # print(query_result)
 
         download_result = client.download(collectionname="fs.files", id="65a3aaf66d52b8c15131aebd", folder="", filename="")
         print(download_result)
@@ -34,7 +39,7 @@ if __name__ == "__main__":
 
         while watchcounter[0] < 2:
             time.sleep(1)
-        unwatch_result =  client.unwatch(watch_result["watchid"])
+        unwatch_result =  client.unwatch(watch_result)
         print(unwatch_result)
 
     except ClientError as e:

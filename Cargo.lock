@@ -598,6 +598,7 @@ name = "openiap"
 version = "0.0.1"
 dependencies = [
  "hyper-util",
+ "lazy_static",
  "prost",
  "prost-types",
  "serde",

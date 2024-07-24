@@ -146,11 +146,11 @@ function loadLibrary() {
             'free_signin_response': ['void', [SigninResponseWrapperPtr]],
             'client_query': ['void', [voidPtr, QueryRequestWrapperPtr, 'pointer']],
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
-            'client_download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
+            'client_download': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
-            'client_upload': [UploadResponseWrapperPtr, [voidPtr, UploadRequestWrapperPtr]],
+            'client_upload': ['void', [voidPtr, UploadRequestWrapperPtr, 'pointer']],
             'free_upload_response': ['void', [UploadResponseWrapperPtr]],
-            'client_watch': [WatchResponseWrapperPtr, [voidPtr, WatchRequestWrapperPtr, 'pointer']],
+            'client_watch': ['void', [voidPtr, WatchRequestWrapperPtr, 'pointer', 'pointer']],
             'free_watch_response': ['void', [WatchResponseWrapperPtr]],
             'client_unwatch': [UnWatchResponseWrapperPtr, [voidPtr, CString]],
             'free_unwatch_response': ['void', [UnWatchResponseWrapperPtr]],
@@ -197,7 +197,7 @@ class Client {
                     try {
                         this.client = clientPtr;
                         const clientres = clientPtr.deref();
-                        console.log('Node.js: Client result:', clientres);
+                        console.log('Node.js: Client result');
                         if (!clientres.success) {
                             reject(new ClientCreationError(clientres.error));
                         } else {
@@ -296,7 +296,6 @@ class Client {
                 this.lib.free_query_response(responsePtr);
             });
 
-
             console.log('Node.js: call client_query');
             this.lib.client_query.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
@@ -306,71 +305,120 @@ class Client {
         });
     }
     download({collectionname, id, folder, filename}) {
-        const req = new DownloadRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            id: ref.allocCString(id),
-            folder: ref.allocCString(folder),
-            filename: ref.allocCString(filename)
+        console.log('Node.js: download invoked');
+        return new Promise((resolve, reject) => {
+            const req = new DownloadRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                id: ref.allocCString(id),
+                folder: ref.allocCString(folder),
+                filename: ref.allocCString(filename)
+            });
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(DownloadResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_download callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        filename: response.filename,
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_download_response(responsePtr);
+            });
+
+            console.log('Node.js: call client_download');
+            this.lib.client_download.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Download failed'));
+                }
+            });
         });
-        const response = this.lib.client_download(this.client, req.ref());
-        if (ref.isNull(response)) {
-            throw new ClientError('Download failed');
-        }
-        const Obj = response.deref();
-        const result = {
-            success: Obj.success,
-            filename: Obj.filename,
-            error: Obj.error
-        };
-        this.lib.free_download_response(response);
-        return result;
     }
     upload({filepath, filename, mimetype, metadata, collectionname}) {
-        const req = new UploadRequestWrapper({
-            filepath: ref.allocCString(filepath),
-            filename: ref.allocCString(filename),
-            mimetype: ref.allocCString(mimetype),
-            metadata: ref.allocCString(metadata),
-            collectionname: ref.allocCString(collectionname)
+        console.log('Node.js: upload invoked');
+        return new Promise((resolve, reject) => {
+            const req = new UploadRequestWrapper({
+                filepath: ref.allocCString(filepath),
+                filename: ref.allocCString(filename),
+                mimetype: ref.allocCString(mimetype),
+                metadata: ref.allocCString(metadata),
+                collectionname: ref.allocCString(collectionname)
+            });
+            console.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(UploadResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_upload callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        id: response.id,
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_upload_response(responsePtr);
+            });
+
+            console.log('Node.js: call client_upload');
+            this.lib.client_upload.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Upload failed'));
+                }
+            });
         });
-        const response = this.lib.client_upload(this.client, req.ref());
-        if (ref.isNull(response)) {
-            throw new ClientError('Upload failed');
-        }
-        const Obj = response.deref();
-        const result = {
-            success: Obj.success,
-            id: Obj.id,
-            error: Obj.error
-        };
-        this.lib.free_upload_response(response);
-        return result;
     }
     watch({collectionname, paths}, callback) {
-        const callbackPtr = ffi.Callback('void', ['string'], (data) => {
-            try {
-                const event = JSON.parse(data);
-                callback(event);
-            } catch (error) {
-                console.error(`watch callback error: ${error}`);                
-            }            
+        console.log('Node.js: watch invoked');
+        return new Promise((resolve, reject) => {
+            console.log('Node.js: create event_callbackPtr');
+            const event_callbackPtr = ffi.Callback('void', ['string'], (data) => {
+                console.log('Node.js: client_watch event callback');
+                try {
+                    const event = JSON.parse(data);
+                    // event.document = JSON.parse(event.document);
+                    callback(event);
+                } catch (error) {
+                    console.error(`watch callback error: ${error}`);                
+                }            
+            });
+            const req = new WatchRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                paths: ref.allocCString(paths)
+            });
+
+            console.log('Node.js: create callback');
+            const callbackPtr = ffi.Callback('void', [ref.refType(WatchResponseWrapper)], (responsePtr) => {
+                console.log('Node.js: client_watch callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        watchid: response.watchid,
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_watch_response(responsePtr);
+            });
+
+            console.log('Node.js: call client_watch');
+            this.lib.client_watch.async(this.client, req.ref(), callbackPtr, event_callbackPtr, (err) => {
+                if (err) {
+                    reject(new ClientError('watch failed'));
+                }
+            });
         });
-        const req = new WatchRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            paths: ref.allocCString(paths)
-        });
-        const response = this.lib.client_watch(this.client, req.ref(), callbackPtr);
-        if (ref.isNull(response)) {
-            throw new ClientError('Watch failed');
-        }
-        const Obj = response.deref();
-        const result = {
-            success: Obj.success,
-            watchid: Obj.watchid,
-            error: Obj.error
-        };
-        this.lib.free_watch_response(response);
-        return result;
     }
     unwatch(watchid) {
         const response = this.lib.client_unwatch(this.client, watchid);

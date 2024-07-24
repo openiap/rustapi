@@ -16,10 +16,24 @@ const fs = require('fs');
         // console.log(signinResult);
         if(signin_result.success) {
             console.log("signed in", signin_result.success);
-            for(let i = 0; i < 1; i++) {
-                const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-                console.log(query_result.results);
+            let promises = [];
+            for(y = 0; y < 2; y++) {
+                for(let i = 0; i < 10; i++) {
+                    // const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                    // console.log(query_result.results);
+                    promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+                }
+                console.log(
+                    (await Promise.all(promises)).map(result => result.results)
+                );
+                promises = [];
             }
+            // console.log("AWAIT ALL begin")
+            // console.log(
+            //     (await Promise.all(promises)).map(result => result.results)
+            // );
+            // console.log("AWAIT ALL complete")
+            // await new Promise(resolve => setTimeout(resolve, 2000));
 
 
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
@@ -34,7 +48,7 @@ const fs = require('fs');
                 filepath = '../testfile.csv';
             }
             
-            const upload_result = client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
+            const upload_result = await client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
             if(upload_result.success == false) {
                 console.log("upload failed", upload_result.error);
             } else {
@@ -42,9 +56,9 @@ const fs = require('fs');
             }
 
             let eventcount = 0;
-            const watch_result = client.watch({ collectionname: 'entities', paths: ''}, (event) => {
-                console.log("watch");
-                console.log("watch event", event);
+            const watch_result = await client.watch({ collectionname: 'entities', paths: ''}, (event) => {
+                event.document = JSON.parse(event.document);
+                console.log("watch " + event.operation + " for " + event.document._type + " / " + event.document.test);
                 eventcount++;
             });
             if(watch_result.success == false) {
@@ -64,7 +78,9 @@ const fs = require('fs');
                 console.log("remove watch success");
             }
 
+            console.log("*********************************")
             console.log("done, free client");
+            console.log("*********************************")
             client.free();
         } else {
             console.log("signed failed", signin_result.error);
