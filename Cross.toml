@@ -1,39 +1,32 @@
 [build]
-default-target = "x86_64-unknown-linux-gnu"
+# default-target = "x86_64-unknown-linux-gnu"
 
 pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get install --assume-yes protobuf-compiler libssl-dev:$CROSS_DEB_ARCH",
-#    "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-#    "$HOME/.cargo/bin/rustup toolchain remove nightly && $HOME/.cargo/bin/rustup toolchain install nightly"
+    "apt-get update && apt-get install --assume-yes protobuf-compiler",
 ]
 
+# cross build --target x86_64-unknown-linux-gnu
+# cross build --target aarch64-unknown-linux-gnu
 
 # cross build --target x86_64-pc-windows-gnu
 # cross build --target i686-pc-windows-gnu
-# cross build --target aarch64-unknown-linux-gnu
-# cross build --target x86_64-unknown-linux-gnu
-# cross build --target aarch64-apple-darwin	
+
+# cross build --target aarch64-apple-darwin
+# cross build --target x86_64-apple-darwin
 
 
 
 
+# cargo install cross --git https://github.com/cross-rs/cross
+# https://github.com/cross-rs/cross-toolchains
 
+[target.x86_64-apple-darwin]
+image = "ghcr.io/cross-rs/x86_64-apple-darwin-cross:local"
+
+# apple silicon
 [target.aarch64-apple-darwin]
 image = "ghcr.io/cross-rs/aarch64-apple-darwin-cross:local"
-# cross build --target aarch64-apple-darwin
-# cd ~/code/rust/cross
-# cargo build-docker-image aarch64-apple-darwin-cross --build-arg 'MACOS_SDK_URL=https://github.com/roblabla/MacOSX-SDKs/releases/download/13.1/MacOSX13.1.sdk.tar.xz'
-
-
-# https://github.com/roblabla/MacOSX-SDKs/releases
-# https://github.com/phracker/MacOSX-SDKs/releases
-
 
 [target.i686-apple-darwin]
 image = "ghcr.io/cross-rs/i686-apple-darwin-cross:local"
-# cross build --target i686-apple-darwin
-# cd ~/code/rust/cross
-# cargo build-docker-image i686-apple-darwin-cross --build-arg 'MACOS_SDK_URL=https://github.com/tvandera/MacOSX_SDKs/releases/download/v10.11.0.1/MacOSX10.10.sdk.tar.gz'
-# build-std = ["std", "core", "alloc", "proc_macro"]
 build-std = ["std"]

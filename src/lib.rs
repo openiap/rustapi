@@ -1,5 +1,3 @@
-// https://napi.rs/docs/introduction/getting-started
-
 use client::openiap::{
     AggregateRequest, CountRequest, DownloadRequest, Envelope, InsertOneRequest, QueryRequest,
     SigninRequest, UploadRequest, WatchRequest,
