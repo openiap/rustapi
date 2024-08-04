@@ -448,7 +448,7 @@ impl Client {
             config.jwt = std::env::var("OPENIAP_JWT").unwrap_or_default();
         }
         if config.jwt.is_empty() {
-            config.jwt = std::env::var("JWT").unwrap_or_default();
+            config.jwt = std::env::var("jwt").unwrap_or_default();
         }
         let version = env!("CARGO_PKG_VERSION");
         if !version.is_empty() && config.version.is_empty() {
