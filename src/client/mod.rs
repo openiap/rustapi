@@ -238,6 +238,27 @@ impl Client {
                     )));
                 }
             }
+        } else {
+            let mut jwt = std::env::var("OPENIAP_JWT").unwrap_or_default();
+            if jwt.is_empty() {
+                jwt = std::env::var("jwt").unwrap_or_default();
+            }
+            if jwt.is_empty() == false {
+                debug!("Signing in with JWT");
+                let signin = SigninRequest::with_jwt(jwt.as_str());
+                let loginresponse = client.signin(signin).await;
+                match loginresponse {
+                    Ok(response) => {
+                        debug!("Signed in as {}", response.user.as_ref().unwrap().username);
+                    }
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to sign in: {}",
+                            e
+                        )));
+                    }
+                }
+            }
         }
         Ok(client)
     }

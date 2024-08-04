@@ -9,9 +9,9 @@ const fs = require('fs');
         // const url = 'https://grpc.app.openiap.io/';
         const url = '';
         const client = new Client();
-        // client.enable_tracing("info", "close");
-        // client.enable_tracing("debug", "new");
-        client.enable_tracing("info", "");
+        // client.enable_tracing("openiap=info", "close");
+        // client.enable_tracing("openiap=debug", "new");
+        client.enable_tracing("openiap=debug", "");
         await client.connect(url);
         client.log("NodeJS:: connect completed, now call signin() again")
         const signin_result = await client.signin();
