@@ -3,9 +3,11 @@
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
-  "scripts": {
-  },
-  "keywords": ["openiap", "openrpa"],
+  "scripts": {},
+  "keywords": [
+    "openiap",
+    "openrpa"
+  ],
   "author": "OpenIAP ApS / Allan Zimmermann",
   "license": "MPL-2.0",
   "repository": {
@@ -22,6 +24,7 @@
   },
   "dependencies": {
     "ffi-napi": "^4.0.3",
+    "ref-array-di": "^1.2.2",
     "ref-napi": "^3.0.3",
     "ref-struct-napi": "^1.1.1"
   }

@@ -1,10 +1,12 @@
 use errors::OpenIAPError;
-use tracing::{debug, error};
+use tracing::{debug, error, info, trace};
 
 use openiap::{
     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
-    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse
+    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse,
+    DistinctRequest, DistinctResponse,
+    CountRequest, CountResponse, InsertManyRequest, InsertManyResponse, 
 };
 use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -15,8 +17,7 @@ use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-// use tonic::transport::{channel, Channel, ClientTlsConfig};
-use tonic::transport::{Channel, ClientTlsConfig};
+use tonic::transport::{Channel};
 
 pub mod openiap {
     tonic::include_proto!("openiap");
@@ -76,7 +77,7 @@ fn generate_unique_filename(base: &str) -> PathBuf {
     let dir = env::temp_dir();
     dir.join(filename)
 }
-
+#[tracing::instrument]
 fn move_file(from: &str, to: &str) -> std::io::Result<()> {
     // Attempt to rename the file first
     if let Err(_e) = std::fs::rename(from, to) {
@@ -87,7 +88,7 @@ fn move_file(from: &str, to: &str) -> std::io::Result<()> {
     Ok(())
 }
 impl Client {
-    #[tracing::instrument(level = "debug", target = "openiap::client", name = "connect")]
+    #[tracing::instrument(skip_all)]
     pub async fn connect(dst: &str) -> Result<Self, OpenIAPError> {
         let mut strurl = dst.to_string();
         if strurl.is_empty() {
@@ -134,7 +135,7 @@ impl Client {
         } else {
             strurl = format!("http://{}:{}", url.host_str().unwrap(), url.port().unwrap());
         }
-        println!("Connecting to {}", strurl);
+        info!("Connecting to {}", strurl);
 
         let innerclient;
         if url.scheme() == "http" {
@@ -151,9 +152,6 @@ impl Client {
                 }
             }
         } else {
-            let tls = ClientTlsConfig::new()
-                .with_webpki_roots()
-                .domain_name(url.host().unwrap().to_string());
             let uri = tonic::transport::Uri::builder()
                 .scheme(url.scheme())
                 .authority(url.host().unwrap().to_string())
@@ -168,7 +166,10 @@ impl Client {
                     )));
                 }
             };
-            let channel = Channel::builder(uri).tls_config(tls);
+            // let channel = Channel::builder(uri).tls_config(tls);
+            let channel = Channel::builder(uri).tls_config(
+                tonic::transport::ClientTlsConfig::new().with_native_roots()
+            );
             let channel = match channel {
                 Ok(channel) => channel,
                 Err(e) => {
@@ -223,12 +224,12 @@ impl Client {
             password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
         }
         if username.is_empty() == false && password.is_empty() == false {
-            println!("Signing in with username: {}", username);
+            debug!("Signing in with username: {}", username);
             let signin = SigninRequest::with_userpass(username.as_str(), password.as_str());
             let loginresponse = client.signin(signin).await;
             match loginresponse {
                 Ok(response) => {
-                    println!("Signed in as {}", response.user.as_ref().unwrap().username);
+                    debug!("Signed in as {}", response.user.as_ref().unwrap().username);
                 }
                 Err(e) => {
                     return Err(OpenIAPError::ClientError(format!(
@@ -240,7 +241,7 @@ impl Client {
         }
         Ok(client)
     }
-    #[tracing::instrument(level = "debug", target = "openiap::client", name = "setup_stream")]
+    #[tracing::instrument(skip_all)]
     async fn setup_stream(&self, in_stream: ReceiverStream<Envelope>) -> Result<(), OpenIAPError> {
         let mut inner = self.inner.lock().await;
         let response = inner.client.setup_stream(Request::new(in_stream)).await;
@@ -276,6 +277,8 @@ impl Client {
                             Ok(_) => _ = (),
                             Err(e) => error!("Failed to send data: {}", e),
                         }
+                    } else if command == "refreshtoken" {
+                        // TODO: store jwt at some point in the future
                     } else if command == "beginstream"
                         || command == "stream"
                         || command == "endstream"
@@ -317,7 +320,7 @@ impl Client {
                         // Send to response to waiting call
                         let _ = response_tx.send(received);
                     } else {
-                        println!("Received unhandled {} message: {:?}", command, received);
+                        error!("Received unhandled {} message: {:?}", command, received);
                     }
                 }
             }
@@ -325,14 +328,16 @@ impl Client {
         Ok(())
     }
     #[allow(dead_code, unused_variables)]
+    #[tracing::instrument(skip_all)]
     pub fn set_callback(&mut self, callback: Box<dyn Fn(String) + Send + Sync>) {
         // self.callback = Some(callback);
     }
-
+    #[tracing::instrument(skip_all)]
     fn get_id(&self) -> usize {
         static COUNTER: AtomicUsize = AtomicUsize::new(1);
         COUNTER.fetch_add(1, Ordering::Relaxed)
     }
+    #[tracing::instrument(skip_all)]
     async fn send(&self, msg: Envelope) -> Result<Envelope, OpenIAPError> {
         let response = self.send_noawait(msg).await;
         match response {
@@ -346,7 +351,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
     }
-    #[tracing::instrument(level = "debug", target = "openiap::client", name = "send_noawait")]
+    #[tracing::instrument(skip_all)]
     async fn send_noawait(
         &self,
         mut msg: Envelope,
@@ -371,6 +376,7 @@ impl Client {
         }
         Ok((response_rx, id))
     }
+    #[tracing::instrument(skip_all)]
     async fn sendwithstream(
         &self,
         mut msg: Envelope,
@@ -398,6 +404,7 @@ impl Client {
         Ok((response_rx, stream_rx))
     }
     #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
     async fn ping(&self) {
         let envelope = Envelope {
             command: "ping".into(),
@@ -408,6 +415,7 @@ impl Client {
             error!("Failed to send ping");
         }
     }
+    #[tracing::instrument(skip_all)]
     pub async fn signin(&self, mut config: SigninRequest) -> Result<SigninResponse, OpenIAPError> {
         if config.username.is_empty() {
             config.username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
@@ -457,7 +465,7 @@ impl Client {
             }
         }
     }
-
+    #[tracing::instrument(skip_all)]
     pub async fn query(&self, mut config: QueryRequest) -> Result<QueryResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -481,6 +489,7 @@ impl Client {
         }
     }
     #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
     pub async fn aggregate(&self, mut config: AggregateRequest) -> Result<AggregateResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -512,6 +521,63 @@ impl Client {
         }
     }
     #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn count(&self, mut config: CountRequest) -> Result<CountResponse, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            config.collectionname = "entities".to_string();
+        }
+        if config.query.is_empty() {
+            config.query = "{}".to_string();
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: CountResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn distinct(&self, mut config: DistinctRequest) -> Result<DistinctResponse, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            config.collectionname = "entities".to_string();
+        }
+        if config.query.is_empty() {
+            config.query = "{}".to_string();
+        }
+        if config.field.is_empty() {
+            return Err(OpenIAPError::ClientError("No field provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let data = m.data.unwrap();
+                let response: DistinctResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
     pub async fn insert_one(&self, config: InsertOneRequest) -> Result<InsertOneResponse, OpenIAPError> {
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
@@ -530,6 +596,27 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn insert_many(&self, config: InsertManyRequest) -> Result<InsertManyResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: InsertManyResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
     pub async fn download(
         &self,
         config: DownloadRequest,
@@ -540,7 +627,7 @@ impl Client {
         match self.sendwithstream(envelope).await {
             Ok((response_rx, mut stream_rx)) => {
                 let temp_file_path = generate_unique_filename("openiap");
-                println!("Temp file: {:?}", temp_file_path);
+                debug!("Temp file: {:?}", temp_file_path);
                 let mut temp_file = File::create(&temp_file_path).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to create temp file: {}", e))
                 })?;
@@ -596,11 +683,11 @@ impl Client {
                     folder = ".";
                 }
                 let filepath = format!("{}/{}", folder, final_filename);
-                println!("Moving file to {}", filepath);
+                trace!("Moving file to {}", filepath);
                 move_file(temp_file_path.to_str().unwrap(), filepath.as_str()).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to move file: {}", e))
                 })?;
-                println!("Downloaded file to {}", filepath);
+                debug!("Downloaded file to {}", filepath);
                 downloadresponse.filename = filepath;
 
                 Ok(downloadresponse)
@@ -608,12 +695,13 @@ impl Client {
             Err(status) => Err(OpenIAPError::ClientError(status.to_string())),
         }
     }
+    #[tracing::instrument(skip_all)]
     pub async fn upload(
         &self,
         config: UploadRequest,
         filepath: &str,
     ) -> Result<UploadResponse, OpenIAPError> {
-        println!("Rust::upload: Uploading file: {}", filepath);
+        debug!("Rust::upload: Uploading file: {}", filepath);
         let mut file = File::open(filepath)
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to open file: {}", e)))?;
         let chunk_size = 1024 * 1024; // 1 MB
@@ -682,6 +770,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
     }
+    #[tracing::instrument(skip_all)]
     pub async fn watch(
         &self,
         mut config: WatchRequest,
@@ -719,6 +808,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    #[tracing::instrument(skip_all)]
     pub async fn unwatch(&self, id: &str) -> Result<(), OpenIAPError> {
         let config = UnWatchRequest::byid(id);
         let envelope = config.to_envelope();
@@ -836,6 +926,40 @@ mod tests {
         println!("{:?}", result);
     }
     #[tokio::test()]
+    async fn test_count() {
+        // cargo test test_count -- --nocapture
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let query = CountRequest {
+            collectionname: "entities".to_string(),
+            query: "{}".to_string(),
+            ..Default::default()
+        };
+        let response = client.count(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Response: {:?}", response);
+    }
+    #[tokio::test()]
+    async fn test_distinct() {
+        // cargo test test_distinct -- --nocapture
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let query = DistinctRequest {
+            collectionname: "entities".to_string(),
+            field: "_type".to_string(),
+            ..Default::default()
+        };
+        let response = client.distinct(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Response: {:?}", response);
+    }
+    #[tokio::test()]
     async fn test_insert_one() {
         let client = Client::connect(TEST_URL).await.unwrap();
         let query = InsertOneRequest {
@@ -844,6 +968,22 @@ mod tests {
             ..Default::default()
         };
         let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Response: {:?}", response);
+    }
+    #[tokio::test()]
+    async fn test_insert_many() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+        let query = InsertManyRequest {
+            collectionname: "entities".to_string(),
+            items: "[{\"name\": \"test many from rust 1\", \"_type\": \"test\"}, {\"name\": \"test many from rust 2\", \"_type\": \"test\"}]".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_many(query).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",

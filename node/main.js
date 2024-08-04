@@ -1,13 +1,18 @@
-const StructType = require('ref-struct-napi');
 const ffi = require('ffi-napi');
 const ref = require('ref-napi');
+const StructType = require('ref-struct-di')(ref);
+const ArrayType = require('ref-array-di')(ref);
 const path = require('path');
 const fs = require('fs');
 
 const CString = ref.types.CString;
+const CStringArray = ArrayType(CString);
+
 const voidPtr = ref.refType(ref.types.void);
 const bool = ref.types.bool;
 const int = ref.types.int;
+const size_t = ref.types.size_t;
+
 
 // Define the ClientWrapper struct
 const ClientWrapper = StructType({
@@ -77,6 +82,36 @@ const AggregateResponseWrapper = StructType({
     error: CString
 });
 const AggregateResponseWrapperPtr = ref.refType(AggregateResponseWrapper);
+
+const CountRequestWrapper = StructType({
+    collectionname: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const CountRequestWrapperPtr = ref.refType(CountRequestWrapper);
+const CountResponseWrapper = StructType({
+    success: bool,
+    result: int,
+    error: CString
+});
+const CountResponseWrapperPtr = ref.refType(CountResponseWrapper);
+
+const DistinctRequestWrapper = StructType({
+    collectionname: CString,
+    field: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const DistinctRequestWrapperPtr = ref.refType(DistinctRequestWrapper);
+const DistinctResponseWrapper = StructType({
+    success: bool,
+    results: ref.refType(CStringArray),
+    results_count: size_t,
+    error: CString
+});
+const DistinctResponseWrapperPtr = ref.refType(DistinctResponseWrapper);
 
 // Define the SigninRequestWrapper struct
 const InsertOneRequestWrapper = StructType({
@@ -175,6 +210,8 @@ function loadLibrary() {
 
     try {
         return ffi.Library(libPath, {
+            'enable_tracing': ['void', [CString, CString]],
+            'disable_tracing': ['void', []],
             'client_connect': ['void', [CString, 'pointer']],
             'free_client': ['void', [ClientWrapperPtr]],
             'client_signin': ['void', [voidPtr, SigninRequestWrapperPtr, 'pointer']],
@@ -183,6 +220,10 @@ function loadLibrary() {
             'free_query_response': ['void', [QueryResponseWrapperPtr]],
             'client_aggregate': ['void', [voidPtr, AggregateRequestWrapperPtr, 'pointer']],
             'free_aggregate_response': ['void', [AggregateResponseWrapperPtr]],
+            'client_count': ['void', [voidPtr, CountRequestWrapperPtr, 'pointer']],
+            'free_count_response': ['void', [CountResponseWrapperPtr]],
+            'client_distinct': ['void', [voidPtr, DistinctRequestWrapperPtr, 'pointer']],
+            'free_distinct_response': ['void', [DistinctResponseWrapperPtr]],
             'client_insert_one': ['void', [voidPtr, InsertOneRequestWrapperPtr, 'pointer']],
             'free_insert_one_response': ['void', [InsertOneResponseWrapperPtr]],
             'client_download': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
@@ -228,15 +269,28 @@ class Client {
         this.lib = loadLibrary();
     }
 
+    enable_tracing(rust_log = '', tracing = '') {
+        if(rust_log == null || rust_log == '') { rust_log = ''; }
+        if(tracing == null || tracing == '') { tracing = ''; }
+        rust_log = ref.allocCString(rust_log);
+        tracing = ref.allocCString(tracing);
+        this.lib.enable_tracing(rust_log, tracing);
+    }
+    disable_tracing() {
+        this.lib.disable_tracing();
+    }
+    log(message) {
+        console.log(message);
+    }
     connect(url) {
         return new Promise((resolve, reject) => {
             try {
                 const callback = ffi.Callback('void', [ClientWrapperPtr], (clientPtr) => {
-                    console.log('Node.js: Callback invoked');
+                    this.log('Node.js: Callback invoked');
                     try {
                         this.client = clientPtr;
                         const clientres = clientPtr.deref();
-                        console.log('Node.js: Client result');
+                        this.log('Node.js: Client result');
                         if (!clientres.success) {
                             reject(new ClientCreationError(clientres.error));
                         } else {
@@ -246,9 +300,9 @@ class Client {
                         reject(new ClientCreationError(error.message));                        
                     }
                 });
-                console.log('Node.js: Calling client_connect');
+                this.log('Node.js: Calling client_connect');
                 this.lib.client_connect(url, callback);
-                console.log('Node.js: client_connect called');
+                this.log('Node.js: client_connect called');
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }
@@ -256,7 +310,7 @@ class Client {
     }
 
     signin(username, password) {
-        console.log('Node.js: signin invoked');
+        this.log('Node.js: signin invoked');
         return new Promise((resolve, reject) => {
             let jwt = "";
             if (username == null) username = '';
@@ -276,9 +330,9 @@ class Client {
                 ping: false
             });
     
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(SigninResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_signin callback');
+                this.log('Node.js: client_signin callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -294,7 +348,7 @@ class Client {
                 this.lib.free_signin_response(responsePtr);
             });
     
-            console.log('Node.js: call client_signin');
+            this.log('Node.js: call client_signin');
             this.lib.client_signin.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Signin failed or user is null'));
@@ -302,10 +356,9 @@ class Client {
             });
         });
     }
-    
 
     query({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
-        console.log('Node.js: query invoked');
+        this.log('Node.js: query invoked');
         return new Promise((resolve, reject) => {
             const req = new QueryRequestWrapper({
                 collectionname: ref.allocCString(collectionname),
@@ -317,9 +370,9 @@ class Client {
                 skip: skip,
                 top: top
             });
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(QueryResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_query callback');
+                this.log('Node.js: client_query callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -332,10 +385,10 @@ class Client {
                     };
                     resolve(result);
                 }
-                this.lib.free_query_response(responsePtr);
+                // this.lib.free_query_response(responsePtr);
             });
 
-            console.log('Node.js: call client_query');
+            this.log('Node.js: call client_query');
             this.lib.client_query.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Query failed'));
@@ -344,7 +397,7 @@ class Client {
         });
     }
     aggregate({collectionname, aggregates, queryas, hint, explain}) {
-        console.log('Node.js: aggregate invoked');
+        this.log('Node.js: aggregate invoked');
         if(aggregates == null) aggregates = '[]';
         if(queryas == null) queryas = '';
         if(hint == null) hint = '';
@@ -356,9 +409,9 @@ class Client {
                 hint: ref.allocCString(hint),
                 explain: explain
             });
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(AggregateResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_aggregate callback');
+                this.log('Node.js: client_aggregate callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -374,7 +427,7 @@ class Client {
                 this.lib.free_aggregate_response(responsePtr);
             });
 
-            console.log('Node.js: call client_aggregate');
+            this.log('Node.js: call client_aggregate');
             this.lib.client_aggregate.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Aggregate failed'));
@@ -382,8 +435,107 @@ class Client {
             });
         });
     }
+    count({collectionname, query, queryas, explain}) {
+        this.log('Node.js: count invoked');
+        return new Promise((resolve, reject) => {
+            const req = new CountRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                query: ref.allocCString(query),
+                queryas: ref.allocCString(queryas),
+                explain: explain
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(CountResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: client_count callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    const result = {
+                        success: response.success,
+                        result: response.result,
+                        error: null
+                    };
+                    resolve(result);
+                }
+                this.lib.free_count_response(responsePtr);
+            });
+
+            this.log('Node.js: call client_count');
+            this.lib.client_count.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Count failed'));
+                }
+            });
+        });
+    }
+    distinct({collectionname, field, query = "", queryas = "", explain = false}) {
+        this.log('Node.js: distinct invoked');
+        return new Promise((resolve, reject) => {
+            const req = new DistinctRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                field: ref.allocCString(field),
+                query: ref.allocCString(query),
+                queryas: ref.allocCString(queryas),
+                explain: explain
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [DistinctResponseWrapperPtr], (responsePtr) => {
+                this.log('Node.js: client_distinct callback');
+                const response = responsePtr.deref();
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+
+
+
+
+
+
+                    const resultsArrayPtr = response.results;
+                    const resultsCount = response.results_count;
+                    const results = [];
+
+                    for (let i = 0; i < resultsCount; i++) {
+                        const cstrPtr = resultsArrayPtr.readPointer(i * ref.sizeof.pointer);
+                        const jsString = ref.readCString(cstrPtr);
+                        results.push(jsString);
+                    }
+
+                    const result = {
+                        success: response.success,
+                        results: results,
+                        error: null
+                    };
+                    resolve(result);
+
+
+
+
+
+
+                    // const result = {
+                    //     success: response.success,
+                    //     results: response.results,
+                    //     error: null
+                    // };
+                    // resolve(result);
+                }
+                this.lib.free_distinct_response(responsePtr);
+            });
+
+            this.log('Node.js: call client_distinct');
+            this.lib.client_distinct.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('Distinct failed'));
+                }
+            });
+        });
+    }
     insert_one({collectionname, document, w, j}) {
-        console.log('Node.js: insert_one invoked');
+        this.log('Node.js: insert_one invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertOneRequestWrapper({
                 collectionname: ref.allocCString(collectionname),
@@ -391,9 +543,9 @@ class Client {
                 w: w,
                 j: j
             });
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(InsertOneResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_insert_one callback');
+                this.log('Node.js: client_insert_one callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -409,7 +561,7 @@ class Client {
                 this.lib.free_insert_one_response(responsePtr);
             });
 
-            console.log('Node.js: call client_insert_one');
+            this.log('Node.js: call client_insert_one');
             this.lib.client_insert_one.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOne failed'));
@@ -418,7 +570,7 @@ class Client {
         });
     };
     download({collectionname, id, folder, filename}) {
-        console.log('Node.js: download invoked');
+        this.log('Node.js: download invoked');
         return new Promise((resolve, reject) => {
             const req = new DownloadRequestWrapper({
                 collectionname: ref.allocCString(collectionname),
@@ -426,9 +578,9 @@ class Client {
                 folder: ref.allocCString(folder),
                 filename: ref.allocCString(filename)
             });
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(DownloadResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_download callback');
+                this.log('Node.js: client_download callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -444,7 +596,7 @@ class Client {
                 this.lib.free_download_response(responsePtr);
             });
 
-            console.log('Node.js: call client_download');
+            this.log('Node.js: call client_download');
             this.lib.client_download.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Download failed'));
@@ -453,7 +605,7 @@ class Client {
         });
     }
     upload({filepath, filename, mimetype, metadata, collectionname}) {
-        console.log('Node.js: upload invoked');
+        this.log('Node.js: upload invoked');
         return new Promise((resolve, reject) => {
             const req = new UploadRequestWrapper({
                 filepath: ref.allocCString(filepath),
@@ -462,9 +614,9 @@ class Client {
                 metadata: ref.allocCString(metadata),
                 collectionname: ref.allocCString(collectionname)
             });
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(UploadResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_upload callback');
+                this.log('Node.js: client_upload callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -480,7 +632,7 @@ class Client {
                 this.lib.free_upload_response(responsePtr);
             });
 
-            console.log('Node.js: call client_upload');
+            this.log('Node.js: call client_upload');
             this.lib.client_upload.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('Upload failed'));
@@ -489,11 +641,11 @@ class Client {
         });
     }
     watch({collectionname, paths}, callback) {
-        console.log('Node.js: watch invoked');
+        this.log('Node.js: watch invoked');
         return new Promise((resolve, reject) => {
-            console.log('Node.js: create event_callbackPtr');
+            this.log('Node.js: create event_callbackPtr');
             const event_callbackPtr = ffi.Callback('void', ['string'], (data) => {
-                console.log('Node.js: client_watch event callback');
+                this.log('Node.js: client_watch event callback');
                 try {
                     const event = JSON.parse(data);
                     // event.document = JSON.parse(event.document);
@@ -507,9 +659,9 @@ class Client {
                 paths: ref.allocCString(paths)
             });
 
-            console.log('Node.js: create callback');
+            this.log('Node.js: create callback');
             const callbackPtr = ffi.Callback('void', [ref.refType(WatchResponseWrapper)], (responsePtr) => {
-                console.log('Node.js: client_watch callback');
+                this.log('Node.js: client_watch callback');
                 const response = responsePtr.deref();
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -525,7 +677,7 @@ class Client {
                 this.lib.free_watch_response(responsePtr);
             });
 
-            console.log('Node.js: call client_watch');
+            this.log('Node.js: call client_watch');
             this.lib.client_watch.async(this.client, req.ref(), callbackPtr, event_callbackPtr, (err) => {
                 if (err) {
                     reject(new ClientError('watch failed'));

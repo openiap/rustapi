@@ -9,51 +9,54 @@ const fs = require('fs');
         // const url = 'https://grpc.app.openiap.io/';
         const url = '';
         const client = new Client();
+        // client.enable_tracing("info", "close");
+        // client.enable_tracing("debug", "new");
+        client.enable_tracing("info", "");
         await client.connect(url);
-        console.log("NodeJS:: connect completed, now call signin() again")
+        client.log("NodeJS:: connect completed, now call signin() again")
         const signin_result = await client.signin();
-        console.log("NodeJS:: signin() complete")
-        // console.log(signinResult);
+        client.log("NodeJS:: signin() complete")
+        // client.log(signinResult);
         if(signin_result.success) {
-            console.log("signed in", signin_result.success);
+            client.log("signed in", signin_result.success);
             let promises = [];
             for(y = 0; y < 1; y++) {
-                for(let i = 0; i < 5; i++) {
-                    const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-                    console.log(query_result.results);
-                    // promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+                for(let i = 0; i < 20; i++) {
+                    // const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                    // console.log("Got ", query_result.results.length, " results");
+                    promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
 
                     
                 }
-                console.log(
+                client.log(
                     (await Promise.all(promises)).map(result => result.results)
                 );
                 promises = [];
             }
-            // console.log("AWAIT ALL begin")
-            // console.log(
+            // client.log("AWAIT ALL begin")
+            // client.log(
             //     (await Promise.all(promises)).map(result => result.results)
             // );
-            // console.log("AWAIT ALL complete")
+            // client.log("AWAIT ALL complete")
             // await new Promise(resolve => setTimeout(resolve, 2000));
 
             const aggregate_result = await client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
             if(aggregate_result.success == false) {
-                console.log("aggregate failed", aggregate_result.error);
+                console.error("aggregate failed", aggregate_result.error);
             } else {
-                console.log("aggregate success", aggregate_result.results);
+                console.log("aggregate success", aggregate_result.results.length, " results");
             }
 
             const insert_one_result = await client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
             if(insert_one_result.success == false) {
-                console.log("insert_one failed", insert_one_result.error);
+                console.error("insert_one failed", insert_one_result.error);
             } else {
                 console.log("insert_one success", insert_one_result.id);
             }
 
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
             if(download_result.success == false) {
-                console.log("download failed", download_result.error);
+                console.error("download failed", download_result.error);
             } else {
                 console.log("download success", download_result.filename);
             }
@@ -65,7 +68,7 @@ const fs = require('fs');
             
             const upload_result = await client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
             if(upload_result.success == false) {
-                console.log("upload failed", upload_result.error);
+                console.error("upload failed", upload_result.error);
             } else {
                 console.log("upload success", upload_result.id);
             }
@@ -77,7 +80,7 @@ const fs = require('fs');
                 eventcount++;
             });
             if(watch_result.success == false) {
-                console.log("watch failed", watch_result.error);
+                console.error("watch failed", watch_result.error);
             } else {
                 console.log("watch created as", watch_result.watchid);
             }
@@ -88,17 +91,29 @@ const fs = require('fs');
 
             const unwatch_result = client.unwatch(watch_result.watchid);
             if(unwatch_result.success == false) {
-                console.log("remove watch failed", unwatch_result.error);
+                console.error("remove watch failed", unwatch_result.error);
             } else {
                 console.log("remove watch success");
             }
+            var count_result = await client.count({ collectionname: 'entities', query: '{}', queryas: '' });
+            if(count_result.success == false) {
+                console.error("count failed", count_result.error);
+            } else {
+                console.log("count success", count_result.result);
+            }
+            var distinct_result = await client.distinct({ collectionname: 'entities', field: '_type' });
+            if(distinct_result.success == false) {
+                console.error("distinct failed", distinct_result.error);
+            } else {
+                console.log("distinct success", distinct_result.results);
+            }
 
-            console.log("*********************************")
-            console.log("done, free client");
-            console.log("*********************************")
+            client.log("*********************************")
+            client.log("done, free client");
+            client.log("*********************************")
             client.free();
         } else {
-            console.log("signed failed", signin_result.error);
+            client.log("signed failed", signin_result.error);
         }
     } catch (error) {
         if (error instanceof ClientError) {

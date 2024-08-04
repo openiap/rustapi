@@ -5,9 +5,9 @@ using System.Runtime.InteropServices;
 
 public class WatchEvent
 {
-    public required string id { get; set; }
-    public required string operation { get; set; }
-    public required object document { get; set; }
+    public string? id { get; set; }
+    public string? operation { get; set; }
+    public object? document { get; set; }
 
 }
 public class Client : IDisposable
@@ -94,6 +94,48 @@ public class Client : IDisposable
         public IntPtr error;
     }
     public delegate void AggregateCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CountRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr query;
+        public IntPtr queryas;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool explain;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CountResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public int count;        
+        public IntPtr error;
+    }
+    public delegate void CountCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DistinctRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr field;
+        public IntPtr query;
+        public IntPtr queryas;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool explain;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DistinctResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public UIntPtr results_count;
+        public IntPtr error;
+    }
+    public delegate void DistinctCallback(IntPtr responsePtr);
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct InsertOneRequestWrapper
@@ -244,6 +286,16 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_aggregate_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void client_count(IntPtr client, ref CountRequestWrapper request, CountCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_count_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void client_distinct(IntPtr client, ref DistinctRequestWrapper request, DistinctCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_distinct_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void client_insert_one(IntPtr client, ref InsertOneRequestWrapper request, InsertOneCallback callback);
@@ -539,6 +591,147 @@ public class Client : IDisposable
         return tcs.Task;
     }
 
+    public Task<int> Count(string collectionname, string query = "", string queryas = "", bool explain = false)
+    {
+        var tcs = new TaskCompletionSource<int>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
+        IntPtr queryasPtr = Marshal.StringToHGlobalAnsi(queryas);
+
+        try
+        {
+            CountRequestWrapper request = new CountRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                query = queryPtr,
+                queryas = queryasPtr,
+                explain = explain
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<CountResponseWrapper>(responsePtr);
+                    // result: i32, in rust
+                    int count = (int)response.count;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_count_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(count);
+                    }                    
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new CountCallback(Callback);
+
+            client_count(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(queryPtr);
+            Marshal.FreeHGlobal(queryasPtr);
+        }
+        return tcs.Task;
+    }
+
+    public Task<string[]> Distinct(string collectionname, string field, string query = "", string queryas = "", bool explain = false)
+    {
+        var tcs = new TaskCompletionSource<string[]>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr fieldPtr = Marshal.StringToHGlobalAnsi(field);
+        IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
+        IntPtr queryasPtr = Marshal.StringToHGlobalAnsi(queryas);
+
+        try
+        {
+            DistinctRequestWrapper request = new DistinctRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                field = fieldPtr,
+                query = queryPtr,
+                queryas = queryasPtr,
+                explain = explain
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+
+                                       if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<DistinctResponseWrapper>(responsePtr);
+                    bool success = response.success;
+
+                    if (!success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        int resultsCount = (int)response.results_count;
+                        string[] results = new string[resultsCount];
+                        IntPtr[] resultPtrs = new IntPtr[resultsCount];
+                        Marshal.Copy(response.results, resultPtrs, 0, resultsCount);
+
+                        for (int i = 0; i < resultsCount; i++)
+                        {
+                            results[i] = Marshal.PtrToStringAnsi(resultPtrs[i]) ?? string.Empty;
+                        }
+
+                        tcs.SetResult(results);
+                    }
+
+                    free_distinct_response(responsePtr);
+
+                    
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new DistinctCallback(Callback);
+
+            client_distinct(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(fieldPtr);
+            Marshal.FreeHGlobal(queryPtr);
+            Marshal.FreeHGlobal(queryasPtr);
+        }
+        return tcs.Task;
+    }
+
     public Task<string> InsertOne(string collectionname, string item, int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -795,6 +988,7 @@ public class Client : IDisposable
 
     public void Dispose()
     {
+        Console.WriteLine("Dotnet: Dispose client");
         free_client(clientPtr);
     }
 }

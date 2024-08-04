@@ -1,6 +1,19 @@
 use super::openiap::{Envelope, RegisterQueueRequest, WatchRequest, UnWatchRequest,
     // RegisterExchangeRequest, UnRegisterQueueRequest,
 };
+
+// use std::fmt;
+// impl fmt::Debug for Envelope {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "Envelope {{ command: {:?}, data: {:?} }}", self.command, self.data)
+//     }    
+// }
+// impl <T: fmt::Display> fmt::Display for Envelope<T> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "Envelope {{ command: {}, data: {:?} }}", self.command, self.data)
+//     }
+// }
+
 #[allow(dead_code)]
 impl RegisterQueueRequest {
     pub fn queuename(queuename: &str) -> Self {

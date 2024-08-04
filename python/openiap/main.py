@@ -2,7 +2,7 @@ import ctypes
 import json
 import os
 import sys
-from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, CFUNCTYPE, POINTER, byref
+from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, c_size_t, CFUNCTYPE, POINTER, byref
 import threading
 import time
 
@@ -66,6 +66,30 @@ class AggregateResponseWrapper(Structure):
                 ("results", CString),
                 ("error", CString)]
 AggregateCallback = CFUNCTYPE(None, POINTER(AggregateResponseWrapper))
+
+class CountRequestWrapper(Structure):
+    _fields_ = [("collectionname", CString),
+                ("query", CString),
+                ("queryas", CString),
+                ("explain", bool)]
+class CountResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ("result", c_int),
+                ("error", CString)]
+CountCallback = CFUNCTYPE(None, POINTER(CountResponseWrapper))
+
+class DistinctRequestWrapper(Structure):
+    _fields_ = [("collectionname", CString),
+                ("field", CString),
+                ("query", CString),
+                ("queryas", CString),
+                ("explain", bool)]
+class DistinctResponseWrapper(Structure):
+    _fields_ = [("success", bool),
+                ('results', POINTER(c_char_p)),
+                ('results_count', c_size_t),
+                ("error", CString)]
+DistinctCallback = CFUNCTYPE(None, POINTER(DistinctResponseWrapper))
 
 class InsertOneRequestWrapper(Structure):
     _fields_ = [("collectionname", CString),
@@ -317,6 +341,95 @@ class Client:
             raise result["error"]
         
         return result["results"]
+
+    def count(self, collectionname = "", query = "", queryas = "", explain = False):
+        print("Python: Inside count")
+        # self.lib.client_count.argtypes = [voidPtr, POINTER(CountRequestWrapper)]
+        # self.lib.client_count.restype = POINTER(CountResponseWrapper)
+        event = threading.Event()
+        result = {"success": None, "result": None, "error": None}
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Count callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Count failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["result"] = response.result
+                self.lib.free_count_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = CountCallback(callback)
+
+        req = CountRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
+                                  query=CString(query.encode('utf-8')),
+                                  queryas=CString(queryas.encode('utf-8')),
+                                  explain=explain)
+        
+        print("Python: Calling client_count")
+        self.lib.client_count(self.client, byref(req), cb)
+        print("Python: client_count called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["result"]
+    
+    def distinct(self, collectionname="", field="", query="", queryas="", explain=False):
+        print("Python: Inside distinct")
+        event = threading.Event()
+        result = {"success": None, "results": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                print("Python: Distinct callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Distinct failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    results_array_ptr = response.results
+                    results_count = response.results_count
+                    results = []
+
+                    for i in range(results_count):
+                        cstr_ptr = results_array_ptr[i]
+                        js_string = ctypes.cast(cstr_ptr, c_char_p).value.decode('utf-8')
+                        results.append(js_string)
+
+                    result["results"] = results
+                self.lib.free_distinct_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = DistinctCallback(callback)
+
+        req = DistinctRequestWrapper(
+            collectionname=c_char_p(collectionname.encode('utf-8')),
+            field=c_char_p(field.encode('utf-8')),
+            query=c_char_p(query.encode('utf-8')),
+            queryas=c_char_p(queryas.encode('utf-8')),
+            explain=explain
+        )
+
+        print("Python: Calling client_distinct")
+        self.lib.client_distinct(self.client, byref(req), cb)
+        print("Python: client_distinct called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+
+        return result["results"]
+
     
     def insert_one(self, collectionname = "", item = "", w = 0, j = False):
         print("Python: Inside insert_one")

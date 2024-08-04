@@ -1,5 +1,5 @@
-// https://github.com/tokio-rs/tracing/tree/v0.1.x
 mod client;
+use client::openiap::InsertOneRequest;
 use client::Client;
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -29,6 +29,8 @@ fn onwatch(event: client::openiap::WatchEvent) {
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     // let res = Client::connect("http://localhost:50051").await;
     // let res = Client::connect("grpc://grpc.app.openiap.io:443").await;
+    // let res = Client::connect("grpc://grpc.home.openiap.io:443").await;
+    // let res = Client::connect("grpc://grpc.home.openiap.io:443").await;
     let res = Client::connect("").await;
     if res.is_err() == true {
         println!("Failed to connect to server: {:?}", res.err().unwrap());
@@ -57,6 +59,23 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let q = client
                     .query(client::openiap::QueryRequest::with_query("entities", "{}"))
+                    .await;
+                match q {
+                    Ok(response) => println!("{:?}", response.results),
+                    Err(e) => println!("Failed to query: {:?}", e),
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("di") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let query = client::openiap::DistinctRequest {
+                    collectionname: "entities".to_string(),
+                    field: "_type".to_string(),
+                    ..Default::default()
+                };
+                let q = client
+                    .distinct(query)
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -98,6 +117,24 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         "Signed in as {}",
                         s.unwrap().user.as_ref().unwrap().username
                     );
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("i") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let request = InsertOneRequest {
+                    collectionname: "entities".to_string(),
+                    item: "{\"name\":\"Allan\", \"_type\":\"Allan\"}".to_string(),
+                    ..Default::default()
+                };
+                let s = client
+                    .insert_one(request)                       
+                    .await;
+                if let Err(e) = s {
+                    println!("Failed to insert: {:?}", e);
+                } else {
+                    println!("inserted as {}", s.unwrap().result);
                 }
             });
         }
@@ -207,15 +244,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// fn sync_function() {
-//     let _ = tokio::runtime::Runtime::new().unwrap().block_on(doit());
-// }
-// use tracing_subscriber::fmt::fmt;
-// #[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-// mod otel;
-
 #[tokio::main]
 async fn main() {
     // tracing_subscriber::fmt::fmt()
@@ -226,30 +254,3 @@ async fn main() {
     doit().await.expect("Failed to run doit");
     println!("Main function completed.");
 }
-// fn main2() -> anyhow::Result<()> {
-//     // tracing_subscriber::fmt::fmt()
-//     //     .with_max_level(tracing::Level::DEBUG)
-//     //     .init();
-
-//     //    // Create a new OpenTelemetry trace pipeline that prints to stdout
-//     //    let provider = TracerProvider::builder()
-//     //    .with_simple_exporter(stdout::SpanExporter::default())
-//     //    .build();
-//     //     let tracer = provider.tracer("readme_example");
-
-//     //     // Create a tracing layer with the configured tracer
-//     //     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-//     //     tracing_subscriber::registry()
-//     //     .with(fmt::layer())
-//     //     .with(telemetry)
-//     //     .init();
-
-//     // otel::init_observability()?;
-    
-//     sync_function();
-//     println!("completed, or disconnected");
-
-   
-//     Ok(())
-// }

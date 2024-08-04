@@ -26,45 +26,52 @@ class Program
             // string results = await client.Query("entities", "{}", "{\"name\": 1}");
             // Console.WriteLine("results: " + results);
 
-            for(var y = 0; y < 5; y++) {
-                var promises = new List<Task<string>>();
-                for(var x = 0; x < 15; x++) {
-                    promises.Add(client.Query("entities", "{}", "{\"name\": 1}"));
-                }
-                var result = await Task.WhenAll(promises);
-                Console.WriteLine("results: " + result.Length);
-            }
+            // for(var y = 0; y < 5; y++) {
+            //     var promises = new List<Task<string>>();
+            //     for(var x = 0; x < 15; x++) {
+            //         promises.Add(client.Query("entities", "{}", "{\"name\": 1}"));
+            //     }
+            //     var result = await Task.WhenAll(promises);
+            //     Console.WriteLine("results: " + result.Length);
+            // }
 
-            // // System.Threading.Thread.Sleep(120000);
+            // // // System.Threading.Thread.Sleep(120000);
 
-            var aggregate_results = await client.Aggregate("entities", "[]");
-            Console.WriteLine("aggregate results: " + aggregate_results);
+            // var aggregate_results = await client.Aggregate("entities", "[]");
+            // Console.WriteLine("aggregate results: " + aggregate_results);
 
-            var insert_one_result = await client.InsertOne("entities", "{\"name\": \"test from dotnet\", \"_type\": \"test\"}");
-            Console.WriteLine("insert one result: " + insert_one_result);
+            // var insert_one_result = await client.InsertOne("entities", "{\"name\": \"test from dotnet\", \"_type\": \"test\"}");
+            // Console.WriteLine("insert one result: " + insert_one_result);
 
-            await client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
+            // await client.download("fs.files", "65a3aaf66d52b8c15131aebd", folder: "", filename: "");
 
-            var filepath = "testfile.csv";
-            if(!System.IO.File.Exists(filepath))
-            {
-                filepath = "../testfile.csv";
-            }
-            var upload_response = await client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
-            Console.WriteLine("Dotnet: upload success as " +  upload_response);
+            // var filepath = "testfile.csv";
+            // if(!System.IO.File.Exists(filepath))
+            // {
+            //     filepath = "../testfile.csv";
+            // }
+            // var upload_response = await client.upload(filepath, "dotnet-test.csv", "", "", "fs.files");
+            // Console.WriteLine("Dotnet: upload success as " +  upload_response);
 
-            var eventcount = 0;
-            var watch_response =  await client.watch("entities", "", (eventObj) => {
-                Console.WriteLine("watch event " + eventObj.operation + " on " + eventObj.document);
-                eventcount++;
-            });
-            Console.WriteLine("Dotnet: watch registered success as " +  watch_response);
+            // var eventcount = 0;
+            // var watch_response =  await client.watch("entities", "", (eventObj) => {
+            //     Console.WriteLine("watch event " + eventObj.operation + " on " + eventObj.document);
+            //     eventcount++;
+            // });
+            // Console.WriteLine("Dotnet: watch registered success as " +  watch_response);
 
-            while (eventcount < 2)
-            {
-                await Task.Delay(1000);
-            }
+            // while (eventcount < 2)
+            // {
+            //     await Task.Delay(1000);
+            // }
 
+            var count_response = await client.Count("entities", "");
+            Console.WriteLine("Dotnet: count success as " +  count_response);
+
+            var distinct_response = await client.Distinct("entities", "_type");
+            Console.WriteLine("Dotnet: distinct success as " + string.Join(",", distinct_response));
+
+            await Task.Delay(500);
             client.Dispose();
         }
         catch (Client.ClientError e)
