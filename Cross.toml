@@ -2,7 +2,7 @@
 # default-target = "x86_64-unknown-linux-gnu"
 
 pre-build = [
-    "apt-get update && apt-get install --assume-yes protobuf-compiler",
+    "apt-get update && apt-get install --assume-yes protobuf-compiler nodejs libuv1",
 ]
 
 # cross build --target x86_64-unknown-linux-gnu
