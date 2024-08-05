@@ -177,20 +177,87 @@ const UnWatchResponseWrapper = StructType({
 });
 const UnWatchResponseWrapperPtr = ref.refType(UnWatchResponseWrapper);
 
+function isMusl() {
+    // For Node 10
+    if (!process.report || typeof process.report.getReport !== 'function') {
+      try {
+        const lddPath = require('child_process').execSync('which ldd').toString().trim()
+        return readFileSync(lddPath, 'utf8').includes('musl')
+      } catch (e) {
+        return true
+      }
+    } else {
+      const { glibcVersionRuntime } = process.report.getReport().header
+      return !glibcVersionRuntime
+    }
+  }
+  
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
+    const { platform, arch } = process
     let libDir = path.join(__dirname, 'lib');
     let libPath;
-    switch (process.platform) {
+    switch (platform) {
+        case 'android':
+            switch (arch) {
+                case 'arm64':
+                    libPath = path.join(libDir, 'libopeniap-android-arm64.so'); break;
+                case 'arm':
+                    libPath = path.join(libDir, 'libopeniap-android-arm-eabi.so'); break;
+                default:
+                    throw new Error(`Unsupported architecture on Android ${arch}`)
+            }
+            break;
         case 'win32':
-            libPath = path.join(libDir, 'libopeniap.dll');
+            switch (arch) {
+                case 'ia32':
+                    libPath = path.join(libDir, 'openiap-windows-x64.dll'); break;
+                case 'x86':
+                    libPath = path.join(libDir, 'openiap-windows-x86.dll'); break;
+                case 'arm64':
+                    libPath = path.join(libDir, 'openiap-windows-arm64.dll'); break;
+                default:
+                    throw new Error(`Unsupported architecture on Android ${arch}`)
+            }
             break;
         case 'darwin':
-            libPath = path.join(libDir, 'libopeniap.dylib');
+            switch (arch) {
+                case 'x64':
+                    libPath = path.join(libDir, 'libopeniap-macos-x64.dylib'); break;
+                case 'arm64':
+                    libPath = path.join(libDir, 'libopeniap-macos-arm64.dylib'); break;
+                default:
+                    throw new Error(`Unsupported architecture on Android ${arch}`)
+            }
+            break;
+        case 'freebsd':
+            switch (arch) {
+                case 'x64':
+                    libPath = path.join(libDir, 'libopeniap-freebsd-x64.so'); break;
+                default:
+                    throw new Error(`Unsupported architecture on Android ${arch}`)
+            }
+            break;
+        case 'linux':
+            switch (arch) {
+                case 'x64':
+                    if (isMusl()) {
+                        libPath = path.join(libDir, 'libopeniap-linux-musl-x64.a'); break;
+                    } else {
+                        libPath = path.join(libDir, 'libopeniap-linux-x64.so'); break;
+                    }                    
+                case 'arm64':
+                    if (isMusl()) {
+                        libPath = path.join(libDir, 'libopeniap-linux-musl-arm64.a'); break;
+                    } else {
+                        libPath = path.join(libDir, 'libopeniap-linux-arm64.so'); break;
+                    }                    
+                default:
+                    throw new Error(`Unsupported architecture on Android ${arch}`)
+            }
             break;
         default:
-            libPath = path.join(libDir, 'libopeniap.so');
-            break;
+            throw new Error(`Unsupported platform ${platform}`)
     }
     if(!fs.existsSync(libPath)) {
         libDir = path.join(__dirname, '../target/debug/');
@@ -205,8 +272,8 @@ function loadLibrary() {
                 libPath = path.join(libDir, 'libopeniap.so');
                 break;
         }
-    
     }
+    // console.log(`Using library: ${libPath}`);
 
     try {
         return ffi.Library(libPath, {

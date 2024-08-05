@@ -2,7 +2,6 @@ using System;
 using System.Data;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-
 public class WatchEvent
 {
     public string? id { get; set; }
@@ -12,7 +11,6 @@ public class WatchEvent
 }
 public class Client : IDisposable
 {
-    // Define the ClientWrapper struct
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientWrapper
     {
@@ -23,7 +21,6 @@ public class Client : IDisposable
         public IntPtr runtime;
     }
 
-    // Define the SigninRequestWrapper struct
     [StructLayout(LayoutKind.Sequential)]
     public struct SigninRequestWrapper
     {
@@ -40,7 +37,6 @@ public class Client : IDisposable
         public bool ping;
     }
 
-    // Define the SigninResponseWrapper struct
     [StructLayout(LayoutKind.Sequential)]
     public struct SigninResponseWrapper
     {
@@ -109,7 +105,7 @@ public class Client : IDisposable
     {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
-        public int count;        
+        public int count;
         public IntPtr error;
     }
     public delegate void CountCallback(IntPtr responsePtr);
@@ -205,64 +201,83 @@ public class Client : IDisposable
         public IntPtr watchid;
         public IntPtr error;
     }
-
-    // Custom exception classes
     public class ClientError : Exception
     {
         public ClientError(string message) : base(message) { }
     }
-
     public class LibraryLoadError : ClientError
     {
         public LibraryLoadError(string message) : base(message) { }
     }
-
     public class ClientCreationError : ClientError
     {
         public ClientCreationError(string message) : base(message) { }
     }
-
-    // Function to load the correct library file based on the operating system
     private static string GetLibraryPath()
     {
-        string libDir = AppDomain.CurrentDomain.BaseDirectory + "/lib";
-        string libPath;
-
+        string libfile;
+        var arc = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
         switch (Environment.OSVersion.Platform)
         {
             case PlatformID.Win32NT:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.dll");
+                if (Environment.Is64BitProcess)
+                {
+                    libfile = arc == Architecture.X64 ? "openiap-windows-x64.dll" : "openiap-windows-arm64.dll";
+                }
+                else
+                {
+                    libfile = "openiap-windows-x86.dll";
+                }
                 break;
             case PlatformID.MacOSX:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.dylib");
+                if (!Environment.Is64BitProcess) throw new LibraryLoadError("macOS requires a 64-bit process");
+                libfile = arc == Architecture.Arm64 ? "libopeniap-macos-arm64.dylib" : "libopeniap-macos-x64.dylib";
+                break;
+            case PlatformID.Unix:
+                if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
+                if (System.IO.File.Exists("/etc/alpine-release"))
+                {
+                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-musl-arm64.a" : "libopeniap-linux-musl-x64.a";
+                }
+                else
+                {
+                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-arm64.so" : "libopeniap-linux-x64.so";
+                }
                 break;
             default:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.so");
-                break;
+                throw new PlatformNotSupportedException("Unsupported OS platform");
         }
-        if (System.IO.File.Exists(libPath))
-        {
-            return libPath;
-        }
-        // when testing before publishing
+
+        string libDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes");
+        string libPath = System.IO.Path.Combine(libDir, libfile);
+
+        if (System.IO.File.Exists(libPath)) return libPath;
+
+        libDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../lib");
+        libPath = System.IO.Path.Combine(libDir, libfile);
+
+        if (System.IO.File.Exists(libPath)) return libPath;
+
         libDir = AppDomain.CurrentDomain.BaseDirectory + "../../../../target/debug/";
         switch (Environment.OSVersion.Platform)
         {
             case PlatformID.Win32NT:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.dll");
+                libfile = "libopeniap.dll";
                 break;
             case PlatformID.MacOSX:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.dylib");
+                libfile = "libopeniap.dylib";
                 break;
             default:
-                libPath = System.IO.Path.Combine(libDir, "libopeniap.so");
+                libfile = "libopeniap.so";
                 break;
         }
-        return libPath;
+        libPath = System.IO.Path.Combine(libDir, libfile);
+        if (System.IO.File.Exists(libPath)) return libPath;
+
+        throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
     }
 
     public delegate void ConnectCallback(IntPtr clientWrapperPtr);
-    // Import the Rust library functions
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr client_connect(string url, ConnectCallback callback);
 
@@ -328,8 +343,6 @@ public class Client : IDisposable
 
     public IntPtr clientPtr;
     ClientWrapper client;
-
-
     public Client()
     {
         string libPath = GetLibraryPath();
@@ -502,7 +515,6 @@ public class Client : IDisposable
                     {
                         tcs.SetResult(results);
                     }
-
                     // tcs.SetResult((results, error, success));
                 }
                 catch (Exception ex)
@@ -590,7 +602,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<int> Count(string collectionname, string query = "", string queryas = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<int>();
@@ -620,7 +631,6 @@ public class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<CountResponseWrapper>(responsePtr);
-                    // result: i32, in rust
                     int count = (int)response.count;
                     string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                     bool success = response.success;
@@ -633,7 +643,7 @@ public class Client : IDisposable
                     else
                     {
                         tcs.SetResult(count);
-                    }                    
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -653,7 +663,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<string[]> Distinct(string collectionname, string field, string query = "", string queryas = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string[]>();
@@ -679,7 +688,7 @@ public class Client : IDisposable
                 try
                 {
 
-                                       if (responsePtr == IntPtr.Zero)
+                    if (responsePtr == IntPtr.Zero)
                     {
                         tcs.SetException(new ClientError("Callback got null response"));
                         return;
@@ -710,7 +719,7 @@ public class Client : IDisposable
 
                     free_distinct_response(responsePtr);
 
-                    
+
                 }
                 catch (Exception ex)
                 {
@@ -731,7 +740,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<string> InsertOne(string collectionname, string item, int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -791,7 +799,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<string> download(string collectionname, string id, string folder, string filename)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -846,7 +853,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<string> upload(string filepath, string filename, string mimetype, string metadata, string collectionname)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -984,8 +990,6 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-
-
     public void Dispose()
     {
         Console.WriteLine("Dotnet: Dispose client");

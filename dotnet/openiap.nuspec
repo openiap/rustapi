@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <metadata>
-    <id>OpenIAP</id>
+    <id>openiap</id>
     <version>0.1.0</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
@@ -14,11 +14,12 @@
     <releaseNotes>Initial release</releaseNotes>
     <tags>openiap, rust, api</tags>
     <dependencies>
-      <group targetFramework=".NETCoreApp,Version=v7.0" />
+      <group targetFramework=".NETCoreApp,Version=v6.0" />
     </dependencies>
   </metadata>
   <files>
-    <file src="bin/Debug/net7.0/**" target="lib/net7.0" />
+    <file src="bin/Debug/net6.0/**" target="lib/net6.0" />
+    <file src="lib/**" target="runtimes/**" />
     <file src="icon.png" target="" />
   </files>
 </package>

@@ -15,11 +15,14 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/node/test.js"
         },
+        
         {
             "name": "C#: debug Program",
-            "type": "dotnet",
+            "type": "coreclr",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/dotnet/openiap.csproj"
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/dotnet",
+            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll",
         },
         {
             "type": "lldb",

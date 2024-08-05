@@ -164,16 +164,58 @@ class Client:
     def _load_library(self):
         # Determine the path to the shared library
         lib_dir = os.path.join(os.path.dirname(__file__), 'lib')
-        lib_path = os.path.join(lib_dir, 'libopeniap.so' if sys.platform != 'win32' else 'libopeniap.dll')
-        if sys.platform == 'darwin':
-            lib_path = os.path.join(lib_dir, 'libopeniap.dylib')
+        architecture = os.uname().machine
+        if sys.platform == 'win32':
+            if architecture == 'x86_64':
+                lib_file = 'openiap-windows-x64.dll'
+            elif architecture == 'AMD64':
+                lib_file = 'openiap-windows-x86.dll'
+            else:
+                raise LibraryLoadError("Unsupported architecture " + architecture)
+        elif sys.platform == 'darwin':
+            if architecture == 'x86_64':
+                lib_file = 'libopeniap-macos-x64.dylib'
+            elif architecture == 'arm64':
+                lib_file = 'libopeniap-macos-armx64.dylib'
+            else:
+                raise LibraryLoadError("Unsupported architecture " + architecture)
+        elif sys.platform == 'linux':
+            if architecture == 'x86_64':
+                # is Musl ?
+                if os.path.exists('/lib/libc.musl-x86_64.so.1'):
+                    lib_file = 'libopeniap-linux-musl-x64.a'
+                else:
+                    lib_file = 'libopeniap-linux-x64.so'
+            elif architecture == 'aarch64':
+                # is Musl ?
+                if os.path.exists('/lib/libc.musl-aarch64.so.1'):
+                    lib_file = 'libopeniap-linux-musl-armx64.a'
+                else:
+                    lib_file = 'libopeniap-linux-armx64.so'
+            else:
+                raise LibraryLoadError("Unsupported architecture " + architecture)
+        elif sys.platform == 'freebsd':
+            if architecture == 'x86_64':
+                lib_file = 'libopeniap-freebsd-x64.so'
+            else:
+                raise LibraryLoadError("Unsupported architecture " + architecture)
+        else:
+            raise LibraryLoadError("Unsupported platform " + sys.platform)
+        
+        lib_path = os.path.join(lib_dir, lib_file)
+        if not os.path.exists(lib_path):
+            print("Library not found at " + lib_path)
+            lib_dir = os.path.join(os.path.dirname(__file__), '..', 'lib')
+            lib_path = os.path.join(lib_dir, lib_file)
 
         if not os.path.exists(lib_path):
+            print("Library not found at " + lib_path)
+            lib_file = 'libopeniap.so' if sys.platform != 'win32' else 'libopeniap.dll';
+            if sys.platform == 'darwin':
+                lib_file = 'libopeniap.dylib'
             lib_dir = os.path.join(os.path.dirname(__file__), '../../target/debug/')
-        lib_path = os.path.join(lib_dir, 'libopeniap.so' if sys.platform != 'win32' else 'libopeniap.dll')
-        if sys.platform == 'darwin':
-            lib_path = os.path.join(lib_dir, 'libopeniap.dylib')
-        
+            lib_path = os.path.join(lib_dir, lib_file)
+
         # Load the Rust library
         try:
             return CDLL(lib_path)
