@@ -276,7 +276,10 @@ public class Client : IDisposable
 
         throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
     }
-
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void enable_tracing(string rust_log, string tracing); 
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void disable_tracing();
     public delegate void ConnectCallback(IntPtr clientWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr client_connect(string url, ConnectCallback callback);
@@ -354,6 +357,14 @@ public class Client : IDisposable
             }
             return IntPtr.Zero;
         });
+    }
+    public void enabletracing(string rust_log = "", string tracing = "")
+    {
+        enable_tracing(rust_log, tracing);
+    }
+    public void disabletracing()
+    {
+        disable_tracing();
     }
     public async Task connect(string url = "")
     {

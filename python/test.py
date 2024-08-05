@@ -8,6 +8,8 @@ import time, os
 if __name__ == "__main__":
     try:
         client = Client()
+        # client.enable_tracing("openiap=debug", "new")
+        client.enable_tracing("openiap=info", "")
         client.connect()
         signin_result = client.signin()
         print(signin_result)

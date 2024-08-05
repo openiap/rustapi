@@ -204,12 +204,10 @@ class Client:
         
         lib_path = os.path.join(lib_dir, lib_file)
         if not os.path.exists(lib_path):
-            print("Library not found at " + lib_path)
             lib_dir = os.path.join(os.path.dirname(__file__), '..', 'lib')
             lib_path = os.path.join(lib_dir, lib_file)
 
         if not os.path.exists(lib_path):
-            print("Library not found at " + lib_path)
             lib_file = 'libopeniap.so' if sys.platform != 'win32' else 'libopeniap.dll';
             if sys.platform == 'darwin':
                 lib_file = 'libopeniap.dylib'
@@ -218,9 +216,20 @@ class Client:
 
         # Load the Rust library
         try:
+            print("Loading library " + lib_path)
             return CDLL(lib_path)
         except OSError as e:
             raise LibraryLoadError(f"Failed to load library: {e}")
+        
+    def enable_tracing(self, rust_log="", tracing=""):
+        print("Python: Calling enable_tracing")
+        self.lib.enable_tracing(rust_log.encode('utf-8'), tracing.encode('utf-8'))
+        print("Python: enable_tracing called")
+    
+    def disable_tracing(self):
+        print("Python: Calling disable_tracing")
+        self.lib.disable_tracing()
+        print("Python: disable_tracing called")
     
     def connect(self, url=""):
         # Event to wait for the callback

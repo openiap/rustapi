@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name":"Python: debug test.py",
+            "type":"debugpy",
+            "request":"launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program":"${workspaceFolder}/python/test.py",
+            "console":"integratedTerminal"
+        },
+        {
             "type": "node",
             "request": "launch",
             "name": "Node: debug test.js",
@@ -21,6 +29,7 @@
             "type": "coreclr",
             "request": "launch",
             "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}/dotnet",
             "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll",
         },

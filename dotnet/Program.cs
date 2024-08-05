@@ -13,6 +13,8 @@ class Program
         try
         {
             Client client = new Client();
+            // client.enabletracing("openiap=debug", "new");
+            client.enabletracing("info", "");
             await client.connect();
             if(client.connected() == false) {
                 Console.WriteLine("Client connection error: " + client.connectionerror());
