@@ -197,6 +197,7 @@ function loadLibrary() {
     const { platform, arch } = process
     let libDir = path.join(__dirname, 'lib');
     let libPath;
+    console.log(`Platform: ${platform}, Arch: ${arch}`);
     switch (platform) {
         case 'android':
             switch (arch) {
@@ -210,14 +211,14 @@ function loadLibrary() {
             break;
         case 'win32':
             switch (arch) {
-                case 'ia32':
+                case 'x64':
                     libPath = path.join(libDir, 'openiap-windows-x64.dll'); break;
                 case 'x86':
                     libPath = path.join(libDir, 'openiap-windows-x86.dll'); break;
                 case 'arm64':
                     libPath = path.join(libDir, 'openiap-windows-arm64.dll'); break;
                 default:
-                    throw new Error(`Unsupported architecture on Android ${arch}`)
+                    throw new Error(`Unsupported architecture on win32 ${arch}`)
             }
             break;
         case 'darwin':
@@ -227,7 +228,7 @@ function loadLibrary() {
                 case 'arm64':
                     libPath = path.join(libDir, 'libopeniap-macos-arm64.dylib'); break;
                 default:
-                    throw new Error(`Unsupported architecture on Android ${arch}`)
+                    throw new Error(`Unsupported architecture on darwin ${arch}`)
             }
             break;
         case 'freebsd':
@@ -235,7 +236,7 @@ function loadLibrary() {
                 case 'x64':
                     libPath = path.join(libDir, 'libopeniap-freebsd-x64.so'); break;
                 default:
-                    throw new Error(`Unsupported architecture on Android ${arch}`)
+                    throw new Error(`Unsupported architecture on freebsd ${arch}`)
             }
             break;
         case 'linux':
@@ -253,7 +254,7 @@ function loadLibrary() {
                         libPath = path.join(libDir, 'libopeniap-linux-arm64.so'); break;
                     }                    
                 default:
-                    throw new Error(`Unsupported architecture on Android ${arch}`)
+                    throw new Error(`Unsupported architecture on linux ${arch}`)
             }
             break;
         default:
@@ -263,7 +264,7 @@ function loadLibrary() {
         libDir = path.join(__dirname, '../target/debug/');
         switch (process.platform) {
             case 'win32':
-                libPath = path.join(libDir, 'libopeniap.dll');
+                libPath = path.join(libDir, 'openiap.dll');
                 break;
             case 'darwin':
                 libPath = path.join(libDir, 'libopeniap.dylib');
@@ -273,7 +274,7 @@ function loadLibrary() {
                 break;
         }
     }
-    // console.log(`Using library: ${libPath}`);
+    console.log(`Using library: ${libPath}`);
 
     try {
         return ffi.Library(libPath, {
