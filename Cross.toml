@@ -1,9 +1,39 @@
 [build]
-# default-target = "x86_64-unknown-linux-gnu"
-
+default-target = "x86_64-unknown-linux-gnu"
 pre-build = [
-    "apt-get update && apt-get install --assume-yes protobuf-compiler nodejs libuv1",
+    "apt-get update && apt-get install --assume-yes protobuf-compiler libuv1",
+#   "which protoc"
 ]
+
+# export PATH=/usr/local/node:$PATH
+#[build.env]
+#volumes = [ 
+#    "NODE=/mnt/data/vscode/config/workspace/code/rust/openiap/NODE", 
+#    "onecore=/mnt/data/vscode/config/workspace/code/rust/openiap/onecore/x64", 
+#    "node.exe=/mnt/data/vscode/config/workspace/code/rust/openiap/NODE/node.exe", 
+#    "PROTOC=/nix/store/8r4nc675zkrqn6axbgp14w0lcg9gp4lm-user-environment/bin/protoc"
+#]
+
+#[target.x86_64-pc-windows-gnu]
+#pre-build = [
+#    "touch /root/.bashrc",
+#    "echo 'export PATH=/usr/local/node:$PATH' >> /root/.bashrc",
+#    "apt-get update && apt-get install --assume-yes protobuf-compiler nodejs libuv1",
+#    "curl -O https://nodejs.org/dist/v14.17.0/node-v14.17.0-win-x64.zip",
+#    "unzip node-v14.17.0-win-x64.zip -d /usr/local/",
+#    "mv /usr/local/node-v14.17.0-win-x64 /usr/local/node",
+#    "export PATH=$PATH:/usr/local/node"
+# ]
+#pre-build = [
+#    "apt-get update",
+#    "apt-get install --assume-yes mingw-w64 mingw-w64-tools mingw-w64-x86-64-dev protobuf-compiler libuv1 curl unzip",
+#    "curl -O https://nodejs.org/dist/v14.17.0/node-v14.17.0-win-x64.zip",
+#    "unzip -o node-v14.17.0-win-x64.zip -d /usr/local/",
+#    "mv /usr/local/node-v14.17.0-win-x64 /usr/local/node",
+#    "export PATH=$PATH:/usr/local/node",
+#    "mkdir -p /usr/local/mingw64/lib",
+#    "cp /usr/x86_64-w64-mingw32/lib/delayimp.lib /usr/local/mingw64/lib/"
+#]
 
 # cross build --target x86_64-unknown-linux-gnu
 # cross build --target aarch64-unknown-linux-gnu

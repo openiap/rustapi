@@ -1,7 +1,13 @@
 use std::{env, path::PathBuf};
-extern crate napi_build;
+// extern crate napi_build;
 fn main() {
-    napi_build::setup();
+    //napi_build::setup();
+
+    // add "/usr/local/node" to path environment variable
+    // let path = env::var("PATH").unwrap();
+    // let new_path = format!("/usr/local/node:{}", path);
+    // env::set_var("PATH", new_path);
+    
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     tonic_build::configure()

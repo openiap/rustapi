@@ -303,7 +303,7 @@ function loadLibrary() {
             'client_unwatch': [UnWatchResponseWrapperPtr, [voidPtr, CString]],
             'free_unwatch_response': ['void', [UnWatchResponseWrapperPtr]],
 
-            'run_async_in_node': ['void', ['pointer']]
+            // 'run_async_in_node': ['void', ['pointer']]
         });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -352,17 +352,17 @@ class Client {
         console.log(message);
     }
 
-    refs = [];
-    run_async_in_node(callback) {
-        console.log("NodeJS: run_async_in_node");
-        let _callback = ffi.Callback('void', [], () => {
-            console.log("NodeJS: Callback called from Rust on main thread!");
-            callback()
-        });
-        this.lib.run_async_in_node(_callback);
-        this.refs.push(_callback);
-        console.log("NodeJS: run_async_in_node done");
-    }
+    // refs = [];
+    // run_async_in_node(callback) {
+    //     console.log("NodeJS: run_async_in_node");
+    //     let _callback = ffi.Callback('void', [], () => {
+    //         console.log("NodeJS: Callback called from Rust on main thread!");
+    //         callback()
+    //     });
+    //     this.lib.run_async_in_node(_callback);
+    //     this.refs.push(_callback);
+    //     console.log("NodeJS: run_async_in_node done");
+    // }
 
     connect(url) {
         return new Promise((resolve, reject) => {

@@ -18,6 +18,120 @@ pub struct ClientWrapper {
     client: Option<Client>,
     runtime: std::sync::Arc<Runtime>,
 }
+#[repr(C)]
+pub struct QueryRequestWrapper {
+    collectionname: *const c_char,
+    query: *const c_char,
+    projection: *const c_char,
+    orderby: *const c_char,
+    queryas: *const c_char,
+    explain: bool,
+    skip: i32,
+    top: i32,
+}
+#[repr(C)]
+pub struct QueryResponseWrapper {
+    success: bool,
+    results: *const c_char,
+    error: *const c_char,
+}
+type QueryCallback = extern "C" fn(wrapper: *mut QueryResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn client_query(
+    client: *mut ClientWrapper,
+    options: *mut QueryRequestWrapper,
+    callback: QueryCallback,
+) {
+    debug!("Rust: client_query");
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = QueryRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
+        projection: unsafe { CStr::from_ptr(options.projection).to_str().unwrap() }.to_string(),
+        orderby: unsafe { CStr::from_ptr(options.orderby).to_str().unwrap() }.to_string(),
+        queryas: unsafe { CStr::from_ptr(options.queryas).to_str().unwrap() }.to_string(),
+        explain: options.explain,
+        skip: options.skip,
+        top: options.top,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = QueryResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    debug!("Rust: runtime.spawn");
+    runtime.spawn(async move {
+        debug!("Rust: client.query");
+        let result = client.as_ref().unwrap().query(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.query(request).await
+        // });
+        // let result = client_clone.unwrap().query(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let results: *const c_char = CString::new(data.results).unwrap().into_raw();
+                // std::mem::forget(results);
+                // let results = std::mem::ManuallyDrop::new(CString::new(data.results).unwrap().into_raw());
+                QueryResponseWrapper {
+                    success: true,
+                    results: results,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Query failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                QueryResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+        debug!("Rust: callback response");
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct AggregateRequestWrapper {
+    collectionname: *const c_char,
+    aggregates: *const c_char,
+    queryas: *const c_char,
+    hint: *const c_char,
+    explain: bool,
+}
+
+
+
+
 
 // use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing_subscriber::{filter::EnvFilter, fmt, prelude::*};
@@ -364,116 +478,128 @@ pub extern "C" fn client_set_callback(client: *mut Client, callback: extern "C" 
         callback(c_event.as_ptr());
     }));
 }
-#[repr(C)]
-pub struct QueryRequestWrapper {
-    collectionname: *const c_char,
-    query: *const c_char,
-    projection: *const c_char,
-    orderby: *const c_char,
-    queryas: *const c_char,
-    explain: bool,
-    skip: i32,
-    top: i32,
-}
-#[repr(C)]
-pub struct QueryResponseWrapper {
-    success: bool,
-    results: *const c_char,
-    error: *const c_char,
-}
-type QueryCallback = extern "C" fn(wrapper: *mut QueryResponseWrapper);
-#[no_mangle]
-#[tracing::instrument(skip_all)]
-pub extern "C" fn client_query(
-    client: *mut ClientWrapper,
-    options: *mut QueryRequestWrapper,
-    callback: QueryCallback,
-) {
-    debug!("Rust: client_query");
-    let options = unsafe { &*options };
-    let client_wrapper = unsafe { &mut *client };
-    let client = &client_wrapper.client;
-    let runtime = &client_wrapper.runtime;
-    let request = QueryRequest {
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
-            .to_string(),
-        query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
-        projection: unsafe { CStr::from_ptr(options.projection).to_str().unwrap() }.to_string(),
-        orderby: unsafe { CStr::from_ptr(options.orderby).to_str().unwrap() }.to_string(),
-        queryas: unsafe { CStr::from_ptr(options.queryas).to_str().unwrap() }.to_string(),
-        explain: options.explain,
-        skip: options.skip,
-        top: options.top,
-        ..Default::default()
-    };
-    if client.is_none() {
-        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = QueryResponseWrapper {
-            success: false,
-            results: std::ptr::null(),
-            error: error_msg,
-        };
-        return callback(Box::into_raw(Box::new(response)));
-    }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
 
-    debug!("Rust: runtime.spawn");
-    runtime.spawn(async move {
-        debug!("Rust: client.query");
-        let result = client.as_ref().unwrap().query(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
-        //     c.query(request).await
-        // });
-        // let result = client_clone.unwrap().query(request).await;
 
-        let response = match result {
-            Ok(data) => {
-                let results: *const c_char = CString::new(data.results).unwrap().into_raw();
-                // std::mem::forget(results);
-                // let results = std::mem::ManuallyDrop::new(CString::new(data.results).unwrap().into_raw());
-                QueryResponseWrapper {
-                    success: true,
-                    results: results,
-                    error: std::ptr::null(),
-                }
-            }
-            Err(e) => {
-                let error_msg = CString::new(format!("Query failed: {:?}", e))
-                    .unwrap()
-                    .into_raw();
-                QueryResponseWrapper {
-                    success: false,
-                    results: std::ptr::null(),
-                    error: error_msg,
-                }
-            }
-        };
-        debug!("Rust: callback response");
-        callback(Box::into_raw(Box::new(response)));
-    });
-}
-#[no_mangle]
-#[tracing::instrument(skip_all)]
-pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
-    if response.is_null() {
-        return;
-    }
-    unsafe {
-        let _ = Box::from_raw(response);
-    }
-}
 
-#[repr(C)]
-pub struct AggregateRequestWrapper {
-    collectionname: *const c_char,
-    aggregates: *const c_char,
-    queryas: *const c_char,
-    hint: *const c_char,
-    explain: bool,
-}
+
+
+// #[repr(C)]
+// pub struct QueryRequestWrapper {
+//     collectionname: *const c_char,
+//     query: *const c_char,
+//     projection: *const c_char,
+//     orderby: *const c_char,
+//     queryas: *const c_char,
+//     explain: bool,
+//     skip: i32,
+//     top: i32,
+// }
+// #[repr(C)]
+// pub struct QueryResponseWrapper {
+//     success: bool,
+//     results: *const c_char,
+//     error: *const c_char,
+// }
+// type QueryCallback = extern "C" fn(wrapper: *mut QueryResponseWrapper);
+// #[no_mangle]
+// #[tracing::instrument(skip_all)]
+// pub extern "C" fn client_query(
+//     client: *mut ClientWrapper,
+//     options: *mut QueryRequestWrapper,
+//     callback: QueryCallback,
+// ) {
+//     debug!("Rust: client_query");
+//     let options = unsafe { &*options };
+//     let client_wrapper = unsafe { &mut *client };
+//     let client = &client_wrapper.client;
+//     let runtime = &client_wrapper.runtime;
+//     let request = QueryRequest {
+//         collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+//             .to_string(),
+//         query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
+//         projection: unsafe { CStr::from_ptr(options.projection).to_str().unwrap() }.to_string(),
+//         orderby: unsafe { CStr::from_ptr(options.orderby).to_str().unwrap() }.to_string(),
+//         queryas: unsafe { CStr::from_ptr(options.queryas).to_str().unwrap() }.to_string(),
+//         explain: options.explain,
+//         skip: options.skip,
+//         top: options.top,
+//         ..Default::default()
+//     };
+//     if client.is_none() {
+//         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+//         let response = QueryResponseWrapper {
+//             success: false,
+//             results: std::ptr::null(),
+//             error: error_msg,
+//         };
+//         return callback(Box::into_raw(Box::new(response)));
+//     }
+
+//     // let client_clone = client.clone();
+//     // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+//     debug!("Rust: runtime.spawn");
+//     runtime.spawn(async move {
+//         debug!("Rust: client.query");
+//         let result = client.as_ref().unwrap().query(request).await;
+//         // let result = runtime.block_on(async {
+//         //     let c = client.as_ref().unwrap();
+//         //     c.query(request).await
+//         // });
+//         // let result = client_clone.unwrap().query(request).await;
+
+//         let response = match result {
+//             Ok(data) => {
+//                 let results: *const c_char = CString::new(data.results).unwrap().into_raw();
+//                 // std::mem::forget(results);
+//                 // let results = std::mem::ManuallyDrop::new(CString::new(data.results).unwrap().into_raw());
+//                 QueryResponseWrapper {
+//                     success: true,
+//                     results: results,
+//                     error: std::ptr::null(),
+//                 }
+//             }
+//             Err(e) => {
+//                 let error_msg = CString::new(format!("Query failed: {:?}", e))
+//                     .unwrap()
+//                     .into_raw();
+//                 QueryResponseWrapper {
+//                     success: false,
+//                     results: std::ptr::null(),
+//                     error: error_msg,
+//                 }
+//             }
+//         };
+//         debug!("Rust: callback response");
+//         callback(Box::into_raw(Box::new(response)));
+//     });
+// }
+// #[no_mangle]
+// #[tracing::instrument(skip_all)]
+// pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
+//     if response.is_null() {
+//         return;
+//     }
+//     unsafe {
+//         let _ = Box::from_raw(response);
+//     }
+// }
+
+// #[repr(C)]
+// pub struct AggregateRequestWrapper {
+//     collectionname: *const c_char,
+//     aggregates: *const c_char,
+//     queryas: *const c_char,
+//     hint: *const c_char,
+//     explain: bool,
+// }
+
+
+
+
+
+
 #[repr(C)]
 pub struct AggregateResponseWrapper {
     success: bool,
