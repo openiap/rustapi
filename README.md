@@ -1,5 +1,7 @@
 # rust api for openiap and warppers for nodejs, python and dotnet7
 
+
+# build
 make sure you have rust installed
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -13,20 +15,16 @@ brew install protobuf
 # windows
 # download at https://github.com/protocolbuffers/protobuf/releases
 ```
-install os targets
+install [cross](https://github.com/cross-rs/cross) ( requires docker or podman )
 ```
-rustup target add x86_64-pc-windows-msvc
-rustup target add x86_64-apple-darwin
-rustup target add x86_64-unknown-linux-gnu
+cargo install cross --git https://github.com/cross-rs/cross
+```
+then compile for each target platform by running
+```
+sh build.sh
+```
 
-```
-
-build the rust library
-```bash
-cargo build
-cargo build --target x86_64-apple-darwin --release
-cargo build --target x86_64-unknown-linux-gnu --release
-```
+# test
 setup default credentials
 
 ```bash
@@ -34,18 +32,15 @@ export OPENIAP_USERNAME=username
 export OPENIAP_PASSWORD=password
 ```
 
-build and test nodejs
+nodejs
 ```bash
 cd node
-rm -rf lib *.tgz && mkdir lib && cp ../target/debug/libopeniap.so ./lib && cp ../target/debug/libopeniap.dylib ./lib && npm pack
 node test.js
 ```
 
-
-build and test python
+python
 ```bash
 cd python
-rm -rf build dist openiap/lib && mkdir openiap/lib && cp ../target/debug/libopeniap.so ./openiap/lib && cp ../target/debug/libopeniap.dylib ./lib && python -m build --wheel
 pip uninstall openiap -y && pip install dist/openiap-0.1.1-py3-none-any.whl && python test.py
 
 ```
@@ -53,6 +48,5 @@ pip uninstall openiap -y && pip install dist/openiap-0.1.1-py3-none-any.whl && p
 build and test dotnet
 ```bash
 cd dotnet
-rm -rf bin lib && mkdir lib && cp ../target/debug/libopeniap.so ./lib && cp ../target/debug/libopeniap.dylib ./lib && dotnet build && dotnet pack -p:NuspecFile=openiap.nuspec
 dotnet run
 ```
