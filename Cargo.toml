@@ -11,7 +11,7 @@ tonic = { version = "0.12.0", features = ["tls-roots"] } # "transport", "gzip", 
 futures = "0.3"
 prost = "0.13.1"
 prost-types = "0.13.1"
-tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "rt", "macros"
+tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
 tokio-stream = "0.1.15"
 tracing = { version = "0.1", features = ["log", "attributes"] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "json"] }
@@ -21,9 +21,10 @@ url = "2.5.2"
 # cargo tree -p ring -i
 # uv-sys = "0.1.1"
 # libuv-sys2 = "1.34.4"
-# napi = { version = "3.0.0-alpha.8" }
-# napi-derive = { version = "3.0.0-alpha.7" }
+# napi = { version = "3.0.0-alpha.8", features = ["napi5", "async"] }
+# napi-derive = { version = "3.0.0-alpha.7", features = ["compat-mode"] }
+# napi-sys = "2.4.0"
 
 [build-dependencies]
 tonic-build = "0.12.0"
-# napi-build = "1"
+# napi-build = "2.1.3"
