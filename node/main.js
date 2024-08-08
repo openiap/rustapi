@@ -267,10 +267,10 @@ function loadLibrary() {
                 libPath = path.join(libDir, 'openiap.dll');
                 break;
             case 'darwin':
-                libPath = path.join(libDir, 'libopeniap.dylib');
+                libPath = path.join(libDir, 'libopeniap_clib.dylib');
                 break;
             default:
-                libPath = path.join(libDir, 'libopeniap.so');
+                libPath = path.join(libDir, 'libopeniap_clib.so');
                 break;
         }
     }

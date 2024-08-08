@@ -1,4 +1,4 @@
-use super::openiap::{Envelope, SigninRequest};
+use super::protos::{Envelope, SigninRequest};
 
 #[allow(dead_code)]
 impl SigninRequest {

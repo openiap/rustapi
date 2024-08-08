@@ -208,9 +208,9 @@ class Client:
             lib_path = os.path.join(lib_dir, lib_file)
 
         if not os.path.exists(lib_path):
-            lib_file = 'libopeniap.so' if sys.platform != 'win32' else 'libopeniap.dll';
+            lib_file = 'libopeniap_clib.so' if sys.platform != 'win32' else 'libopeniap_clib.dll';
             if sys.platform == 'darwin':
-                lib_file = 'libopeniap.dylib'
+                lib_file = 'libopeniap_clib.dylib'
             lib_dir = os.path.join(os.path.dirname(__file__), '../../target/debug/')
             lib_path = os.path.join(lib_dir, lib_file)
 

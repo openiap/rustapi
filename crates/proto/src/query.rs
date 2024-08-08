@@ -1,4 +1,4 @@
-use super::openiap::{AggregateRequest, CountRequest, Envelope, InsertManyRequest, InsertOneRequest, QueryRequest, DistinctRequest};
+use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest, InsertOneRequest, QueryRequest, DistinctRequest};
 #[allow(dead_code)]
 impl QueryRequest {
     pub fn with_query(collectionname: &str, query: &str) -> Self {

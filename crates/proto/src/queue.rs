@@ -1,4 +1,4 @@
-use super::openiap::{Envelope, RegisterQueueRequest, WatchRequest, UnWatchRequest,
+use super::protos::{Envelope, RegisterQueueRequest, WatchRequest, UnWatchRequest,
     // RegisterExchangeRequest, UnRegisterQueueRequest,
 };
 

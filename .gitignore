@@ -4,3 +4,6 @@ train.csv
 .env
 NODE
 onecore
+node_modules
+*.node
+package-lock.json

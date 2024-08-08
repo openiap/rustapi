@@ -1,0 +1,14 @@
+{
+  "package": "openiap-napi",
+  "devDependencies": {
+    "@napi-rs/cli": "^1.0.0"
+  },
+  "napi": {
+    "name": "openiap-napi"
+  },
+  "scripts": {
+    "build": "napi build --release --platform --target x86_64-unknown-linux-gnu",
+    "build2": "napi build --release --platform --target stable-x86_64-unknown-linux-gnu",
+    "build:debug": "napi build"
+  }
+}

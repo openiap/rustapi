@@ -1,4 +1,4 @@
-use super::openiap::{Envelope, DownloadRequest};
+use super::protos::{Envelope, DownloadRequest};
 #[allow(dead_code)]
 impl DownloadRequest {
     pub fn id(id: &str) -> Self {

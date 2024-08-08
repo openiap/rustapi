@@ -8,13 +8,13 @@
   </PropertyGroup>
 
  <ItemGroup>
-    <None Update="lib/libopeniap.so">
+    <None Update="lib/libopeniap_clib.so">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="lib/libopeniap.dll">
+    <None Update="lib/libopeniap_clib.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="lib/libopeniap.dylib">
+    <None Update="lib/libopeniap_clib.dylib">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

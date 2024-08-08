@@ -1,7 +1,7 @@
 use std::fmt;
-use super::openiap::Envelope;
+use super::protos::Envelope;
 #[allow(dead_code)]
-impl super::openiap::ErrorResponse {
+impl super::protos::ErrorResponse {
     pub fn new(message: &str, code: i32) -> Self {
         Self {
             code,

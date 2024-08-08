@@ -262,13 +262,13 @@ public class Client : IDisposable
         switch (Environment.OSVersion.Platform)
         {
             case PlatformID.Win32NT:
-                libfile = "libopeniap.dll";
+                libfile = "libopeniap_clib.dll";
                 break;
             case PlatformID.MacOSX:
-                libfile = "libopeniap.dylib";
+                libfile = "libopeniap_clib.dylib";
                 break;
             default:
-                libfile = "libopeniap.so";
+                libfile = "libopeniap_clib.so";
                 break;
         }
         libPath = System.IO.Path.Combine(libDir, libfile);

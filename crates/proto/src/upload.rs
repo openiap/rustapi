@@ -1,4 +1,4 @@
-use super::openiap::{Envelope, UploadRequest, BeginStream, EndStream, Stream};
+use super::protos::{Envelope, UploadRequest, BeginStream, EndStream, Stream};
 #[allow(dead_code)]
 impl UploadRequest {
     pub fn filename(filename: &str) -> Self {

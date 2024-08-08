@@ -1,14 +1,19 @@
-use errors::OpenIAPError;
+pub use protos::flow_service_client::FlowServiceClient;
+pub use openiap_proto::*;
+pub use openiap_proto::protos::*;
+pub use openiap_proto::errors::*;
+
+// use openiap_proto::errors::OpenIAPError;
+// use openiap_proto::openiap::{
+//     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
+//     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
+//     UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse,
+//     DistinctRequest, DistinctResponse,
+//     CountRequest, CountResponse, InsertManyRequest, InsertManyResponse, 
+//     BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse,
+// };
 use tracing::{debug, error, info, trace};
 
-use openiap::{
-    flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
-    QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
-    UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse,
-    DistinctRequest, DistinctResponse,
-    CountRequest, CountResponse, InsertManyRequest, InsertManyResponse, 
-};
-use openiap::{BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = StdError> = ::std::result::Result<T, E>;
@@ -19,22 +24,13 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel};
 
-pub mod openiap {
-    tonic::include_proto!("openiap");
-}
 use tokio::sync::{mpsc, oneshot};
 use tonic::Request;
 
-pub mod download;
-pub mod query;
-pub mod queue;
-pub mod signin;
-pub mod upload;
 use std::env;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub mod errors;
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;

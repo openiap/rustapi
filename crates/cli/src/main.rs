@@ -1,11 +1,8 @@
-mod client;
-use client::openiap::InsertOneRequest;
-use client::Client;
+use openiap_client::{self, Client};
+
+use openiap_client::protos::{InsertOneRequest, QueryRequest, WatchEvent, DistinctRequest, SigninRequest, UploadRequest, DownloadRequest, WatchRequest};
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
-pub mod openiap {
-    tonic::include_proto!("openiap");
-}
 
 pub async fn keyboard_input() -> String {
     println!("Enter your message: ");
@@ -19,7 +16,7 @@ pub async fn keyboard_input() -> String {
     inp.trim().to_string()
 }
 
-fn onwatch(event: client::openiap::WatchEvent) {
+fn onwatch(event: WatchEvent) {
     let document = event.document;
     let operation = event.operation;
     let document = document;
@@ -27,10 +24,6 @@ fn onwatch(event: client::openiap::WatchEvent) {
 }
 
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
-    // let res = Client::connect("http://localhost:50051").await;
-    // let res = Client::connect("grpc://grpc.app.openiap.io:443").await;
-    // let res = Client::connect("grpc://grpc.home.openiap.io:443").await;
-    // let res = Client::connect("grpc://grpc.home.openiap.io:443").await;
     let res = Client::connect("").await;
     if res.is_err() == true {
         println!("Failed to connect to server: {:?}", res.err().unwrap());
@@ -46,7 +39,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let q = client
-                    .query(client::openiap::QueryRequest::with_projection("entities", "{}", "{\"name\":1}"))
+                    .query(QueryRequest::with_projection("entities", "{}", "{\"name\":1}"))
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -58,7 +51,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let q = client
-                    .query(client::openiap::QueryRequest::with_query("entities", "{}"))
+                    .query(QueryRequest::with_query("entities", "{}"))
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -69,7 +62,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("di") {
             let client = b.clone();
             tokio::task::spawn(async move {
-                let query = client::openiap::DistinctRequest {
+                let query = DistinctRequest {
                     collectionname: "entities".to_string(),
                     field: "_type".to_string(),
                     ..Default::default()
@@ -87,7 +80,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .signin(client::openiap::SigninRequest::with_userpass(
+                    .signin(SigninRequest::with_userpass(
                         "guest", "password",
                     ))
                     .await;
@@ -105,7 +98,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .signin(client::openiap::SigninRequest::with_userpass(
+                    .signin(SigninRequest::with_userpass(
                         "testuser",
                         "badpassword",
                     ))
@@ -143,7 +136,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .download(
-                        client::openiap::DownloadRequest::id("65a3aaf66d52b8c15131aebd"),
+                        DownloadRequest::id("65a3aaf66d52b8c15131aebd"),
                         None,
                         None,
                     )
@@ -160,7 +153,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .upload(
-                        client::openiap::UploadRequest::filename("train.csv"),
+                        UploadRequest::filename("train.csv"),
                         "train.csv",
                     )
                     .await;
@@ -176,7 +169,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .upload(
-                        client::openiap::UploadRequest::filename("assistant-linux-x86_64.AppImage"),
+                        UploadRequest::filename("assistant-linux-x86_64.AppImage"),
                         "/home/allan/Downloads/assistant-linux-x86_64.AppImage",
                     )
                     .await;
@@ -192,7 +185,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .upload(
-                        client::openiap::UploadRequest::filename("virtio-win-0.1.225.iso"),
+                        UploadRequest::filename("virtio-win-0.1.225.iso"),
                         "/home/allan/Downloads/virtio-win-0.1.225.iso",
                     )
                     .await;
@@ -208,7 +201,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .watch(
-                        client::openiap::WatchRequest::new("", vec!["".to_string()]), 
+                        WatchRequest::new("", vec!["".to_string()]), 
                         Box::new(onwatch)
                 )
                     .await;
@@ -246,10 +239,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn main() {
-    // tracing_subscriber::fmt::fmt()
-    // .with_max_level(tracing::Level::DEBUG)
-    // .init();
-
     println!("Main function started.");
     doit().await.expect("Failed to run doit");
     println!("Main function completed.");

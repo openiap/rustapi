@@ -1,0 +1,9 @@
+[package]
+name = "openiap"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+openiap-client = { path = "../client" }
+tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
+tokio-stream = "0.1.15"

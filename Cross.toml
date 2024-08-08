@@ -1,9 +1,17 @@
 [build]
 default-target = "x86_64-unknown-linux-gnu"
 pre-build = [
-    "apt-get update && apt-get install --assume-yes protobuf-compiler libuv1",
-#   "which protoc"
+    "apt-get update && apt-get install --assume-yes protobuf-compiler curl"
 ]
+#pre-build = [
+#    "apt-get update && apt-get install --assume-yes protobuf-compiler curl",
+#    "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
+#    "apt-get install --assume-yes nodejs",
+#    "mkdir -p /.npm && chown -R 1000:100 /.npm",
+#    "npm install -g @napi-rs/cli",
+#    "curl -fsSL https://sh.rustup.rs -o rustup.sh",
+#    "bash rustup.sh -y"
+#]
 
 # export PATH=/usr/local/node:$PATH
 #[build.env]

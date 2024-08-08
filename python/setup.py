@@ -17,6 +17,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     package_data={
-        'openiap': ['lib/libopeniap.so', 'lib/libopeniap.dll', 'lib/libopeniap.dylib']
+        'openiap': ['lib/libopeniap_clib.so', 'lib/libopeniap_clib.dll', 'lib/libopeniap_clib.dylib']
     },
 )

@@ -1,0 +1,19 @@
+[package]
+name = "openiap-napi"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+openiap-client ={ path = "../client" }
+# cargo tree -p ring -i
+# uv-sys = "0.1.1"
+# libuv-sys2 = "1.34.4"
+napi = { version = "3.0.0-alpha.8", features = ["napi5", "async"] }
+napi-derive = { version = "3.0.0-alpha.7", features = ["compat-mode"] }
+# napi-sys = "2.4.0"
+
+[build-dependencies]
+napi-build = "2.1.3"

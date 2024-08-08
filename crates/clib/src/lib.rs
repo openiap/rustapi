@@ -1,13 +1,12 @@
-use client::openiap::{
-    AggregateRequest, CountRequest, DownloadRequest, Envelope, InsertOneRequest, QueryRequest,
-    SigninRequest, UploadRequest, WatchRequest,
-};
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use openiap_client::Client;
+use openiap_client::protos::{
+    AggregateRequest, CountRequest, DownloadRequest, Envelope, InsertOneRequest, QueryRequest,
+    SigninRequest, UploadRequest, WatchRequest, DistinctRequest, WatchEvent
+};
 use tokio::runtime::Runtime;
 use tracing::debug;
-pub mod client;
-use client::Client;
 use std::ffi::CString;
 
 #[allow(dead_code)]
@@ -803,7 +802,7 @@ pub extern "C" fn client_distinct(
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
-    let request = client::openiap::DistinctRequest {
+    let request = DistinctRequest {
         collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
             .to_string(),
         field: unsafe { CStr::from_ptr(options.field).to_str().unwrap() }.to_string(),
@@ -1269,7 +1268,7 @@ pub extern "C" fn client_watch(
             .unwrap()
             .watch(
                 request,
-                Box::new(move |event: client::openiap::WatchEvent| {
+                Box::new(move |event: WatchEvent| {
                     // convert event to json
                     let event = serde_json::to_string(&event).unwrap();
                     let c_event = std::ffi::CString::new(event).unwrap();
