@@ -1,7 +1,7 @@
 use std::thread;
 
 use napi_derive::napi;
-
+mod async_channel;
  
 #[allow(dead_code)]
 #[napi]

@@ -251,9 +251,9 @@ class Client:
 
         cb = ConnectCallback(callback)
 
-        print("Python: Calling client_connect")
-        self.lib.client_connect(url.encode('utf-8'), cb)
-        print("Python: client_connect called")
+        print("Python: Calling connect_async")
+        self.lib.connect_async(url.encode('utf-8'), cb)
+        print("Python: connect_async called")
 
         # Wait for the callback to be invoked
         event.wait()
@@ -300,9 +300,9 @@ class Client:
             ping=False
         )
 
-        print("Python: Calling client_signin")
-        self.lib.client_signin(self.client, byref(req), cb)
-        print("Python: client_signin called")
+        print("Python: Calling signin_async")
+        self.lib.signin_async(self.client, byref(req), cb)
+        print("Python: signin_async called")
 
         event.wait()
 
@@ -312,8 +312,8 @@ class Client:
 
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):
         print("Python: Inside query")
-        # self.lib.client_query.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]
-        # self.lib.client_query.restype = POINTER(QueryResponseWrapper)
+        # self.lib.query_async.argtypes = [voidPtr, POINTER(QueryRequestWrapper)]
+        # self.lib.query_async.restype = POINTER(QueryResponseWrapper)
         event = threading.Event()
         result = {"success": None, "jwt": None, "error": None}
         
@@ -342,9 +342,9 @@ class Client:
                                   skip=skip,
                                   top=top)
         
-        print("Python: Calling client_query")
-        self.lib.client_query(self.client, byref(req), cb)
-        print("Python: client_query called")
+        print("Python: Calling query_async")
+        self.lib.query_async(self.client, byref(req), cb)
+        print("Python: query_async called")
 
         event.wait()
 
@@ -355,8 +355,8 @@ class Client:
     
     def aggregate(self, collectionname = "", aggregates = "", queryas = "", hint = "", explain = False):
         print("Python: Inside aggregate")
-        # self.lib.client_aggregate.argtypes = [voidPtr, POINTER(AggregateRequestWrapper)]
-        # self.lib.client_aggregate.restype = POINTER(AggregateResponseWrapper)
+        # self.lib.aggregate_async.argtypes = [voidPtr, POINTER(AggregateRequestWrapper)]
+        # self.lib.aggregate_async.restype = POINTER(AggregateResponseWrapper)
         event = threading.Event()
         result = {"success": None, "jwt": None, "error": None}
         
@@ -382,9 +382,9 @@ class Client:
                                       hint=CString(hint.encode('utf-8')),
                                       explain=explain)
         
-        print("Python: Calling client_aggregate")
-        self.lib.client_aggregate(self.client, byref(req), cb)
-        print("Python: client_aggregate called")
+        print("Python: Calling aggregate_async")
+        self.lib.aggregate_async(self.client, byref(req), cb)
+        print("Python: aggregate_async called")
 
         event.wait()
 
@@ -395,8 +395,8 @@ class Client:
 
     def count(self, collectionname = "", query = "", queryas = "", explain = False):
         print("Python: Inside count")
-        # self.lib.client_count.argtypes = [voidPtr, POINTER(CountRequestWrapper)]
-        # self.lib.client_count.restype = POINTER(CountResponseWrapper)
+        # self.lib.count_async.argtypes = [voidPtr, POINTER(CountRequestWrapper)]
+        # self.lib.count_async.restype = POINTER(CountResponseWrapper)
         event = threading.Event()
         result = {"success": None, "result": None, "error": None}
         
@@ -421,9 +421,9 @@ class Client:
                                   queryas=CString(queryas.encode('utf-8')),
                                   explain=explain)
         
-        print("Python: Calling client_count")
-        self.lib.client_count(self.client, byref(req), cb)
-        print("Python: client_count called")
+        print("Python: Calling count_async")
+        self.lib.count_async(self.client, byref(req), cb)
+        print("Python: count_async called")
 
         event.wait()
 
@@ -470,9 +470,9 @@ class Client:
             explain=explain
         )
 
-        print("Python: Calling client_distinct")
-        self.lib.client_distinct(self.client, byref(req), cb)
-        print("Python: client_distinct called")
+        print("Python: Calling distinct_async")
+        self.lib.distinct_async(self.client, byref(req), cb)
+        print("Python: distinct_async called")
 
         event.wait()
 
@@ -484,8 +484,8 @@ class Client:
     
     def insert_one(self, collectionname = "", item = "", w = 0, j = False):
         print("Python: Inside insert_one")
-        # self.lib.client_insert_one.argtypes = [voidPtr, POINTER(InsertOneRequestWrapper)]
-        # self.lib.client_insert_one.restype = POINTER(InsertOneResponseWrapper)
+        # self.lib.insert_one_async.argtypes = [voidPtr, POINTER(InsertOneRequestWrapper)]
+        # self.lib.insert_one_async.restype = POINTER(InsertOneResponseWrapper)
         event = threading.Event()
         result = {"success": None, "result": None, "error": None}
         
@@ -510,9 +510,9 @@ class Client:
                                       w=w,
                                       j=j)
         
-        print("Python: Calling client_insert_one")
-        self.lib.client_insert_one(self.client, byref(req), cb)
-        print("Python: client_insert_one called")
+        print("Python: Calling insert_one_async")
+        self.lib.insert_one_async(self.client, byref(req), cb)
+        print("Python: insert_one_async called")
 
         event.wait()
 
@@ -523,8 +523,8 @@ class Client:
     
     def download(self, collectionname = "", id = "", folder = "", filename = ""):
         print("Python: Inside download")
-        # self.lib.client_download.argtypes = [voidPtr, POINTER(DownloadRequestWrapper)]
-        # self.lib.client_download.restype = POINTER(DownloadResponseWrapper)
+        # self.lib.download_async.argtypes = [voidPtr, POINTER(DownloadRequestWrapper)]
+        # self.lib.download_async.restype = POINTER(DownloadResponseWrapper)
         event = threading.Event()
         result = {"success": None, "filename": None, "error": None}
         
@@ -551,9 +551,9 @@ class Client:
                                      filename=CString(filename.encode('utf-8'))
                                      )
 
-        print("Python: Calling client_download")
-        self.lib.client_download(self.client, byref(req), cb)
-        print("Python: client_download called")
+        print("Python: Calling download_async")
+        self.lib.download_async(self.client, byref(req), cb)
+        print("Python: download_async called")
 
         event.wait()
 
@@ -563,8 +563,8 @@ class Client:
         return result["filename"]
     def upload(self, filepath = "", filename = "", mimetype = "", metadata = "", collectionname = ""):
         print("Python: Inside upload")
-        # self.lib.client_upload.argtypes = [voidPtr, POINTER(UploadRequestWrapper)]
-        # self.lib.client_upload.restype = POINTER(UploadResponseWrapper)
+        # self.lib.upload_async.argtypes = [voidPtr, POINTER(UploadRequestWrapper)]
+        # self.lib.upload_async.restype = POINTER(UploadResponseWrapper)
         event = threading.Event()
         result = {"success": None, "id": None, "error": None}
         
@@ -593,9 +593,9 @@ class Client:
                                    collectionname=CString(collectionname.encode('utf-8'))
                                    )
         
-        print("Python: Calling client_upload")
-        self.lib.client_upload(self.client, byref(req), cb)
-        print("Python: client_upload called")
+        print("Python: Calling upload_async")
+        self.lib.upload_async(self.client, byref(req), cb)
+        print("Python: upload_async called")
 
         event.wait()
 
@@ -636,16 +636,16 @@ class Client:
         c_callback = CALLBACK(internal_callback)
         self.callbacks.append(c_callback)  # Keep a reference to the callback to prevent garbage collection
 
-        # self.lib.client_watch.argtypes = [voidPtr, POINTER(WatchRequestWrapper)]
-        # self.lib.client_watch.restype = POINTER(WatchResponseWrapper)
+        # self.lib.watch_async.argtypes = [voidPtr, POINTER(WatchRequestWrapper)]
+        # self.lib.watch_async.restype = POINTER(WatchResponseWrapper)
         
         req = WatchRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
                                   paths=CString(paths.encode('utf-8'))
                                   )
         
-        print("Python: Calling client_watch")
-        watch = self.lib.client_watch(self.client, byref(req), cb, c_callback)
-        print("Python: client_watch called")
+        print("Python: Calling watch_async")
+        watch = self.lib.watch_async(self.client, byref(req), cb, c_callback)
+        print("Python: watch_async called")
         
         event.wait()
 
@@ -657,10 +657,10 @@ class Client:
     def unwatch(self, watchid):
         if not watchid or watchid == "":
             raise ValueError("Watch ID must be provided")
-        self.lib.client_unwatch.argtypes = [voidPtr, CString]
-        self.lib.client_unwatch.restype = POINTER(UnWatchResponseWrapper)
+        self.lib.unwatch.argtypes = [voidPtr, CString]
+        self.lib.unwatch.restype = POINTER(UnWatchResponseWrapper)
         
-        unwatch = self.lib.client_unwatch(self.client, CString(watchid.encode('utf-8')))
+        unwatch = self.lib.unwatch(self.client, CString(watchid.encode('utf-8')))
         
         if unwatch:
             unwatchObj = unwatch.contents

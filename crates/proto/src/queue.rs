@@ -1,5 +1,5 @@
-use super::protos::{Envelope, RegisterQueueRequest, WatchRequest, UnWatchRequest,
-    // RegisterExchangeRequest, UnRegisterQueueRequest,
+use super::protos::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, RegisterExchangeRequest, 
+    WatchRequest, UnWatchRequest, 
 };
 
 // use std::fmt;
@@ -16,7 +16,7 @@ use super::protos::{Envelope, RegisterQueueRequest, WatchRequest, UnWatchRequest
 
 #[allow(dead_code)]
 impl RegisterQueueRequest {
-    pub fn queuename(queuename: &str) -> Self {
+    pub fn byqueuename(queuename: &str) -> Self {
         Self {
             queuename: queuename.to_string(),
             ..Default::default()
@@ -38,52 +38,53 @@ impl RegisterQueueRequest {
         }
     }
 }
-// impl RegisterExchangeRequest {
-//     pub fn exchangename(exchangename: &str) -> Self {
-//         Self {
-//             exchangename: exchangename.to_string(),
-//             ..Default::default()
-//         }
-//     }
-//     pub fn to_envelope(&self) -> Envelope {
-//         let any_message = prost_types::Any {
-//             type_url: "type.googleapis.com/openiap.RegisterExchangeRequest".to_string(),
-//             value: {
-//                 let mut buf = Vec::new();
-//                 prost::Message::encode(self, &mut buf).unwrap_or(());
-//                 buf
-//             },
-//         };
-//         Envelope {
-//             command: "registerexchange".into(),
-//             data: Some(any_message.clone()),
-//             ..Default::default() 
-//         }
-//     }
-// }
-// impl UnRegisterQueueRequest {
-//     pub fn queuename(queuename: &str) -> Self {
-//         Self {
-//             queuename: queuename.to_string(),
-//             ..Default::default()
-//         }
-//     }
-//     pub fn to_envelope(&self) -> Envelope {
-//         let any_message = prost_types::Any {
-//             type_url: "type.googleapis.com/openiap.UnRegisterQueue".to_string(),
-//             value: {
-//                 let mut buf = Vec::new();
-//                 prost::Message::encode(self, &mut buf).unwrap_or(());
-//                 buf
-//             },
-//         };
-//         Envelope {
-//             command: "unregisterqueue".into(),
-//             data: Some(any_message.clone()),
-//             ..Default::default() 
-//         }
-//     }
-// }
+impl RegisterExchangeRequest {
+    pub fn exchangename(exchangename: &str) -> Self {
+        Self {
+            exchangename: exchangename.to_string(),
+            ..Default::default()
+        }
+    }
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.RegisterExchangeRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "registerexchange".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+}
+impl  UnRegisterQueueRequest {
+    pub fn byqueuename(queuename: &str) -> Self {
+        Self {
+            queuename: queuename.to_string(),
+            ..Default::default()
+        }
+    }
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.UnRegisterQueueRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "unregisterqueue".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+    
+}
 impl WatchRequest {
     pub fn new(collectionname: &str, paths: Vec<String>) -> Self {
         Self {

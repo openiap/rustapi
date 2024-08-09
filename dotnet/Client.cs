@@ -282,53 +282,53 @@ public class Client : IDisposable
     public static extern void disable_tracing();
     public delegate void ConnectCallback(IntPtr clientWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_connect(string url, ConnectCallback callback);
+    public static extern IntPtr connect_async(string url, ConnectCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_signin(IntPtr client, ref SigninRequestWrapper request, SigninCallback callback);
+    public static extern void signin_async(IntPtr client, ref SigninRequestWrapper request, SigninCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_signin_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_query(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
+    public static extern void query_async(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_query_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_aggregate(IntPtr client, ref AggregateRequestWrapper request, AggregateCallback callback);
+    public static extern void aggregate_async(IntPtr client, ref AggregateRequestWrapper request, AggregateCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_aggregate_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_count(IntPtr client, ref CountRequestWrapper request, CountCallback callback);
+    public static extern void count_async(IntPtr client, ref CountRequestWrapper request, CountCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_count_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_distinct(IntPtr client, ref DistinctRequestWrapper request, DistinctCallback callback);
+    public static extern void distinct_async(IntPtr client, ref DistinctRequestWrapper request, DistinctCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_distinct_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void client_insert_one(IntPtr client, ref InsertOneRequestWrapper request, InsertOneCallback callback);
+    public static extern void insert_one_async(IntPtr client, ref InsertOneRequestWrapper request, InsertOneCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_insert_one_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_download(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
+    public static extern IntPtr download_async(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_download_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_upload(IntPtr client, ref UploadRequestWrapper request, UploadCallback callback);
+    public static extern IntPtr upload_async(IntPtr client, ref UploadRequestWrapper request, UploadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_upload_response(IntPtr response);
@@ -339,7 +339,7 @@ public class Client : IDisposable
     public delegate void WatchEventCallback(IntPtr eventStr);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_watch(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
+    public static extern IntPtr watch_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_response(IntPtr response);
@@ -395,7 +395,7 @@ public class Client : IDisposable
 
         var callbackDelegate = new ConnectCallback(Callback);
 
-        client_connect(url, callbackDelegate);
+        connect_async(url, callbackDelegate);
 
         client = await tcs.Task;
     }
@@ -463,7 +463,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new SigninCallback(Callback);
 
-            client_signin(clientPtr, ref request, callbackDelegate);
+            signin_async(clientPtr, ref request, callbackDelegate);
         }
         catch (Exception ex)
         {
@@ -536,7 +536,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new QueryCallback(Callback);
 
-            client_query(clientPtr, ref request, callbackDelegate);
+            query_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -602,7 +602,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new AggregateCallback(Callback);
 
-            client_aggregate(clientPtr, ref request, callbackDelegate);
+            aggregate_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -664,7 +664,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new CountCallback(Callback);
 
-            client_count(clientPtr, ref request, callbackDelegate);
+            count_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -740,7 +740,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new DistinctCallback(Callback);
 
-            client_distinct(clientPtr, ref request, callbackDelegate);
+            distinct_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -801,7 +801,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new InsertOneCallback(Callback);
 
-            client_insert_one(clientPtr, ref request, callbackDelegate);
+            insert_one_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -853,7 +853,7 @@ public class Client : IDisposable
             }
             var callbackDelegate = new DownloadCallback(Callback);
 
-            client_download(clientPtr, ref request, callbackDelegate);
+            download_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -918,7 +918,7 @@ public class Client : IDisposable
 
             var callbackDelegate = new UploadCallback(Callback);
 
-            client_upload(clientPtr, ref request, callbackDelegate);
+            upload_async(clientPtr, ref request, callbackDelegate);
         }
         finally
         {
@@ -991,7 +991,7 @@ public class Client : IDisposable
             }
             var callbackDelegate = new WatchCallback(Callback);
 
-            client_watch(clientPtr, ref request, callbackDelegate, callback);
+            watch_async(clientPtr, ref request, callbackDelegate, callback);
 
         }
         finally

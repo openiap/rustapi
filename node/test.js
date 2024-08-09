@@ -10,13 +10,13 @@ const fs = require('fs');
         const url = '';
         const client = new Client();
         // client.enable_tracing("openiap=info", "close");
-        client.enable_tracing("openiap=debug", "new");
-        // client.enable_tracing("openiap=debug", "");
+        // client.enable_tracing("openiap=debug", "new");
+        client.enable_tracing("openiap=info", "");
 
         // setInterval(() => {
         //     console.log("NodeJS: Event loop is running");
         // }, 1000);
-        
+
         // client.run_async_in_node(()=> {
         //     console.log("NodeJS:: run_async_in_node done.");
         // })
@@ -25,101 +25,117 @@ const fs = require('fs');
         // while(true) {
         //     await new Promise(resolve => setTimeout(resolve, 1000));
         // }
-        await client.connect(url);
+        // await client.connect_async(url);
+        client.connect(url);
         client.log("NodeJS:: connect completed, now call signin() again")
-        const signin_result = await client.signin();
+        // const signin_result2 = await client.signin_async();
+        // if(signin_result2.success) {
+        //     client.log("async signed in", signin_result2.success);
+        // } else {
+        //     client.log("async signed failed", signin_result2.error);
+        // }
+        const signin_result = client.signin();
         client.log("NodeJS:: signin() complete")
-        // client.log(signinResult);
-        if(signin_result.success) {
+        // client.log(signin_result);
+        if (signin_result.success) {
             client.log("signed in", signin_result.success);
-            let promises = [];
-            for(y = 0; y < 1; y++) {
-                for(let i = 0; i < 20; i++) {
-                    // const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-                    // console.log("Got ", query_result.results.length, " results");
-                    promises.push(client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
-
-                    
+            for (y = 0; y < 1; y++) {
+                for (let i = 0; i < 1; i++) {
+                    const query_result = await client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                    console.log("Got ", query_result.length, " results");
                 }
-                client.log(
-                    (await Promise.all(promises)).map(result => result.results)
-                );
-                promises = [];
             }
-            // client.log("AWAIT ALL begin")
-            // client.log(
-            //     (await Promise.all(promises)).map(result => result.results)
-            // );
-            // client.log("AWAIT ALL complete")
-            // await new Promise(resolve => setTimeout(resolve, 2000));
+            // let promises = [];
+            // for(y = 0; y < 1; y++) {
+            //     for(let i = 0; i < 20; i++) {
+            //         promises.push(client.query_async({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+            //     }
+            //     client.log(
+            //         (await Promise.all(promises)).map(result => result.results)
+            //     );
+            //     promises = [];
+            // }
 
-            const aggregate_result = await client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
-            if(aggregate_result.success == false) {
-                console.error("aggregate failed", aggregate_result.error);
-            } else {
-                console.log("aggregate success", aggregate_result.results.length, " results");
-            }
+            // const aggregate_result2 = await client.aggregate_async({ collectionname: 'entities', aggregates: '[]', explain: false });
+            // console.log("aggregate success", aggregate_result2.length, " results");
+            const aggregate_result = client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
+            console.log("aggregate success", aggregate_result.length, " results");
 
-            const insert_one_result = await client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
-            if(insert_one_result.success == false) {
-                console.error("insert_one failed", insert_one_result.error);
-            } else {
-                console.log("insert_one success", insert_one_result.id);
-            }
+            const insert_one_result = client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+            console.log("insert_one success", insert_one_result._id);
+            // const insert_one_result2 = await client.insert_one_async({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+            // console.log("insert_one success", insert_one_result2._id);
 
+            // const download_result2 = await client.download_async({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
+            // console.log("download success", download_result2);
             const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
-            if(download_result.success == false) {
-                console.error("download failed", download_result.error);
-            } else {
-                console.log("download success", download_result.filename);
-            }
-            
+            console.log("download success", download_result);
+
             let filepath = 'testfile.csv';
-            if(!fs.existsSync(filepath)) {
+            if (!fs.existsSync(filepath)) {
                 filepath = '../testfile.csv';
             }
-            
-            const upload_result = await client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
-            if(upload_result.success == false) {
-                console.error("upload failed", upload_result.error);
-            } else {
-                console.log("upload success", upload_result.id);
-            }
+
+            // const upload_result2 = await client.upload_async({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
+            // console.log("upload success", upload_result2);
+            const upload_result = client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
+            console.log("upload success", upload_result);
+
+
+            // var count_result2 = client.count_async({ collectionname: 'entities', query: '{}', queryas: '' });
+            // console.log("count success", count_result2);
+            var count_result = client.count({ collectionname: 'entities', query: '{}', queryas: '' });
+            console.log("count success", count_result);
+
+            // var distinct_result2 = await client.distinct_async({ collectionname: 'entities', field: '_type' });
+            // console.log("distinct success", distinct_result2);
+            var distinct_result = client.distinct({ collectionname: 'entities', field: '_type' });
+            console.log("distinct success", distinct_result);
+
 
             let eventcount = 0;
-            const watch_result = await client.watch({ collectionname: 'entities', paths: ''}, (event) => {
-                event.document = JSON.parse(event.document);
+            // const watch_result2 = await client.watch_async({ collectionname: 'entities', paths: '' }, (event) => {
+            //     event.document = JSON.parse(event.document);
+            //     console.log("watch " + event.operation + " for " + event.document._type + " / " + event.document.test);
+            //     eventcount++;
+            // });
+            // console.log("watch created as", watch_result2);
+            const watch_result = client.watch({ collectionname: 'entities', paths: '' }, (event) => {
                 console.log("watch " + event.operation + " for " + event.document._type + " / " + event.document.test);
                 eventcount++;
             });
-            if(watch_result.success == false) {
-                console.error("watch failed", watch_result.error);
-            } else {
-                console.log("watch created as", watch_result.watchid);
-            }
+            console.log("watch created as", watch_result);
 
-            while(eventcount < 2) {
+
+            while (eventcount < 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
-            const unwatch_result = client.unwatch(watch_result.watchid);
-            if(unwatch_result.success == false) {
-                console.error("remove watch failed", unwatch_result.error);
-            } else {
-                console.log("remove watch success");
+            console.log("UNWATCH", watch_result)
+            client.unwatch(watch_result);
+
+            let queuecount = 0;
+            const queuename = client.register_queue({ queuename: 'testq' }, (event) => {
+                console.log("queue event " + event.queuename + " from " + event.replyto + " / " + event.data);
+                queuecount++;
+            });
+            console.log("queue registered with name", queuename);
+            while (queuecount < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
-            var count_result = await client.count({ collectionname: 'entities', query: '{}', queryas: '' });
-            if(count_result.success == false) {
-                console.error("count failed", count_result.error);
-            } else {
-                console.log("count success", count_result.result);
+            client.unregister_queue(queuename);
+            console.log("Un registered queue", queuename);
+
+            let exchangecount = 0;
+            const exchangename = client.register_exchange({ exchangename: 'testexc' }, (event) => {
+                console.log("exchange event " + event.exchangename + " from " + event.replyto + " / " + event.data);
+                exchangecount++;
+            });
+            console.log("exchange registered with name", exchangename);
+            while (exchangecount < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
-            var distinct_result = await client.distinct({ collectionname: 'entities', field: '_type' });
-            if(distinct_result.success == false) {
-                console.error("distinct failed", distinct_result.error);
-            } else {
-                console.log("distinct success", distinct_result.results);
-            }
+
 
             client.log("*********************************")
             client.log("done, free client");

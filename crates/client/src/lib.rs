@@ -1,7 +1,7 @@
-pub use protos::flow_service_client::FlowServiceClient;
-pub use openiap_proto::*;
-pub use openiap_proto::protos::*;
 pub use openiap_proto::errors::*;
+pub use openiap_proto::protos::*;
+pub use openiap_proto::*;
+pub use protos::flow_service_client::FlowServiceClient;
 
 // use openiap_proto::errors::OpenIAPError;
 // use openiap_proto::openiap::{
@@ -9,7 +9,7 @@ pub use openiap_proto::errors::*;
 //     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
 //     UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse,
 //     DistinctRequest, DistinctResponse,
-//     CountRequest, CountResponse, InsertManyRequest, InsertManyResponse, 
+//     CountRequest, CountResponse, InsertManyRequest, InsertManyResponse,
 //     BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse,
 // };
 use tracing::{debug, error, info, trace};
@@ -22,7 +22,7 @@ use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::transport::{Channel};
+use tonic::transport::Channel;
 
 use tokio::sync::{mpsc, oneshot};
 use tonic::Request;
@@ -30,7 +30,6 @@ use tonic::Request;
 use std::env;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
@@ -48,6 +47,8 @@ pub struct ClientInner {
     pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
     pub watches:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+    pub queues:
+        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
 }
 // implement debug for ClientInner
 impl std::fmt::Debug for ClientInner {
@@ -163,9 +164,8 @@ impl Client {
                 }
             };
             // let channel = Channel::builder(uri).tls_config(tls);
-            let channel = Channel::builder(uri).tls_config(
-                tonic::transport::ClientTlsConfig::new().with_native_roots()
-            );
+            let channel = Channel::builder(uri)
+                .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots());
             let channel = match channel {
                 Ok(channel) => channel,
                 Err(e) => {
@@ -208,6 +208,7 @@ impl Client {
             queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
             streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
             watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
         };
 
         let client = Client {
@@ -284,6 +285,8 @@ impl Client {
                     let mut queries = inner.queries.lock().await;
                     let mut streams = inner.streams.lock().await;
                     let watches = inner.watches.lock().await;
+                    let queues = inner.queues.lock().await;
+
                     debug!("Received #{} #{} {} message", received.id, rid, command);
                     if command == "ping" {
                         let envelope = Envelope {
@@ -321,6 +324,12 @@ impl Client {
                             prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
                         if let Some(callback) = watches.get(watchevent.id.as_str()) {
                             callback(watchevent);
+                        }
+                    } else if command == "queueevent" {
+                        let queueevent: QueueEvent =
+                            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+                        if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
+                            callback(queueevent);
                         }
                     } else if let Some(response_tx) = queries.remove(&rid) {
                         let stream = streams.get(rid.as_str());
@@ -507,7 +516,10 @@ impl Client {
     }
     #[allow(dead_code)]
     #[tracing::instrument(skip_all)]
-    pub async fn aggregate(&self, mut config: AggregateRequest) -> Result<AggregateResponse, OpenIAPError> {
+    pub async fn aggregate(
+        &self,
+        mut config: AggregateRequest,
+    ) -> Result<AggregateResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
         }
@@ -518,7 +530,9 @@ impl Client {
             config.queryas = "".to_string();
         }
         if config.aggregates.is_empty() {
-            return Err(OpenIAPError::ClientError("No aggregates provided".to_string()));
+            return Err(OpenIAPError::ClientError(
+                "No aggregates provided".to_string(),
+            ));
         }
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
@@ -565,7 +579,10 @@ impl Client {
     }
     #[allow(dead_code)]
     #[tracing::instrument(skip_all)]
-    pub async fn distinct(&self, mut config: DistinctRequest) -> Result<DistinctResponse, OpenIAPError> {
+    pub async fn distinct(
+        &self,
+        mut config: DistinctRequest,
+    ) -> Result<DistinctResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
         }
@@ -585,9 +602,8 @@ impl Client {
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let data = m.data.unwrap();
-                let response: DistinctResponse =
-                    prost::Message::decode(data.value.as_ref())
-                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                let response: DistinctResponse = prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
@@ -595,7 +611,10 @@ impl Client {
     }
     #[allow(dead_code)]
     #[tracing::instrument(skip_all)]
-    pub async fn insert_one(&self, config: InsertOneRequest) -> Result<InsertOneResponse, OpenIAPError> {
+    pub async fn insert_one(
+        &self,
+        config: InsertOneRequest,
+    ) -> Result<InsertOneResponse, OpenIAPError> {
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
         match result {
@@ -615,7 +634,10 @@ impl Client {
     }
     #[allow(dead_code)]
     #[tracing::instrument(skip_all)]
-    pub async fn insert_many(&self, config: InsertManyRequest) -> Result<InsertManyResponse, OpenIAPError> {
+    pub async fn insert_many(
+        &self,
+        config: InsertManyRequest,
+    ) -> Result<InsertManyResponse, OpenIAPError> {
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
         match result {
@@ -842,14 +864,105 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    #[tracing::instrument(skip_all)]
+    pub async fn register_queue(
+        &self,
+        mut config: RegisterQueueRequest,
+        callback: Box<dyn Fn(QueueEvent) + Send + Sync>,
+    ) -> Result<String, OpenIAPError> {
+        if config.queuename.is_empty() {
+            config.queuename = "".to_string();
+        }
+
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: RegisterQueueResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+
+                let inner = self.inner.lock().await;
+                inner
+                    .queues
+                    .lock()
+                    .await
+                    .insert(response.queuename.clone(), callback);
+
+                Ok(response.queuename)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn unregister_queue(&self, queuename: &str) -> Result<(), OpenIAPError> {
+        let config = UnRegisterQueueRequest::byqueuename(queuename);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn register_exchange(
+        &self,
+        mut config: RegisterExchangeRequest,
+        callback: Box<dyn Fn(QueueEvent) + Send + Sync>,
+    ) -> Result<RegisterExchangeResponse, OpenIAPError> {
+        if config.exchangename.is_empty() {
+            return Err(OpenIAPError::ClientError(
+                "No exchange name provided".to_string(),
+            ));
+        }
+        if config.algorithm.is_empty() {
+            config.algorithm = "fanout".to_string();
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: RegisterExchangeResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                if response.queuename.is_empty() == false {
+                    let inner = self.inner.lock().await;
+                    inner
+                        .queues
+                        .lock()
+                        .await
+                        .insert(response.queuename.clone(), callback);
+                }
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
 }
 
 #[allow(dead_code)]
 fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
 #[cfg(test)]
 mod tests {
-    use std::{future::Future, pin::Pin};
     use futures::stream::FuturesUnordered;
+    use std::{future::Future, pin::Pin};
 
     use super::*;
     #[allow(dead_code)]
@@ -893,14 +1006,16 @@ mod tests {
     async fn test_multiple_query() {
         // cargo test test_multiple_query -- --nocapture
         let client = Client::connect(TEST_URL).await.unwrap();
-        let tasks = FuturesUnordered::<Pin<Box<dyn Future<Output = Result<QueryResponse, OpenIAPError>>>>>::new();
+        let tasks = FuturesUnordered::<
+            Pin<Box<dyn Future<Output = Result<QueryResponse, OpenIAPError>>>>,
+        >::new();
         for _ in 1..101 {
-                let query = QueryRequest {
-                    query: "{}".to_string(),
-                    projection: "{\"name\": 1}".to_string(),
-                    ..Default::default()
-                };
-                tasks.push(Box::pin(client.query(query)));
+            let query = QueryRequest {
+                query: "{}".to_string(),
+                projection: "{\"name\": 1}".to_string(),
+                ..Default::default()
+            };
+            tasks.push(Box::pin(client.query(query)));
         }
         // while let Some(result) = tasks.next().await {
         //     println!("{}", result);
@@ -922,19 +1037,21 @@ mod tests {
             "test_query failed with {:?}",
             response.err().unwrap()
         );
-        println!("Response: {:?}", response);    
+        println!("Response: {:?}", response);
     }
     #[tokio::test()]
     async fn test_aggreate_multiple() {
         let client = Client::connect(TEST_URL).await.unwrap();
-        let tasks = FuturesUnordered::<Pin<Box<dyn Future<Output = Result<AggregateResponse, OpenIAPError>>>>>::new();
+        let tasks = FuturesUnordered::<
+            Pin<Box<dyn Future<Output = Result<AggregateResponse, OpenIAPError>>>>,
+        >::new();
         for _ in 1..101 {
-                let query = AggregateRequest {
-                    collectionname: "entities".to_string(),
-                    aggregates: "[]".to_string(),
-                    ..Default::default()
-                };
-                tasks.push(Box::pin(client.aggregate(query)));
+            let query = AggregateRequest {
+                collectionname: "entities".to_string(),
+                aggregates: "[]".to_string(),
+                ..Default::default()
+            };
+            tasks.push(Box::pin(client.aggregate(query)));
         }
         // while let Some(result) = tasks.next().await {
         //     println!("{}", result);
