@@ -1,5 +1,7 @@
 [package]
 name = "openiap-client"
+description = "openiap client library"
+license = "MPL-2.0"
 version = "0.0.1"
 edition = "2021"
 
