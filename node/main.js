@@ -130,6 +130,63 @@ const InsertOneResponseWrapper = StructType({
 });
 const InsertOneResponseWrapperPtr = ref.refType(InsertOneResponseWrapper);
 
+const InsertManyRequestWrapper = StructType({
+    collectionname: CString,
+    items: CString,
+    w: int,
+    j: bool,
+    skipresults: bool,
+});
+const InsertManyRequestWrapperPtr = ref.refType(InsertManyRequestWrapper);
+const InsertManyResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertManyResponseWrapperPtr = ref.refType(InsertManyResponseWrapper);
+
+const UpdateOneRequestWrapper = StructType({
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const UpdateOneRequestWrapperPtr = ref.refType(UpdateOneRequestWrapper);
+const UpdateOneResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const UpdateOneResponseWrapperPtr = ref.refType(UpdateOneResponseWrapper);
+
+const InsertOrUpdateOneRequestWrapper = StructType({
+    collectionname: CString,
+    uniqeness: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOrUpdateOneRequestWrapperPtr = ref.refType(InsertOrUpdateOneRequestWrapper);
+const InsertOrUpdateOneResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertOrUpdateOneResponseWrapperPtr = ref.refType(InsertOrUpdateOneResponseWrapper);
+
+const DeleteOneRequestWrapper = StructType({
+    collectionname: CString,
+    id: CString,
+    recursive: bool,
+});
+const DeleteOneRequestWrapperPtr = ref.refType(DeleteOneRequestWrapper);
+const DeleteOneResponseWrapper = StructType({
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteOneResponseWrapperPtr = ref.refType(DeleteOneResponseWrapper);
+
 const DownloadRequestWrapper = StructType({
     collectionname: CString,
     id: CString,
@@ -350,6 +407,18 @@ function loadLibrary() {
             'insert_one': [InsertOneResponseWrapperPtr, [voidPtr, InsertOneRequestWrapperPtr]],
             'insert_one_async': ['void', [voidPtr, InsertOneRequestWrapperPtr, 'pointer']],
             'free_insert_one_response': ['void', [InsertOneResponseWrapperPtr]],
+            'insert_many': [InsertManyResponseWrapperPtr, [voidPtr, InsertManyRequestWrapperPtr]],
+            'insert_many_async': ['void', [voidPtr, InsertManyRequestWrapperPtr, 'pointer']],
+            'free_insert_many_response': ['void', [InsertManyResponseWrapperPtr]],
+            'update_one': [UpdateOneResponseWrapperPtr, [voidPtr, UpdateOneRequestWrapperPtr]],
+            'update_one_async': ['void', [voidPtr, UpdateOneRequestWrapperPtr, 'pointer']],
+            'free_update_one_response': ['void', [UpdateOneResponseWrapperPtr]],
+            'insert_or_update_one': [InsertOrUpdateOneResponseWrapperPtr, [voidPtr, InsertOrUpdateOneRequestWrapperPtr]],
+            'insert_or_update_one_async': ['void', [voidPtr, InsertOrUpdateOneRequestWrapperPtr, 'pointer']],
+            'free_insert_or_update_one_response': ['void', [InsertOrUpdateOneResponseWrapperPtr]],
+            'delete_one': [DeleteOneResponseWrapperPtr, [voidPtr, DeleteOneRequestWrapperPtr]],
+            'delete_one_async': ['void', [voidPtr, DeleteOneRequestWrapperPtr, 'pointer']],
+            'free_delete_one_response': ['void', [DeleteOneResponseWrapperPtr]],
             'download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
             'download_async': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
@@ -364,7 +433,9 @@ function loadLibrary() {
             'unwatch': [UnWatchResponseWrapperPtr, [voidPtr, CString]],
             'free_unwatch_response': ['void', [UnWatchResponseWrapperPtr]],
             'register_queue': [RegisterQueueResponseWrapperPtr, [voidPtr, RegisterQueueRequestWrapperPtr]],
+            'free_register_queue_response': ['void', [RegisterQueueResponseWrapperPtr]],
             'register_exchange': [RegisterExchangeResponseWrapperPtr, [voidPtr, RegisterExchangeRequestWrapperPtr]],
+            'free_register_exchange_response': ['void', [RegisterExchangeResponseWrapperPtr]],
             'unregister_queue': [UnRegisterQueueResponseWrapperPtr, [voidPtr, CString]],
             'free_unregister_queue_response': ['void', [UnRegisterQueueResponseWrapperPtr]],
             'next_queue_event': [QueueEventPtr, [CString]],
@@ -415,8 +486,8 @@ class Client {
     disable_tracing() {
         this.lib.disable_tracing();
     }
-    log(message) {
-        console.log(message);
+    log(...args) {
+        console.log(...args);
     }
 
     connect(url) {
@@ -479,9 +550,10 @@ class Client {
             ping: false
         });
 
-        this.log('Node.js: call signin_async');
+        this.log('Node.js: call signin');
         const response = this.lib.signin(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_signin_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -516,17 +588,12 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(SigninResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: signin_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    const result = {
-                        success: response.success,
-                        jwt: response.jwt,
-                        error: null
-                    };
-                    resolve(result);
+                    resolve(response);
                 }
                 this.lib.free_signin_response(responsePtr);
             });
@@ -554,18 +621,16 @@ class Client {
         });
         this.log('Node.js: create callback');
         const response = this.lib.query(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_query_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return {
-            success: result.success,
-            results: JSON.parse(result.results),
-            error: null
-        };
+        return JSON.parse(result.results);
     }
 
+    refs = [];
     query_async({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
         this.log('Node.js: query invoked');
         return new Promise((resolve, reject) => {
@@ -575,27 +640,24 @@ class Client {
                 projection: ref.allocCString(projection),
                 orderby: ref.allocCString(orderby),
                 queryas: ref.allocCString(queryas),
-                explain: explain,
-                skip: skip,
-                top: top
+                explain: ref.alloc(bool, explain),
+                skip: ref.alloc(int, skip),
+                top: ref.alloc(int, top)
             });
             this.log('Node.js: create callback');
+            this.refs.push(req);
             const callback = ffi.Callback('void', [ref.refType(QueryResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: query_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    const result = {
-                        success: response.success,
-                        results: JSON.parse(response.results),
-                        error: null
-                    };
-                    resolve(result);
+                    resolve(JSON.parse(response.results));
                 }
-                // this.lib.free_query_response(responsePtr);
+                this.lib.free_query_response(responsePtr);
             });
+            
 
             this.log('Node.js: call query_async');
             this.lib.query_async.async(this.client, req.ref(), callback, (err) => {
@@ -619,7 +681,8 @@ class Client {
         });
         this.log('Node.js: create callback');
         const response = this.lib.aggregate(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_aggregate_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -642,7 +705,7 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(AggregateResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: aggregate_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -670,7 +733,8 @@ class Client {
         });
         this.log('Node.js: call count_async');
         const response = this.lib.count(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_count_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -689,7 +753,7 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(CountResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: count_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -720,20 +784,23 @@ class Client {
         const response = this.lib.distinct(this.client, req.ref());
         const result = response.deref();
         if (!result.success) {
-            const errorMsg = result.error;
+            const errorMsg = JSON.parse(JSON.stringify(result.error));
+            this.lib.free_distinct_response(response);
             throw new ClientError(errorMsg);
         }
 
         
         const resultsArrayPtr = result.results;
         const resultsCount = result.results_count;
-        const results = [];
+        const _results = [];
 
         for (let i = 0; i < resultsCount; i++) {
             const cstrPtr = resultsArrayPtr.readPointer(i * ref.sizeof.pointer);
             const jsString = ref.readCString(cstrPtr);
-            results.push(jsString);
+            _results.push(jsString);
         }
+        const results = JSON.parse(JSON.stringify(_results));
+        this.lib.free_distinct_response(response);
         return results;
     }
     distinct_async({collectionname, field, query = "", queryas = "", explain = false}) {
@@ -798,7 +865,8 @@ class Client {
         });
         this.log('Node.js: call insert_one_async');
         const response = this.lib.insert_one(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_insert_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -817,7 +885,7 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(InsertOneResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: insert_one_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -835,6 +903,169 @@ class Client {
             });
         });
     };
+    insert_many({collectionname, documents, w, j, skipresults}) {
+        this.log('Node.js: insert_many invoked');
+        const req = new InsertManyRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            items: ref.allocCString(documents),
+            w: w,
+            j: j,
+            skipresults: skipresults
+        });
+        this.log('Node.js: call insert_many_async');
+        const response = this.lib.insert_many(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_insert_many_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return JSON.parse(result.result);
+    }
+    insert_many_async({collectionname, documents, w, j, skipresults}) {
+        this.log('Node.js: insert_many invoked');
+        return new Promise((resolve, reject) => {
+            const req = new InsertManyRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                items: ref.allocCString(documents),
+                w: w,
+                j: j,
+                skipresults: skipresults
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(InsertManyResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: insert_many_async callback');
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(JSON.parse(response.result));
+                }
+                this.lib.free_insert_many_response(responsePtr);
+            });
+
+            this.log('Node.js: call insert_many_async');
+            this.lib.insert_many_async.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('InsertMany failed'));
+                }
+            });
+        });
+    }
+    update_one({collectionname, item, w, j}) {
+        this.log('Node.js: update_one invoked');
+        const req = new UpdateOneRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            item: ref.allocCString(item),
+            w: w,
+            j: j
+        });
+        this.log('Node.js: call update_one_async');
+        const response = this.lib.update_one(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_update_one_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return JSON.parse(result.result);
+    }
+    update_one_async({collectionname, item, w, j}) {
+        this.log('Node.js: update_one invoked');
+        return new Promise((resolve, reject) => {
+            const req = new UpdateOneRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                item: ref.allocCString(item),
+                w: w,
+                j: j
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(UpdateOneResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: update_one_async callback');
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(JSON.parse(response.result));
+                }
+                this.lib.free_update_one_response(responsePtr);
+            });
+
+            this.log('Node.js: call update_one_async');
+            this.lib.update_one_async.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('UpdateOne failed'));
+                }
+            });
+        });
+    }
+    insert_or_update_one({collectionname, item, uniqeness, w, j}) {
+        this.log('Node.js: insert_or_update_one invoked');
+        const req = new InsertOrUpdateOneRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            uniqeness: ref.allocCString(uniqeness),
+            item: ref.allocCString(item),
+            w: w,
+            j: j
+        });
+        this.log('Node.js: call insert_or_update_one_async');
+        const response = this.lib.insert_or_update_one(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_insert_or_update_one_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return JSON.parse(result.result);
+    }
+    delete_one({collectionname, id, recursive}) {
+        this.log('Node.js: delete_one invoked');
+        const req = new DeleteOneRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            id: ref.allocCString(id),
+            recursive: recursive
+        });
+        this.log('Node.js: call delete_one_async');
+        const response = this.lib.delete_one(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_delete_one_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.affectedrows;
+    }
+    delete_one_async({collectionname, id, recursive}) {
+        this.log('Node.js: delete_one invoked');
+        return new Promise((resolve, reject) => {
+            const req = new DeleteOneRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                id: ref.allocCString(id),
+                recursive: recursive
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(DeleteOneResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: delete_one_async callback');
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.affectedrows);
+                }
+                this.lib.free_delete_one_response(responsePtr);
+            });
+
+            this.log('Node.js: call delete_one_async');
+            this.lib.delete_one_async.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('DeleteOne failed'));
+                }
+            });
+        });
+    }
     download({collectionname, id, folder, filename}) {
         this.log('Node.js: download invoked');
         const req = new DownloadRequestWrapper({
@@ -845,7 +1076,8 @@ class Client {
         });
         this.log('Node.js: call download_async');
         const response = this.lib.download(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_download_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -864,7 +1096,7 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(DownloadResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: download_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -893,7 +1125,8 @@ class Client {
         });
         this.log('Node.js: call upload_async');
         const response = this.lib.upload(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_upload_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -913,7 +1146,7 @@ class Client {
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(UploadResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: upload_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -940,7 +1173,8 @@ class Client {
         });
         this.log('Node.js: call watch');
         const response = this.lib.watch(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_watch_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -997,7 +1231,7 @@ class Client {
             this.log('Node.js: create callback');
             const callbackPtr = ffi.Callback('void', [ref.refType(WatchResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: watch_async callback');
-                const response = responsePtr.deref();
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
@@ -1020,7 +1254,7 @@ class Client {
         if (ref.isNull(response)) {
             throw new ClientError('UnWatch failed');
         }
-        const Obj = response.deref();
+        const Obj = JSON.parse(JSON.stringify(response.deref()));
         const result = {
             success: Obj.success,
             error: Obj.error
@@ -1044,7 +1278,8 @@ class Client {
         });
         this.log('Node.js: call register_queue');
         const response = this.lib.register_queue(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_register_queue_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -1060,7 +1295,7 @@ class Client {
             do {
                 // this.log('Node.js: call next');
                 const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
-                const result = responsePtr.deref();
+                const result = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (result.queuename != null && result.queuename != "") {
                     hadone = true;
                     let event = {
@@ -1096,7 +1331,8 @@ class Client {
         });
         this.log('Node.js: call register_exchange');
         const response = this.lib.register_exchange(this.client, req.ref());
-        const result = response.deref();
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_register_exchange_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -1113,7 +1349,7 @@ class Client {
                 do {
                     // this.log('Node.js: call next');
                     const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
-                    const result = responsePtr.deref();
+                    const result = JSON.parse(JSON.stringify(responsePtr.deref()));
                     if (result.queuename != null && result.queuename != "") {
                         hadone = true;
                         let event = {
@@ -1141,7 +1377,7 @@ class Client {
         if (ref.isNull(response)) {
             throw new ClientError('unregister_queue failed');
         }
-        const Obj = response.deref();
+        const Obj = JSON.parse(JSON.stringify(response.deref()));
         const result = {
             success: Obj.success,
             error: Obj.error

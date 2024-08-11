@@ -1,5 +1,5 @@
 use super::protos::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, RegisterExchangeRequest, 
-    WatchRequest, UnWatchRequest, 
+    WatchRequest, UnWatchRequest, QueueMessageRequest
 };
 
 // use std::fmt;
@@ -39,9 +39,10 @@ impl RegisterQueueRequest {
     }
 }
 impl RegisterExchangeRequest {
-    pub fn exchangename(exchangename: &str) -> Self {
+    pub fn byexchangename(exchangename: &str) -> Self {
         Self {
             exchangename: exchangename.to_string(),
+            addqueue: true,
             ..Default::default()
         }
     }
@@ -131,4 +132,37 @@ impl UnWatchRequest {
             ..Default::default() 
         }
     }
+}
+impl  QueueMessageRequest {
+    pub fn byqueuename(queuename: &str, data: &str, striptoken: bool) -> Self {
+        Self {
+            queuename: queuename.to_string(),
+            data: data.to_string(),
+            striptoken,
+            ..Default::default()
+        }
+    }
+    pub fn byexchangename(exchangename: &str, data: &str, striptoken: bool) -> Self {
+        Self {
+            exchangename: exchangename.to_string(),
+            data: data.to_string(),
+            striptoken,
+            ..Default::default()
+        }
+    }
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.QueueMessageRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "queuemessage".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }    
 }

@@ -7,3 +7,4 @@ pub mod query;
 pub mod queue;
 pub mod signin;
 pub mod upload;
+pub mod workitem;

@@ -1,6 +1,7 @@
 use super::protos::{Envelope, DownloadRequest};
 #[allow(dead_code)]
 impl DownloadRequest {
+    #[tracing::instrument(skip_all)]
     pub fn id(id: &str) -> Self {
         Self {
             collectionname: "fs.files".to_string(),
@@ -8,6 +9,7 @@ impl DownloadRequest {
             ..Default::default()
         }
     }
+    #[tracing::instrument(skip_all)]
     pub fn by_id(collectionname: &str, id: &str) -> Self {
         Self {
             collectionname: collectionname.to_string(),
@@ -15,6 +17,7 @@ impl DownloadRequest {
             ..Default::default()
         }
     }
+    #[tracing::instrument(skip_all)]
     pub fn by_filename(collectionname: &str, filename: &str) -> Self {
         Self {
             collectionname: collectionname.to_string(),
@@ -24,6 +27,7 @@ impl DownloadRequest {
     }
 }
 impl DownloadRequest {
+    #[tracing::instrument(skip_all)]
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.DownloadRequest".to_string(),

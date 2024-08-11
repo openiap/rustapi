@@ -1,6 +1,11 @@
-use openiap_client::{self, Client};
+use std::ops::Add;
 
-use openiap_client::protos::{InsertOneRequest, QueryRequest, WatchEvent, DistinctRequest, SigninRequest, UploadRequest, DownloadRequest, WatchRequest};
+use openiap_client::{self, Client, RegisterExchangeRequest, RegisterQueueRequest};
+
+use openiap_client::protos::{
+    DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
+    WatchEvent, WatchRequest,
+};
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -34,12 +39,35 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let watchid = "";
 
     let mut input = String::from("bum");
-    while !input.eq_ignore_ascii_case("") {
+    println!("? for help");
+    while !input.eq_ignore_ascii_case("quit") {
+        if input.eq_ignore_ascii_case("?") {
+            println!("? for help");
+            println!("quit: to quit");
+            println!("q: Query");
+            println!("qq: Query all");
+            println!("di: Distinct");
+            println!("s: Sign in as guest");
+            println!("s2: Sign in as testuser");
+            println!("i: Insert");
+            println!("d: Download");
+            println!("u: Upload train.csv");
+            println!("uu: Upload assistant-linux-x86_64.AppImage");
+            println!("uuu: Upload virtio-win-0.1.225.iso");
+            println!("w: Watch");
+            println!("uw: Unwatch");
+            println!("r: Register queue");
+            println!("m: Queue message");
+        }
         if input.eq_ignore_ascii_case("q") {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let q = client
-                    .query(QueryRequest::with_projection("entities", "{}", "{\"name\":1}"))
+                    .query(QueryRequest::with_projection(
+                        "entities",
+                        "{}",
+                        "{\"name\":1}",
+                    ))
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -67,9 +95,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     field: "_type".to_string(),
                     ..Default::default()
                 };
-                let q = client
-                    .distinct(query)
-                    .await;
+                let q = client.distinct(query).await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
                     Err(e) => println!("Failed to query: {:?}", e),
@@ -80,9 +106,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .signin(SigninRequest::with_userpass(
-                        "guest", "password",
-                    ))
+                    .signin(SigninRequest::with_userpass("guest", "password"))
                     .await;
                 if let Err(e) = s {
                     println!("Failed to sign in: {:?}", e);
@@ -98,10 +122,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .signin(SigninRequest::with_userpass(
-                        "testuser",
-                        "badpassword",
-                    ))
+                    .signin(SigninRequest::with_userpass("testuser", "badpassword"))
                     .await;
                 if let Err(e) = s {
                     println!("Failed to sign in: {:?}", e);
@@ -121,9 +142,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     item: "{\"name\":\"Allan\", \"_type\":\"Allan\"}".to_string(),
                     ..Default::default()
                 };
-                let s = client
-                    .insert_one(request)                       
-                    .await;
+                let s = client.insert_one(request).await;
                 if let Err(e) = s {
                     println!("Failed to insert: {:?}", e);
                 } else {
@@ -135,11 +154,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .download(
-                        DownloadRequest::id("65a3aaf66d52b8c15131aebd"),
-                        None,
-                        None,
-                    )
+                    .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
                     .await;
                 if let Err(e) = s {
                     println!("Failed to download: {:?}", e);
@@ -152,10 +167,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             tokio::task::spawn(async move {
                 let s = client
-                    .upload(
-                        UploadRequest::filename("train.csv"),
-                        "train.csv",
-                    )
+                    .upload(UploadRequest::filename("train.csv"), "train.csv")
                     .await;
                 if let Err(e) = s {
                     println!("Failed to upload: {:?}", e);
@@ -201,9 +213,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .watch(
-                        WatchRequest::new("", vec!["".to_string()]), 
-                        Box::new(onwatch)
-                )
+                        WatchRequest::new("", vec!["".to_string()]),
+                        Box::new(onwatch),
+                    )
                     .await;
                 if let Err(e) = s {
                     println!("Failed to watch: {:?}", e);
@@ -218,10 +230,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let client = b.clone();
                 tokio::task::spawn(async move {
                     let watchid = "".to_string();
-                    let s = client
-                        .unwatch(&watchid
-                    )
-                        .await;
+                    let s = client.unwatch(&watchid).await;
                     if let Err(e) = s {
                         println!("Failed to watch: {:?}", e);
                     } else {
@@ -232,6 +241,112 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 println!("No watch to unwatch");
             }
         }
+        if input.eq_ignore_ascii_case("r") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let q = client
+                    .register_queue(
+                        RegisterQueueRequest::byqueuename("test2queue"),
+                        Box::new(|event| {
+                            println!(
+                                "Received message queue from {:?} with reply to {:?}: {:?}",
+                                event.queuename, event.replyto, event.data
+                            );
+                        }),
+                    )
+                    .await;
+                match q {
+                    Ok(response) => println!("Registered queue as {:?}", response),
+                    Err(e) => println!("Failed to register queue: {:?}", e),
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("m") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let q = client
+                    .queue_message(openiap_client::QueueMessageRequest::byqueuename(
+                        "test2queue",
+                        "{\"name\":\"Allan\"}",
+                        true
+                    ))
+                    .await;
+                match q {
+                    Ok(response) => println!(
+                        "Queued message to {:?} with reply to {:?}",
+                        response.queuename, response.replyto
+                    ),
+                    Err(e) => println!("Failed to queue message: {:?}", e),
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("m20") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let mut count = 0;
+                loop {
+                    count = count.add(1);
+                    let q = client
+                        .queue_message(openiap_client::QueueMessageRequest::byqueuename(
+                            "test2queue",
+                            format!("{{\"name\":\"Allan {}\"}}", count).as_str(),
+                            true
+                        ))
+                        .await;
+                    match q {
+                        Ok(response) => println!(
+                            "Queued message to {:?} with reply to {:?}",
+                            response.queuename, response.replyto
+                        ),
+                        Err(e) => println!("Failed to queue message: {:?}", e),
+                    }
+                    if count >= 20 {
+                        break;
+                    }
+                } 
+            });
+        }
+        if input.eq_ignore_ascii_case("re") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let q = client
+                    .register_exchange(
+                        RegisterExchangeRequest::byexchangename("test2exchange"),
+                        Box::new(|event| {
+                            println!(
+                                "Received exchange message to queue  {:?} with reply to {:?}: {:?}",
+                                event.queuename, event.replyto, event.data
+                            );
+                        }),
+                    )
+                    .await;
+                match q {
+                    Ok(response) => println!("Registered exchange as {:?}", response),
+                    Err(e) => println!("Failed to register exchange: {:?}", e),
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("me") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let q = client
+                    .queue_message(openiap_client::QueueMessageRequest::byexchangename(
+                        "test2exchange",
+                        "{\"name\":\"Allan\"}",
+                        true
+                    ))
+                    .await;
+                match q {
+                    Ok(response) => println!(
+                        "Queued message to {:?} with reply to {:?}",
+                        response.exchangename, response.replyto
+                    ),
+                    Err(e) => println!("Failed to queue message: {:?}", e),
+                }
+            });
+        }
+
+
         input = keyboard_input().await;
     }
     Ok(())

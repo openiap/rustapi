@@ -390,11 +390,16 @@ impl Client {
         }
         let (response_tx, response_rx) = oneshot::channel();
         let id = self.get_id().to_string();
+        debug!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
         {
+            debug!("get inner lock");
             let inner = self.inner.lock().await;
+            debug!("get query lock");
             inner.queries.lock().await.insert(id.clone(), response_tx);
+            debug!("call send");
             let res = inner.stream_tx.send(msg).await;
+            debug!("parse result");
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -422,9 +427,9 @@ impl Client {
             inner.queries.lock().await.insert(id.clone(), response_tx);
             inner.streams.lock().await.insert(id.clone(), stream_tx);
             let res = inner.stream_tx.send(msg).await;
-            if res.is_err() {
-                let e = res.err().unwrap();
-                return Err(OpenIAPError::ClientError(e.to_string()));
+            match res {
+                Ok(_) => (),
+                Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
             }
         }
         Ok((response_rx, stream_rx))
@@ -437,23 +442,30 @@ impl Client {
             ..Default::default()
         };
         let inner = self.inner.lock().await;
-        if inner.stream_tx.send(envelope).await.is_err() == true {
-            error!("Failed to send ping");
+        match inner.stream_tx.send(envelope).await {
+            Ok(_) => (),
+            Err(e) => error!("Failed to send ping: {}", e),            
         }
     }
     #[tracing::instrument(skip_all)]
     pub async fn signin(&self, mut config: SigninRequest) -> Result<SigninResponse, OpenIAPError> {
-        if config.username.is_empty() {
-            config.username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
-        }
-        if config.password.is_empty() {
-            config.password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
-        }
-        if config.jwt.is_empty() {
-            config.jwt = std::env::var("OPENIAP_JWT").unwrap_or_default();
-        }
-        if config.jwt.is_empty() {
-            config.jwt = std::env::var("jwt").unwrap_or_default();
+        // autodetect how to signin using environment variables
+        if config.username.is_empty() && config.password.is_empty() && config.jwt.is_empty() {
+            if config.jwt.is_empty() {
+                config.jwt = std::env::var("OPENIAP_JWT").unwrap_or_default();
+            }
+            if config.jwt.is_empty() {
+                config.jwt = std::env::var("jwt").unwrap_or_default();
+            }
+            // if no jwt was found, test for username and password
+            if config.jwt.is_empty() {
+                if config.username.is_empty() {
+                    config.username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
+                }
+                if config.password.is_empty() {
+                    config.password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
+                }
+            }
         }
         let version = env!("CARGO_PKG_VERSION");
         if !version.is_empty() && config.version.is_empty() {
@@ -498,9 +510,12 @@ impl Client {
         }
 
         let envelope = config.to_envelope();
+        debug!("Sending query {:?}", envelope);
         let result = self.send(envelope).await;
+        debug!("Get result from send, mathing result");
         match result {
             Ok(m) => {
+                debug!("Ok, m.command = {}", m.command);
                 if m.command == "error" {
                     let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
@@ -509,9 +524,13 @@ impl Client {
                 let response: QueryResponse =
                     prost::Message::decode(m.data.unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                debug!("Return Ok(response)");
                 Ok(response)
             }
-            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+            Err(e) => {
+                debug!("Error !!");
+                Err(OpenIAPError::ClientError(e.to_string())) 
+            },
         }
     }
     #[allow(dead_code)]
@@ -648,6 +667,144 @@ impl Client {
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: InsertManyResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn update_one(
+        &self,
+        config: UpdateOneRequest,
+    ) -> Result<UpdateOneResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: UpdateOneResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn insert_or_update_one(
+        &self,
+        config: InsertOrUpdateOneRequest,
+    ) -> Result<String, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: InsertOrUpdateOneResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.result)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn insert_or_update_many(
+        &self,
+        config: InsertOrUpdateManyRequest,
+    ) -> Result<InsertOrUpdateManyResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: InsertOrUpdateManyResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn update_document(
+        &self,
+        config: UpdateDocumentRequest,
+    ) -> Result<UpdateDocumentResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: UpdateDocumentResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_one(
+        &self,
+        config: DeleteOneRequest,
+    ) -> Result<i32, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: DeleteOneResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.affectedrows)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[allow(dead_code)]
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_many(
+        &self,
+        config: DeleteManyRequest,
+    ) -> Result<DeleteManyResponse, OpenIAPError> {
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: DeleteManyResponse =
                     prost::Message::decode(m.data.unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
@@ -921,7 +1078,7 @@ impl Client {
         &self,
         mut config: RegisterExchangeRequest,
         callback: Box<dyn Fn(QueueEvent) + Send + Sync>,
-    ) -> Result<RegisterExchangeResponse, OpenIAPError> {
+    ) -> Result<String, OpenIAPError> {
         if config.exchangename.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No exchange name provided".to_string(),
@@ -950,6 +1107,31 @@ impl Client {
                         .await
                         .insert(response.queuename.clone(), callback);
                 }
+                Ok(response.queuename)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn queue_message(
+        &self,
+        config: QueueMessageRequest,
+    ) -> Result<QueueMessageResponse, OpenIAPError> {
+        if config.queuename.is_empty() && config.exchangename.is_empty() {
+            return Err(OpenIAPError::ClientError("No queue or exchange name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: QueueMessageResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
@@ -1126,24 +1308,285 @@ mod tests {
         println!("Response: {:?}", response);
     }
     #[tokio::test()]
+    async fn test_update_one() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"update test from rust\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+        
+        let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+        let item =format!("{{\"name\":\"updated from rust \", \"_id\": \"{}\"}}", _id);
+
+        let query = UpdateOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.update_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+    }
+    #[tokio::test()]
+    async fn test_insert_or_update_one() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"insert or update one test from rust\", \"_type\": \"test\", \"age\": \"21\"}".to_string();
+        let query = InsertOrUpdateOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            uniqeness: "name".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_or_update_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+        
+        let _obj: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+        let age = _obj["age"].as_str().unwrap();
+        assert!(age == "21", "Age did not match after first insert or update");
+
+        let item ="{\"name\":\"insert or update one test from rust\", \"age\": \"22\"}".to_string();
+
+        let query = InsertOrUpdateOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            uniqeness: "name".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_or_update_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response2: {:?}", response);
+        let _obj: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let _id2 = _obj["_id"].as_str().unwrap();
+        let age = _obj["age"].as_str().unwrap();
+        assert!(age == "22", "Age did not match after first insert or update");
+
+        assert!(_id == _id2, "ID did not match after update");
+    }
+    #[tokio::test()]
+    async fn test_insert_or_update_many() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item1 = "{\"name\": \"insert or update many test from rust 1\", \"_type\": \"test\", \"age\": \"21\"}".to_string();
+        let item2 = "{\"name\": \"insert or update many test from rust 2\", \"_type\": \"test\", \"age\": \"23\"}".to_string();
+        let query = InsertOrUpdateManyRequest {
+            collectionname: "entities".to_string(),
+            items: format!("[{}, {}]", item1, item2),
+            uniqeness: "name".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_or_update_many(query).await;
+
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+
+        let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
+        let _id1 = _obj[0]["_id"].as_str().unwrap();
+        let _id2 = _obj[1]["_id"].as_str().unwrap();
+        let age1 = _obj[0]["age"].as_str().unwrap();
+
+        let item1 ="{\"name\":\"insert or update many test from rust 1\", \"age\": \"22\"}".to_string();
+        let item2 ="{\"name\":\"insert or update many test from rust 2\", \"age\": \"24\"}".to_string();
+
+        let query = InsertOrUpdateManyRequest {
+            collectionname: "entities".to_string(),
+            items: format!("[{}, {}]", item1, item2),
+            uniqeness: "name".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_or_update_many(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response2: {:?}", response);
+        let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
+        let _id1_2 = _obj[0]["_id"].as_str().unwrap();
+        let _id2_2 = _obj[1]["_id"].as_str().unwrap();
+        let age1_2 = _obj[0]["age"].as_str().unwrap();
+
+        assert!(_id1 == _id1_2, "ID1 did not match after update");
+        assert!(_id2 == _id2_2, "ID2 did not match after update");
+        assert!(age1 == "21", "Age1 did not match after first insert or update");
+        assert!(age1_2 == "22", "Age1 did not match after second insert or update");
+   
+    }
+    #[tokio::test()]
+    async fn test_delete_one() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"delete test from rust\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+        
+        let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+
+        let query = DeleteOneRequest {
+            collectionname: "entities".to_string(),
+            id: _id.to_string(),
+            ..Default::default()
+        };
+        let response = client.delete_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );        
+    }
+    #[tokio::test()]
+    async fn test_delete_many_query() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"delete many query test from rust\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+        
+        let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+
+        let query = DeleteManyRequest {
+            collectionname: "entities".to_string(),
+            query: format!("{{\"_id\": \"{}\"}}", _id),
+            ..Default::default()
+        };
+        let response = client.delete_many(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );        
+    }
+    #[tokio::test()]
+    async fn test_delete_many_ids() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"delete many ids test from rust\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        let response = response.unwrap();
+        println!("Response: {:?}", response);
+        
+        let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+
+        let query = DeleteManyRequest {
+            collectionname: "entities".to_string(),
+            ids: vec![_id.to_string()],
+            ..Default::default()
+        };
+        let response = client.delete_many(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );        
+    }
+    #[tokio::test()]
     async fn test_bad_login() {
         let client = Client::connect(TEST_URL).await.unwrap();
         let response = client
             .signin(SigninRequest::with_userpass("testuser", "badpassword"))
             .await;
-        assert!(response.is_err(), "login with bad password, did not fail");
+        match response {
+            Ok(response) => {
+                println!("{:?}", response);
+                assert!(
+                    false,
+                    "login with bad password, did not fail"
+                );
+            }
+            Err(e) => {
+                println!("{:?}", e);            
+            }
+        }
     }
     #[tokio::test()]
     async fn test_upload() {
         let client = Client::connect(TEST_URL).await.unwrap();
+        let path = env::current_dir().unwrap();
+        println!("The current directory is {}", path.display());
+
         let response = client
-            .upload(UploadRequest::filename("rust-test.csv"), "testfile.csv")
+            .upload(UploadRequest::filename("rust-test.csv"), "../../testfile.csv")
             .await;
-        assert!(
-            !response.is_err(),
-            "Upload of testfile.csv failed with {:?}",
-            response.err().unwrap()
-        );
+        match response {
+            Ok(response) => {
+                println!("{:?}", response);
+            }
+            Err(e) => {
+                assert!(
+                    false,
+                    "Upload of testfile.csv failed with {:?}",
+                    e
+                );
+            }
+        }
     }
     #[tokio::test()]
     async fn test_upload_as_guest() {
@@ -1153,12 +1596,20 @@ mod tests {
             .await
             .unwrap();
         let response = client
-            .upload(UploadRequest::filename("rust-test.csv"), "testfile.csv")
+            .upload(UploadRequest::filename("rust-test-user.csv"), "../../testfile.csv")
             .await;
-        assert!(
-            !response.is_err(),
-            "Upload of testfile.csv did not fail as guest"
-        );
+        match response {
+            Ok(response) => {
+                println!("{:?}", response);
+                assert!(
+                    false,
+                    "Upload of testfile.csv did not fail as guest"
+                );
+            }
+            Err(e) => {
+                println!("{:?}", e);
+            }            
+        }
     }
     #[tokio::test()]
     async fn test_download() {
@@ -1176,10 +1627,11 @@ mod tests {
     #[tokio::test()]
     async fn test_download_as_guest() {
         let client = Client::connect(TEST_URL).await.unwrap();
-        client
+        let response = client
             .signin(SigninRequest::with_userpass("guest", "password"))
             .await
             .unwrap();
+        println!("Signin response: {:?}", response);
         let response = client
             .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
             .await;
@@ -1188,5 +1640,151 @@ mod tests {
             response.is_err(),
             "Download of file as guest did not failed"
         );
+    }
+    #[tokio::test]
+    async fn test_watch() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let (tx, rx) = oneshot::channel::<()>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+    
+        let response: std::result::Result<String, OpenIAPError> = client
+            .watch(WatchRequest::new("", vec!["".to_string()]), {
+                let tx = Arc::clone(&tx);
+                Box::new(move |event| {
+                    println!("Watch event: {:?}", event);
+                    if let Some(tx) = tx.lock().unwrap().take() {
+                        let _ = tx.send(());
+                    }
+                })
+            })
+            .await;
+    
+        println!("Watch response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "Watch failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        let id = response.unwrap();
+
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item: "{\"name\": \"testing watch from rust\", \"_type\": \"test\"}".to_string(),
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        // Await the watch event
+        rx.await.unwrap();
+        println!("Watch event received");
+    
+        client.unwatch(&id).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_register_queue() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let (tx, rx) = oneshot::channel::<()>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+    
+        let response: std::result::Result<String, OpenIAPError> = client
+            .register_queue(RegisterQueueRequest::byqueuename("secrettestqueue"), {
+                let tx = Arc::clone(&tx);
+                Box::new(move |event| {
+                    println!("Queue event: {:?}", event);
+                    if let Some(tx) = tx.lock().unwrap().take() {
+                        let _ = tx.send(());
+                    }
+                })
+            })
+            .await;
+    
+        println!("RegisterQueue response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "RegisterQueue failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        let queuename = response.unwrap();
+
+        println!("Send message to queue: {:?}", queuename);
+        let query = QueueMessageRequest {
+            queuename: queuename.clone(),
+            data: "{\"test\": \"message\"}".to_string(),
+            striptoken: true,
+            ..Default::default()
+        };
+        let response = client.queue_message(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        println!("Await the queue event");
+        rx.await.unwrap();
+        println!("Queue event received");
+    
+        client.unregister_queue(&queuename).await.unwrap();
+    }
+    #[tokio::test]// cargo test test_register_exchange -- --nocapture
+    async fn test_register_exchange() {
+        let exchangename = "secrettestexchange";
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let (tx, rx) = oneshot::channel::<()>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+    
+        let response = client
+            .register_exchange(RegisterExchangeRequest::byexchangename(exchangename), {
+                let tx = Arc::clone(&tx);
+                Box::new(move |event| {
+                    println!("Queue event: {:?}", event);
+                    if let Some(tx) = tx.lock().unwrap().take() {
+                        let _ = tx.send(());
+                    }
+                })
+            })
+            .await;
+    
+        println!("RegisterExchange response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "RegisterExchange failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        let queuename = response.unwrap();
+
+        println!("Send message to exchange: {:?}", exchangename);
+        let query = QueueMessageRequest {
+            exchangename: exchangename.to_string(),
+            data: "{\"test\": \"message\"}".to_string(),
+            striptoken: true,
+            ..Default::default()
+        };
+        let response = client.queue_message(query).await;
+        assert!(
+            response.is_ok(),
+            "test_exhange failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        println!("Await the queue event");
+        rx.await.unwrap();
+        println!("Queue event received");
+    
+        client.unregister_queue(&queuename).await.unwrap();
     }
 }

@@ -2,7 +2,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest};
+use openiap_client::{Client, DeleteOneRequest, InsertManyRequest, InsertOrUpdateOneRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, UpdateOneRequest};
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -143,18 +143,30 @@ pub extern "C" fn query_async(
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
-    let request = QueryRequest {
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
-            .to_string(),
-        query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
-        projection: unsafe { CStr::from_ptr(options.projection).to_str().unwrap() }.to_string(),
-        orderby: unsafe { CStr::from_ptr(options.orderby).to_str().unwrap() }.to_string(),
-        queryas: unsafe { CStr::from_ptr(options.queryas).to_str().unwrap() }.to_string(),
-        explain: options.explain,
-        skip: options.skip,
-        top: options.top,
-        ..Default::default()
-    };
+    let request:QueryRequest;
+    unsafe { 
+        let collectionname = CStr::from_ptr(options.collectionname).to_str().unwrap();
+        let query = CStr::from_ptr(options.query).to_str().unwrap();
+        let projection = CStr::from_ptr(options.projection).to_str().unwrap();
+        let orderby = CStr::from_ptr(options.orderby).to_str().unwrap();
+        let queryas = CStr::from_ptr(options.queryas).to_str().unwrap();
+        let explain = options.explain;
+        let skip = options.skip;
+        let top = options.top;
+        debug!("Rust: query_async: collectionname: {}, query: {}, projection: {}, orderby: {}, queryas: {}, explain: {}, skip: {}, top: {}", collectionname, query, projection, orderby, queryas, explain, skip, top);
+
+        request = QueryRequest {
+            collectionname: collectionname.to_string(),
+            query: query.to_string(),
+            projection: projection.to_string(),
+            orderby: orderby.to_string(),
+            queryas: queryas.to_string(),
+            explain: explain,
+            skip: skip,
+            top: top,
+            ..Default::default()
+        };    
+    }
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = QueryResponseWrapper {
@@ -1248,6 +1260,599 @@ pub extern "C" fn free_insert_one_response(response: *mut InsertOneResponseWrapp
         let _ = Box::from_raw(response);
     }
 }
+#[repr(C)]
+pub struct InsertManyRequestWrapper {
+    pub collectionname: *const c_char,
+    pub items: *const c_char,
+    pub w: i32,
+    pub j: bool,
+    pub skipresults: bool,
+}
+#[repr(C)]
+pub struct InsertManyResponseWrapper {
+    pub success: bool,
+    pub results: *const c_char,
+    pub error: String,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn insert_many(
+    client: *mut ClientWrapper,
+    options: *mut InsertManyRequestWrapper,
+) -> *mut InsertManyResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = InsertManyRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        items: unsafe { CStr::from_ptr(options.items).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        skipresults: options.skipresults,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let response = InsertManyResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: "Client is not connected".to_string(),
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().insert_many(request).await;
+        client.as_ref().unwrap().insert_many(request).await
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let results = CString::new(data.results).unwrap().into_raw();
+            InsertManyResponseWrapper {
+                success: true,
+                results,
+                error: "".to_string(),
+            }
+        }
+        Err(e) => {
+            let error_msg = format!("InsertMany failed: {:?}", e);
+            InsertManyResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+
+type InsertManyCallback = extern "C" fn(wrapper: *mut InsertManyResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn insert_many_async(
+    client: *mut ClientWrapper,
+    options: *mut InsertManyRequestWrapper,
+    callback: InsertManyCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = InsertManyRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        items: unsafe { CStr::from_ptr(options.items).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        skipresults: options.skipresults,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let response = InsertManyResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: "Client is not connected".to_string(),
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().insert_many(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.insert_many(request).await
+        // });
+        // let result = client_clone.unwrap().insert_many(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let results = CString::new(data.results).unwrap().into_raw();
+                InsertManyResponseWrapper {
+                    success: true,
+                    results,
+                    error: "".to_string(),
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("InsertMany failed: {:?}", e);
+                InsertManyResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_insert_many_response(response: *mut InsertManyResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct UpdateOneRequestWrapper {
+    collectionname: *const c_char,
+    item: *const c_char,
+    w: i32,
+    j: bool,
+}
+#[repr(C)]
+pub struct UpdateOneResponseWrapper {
+    success: bool,
+    result: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_one(
+    client: *mut ClientWrapper,
+    options: *mut UpdateOneRequestWrapper,
+) -> *mut UpdateOneResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = UpdateOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateOneResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().update_one(request).await;
+        client.as_ref().unwrap().update_one(request).await
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let result = CString::new(data.result).unwrap().into_raw();
+            UpdateOneResponseWrapper {
+                success: true,
+                result,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("UpdateOne failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            UpdateOneResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+
+type UpdateOneCallback = extern "C" fn(wrapper: *mut UpdateOneResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_one_async(
+    client: *mut ClientWrapper,
+    options: *mut UpdateOneRequestWrapper,
+    callback: UpdateOneCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = UpdateOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateOneResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().update_one(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.update_one(request).await
+        // });
+        // let result = client_clone.unwrap().update_one(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let result = CString::new(data.result).unwrap().into_raw();
+                UpdateOneResponseWrapper {
+                    success: true,
+                    result,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("UpdateOne failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                UpdateOneResponseWrapper {
+                    success: false,
+                    result: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_update_one_response(response: *mut UpdateOneResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct InsertOrUpdateOneRequestWrapper {
+    collectionname: *const c_char,
+    uniqeness: *const c_char, 
+    item: *const c_char,
+    w: i32,
+    j: bool,
+}
+#[repr(C)]
+pub struct InsertOrUpdateOneResponseWrapper {
+    success: bool,
+    result: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn insert_or_update_one(
+    client: *mut ClientWrapper,
+    options: *mut InsertOrUpdateOneRequestWrapper,
+) -> *mut InsertOrUpdateOneResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = InsertOrUpdateOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        uniqeness: unsafe { CStr::from_ptr(options.uniqeness).to_str().unwrap() }.to_string(),
+        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = InsertOrUpdateOneResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().insert_or_update_one(request).await;
+        client.as_ref().unwrap().insert_or_update_one(request).await
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let result = CString::new(data).unwrap().into_raw();
+            InsertOrUpdateOneResponseWrapper {
+                success: true,
+                result,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("InsertOrUpdateOne failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            InsertOrUpdateOneResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+
+type InsertOrUpdateOneCallback = extern "C" fn(wrapper: *mut InsertOrUpdateOneResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn insert_or_update_one_async(
+    client: *mut ClientWrapper,
+    options: *mut InsertOrUpdateOneRequestWrapper,
+    callback: InsertOrUpdateOneCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = InsertOrUpdateOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        uniqeness: unsafe { CStr::from_ptr(options.uniqeness).to_str().unwrap() }.to_string(),
+        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
+        w: options.w,
+        j: options.j,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = InsertOrUpdateOneResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().insert_or_update_one(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.insert_or_update_one(request).await
+        // });
+        // let result = client_clone.unwrap().insert_or_update_one(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let result = CString::new(data).unwrap().into_raw();
+                InsertOrUpdateOneResponseWrapper {
+                    success: true,
+                    result,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("InsertOrUpdateOne failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                InsertOrUpdateOneResponseWrapper {
+                    success: false,
+                    result: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_insert_or_update_one_response(response: *mut InsertOrUpdateOneResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct DeleteOneRequestWrapper {
+    collectionname: *const c_char,
+    id: *const c_char,
+    recursive: bool,
+}
+#[repr(C)]
+pub struct DeleteOneResponseWrapper {
+    success: bool,
+    affectedrows: i32,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_one(
+    client: *mut ClientWrapper,
+    options: *mut DeleteOneRequestWrapper,
+) -> *mut DeleteOneResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        id: unsafe { CStr::from_ptr(options.id).to_str().unwrap() }.to_string(),
+        recursive: options.recursive,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteOneResponseWrapper {
+            success: false,
+            affectedrows: 0,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().delete_one(request).await;
+        client.as_ref().unwrap().delete_one(request).await
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let affectedrows = data;
+            DeleteOneResponseWrapper {
+                success: true,
+                affectedrows,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("DeleteOne failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            DeleteOneResponseWrapper {
+                success: false,
+                affectedrows: 0,
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type DeleteOneCallback = extern "C" fn(wrapper: *mut DeleteOneResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_one_async(
+    client: *mut ClientWrapper,
+    options: *mut DeleteOneRequestWrapper,
+    callback: DeleteOneCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteOneRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        id: unsafe { CStr::from_ptr(options.id).to_str().unwrap() }.to_string(),
+        recursive: options.recursive,
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteOneResponseWrapper {
+            success: false,
+            affectedrows: 0,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().delete_one(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.delete_one(request).await
+        // });
+        // let result = client_clone.unwrap().delete_one(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let affectedrows = data;
+                DeleteOneResponseWrapper {
+                    success: true,
+                    affectedrows,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("DeleteOne failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                DeleteOneResponseWrapper {
+                    success: false,
+                    affectedrows: 0,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_delete_one_response(response: *mut DeleteOneResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
 
 #[repr(C)]
 pub struct DownloadRequestWrapper {
@@ -2105,7 +2710,7 @@ pub extern "C" fn register_exchange (
 
     let response = match result {
         Ok(data) => {
-            let queuename = CString::new(data.queuename).unwrap().into_raw();
+            let queuename = CString::new(data).unwrap().into_raw();
             RegisterExchangeResponseWrapper {
                 success: true,
                 queuename,
@@ -2126,7 +2731,15 @@ pub extern "C" fn register_exchange (
 
     Box::into_raw(Box::new(response))
 }
-
+#[no_mangle]
+fn free_register_exchange_response(response: *mut RegisterExchangeResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone)]
