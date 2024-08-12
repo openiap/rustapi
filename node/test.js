@@ -2,12 +2,12 @@ const { Client, ClientError } = require('./main');
 const fs = require('fs');
 (async () => {
     try {
-        // const url = 'http://localhost:50051';
+        const url = 'http://localhost:50051';
         // const url = 'http://grpc.localhost.openiap.io/';
         // const url = 'https://grpc.localhost.openiap.io/';
         // const url = 'https://grpc.demo.openiap.io/';
         // const url = 'https://grpc.app.openiap.io/';
-        const url = '';
+        // const url = '';
         const client = new Client();
         // client.enable_tracing("openiap=debug", "close");
         client.enable_tracing("openiap=debug", "new");
@@ -153,17 +153,29 @@ const fs = require('fs');
             // const delete_one_result = client.delete_one({ collectionname: 'entities', id: insert_one_result._id });
             // console.log("delete_one success", delete_one_result == 1, delete_one_result);
 
-            // const insert_or_update_one_result = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
+            // // const insert_or_update_one_result = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
+            // // console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
+            // const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
             // console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
-            const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
-            console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
-            const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
-            console.log("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
+            // const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
+            // console.log("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
 
-            // const delete_many_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert_or_update one from nodejs"}' });
+            // // const delete_many_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert_or_update one from nodejs"}' });
+            // // console.log("delete_many success", delete_many_result);
+            // const delete_many_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_result2._id] });
             // console.log("delete_many success", delete_many_result);
-            const delete_many_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_result2._id] });
-            console.log("delete_many success", delete_many_result);
+
+
+            let nextrun = new Date();
+            nextrun.setSeconds(nextrun.getSeconds() + 60);
+            nextrun = undefined;
+            let files = [];
+            files.push("../testfile.csv");
+            let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files});
+            console.log("push_workitem success", push_workitem_result);
+
+            let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
+            console.log("pop_workitem success", pop_workitem_result);
 
 
             client.log("*********************************")

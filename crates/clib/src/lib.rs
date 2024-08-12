@@ -2,7 +2,8 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, DeleteOneRequest, DeleteManyRequest, InsertManyRequest, InsertOrUpdateOneRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, UpdateOneRequest};
+use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, WorkitemFile};
+// use tracing_subscriber::field::debug;
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -2756,7 +2757,7 @@ pub extern "C" fn register_queue(
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
                     // let c_event = std::ffi::CString::new(event).unwrap();
-                    println!("Rust::queue: event: {:?}", event);
+                    trace!("Rust::queue: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
                         .into_string()
@@ -2871,7 +2872,7 @@ pub extern "C" fn register_exchange (
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
                     // let c_event = std::ffi::CString::new(event).unwrap();
-                    println!("Rust::exchange: event: {:?}", event);
+                    trace!("Rust::exchange: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
                         .into_string()
@@ -3066,13 +3067,39 @@ pub extern "C" fn free_unregister_queue_response(response: *mut UnRegisterQueueR
     }
 }
 
+
+
 #[repr(C)]
 #[derive(Debug, Clone)]
-pub struct WorkitemFile {
+pub struct WorkitemFileWrapper {
     filename: *const c_char,
     id: *const c_char,
     compressed: bool,
     file: vec::Vec<u8>,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct WorkitemWrapper {
+    id: *const c_char,
+    name: *const c_char,
+    payload: *const c_char,
+    priority: i32,
+    nextrun: u64,
+    lastrun: u64,
+    files: *const *const WorkitemFileWrapper,
+    files_len: usize,
+    state: *const c_char,
+    wiq: *const c_char,
+    wiqid: *const c_char,
+    retries: i32,
+    username: *const c_char,
+    success_wiqid: *const c_char,
+    failed_wiqid: *const c_char,
+    success_wiq: *const c_char,
+    failed_wiq: *const c_char,
+    errormessage: *const c_char,
+    errorsource: *const c_char,
+    errortype: *const c_char,
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -3081,11 +3108,287 @@ pub struct PushWorkitemRequestWrapper {
     wiqid: *const c_char,
     name: *const c_char,
     payload: *const c_char,
-    nextrun: *const c_char,
+    nextrun: u64,
     success_wiqid: *const c_char,
     failed_wiqid: *const c_char,
     success_wiq: *const c_char,
     failed_wiq: *const c_char,
     priority: i32,
-    files: *const *const WorkitemFile,
+    files: *const *const WorkitemFileWrapper,
+    files_len: usize,
 }
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct PushWorkitemResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn push_workitem(
+    client: *mut ClientWrapper,
+    options: *mut PushWorkitemRequestWrapper,
+) -> *mut PushWorkitemResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let files_len = options.files_len;
+    debug!("files_len: {:?}", files_len);
+    let mut files: Vec<WorkitemFile> = vec![];
+    if files_len > 0 {
+        debug!("get files of options");
+        let _files = unsafe { &*options.files };
+        debug!("slice files");
+        let _files = unsafe { std::slice::from_raw_parts(_files, files_len) };
+        debug!("loop files");
+        files = _files.iter().map(|f| {
+            debug!("process a file");
+            let file = unsafe { &**f };
+            debug!("create WorkitemFile instance");
+            WorkitemFile {
+                filename: unsafe { CStr::from_ptr(file.filename).to_str().unwrap() }.to_string(),
+                id: unsafe { CStr::from_ptr(file.id).to_str().unwrap() }.to_string(),
+                compressed: file.compressed,
+                ..Default::default()
+                // file: file.file.clone(),
+            }
+        }).collect();
+    }
+    trace!("nextrun: {:?}", options.nextrun);
+    // convert options.nextrun to std::time::SystemTime
+    let mut nextrun = Some(Timestamp::from(
+        std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(options.nextrun as u64)
+    ));
+    trace!("nextrun: {:?}", nextrun);
+    if options.nextrun  <= 0 {
+        nextrun = None;
+    }
+    let request = PushWorkitemRequest {
+        wiq: unsafe { CStr::from_ptr(options.wiq).to_str().unwrap() }.to_string(),
+        wiqid: unsafe { CStr::from_ptr(options.wiqid).to_str().unwrap() }.to_string(),
+        name: unsafe { CStr::from_ptr(options.name).to_str().unwrap() }.to_string(),
+        payload: unsafe { CStr::from_ptr(options.payload).to_str().unwrap() }.to_string(),
+        nextrun: nextrun,
+        success_wiqid: unsafe { CStr::from_ptr(options.success_wiqid).to_str().unwrap() }.to_string(),
+        failed_wiqid: unsafe { CStr::from_ptr(options.failed_wiqid).to_str().unwrap() }.to_string(),
+        success_wiq: unsafe { CStr::from_ptr(options.success_wiq).to_str().unwrap() }.to_string(),
+        failed_wiq: unsafe { CStr::from_ptr(options.failed_wiq).to_str().unwrap() }.to_string(),
+        priority: options.priority,
+        files: files,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = PushWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        client
+            .
+            as_ref()
+            .unwrap()
+            .push_workitem(request)
+            .await
+    });
+
+    let response = match result {
+        Ok(_) => {
+            let response = PushWorkitemResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Push workitem failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = PushWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    };
+
+    response
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_push_workitem_response(response: *mut PushWorkitemResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct PopWorkitemRequestWrapper {
+    wiq: *const c_char,
+    wiqid: *const c_char,
+    // includefiles: bool,
+    // compressed: bool,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct PopWorkitemResponseWrapper {
+    success: bool,
+    error: *const c_char,
+    workitem: *const WorkitemWrapper,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn pop_workitem (
+    client: *mut ClientWrapper,
+    options: *mut PopWorkitemRequestWrapper,
+    downloadfolder: *const c_char,
+) -> *mut PopWorkitemResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = PopWorkitemRequest {
+        wiq: unsafe { CStr::from_ptr(options.wiq).to_str().unwrap() }.to_string(),
+        wiqid: unsafe { CStr::from_ptr(options.wiqid).to_str().unwrap() }.to_string(),
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = PopWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitem: std::ptr::null(),
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let downloadfolder = unsafe { CStr::from_ptr(downloadfolder).to_str().unwrap() };
+    let mut _downloadfolder = Some(downloadfolder);
+    if downloadfolder.is_empty() {
+        _downloadfolder = None;
+    }
+    let result = runtime.block_on(async {
+        client
+            .as_ref()
+            .unwrap()
+            .pop_workitem(request, _downloadfolder)
+            .await
+    });
+    debug!("pop_workitem completed, parse result");
+
+    let response = match result {
+        Ok(data) => {
+            let workitem = match data.workitem {
+                Some(workitem) => {
+                    trace!("parse workitem: {:?}", workitem);
+                    let id = CString::new(workitem.id).unwrap().into_raw();
+                    let name = CString::new(workitem.name).unwrap().into_raw();
+                    let payload = CString::new(workitem.payload).unwrap().into_raw();
+                    let state = CString::new(workitem.state).unwrap().into_raw();
+                    let wiq = CString::new(workitem.wiq).unwrap().into_raw();
+                    let wiqid = CString::new(workitem.wiqid).unwrap().into_raw();
+                    let username = CString::new(workitem.username).unwrap().into_raw();
+                    let success_wiqid = CString::new(workitem.success_wiqid).unwrap().into_raw();
+                    let failed_wiqid = CString::new(workitem.failed_wiqid).unwrap().into_raw();
+                    let success_wiq = CString::new(workitem.success_wiq).unwrap().into_raw();
+                    let failed_wiq = CString::new(workitem.failed_wiq).unwrap().into_raw();
+                    let errormessage = CString::new(workitem.errormessage).unwrap().into_raw();
+                    let errorsource = CString::new(workitem.errorsource).unwrap().into_raw();
+                    let errortype = CString::new(workitem.errortype).unwrap().into_raw();
+                    let mut files: Vec<*const WorkitemFileWrapper> = vec![];
+                    for f in &workitem.files {
+                        trace!("parse workitem file: {:?}", f);
+                        let filename = CString::new(f.filename.clone()).unwrap().into_raw();
+                        let id = CString::new(f.id.clone()).unwrap().into_raw();
+                        let file: Vec<u8> = Vec::new();
+                        let compressed = f.compressed;
+                        let file = Box::into_raw(Box::new(WorkitemFileWrapper {
+                            filename,
+                            id,
+                            file,
+                            compressed,
+                        }));
+                        files.push(file);
+                    }
+                    println!("files: {:?} at {:?}", files.len(), files);
+                    // let files = workitem.files.iter().map(|f| {
+                    //     let filename = CString::new(f.filename.clone()).unwrap().into_raw();
+                    //     let id = CString::new(f.id.clone()).unwrap().into_raw();
+                    //     let file = f.file.clone();
+                    //     let compressed = f.compressed;
+                    //     let file = Box::new(WorkitemFileWrapper {
+                    //         filename,
+                    //         id,
+                    //         file,
+                    //         compressed,
+                    //     });
+                    //     Box::into_raw(file)
+                    // }).collect::<Vec<*const WorkitemFileWrapper>>();
+                    let workitem = WorkitemWrapper {
+                        id,
+                        name,
+                        payload,
+                        priority: workitem.priority,
+                        nextrun: 0,
+                        lastrun: 0,
+                        files: files.as_ptr(),
+                        files_len: files.len(),
+                        state,
+                        wiq,
+                        wiqid,
+                        retries: workitem.retries,
+                        username,
+                        success_wiqid,
+                        failed_wiqid,
+                        success_wiq,
+                        failed_wiq,
+                        errormessage,
+                        errorsource,
+                        errortype,
+                    };
+                    std::mem::forget(files);
+                    Box::into_raw(Box::new(workitem))
+                },
+                None => {
+                    std::ptr::null()
+                }
+            };
+            let response = PopWorkitemResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+                workitem,
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Pop workitem failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = PopWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+    };
+    debug!("completed, return response");
+    response
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+

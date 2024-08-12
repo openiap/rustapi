@@ -11,6 +11,7 @@ const CStringArray = ArrayType(CString);
 const voidPtr = ref.refType(ref.types.void);
 const bool = ref.types.bool;
 const int = ref.types.int;
+const uint64 = ref.types.uint64;
 const size_t = ref.types.size_t;
 
 
@@ -296,28 +297,89 @@ const QueueEvent = StructType({
 });
 const QueueEventPtr = ref.refType(QueueEvent);
 
-const WorkitemFile = StructType({
+
+const WorkitemFileWrapper = StructType({
     filename: CString,
     id: CString,
     compressed: bool,
-    file: ref.refType(ref.types.uint8) 
+    file: ArrayType(ref.types.uint8) // This represents Vec<u8> in Rust
 });
+const WorkitemFileWrapperPtr = ref.refType(WorkitemFileWrapper);
+const WorkitemFileWrapperPtrArray = ArrayType(WorkitemFileWrapperPtr);
+
+const WorkitemWrapper = StructType({
+    id: CString,
+    name: CString,
+    payload: CString,
+    priority: int,
+    nextrun: uint64,
+    lastrun: uint64,
+    /// files: ref.refType(WorkitemFileWrapperPtrArray),
+    files: WorkitemFileWrapperPtrArray,
+    files_len: int,
+    state: CString,
+    wiq: CString,
+    wiqid: CString,
+    retries: int,
+    username: CString,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    errormessage: CString,
+    errorsource: CString,
+    errortype: CString
+});
+const WorkitemWrapperPtr = ref.refType(WorkitemWrapper);
+const PushWorkitemRequestWrapper = StructType({
+    wiq: CString,
+    wiqid: CString,
+    name: CString,
+    payload: CString,
+    nextrun: uint64,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    priority: int,
+    files: WorkitemFileWrapperPtrArray,
+    files_len: int,
+});
+const PushWorkitemRequestWrapperPtr = ref.refType(PushWorkitemRequestWrapper);
+const PushWorkitemResponseWrapper = StructType({
+    success: bool,
+    error: CString
+});
+const PushWorkitemResponseWrapperPtr = ref.refType(PushWorkitemResponseWrapper);
+
+const PopWorkitemRequestWrapper = StructType({
+    wiq: CString,
+    wiqid: CString,
+});
+const PopWorkitemRequestWrapperPtr = ref.refType(PopWorkitemRequestWrapper);
+const PopWorkitemResponseWrapper = StructType({
+    success: bool,
+    error: CString,
+    workitem: WorkitemWrapperPtr
+});
+const PopWorkitemResponseWrapperPtr = ref.refType(PopWorkitemResponseWrapper);
+
 
 function isMusl() {
     // For Node 10
     if (!process.report || typeof process.report.getReport !== 'function') {
-      try {
-        const lddPath = require('child_process').execSync('which ldd').toString().trim()
-        return readFileSync(lddPath, 'utf8').includes('musl')
-      } catch (e) {
-        return true
-      }
+        try {
+            const lddPath = require('child_process').execSync('which ldd').toString().trim()
+            return readFileSync(lddPath, 'utf8').includes('musl')
+        } catch (e) {
+            return true
+        }
     } else {
-      const { glibcVersionRuntime } = process.report.getReport().header
-      return !glibcVersionRuntime
+        const { glibcVersionRuntime } = process.report.getReport().header
+        return !glibcVersionRuntime
     }
-  }
-  
+}
+
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
     const { platform, arch } = process
@@ -372,13 +434,13 @@ function loadLibrary() {
                         libPath = path.join(libDir, 'libopeniap-linux-musl-x64.a'); break;
                     } else {
                         libPath = path.join(libDir, 'libopeniap-linux-x64.so'); break;
-                    }                    
+                    }
                 case 'arm64':
                     if (isMusl()) {
                         libPath = path.join(libDir, 'libopeniap-linux-musl-arm64.a'); break;
                     } else {
                         libPath = path.join(libDir, 'libopeniap-linux-arm64.so'); break;
-                    }                    
+                    }
                 default:
                     throw new Error(`Unsupported architecture on linux ${arch}`)
             }
@@ -386,7 +448,7 @@ function loadLibrary() {
         default:
             throw new Error(`Unsupported platform ${platform}`)
     }
-    if(!fs.existsSync(libPath)) {
+    if (!fs.existsSync(libPath)) {
         libDir = path.join(__dirname, '../target/debug/');
         switch (process.platform) {
             case 'win32':
@@ -464,6 +526,11 @@ function loadLibrary() {
             'next_queue_event': [QueueEventPtr, [CString]],
             'free_queue_event': ['void', [QueueEventPtr]],
 
+            'push_workitem': [PushWorkitemResponseWrapperPtr, [voidPtr, PushWorkitemRequestWrapperPtr]],
+            'free_push_workitem_response': ['void', [PushWorkitemResponseWrapperPtr]],
+            'pop_workitem': [PopWorkitemResponseWrapperPtr, [voidPtr, PopWorkitemRequestWrapperPtr, CString]],
+            'free_pop_workitem_response': ['void', [PopWorkitemResponseWrapperPtr]],
+
             // 'run_async_in_node': ['void', ['pointer']]
         });
     } catch (e) {
@@ -498,10 +565,17 @@ class Client {
     constructor() {
         this.lib = loadLibrary();
     }
+    connected = false;
+    free() {
+        if (this.client) {
+            this.lib.free_client(this.client);
+        }
+        this.connected = false;
+    }
 
     enable_tracing(rust_log = '', tracing = '') {
-        if(rust_log == null || rust_log == '') { rust_log = ''; }
-        if(tracing == null || tracing == '') { tracing = ''; }
+        if (rust_log == null || rust_log == '') { rust_log = ''; }
+        if (tracing == null || tracing == '') { tracing = ''; }
         rust_log = ref.allocCString(rust_log);
         tracing = ref.allocCString(tracing);
         this.lib.enable_tracing(rust_log, tracing);
@@ -541,7 +615,7 @@ class Client {
                             resolve(clientPtr);
                         }
                     } catch (error) {
-                        reject(new ClientCreationError(error.message));                        
+                        reject(new ClientCreationError(error.message));
                     }
                 });
                 this.log('Node.js: Calling connect_async');
@@ -607,7 +681,7 @@ class Client {
                 validateonly: false,
                 ping: false
             });
-    
+
             this.log('Node.js: create callback');
             const callback = ffi.Callback('void', [ref.refType(SigninResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: signin_async callback');
@@ -620,7 +694,7 @@ class Client {
                 }
                 this.lib.free_signin_response(responsePtr);
             });
-    
+
             this.log('Node.js: call signin_async');
             this.lib.signin_async.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
@@ -630,7 +704,7 @@ class Client {
         });
     }
 
-    query({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
+    query({ collectionname, query, projection, orderby, queryas, explain, skip, top }) {
         this.log('Node.js: query invoked');
         const req = new QueryRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -654,7 +728,7 @@ class Client {
     }
 
     refs = [];
-    query_async({collectionname, query, projection, orderby, queryas, explain, skip, top}) {
+    query_async({ collectionname, query, projection, orderby, queryas, explain, skip, top }) {
         this.log('Node.js: query invoked');
         return new Promise((resolve, reject) => {
             const req = new QueryRequestWrapper({
@@ -680,7 +754,7 @@ class Client {
                 }
                 this.lib.free_query_response(responsePtr);
             });
-            
+
 
             this.log('Node.js: call query_async');
             this.lib.query_async.async(this.client, req.ref(), callback, (err) => {
@@ -690,11 +764,11 @@ class Client {
             });
         });
     }
-    aggregate({collectionname, aggregates, queryas, hint, explain}) {
+    aggregate({ collectionname, aggregates, queryas, hint, explain }) {
         this.log('Node.js: aggregate invoked');
-        if(aggregates == null) aggregates = '[]';
-        if(queryas == null) queryas = '';
-        if(hint == null) hint = '';
+        if (aggregates == null) aggregates = '[]';
+        if (queryas == null) queryas = '';
+        if (hint == null) hint = '';
         const req = new AggregateRequestWrapper({
             collectionname: ref.allocCString(collectionname),
             aggregates: ref.allocCString(aggregates),
@@ -712,11 +786,11 @@ class Client {
         }
         return JSON.parse(result.results);
     }
-    aggregate_async({collectionname, aggregates, queryas, hint, explain}) {
+    aggregate_async({ collectionname, aggregates, queryas, hint, explain }) {
         this.log('Node.js: aggregate invoked');
-        if(aggregates == null) aggregates = '[]';
-        if(queryas == null) queryas = '';
-        if(hint == null) hint = '';
+        if (aggregates == null) aggregates = '[]';
+        if (queryas == null) queryas = '';
+        if (hint == null) hint = '';
         return new Promise((resolve, reject) => {
             const req = new AggregateRequestWrapper({
                 collectionname: ref.allocCString(collectionname),
@@ -746,7 +820,7 @@ class Client {
             });
         });
     }
-    count({collectionname, query, queryas, explain}) {
+    count({ collectionname, query, queryas, explain }) {
         this.log('Node.js: count invoked');
         const req = new CountRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -764,7 +838,7 @@ class Client {
         }
         return result.result;
     }
-    count_async({collectionname, query, queryas, explain}) {
+    count_async({ collectionname, query, queryas, explain }) {
         this.log('Node.js: count invoked');
         return new Promise((resolve, reject) => {
             const req = new CountRequestWrapper({
@@ -794,7 +868,7 @@ class Client {
             });
         });
     }
-    distinct({collectionname, field, query = "", queryas = "", explain = false}) {
+    distinct({ collectionname, field, query = "", queryas = "", explain = false }) {
         this.log('Node.js: distinct invoked');
         const req = new DistinctRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -812,7 +886,7 @@ class Client {
             throw new ClientError(errorMsg);
         }
 
-        
+
         const resultsArrayPtr = result.results;
         const resultsCount = result.results_count;
         const _results = [];
@@ -826,7 +900,7 @@ class Client {
         this.lib.free_distinct_response(response);
         return results;
     }
-    distinct_async({collectionname, field, query = "", queryas = "", explain = false}) {
+    distinct_async({ collectionname, field, query = "", queryas = "", explain = false }) {
         this.log('Node.js: distinct invoked');
         return new Promise((resolve, reject) => {
             const req = new DistinctRequestWrapper({
@@ -878,7 +952,7 @@ class Client {
             });
         });
     }
-    insert_one({collectionname, document, w = 1, j = false}) {
+    insert_one({ collectionname, document, w = 1, j = false }) {
         this.log('Node.js: insert_one invoked');
         const req = new InsertOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -896,7 +970,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_one_async({collectionname, document, w = 1, j = false}) {
+    insert_one_async({ collectionname, document, w = 1, j = false }) {
         this.log('Node.js: insert_one invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertOneRequestWrapper({
@@ -926,7 +1000,7 @@ class Client {
             });
         });
     };
-    insert_many({collectionname, documents, w = 1, j = false, skipresults = false}) {
+    insert_many({ collectionname, documents, w = 1, j = false, skipresults = false }) {
         this.log('Node.js: insert_many invoked');
         const req = new InsertManyRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -945,7 +1019,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_many_async({collectionname, documents, w = 1, j = false, skipresults = false}) {
+    insert_many_async({ collectionname, documents, w = 1, j = false, skipresults = false }) {
         this.log('Node.js: insert_many invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertManyRequestWrapper({
@@ -976,7 +1050,7 @@ class Client {
             });
         });
     }
-    update_one({collectionname, item, w = 1, j = false}) {
+    update_one({ collectionname, item, w = 1, j = false }) {
         this.log('Node.js: update_one invoked');
         const req = new UpdateOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -994,7 +1068,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    update_one_async({collectionname, item, w = 1, j = false}) {
+    update_one_async({ collectionname, item, w = 1, j = false }) {
         this.log('Node.js: update_one invoked');
         return new Promise((resolve, reject) => {
             const req = new UpdateOneRequestWrapper({
@@ -1024,7 +1098,7 @@ class Client {
             });
         });
     }
-    insert_or_update_one({collectionname, item, uniqeness = "_id", w = 1, j = false}) {
+    insert_or_update_one({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
         this.log('Node.js: insert_or_update_one invoked');
         const req = new InsertOrUpdateOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -1043,7 +1117,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_or_update_one_async({collectionname, item, uniqeness = "_id", w = 1, j = false}) {
+    insert_or_update_one_async({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
         this.log('Node.js: insert_or_update_one invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertOrUpdateOneRequestWrapper({
@@ -1074,7 +1148,7 @@ class Client {
             });
         });
     }
-    delete_one({collectionname, id, recursive}) {
+    delete_one({ collectionname, id, recursive }) {
         this.log('Node.js: delete_one invoked');
         const req = new DeleteOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -1091,7 +1165,7 @@ class Client {
         }
         return result.affectedrows;
     }
-    delete_one_async({collectionname, id, recursive}) {
+    delete_one_async({ collectionname, id, recursive }) {
         this.log('Node.js: delete_one invoked');
         return new Promise((resolve, reject) => {
             const req = new DeleteOneRequestWrapper({
@@ -1120,7 +1194,7 @@ class Client {
             });
         });
     }
-    delete_many({collectionname, query = "", ids = [], recursive = false}) {
+    delete_many({ collectionname, query = "", ids = [], recursive = false }) {
         this.log('Node.js: delete_many invoked');
         const idsCStringArray = ids.map(id => ref.allocCString(id));
         const req = new DeleteManyRequestWrapper({
@@ -1139,7 +1213,7 @@ class Client {
         }
         return result.affectedrows;
     }
-    delete_many_async({collectionname, query = "", ids = [], recursive = false}) {
+    delete_many_async({ collectionname, query = "", ids = [], recursive = false }) {
         this.log('Node.js: delete_many invoked');
         const idsCStringArray = ids.map(id => ref.allocCString(id));
         return new Promise((resolve, reject) => {
@@ -1170,7 +1244,7 @@ class Client {
             });
         });
     }
-    download({collectionname, id, folder, filename}) {
+    download({ collectionname, id, folder, filename }) {
         this.log('Node.js: download invoked');
         const req = new DownloadRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -1188,7 +1262,7 @@ class Client {
         }
         return result.filename;
     }
-    download_async({collectionname, id, folder, filename}) {
+    download_async({ collectionname, id, folder, filename }) {
         this.log('Node.js: download invoked');
         return new Promise((resolve, reject) => {
             const req = new DownloadRequestWrapper({
@@ -1218,7 +1292,7 @@ class Client {
             });
         });
     }
-    upload({filepath, filename, mimetype, metadata, collectionname}) {
+    upload({ filepath, filename, mimetype, metadata, collectionname }) {
         this.log('Node.js: upload invoked');
         const req = new UploadRequestWrapper({
             filepath: ref.allocCString(filepath),
@@ -1237,7 +1311,7 @@ class Client {
         }
         return result.id;
     }
-    upload_async({filepath, filename, mimetype, metadata, collectionname}) {
+    upload_async({ filepath, filename, mimetype, metadata, collectionname }) {
         this.log('Node.js: upload invoked');
         return new Promise((resolve, reject) => {
             const req = new UploadRequestWrapper({
@@ -1269,7 +1343,7 @@ class Client {
         });
     }
     watches = {}
-    watch({collectionname, paths}, callback) {
+    watch({ collectionname, paths }, callback) {
         this.log('Node.js: watch invoked');
         const req = new WatchRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -1285,7 +1359,7 @@ class Client {
         }
         let watchid = result.watchid;
         this.watches[watchid] = setInterval(() => {
-            if(this.connected == false) {
+            if (this.connected == false) {
                 clearInterval(this.watches[watchid]);
                 delete this.watches[watchid];
                 return;
@@ -1313,7 +1387,7 @@ class Client {
         }, 1000);
         return result.watchid;
     }
-    watch_async({collectionname, paths}, callback) {
+    watch_async({ collectionname, paths }, callback) {
         this.log('Node.js: watch invoked');
         return new Promise((resolve, reject) => {
             this.log('Node.js: create event_callbackPtr');
@@ -1324,8 +1398,8 @@ class Client {
                     event.document = JSON.parse(event.document);
                     callback(event);
                 } catch (error) {
-                    console.error(`watch callback error: ${error}`);                
-                }            
+                    console.error(`watch callback error: ${error}`);
+                }
             });
             const req = new WatchRequestWrapper({
                 collectionname: ref.allocCString(collectionname),
@@ -1368,14 +1442,14 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        if(this.watches[watchid] != null) {
+        if (this.watches[watchid] != null) {
             clearInterval(this.watches[watchid]);
             delete this.watches[watchid];
         }
     }
 
     queues = {}
-    register_queue({queuename}, callback) {
+    register_queue({ queuename }, callback) {
         this.log('Node.js: register queue invoked');
         const req = new RegisterQueueRequestWrapper({
             queuename: ref.allocCString(queuename)
@@ -1390,7 +1464,7 @@ class Client {
         }
         queuename = result.queuename;
         this.queues[queuename] = setInterval(() => {
-            if(this.connected == false) {
+            if (this.connected == false) {
                 clearInterval(this.queues[queuename]);
                 delete this.queues[queuename];
                 return;
@@ -1421,12 +1495,12 @@ class Client {
         }, 1000);
         return result.queuename;
     }
-    register_exchange({exchangename, algorithm, routingkey, addqueue}, callback) {
+    register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
         this.log('Node.js: register exchange invoked');
-        if(exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
-        if(algorithm == null) algorithm = "";
-        if(routingkey == null) routingkey = "";
-        if(addqueue == null) addqueue = true;
+        if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
+        if (algorithm == null) algorithm = "";
+        if (routingkey == null) routingkey = "";
+        if (addqueue == null) addqueue = true;
         const req = new RegisterExchangeRequestWrapper({
             exchangename: ref.allocCString(exchangename),
             algorithm: ref.allocCString(algorithm),
@@ -1442,9 +1516,9 @@ class Client {
             throw new ClientError(errorMsg);
         }
         let queuename = result.queuename;
-        if(queuename != null && queuename != "") {
+        if (queuename != null && queuename != "") {
             this.queues[queuename] = setInterval(() => {
-                if(this.connected == false) {
+                if (this.connected == false) {
                     clearInterval(this.queues[queuename]);
                     delete this.queues[queuename];
                     return;
@@ -1491,18 +1565,117 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        if(this.queues[queuename] != null) {
+        if (this.queues[queuename] != null) {
             clearInterval(this.queues[queuename]);
             delete this.queues[queuename];
         }
     }
-    connected = false;
-    free() {
-        if (this.client) {
-            this.lib.free_client(this.client);
+    push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
+        files = []
+     }) {
+        this.log('Node.js: push_workitem invoked');
+        // if nextrun is not null and nextrun is a date
+        if (nextrun != null && nextrun instanceof Date) {
+            this.log('Node.js: nextrun before', nextrun);
+            // then convert nextrun to a number ( POSIX time )
+            nextrun = Math.floor(nextrun.getTime() / 1000); // Convert to seconds
+        } else {
+            nextrun = 0;
         }
-        this.connected = false;
+        let filelist = [];
+        this.log('Node.js: nextrun after', nextrun);
+        for(let i = 0; i < files.length; i++) {
+            const fileinstance = new WorkitemFileWrapper({
+                filename : ref.allocCString(files[i]),
+                id : ref.allocCString(""),
+                file : Buffer.from("")
+            });
+            filelist.push(fileinstance.ref());
+        }
+
+        // const workitemFileInstance = new WorkitemFileWrapper({
+        //     filename: 'example.txt',
+        //     id: 'file-id',
+        //     compressed: false,
+        //     file: Buffer.from([/* file data as bytes */])
+        // });
+
+        const req = new PushWorkitemRequestWrapper({
+            wiq: ref.allocCString(wiq),
+            wiqid: ref.allocCString(wiqid),
+            name: ref.allocCString(name),
+            payload: ref.allocCString(payload),
+            nextrun: nextrun,
+            success_wiqid: ref.allocCString(success_wiqid),
+            failed_wiqid: ref.allocCString(failed_wiqid),
+            success_wiq: ref.allocCString(success_wiq),
+            failed_wiq: ref.allocCString(failed_wiq),
+            priority: priority,
+            files: filelist,
+            files_len: filelist.length
+            // files: [workitemFileInstance.ref()]
+        });
+        this.log('Node.js: call push_workitem');
+        const response = this.lib.push_workitem(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_push_workitem_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.success;
     }
+    pop_workitem({ wiq = "", wiqid = "", downloadfolder = "" }) {
+        this.log('Node.js: pop_workitem invoked');
+        const req = new PopWorkitemRequestWrapper({
+            wiq: ref.allocCString(wiq),
+            wiqid: ref.allocCString(wiqid)
+        });
+        this.log('Node.js: call pop_workitem');
+        const _downloadfolder = ref.allocCString(downloadfolder);
+        const response = this.lib.pop_workitem(this.client, req.ref(), _downloadfolder);
+
+        this.log('Node.js: pop_workitem deref');
+        const _result = response.deref();
+        const result = JSON.parse(JSON.stringify(_result));
+        if(_result.workitem != null && _result.workitem.isNull() == false) {
+            this.log('Node.js: workitem deref');
+            let workitem = _result.workitem.deref();
+            result.workitem = JSON.parse(JSON.stringify(workitem));
+
+            // let _files = workitem.files.deref();
+            let _files = workitem.files;
+            let addr = _files.ref().address();
+            let addrashex = addr.toString(16);            
+            // this.log('Node.js: workitem files ref: [0x' + addrashex + "] files_len:", workitem.files_len);
+            // this.log('Node.js: workitem files deref', workitem.files.length);
+            const files = [];
+            for(let i = 0; i < workitem.files_len; i++) {
+                const file = JSON.parse(JSON.stringify(workitem.files[i].deref()));
+                // // this.log('Node.js: workitem file deref', file);
+                // const fileInstance = {
+                //     filename: file.filename,
+                //     id: file.id,
+                //     compressed: file.compressed,
+                //     file: file.file.buffer
+                // };
+                // this.log('Node.js: fileInstance', fileInstance);
+                delete file.compressed;
+                delete file.file;
+                files.push(file);
+            }
+            result.workitem.files = files;
+        } else {
+            result.workitem = null;
+        }
+        this.lib.free_pop_workitem_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.workitem;
+    }
+
 }
 
 module.exports = {

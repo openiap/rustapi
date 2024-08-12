@@ -2,6 +2,8 @@ pub use openiap_proto::errors::*;
 pub use openiap_proto::protos::*;
 pub use openiap_proto::*;
 pub use protos::flow_service_client::FlowServiceClient;
+pub use prost_types::Timestamp;
+
 
 // use openiap_proto::errors::OpenIAPError;
 // use openiap_proto::openiap::{
@@ -187,7 +189,6 @@ impl Client {
             strurl = format!("http://{}:{}", url.host_str().unwrap(), url.port().unwrap());
         }
         info!("Connecting to {}", strurl);
-        println!("Connecting to {}", strurl);
 
         let innerclient;
         if url.scheme() == "http" {
@@ -1202,22 +1203,42 @@ impl Client {
         }
         for f in &mut config.files {
             if f.filename.is_empty() && f.file.is_empty() {
-                println!("Filename is empty");
+                debug!("Filename is empty");
             } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
                 // does file exist?
                 if !std::path::Path::new(&f.filename).exists() {
-                    println!("File does not exist: {}", f.filename);
+                    debug!("File does not exist: {}", f.filename);
                 } else {
-                    // println!("File {} exists so uploading it.", f.filename);
-                    let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
-                    f.file = std::fs::read(&f.filename).unwrap();
-                    // f.file = compress_file(&f.filename).unwrap();
-                    // f.compressed = false;
-                    f.file = compress_file_to_vec(&f.filename).unwrap();
-                    f.compressed = true;
-                    f.filename = filename.to_string();
-                    println!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
+                    let filesize = std::fs::metadata(&f.filename).unwrap().len();
+                    // if filesize is less than 5 meggabytes attach it, else upload
+                    if filesize < 5 * 1024 * 1024 {                    
+                        debug!("File {} exists so ATTACHING it.", f.filename);
+                        let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                        f.file = std::fs::read(&f.filename).unwrap();
+                        // f.file = compress_file(&f.filename).unwrap();
+                        // f.compressed = false;
+                        f.file = compress_file_to_vec(&f.filename).unwrap();
+                        f.compressed = true;
+                        f.filename = filename.to_string();
+                        f.id = "findme".to_string();
+                        trace!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
+                    } else {
+                        debug!("File {} exists so UPLOADING it.", f.filename);
+                        let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                        let uploadconfig = UploadRequest {
+                            filename: filename.to_string(),
+                            collectionname: "fs.files".to_string(),
+                            ..Default::default()
+                        };
+                        let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
+                        trace!("File {} was upload as {}", filename, uploadresult.id);
+                        // f.filename = "".to_string();
+                        f.id = uploadresult.id.clone();
+                        f.filename = filename.to_string();
+                    }
                 }
+            } else {
+                debug!("File {} is already uploaded", f.filename);
             }
         }
         let envelope = config.to_envelope();
@@ -1241,6 +1262,7 @@ impl Client {
     pub async fn pop_workitem(
         &self,
         config: PopWorkitemRequest,
+        downloadfolder: Option<&str>,
     ) -> Result<PopWorkitemResponse, OpenIAPError> {
         if config.wiq.is_empty() && config.wiqid.is_empty() {
             return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
@@ -1257,6 +1279,28 @@ impl Client {
                 let response: PopWorkitemResponse =
                     prost::Message::decode(m.data.unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+
+                match &response.workitem {
+                    Some(wi) => {
+                        for f in &wi.files {
+                            if f.id.is_empty() == false {
+                                let downloadconfig = DownloadRequest {
+                                    id: f.id.clone(),
+                                    collectionname: "fs.files".to_string(),
+                                    ..Default::default()
+                                };
+                                let downloadresult = self
+                                    .download(downloadconfig, downloadfolder, None)
+                                    .await
+                                    .unwrap();
+                                debug!("File {} was downloaded as {}", f.filename, downloadresult.filename);
+                            }
+                        }
+                    }
+                    None => {
+                        debug!("No workitem found");
+                    }
+                }                
                 Ok(response)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
@@ -1279,13 +1323,13 @@ impl Client {
         }
         for f in &mut config.files {
             if f.filename.is_empty() && f.file.is_empty() {
-                println!("Filename is empty");
+                debug!("Filename is empty");
             } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
                 // does file exist?
                 if !std::path::Path::new(&f.filename).exists() {
-                    println!("File does not exist: {}", f.filename);
+                    debug!("File does not exist: {}", f.filename);
                 } else {
-                    println!("File {} exists so uploading it.", f.filename);
+                    debug!("File {} exists so uploading it.", f.filename);
                     let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
                     let uploadconfig = UploadRequest {
                         filename: filename.to_string(),
@@ -1293,7 +1337,7 @@ impl Client {
                         ..Default::default()
                     };
                     let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
-                    println!("File {} was upload as {}", filename, uploadresult.id);
+                    trace!("File {} was upload as {}", filename, uploadresult.id);
                     // f.filename = "".to_string();
                     f.id = uploadresult.id.clone();
 
@@ -1318,7 +1362,7 @@ impl Client {
                     // f.filename = "".to_string();
                 }
             } else {
-                println!("Skipped file");
+                debug!("Skipped file");
             }
         }
         let envelope = config.to_envelope();
@@ -1345,14 +1389,13 @@ fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
 #[cfg(test)]
 mod tests {
     use futures::stream::FuturesUnordered;
-    use prost_types::Timestamp;
     use std::{future::Future, pin::Pin};
 
     use super::*;
     #[allow(dead_code)]
-    // const TEST_URL: &str = "http://localhost:50051";
+    const TEST_URL: &str = "http://localhost:50051";
     // const TEST_URL: &str = "http://grpc.demo.openiap.io";
-    const TEST_URL: &str = "";
+    // const TEST_URL: &str = "";
     #[test]
     fn normal_type() {
         is_normal::<Client>();
@@ -2003,13 +2046,13 @@ mod tests {
                         ..Default::default()
                     }],
                     payload: "{\"test\": \"message\"}".to_string(),
-                    nextrun: Some(Timestamp::from(std::time::SystemTime::now() + std::time::Duration::from_secs(60))),
+                    // nextrun: Some(Timestamp::from(std::time::SystemTime::now() + std::time::Duration::from_secs(60))),
                     ..Default::default()
                 }
             )
             .await;
     
-        println!("PushWorkitem response: {:?}", response);
+        // println!("PushWorkitem response: {:?}", response);
     
         assert!(
             response.is_ok(),
@@ -2022,10 +2065,11 @@ mod tests {
                 PopWorkitemRequest {
                     wiq: "rustqueue".to_string(),
                     ..Default::default()
-                }
+                },
+                Some(".")
             )
             .await;
-        println!("PopWorkitem response: {:?}", response);
+        // println!("PopWorkitem response: {:?}", response);
             
         assert!(
             response.is_ok(),
@@ -2037,7 +2081,16 @@ mod tests {
         workitem.payload = "{\"test\": \"updated message\"}".to_string();
         workitem.state = "successful".to_string();
         // workitem.files[0].filename = "updated_testfile.csv".to_string();
-        workitem.files.remove(0);
+        assert!( workitem.files.len() > 0, "workitem has no files");
+
+        // workitem.files.remove(0);
+        workitem.files[0].id = "".to_string();
+
+        // delete testfile.csv if exsits
+        if std::path::Path::new("testfile.csv").exists() {
+            println!("Deleting testfile.csv");
+            std::fs::remove_file("testfile.csv").unwrap();
+        }
 
         let response = client
             .update_workitem(
@@ -2054,7 +2107,7 @@ mod tests {
                 }
             )
             .await;
-        println!("UpdateWorkitem response: {:?}", response);
+        // println!("UpdateWorkitem response: {:?}", response);
         assert!(
             response.is_ok(),
             "UpdateWorkitem failed with {:?}",
