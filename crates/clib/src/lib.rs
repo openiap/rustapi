@@ -2,14 +2,15 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, DeleteOneRequest, InsertManyRequest, InsertOrUpdateOneRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, UpdateOneRequest};
+use openiap_client::{Client, DeleteOneRequest, DeleteManyRequest, InsertManyRequest, InsertOrUpdateOneRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, UpdateOneRequest};
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Mutex;
+use std::vec;
 use tokio::runtime::Runtime;
-use tracing::debug;
+use tracing::{ debug, trace};
 
 use lazy_static::lazy_static;
 lazy_static! {
@@ -1581,13 +1582,24 @@ pub extern "C" fn insert_or_update_one(
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
+    debug!("Rust: insert_or_update_one create request");
+
+    trace!("Rust: parse collectionname");
+    let collectionname = unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }.to_string();
+    trace!("Rust: parse uniqeness");
+    let uniqeness = unsafe { CStr::from_ptr(options.uniqeness).to_str().unwrap() }.to_string();
+    trace!("Rust: parse item");
+    let item = unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string();
+    trace!("Rust: parse w");
+    let w = options.w;
+    trace!("Rust: parse j");
+    let j = options.j;
     let request = InsertOrUpdateOneRequest {
-        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
-            .to_string(),
-        uniqeness: unsafe { CStr::from_ptr(options.uniqeness).to_str().unwrap() }.to_string(),
-        item: unsafe { CStr::from_ptr(options.item).to_str().unwrap() }.to_string(),
-        w: options.w,
-        j: options.j,
+        collectionname,
+        uniqeness,
+        item,
+        w,
+        j,
         ..Default::default()
     };
     if client.is_none() {
@@ -1603,6 +1615,7 @@ pub extern "C" fn insert_or_update_one(
     // let client_clone = client.clone();
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
+    debug!("Rust: run insert_or_update_one in runtime");
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().insert_or_update_one(request).await;
         client.as_ref().unwrap().insert_or_update_one(request).await
@@ -1644,6 +1657,7 @@ pub extern "C" fn insert_or_update_one_async(
     let client_wrapper = unsafe { &mut *client };
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
+    debug!("Rust: insert_or_update_one_async create request");
     let request = InsertOrUpdateOneRequest {
         collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
             .to_string(),
@@ -1846,6 +1860,178 @@ pub extern "C" fn delete_one_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_delete_one_response(response: *mut DeleteOneResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response);
+    }
+}
+
+#[repr(C)]
+pub struct DeleteManyRequestWrapper {
+    collectionname: *const c_char,
+    query: *const c_char,
+    recursive: bool,
+    ids: *const *const c_char,
+}
+#[repr(C)]
+pub struct DeleteManyResponseWrapper {
+    success: bool,
+    affectedrows: i32,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_many(
+    client: *mut ClientWrapper,
+    options: *mut DeleteManyRequestWrapper,
+) -> *mut DeleteManyResponseWrapper {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteManyRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
+        recursive: options.recursive,
+        ids: {
+            let mut ids = vec![];
+            let mut i = 0;
+            loop {
+                let id = unsafe { *options.ids.add(i) };
+                if id.is_null() {
+                    break;
+                }
+                ids.push(unsafe { CStr::from_ptr(id).to_str().unwrap() }.to_string());
+                i += 1;
+            }
+            ids
+        },
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteManyResponseWrapper {
+            success: false,
+            affectedrows: 0,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().delete_many(request).await;
+        client.as_ref().unwrap().delete_many(request).await
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let affectedrows = data;
+            DeleteManyResponseWrapper {
+                success: true,
+                affectedrows,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("DeleteMany failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            DeleteManyResponseWrapper {
+                success: false,
+                affectedrows: 0,
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type DeleteManyCallback = extern "C" fn(wrapper: *mut DeleteManyResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_many_async(
+    client: *mut ClientWrapper,
+    options: *mut DeleteManyRequestWrapper,
+    callback: DeleteManyCallback,
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteManyRequest {
+        collectionname: unsafe { CStr::from_ptr(options.collectionname).to_str().unwrap() }
+            .to_string(),
+        query: unsafe { CStr::from_ptr(options.query).to_str().unwrap() }.to_string(),
+        recursive: options.recursive,
+        ids: {
+            let mut ids = vec![];
+            let mut i = 0;
+            loop {
+                let id = unsafe { *options.ids.add(i) };
+                if id.is_null() {
+                    break;
+                }
+                ids.push(unsafe { CStr::from_ptr(id).to_str().unwrap() }.to_string());
+                i += 1;
+            }
+            ids
+        },
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteManyResponseWrapper {
+            success: false,
+            affectedrows: 0,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    // let client_clone = client.clone();
+    // let runtime_clone = std::sync::Arc::clone(&runtime);
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().delete_many(request).await;
+        // let result = runtime.block_on(async {
+        //     let c = client.as_ref().unwrap();
+        //     c.delete_many(request).await
+        // });
+        // let result = client_clone.unwrap().delete_many(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let affectedrows = data;
+                DeleteManyResponseWrapper {
+                    success: true,
+                    affectedrows,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("DeleteMany failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                DeleteManyResponseWrapper {
+                    success: false,
+                    affectedrows: 0,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_delete_many_response(response: *mut DeleteManyResponseWrapper) {
     if response.is_null() {
         return;
     }
@@ -2878,4 +3064,28 @@ pub extern "C" fn free_unregister_queue_response(response: *mut UnRegisterQueueR
     unsafe {
         let _ = Box::from_raw(response);
     }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct WorkitemFile {
+    filename: *const c_char,
+    id: *const c_char,
+    compressed: bool,
+    file: vec::Vec<u8>,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct PushWorkitemRequestWrapper {
+    wiq: *const c_char,
+    wiqid: *const c_char,
+    name: *const c_char,
+    payload: *const c_char,
+    nextrun: *const c_char,
+    success_wiqid: *const c_char,
+    failed_wiqid: *const c_char,
+    success_wiq: *const c_char,
+    failed_wiq: *const c_char,
+    priority: i32,
+    files: *const *const WorkitemFile,
 }

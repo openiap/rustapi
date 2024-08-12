@@ -84,18 +84,72 @@ fn move_file(from: &str, to: &str) -> std::io::Result<()> {
     }
     Ok(())
 }
+
+// use std::fs::File;
+use std::io::{self, BufReader, BufWriter};
+use flate2::write::GzEncoder;
+use flate2::Compression;
+#[allow(dead_code)]
+fn compress_file(input_path: &str, output_path: &str) -> io::Result<()> {
+    // Open the input file
+    let input_file = File::open(input_path)?;
+    let mut reader = BufReader::new(input_file);
+
+    // Create the output file
+    let output_file = File::create(output_path)?;
+    let writer = BufWriter::new(output_file);
+
+    // Create a GzEncoder with default compression level
+    let mut encoder = GzEncoder::new(writer, Compression::default());
+
+    // Buffer to hold the data
+    let mut buffer = Vec::new();
+
+    // Read the entire input file into the buffer
+    reader.read_to_end(&mut buffer)?;
+
+    // Write the compressed data to the output file
+    encoder.write_all(&buffer)?;
+
+    // Finalize the compression
+    encoder.finish()?;
+
+    Ok(())
+}
+pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec::Vec<u8>> {
+    // Open the input file
+    let input_file = File::open(input_path)?;
+    let mut reader = BufReader::new(input_file);
+
+    // Buffer to hold the input data
+    let mut buffer = Vec::new();
+
+    // Read the entire input file into the buffer
+    reader.read_to_end(&mut buffer)?;
+
+    // Create a GzEncoder to compress data into a Vec<u8>
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+
+    // Write the compressed data to the encoder
+    encoder.write_all(&buffer)?;
+
+    // Finalize the compression and get the compressed data
+    let compressed_data = encoder.finish()?;
+
+    Ok(compressed_data)
+}
 impl Client {
     #[tracing::instrument(skip_all)]
     pub async fn connect(dst: &str) -> Result<Self, OpenIAPError> {
         let mut strurl = dst.to_string();
         if strurl.is_empty() {
             strurl = std::env::var("apiurl").unwrap_or("".to_string());
-        }
-        if strurl.is_empty() {
-            strurl = std::env::var("grpcapiurl").unwrap_or("".to_string());
-        }
-        if strurl.is_empty() {
-            strurl = std::env::var("wsapiurl").unwrap_or("".to_string());
+            if strurl.is_empty() {
+                strurl = std::env::var("grpcapiurl").unwrap_or("".to_string());
+            }
+            if strurl.is_empty() {
+                strurl = std::env::var("wsapiurl").unwrap_or("".to_string());
+            }
         }
         if strurl.is_empty() {
             return Err(OpenIAPError::ClientError("No URL provided".to_string()));
@@ -133,6 +187,7 @@ impl Client {
             strurl = format!("http://{}:{}", url.host_str().unwrap(), url.port().unwrap());
         }
         info!("Connecting to {}", strurl);
+        println!("Connecting to {}", strurl);
 
         let innerclient;
         if url.scheme() == "http" {
@@ -390,16 +445,16 @@ impl Client {
         }
         let (response_tx, response_rx) = oneshot::channel();
         let id = self.get_id().to_string();
-        debug!("Sending #{} {} message", id, msg.command);
+        trace!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
         {
-            debug!("get inner lock");
+            trace!("get inner lock");
             let inner = self.inner.lock().await;
-            debug!("get query lock");
+            trace!("get query lock");
             inner.queries.lock().await.insert(id.clone(), response_tx);
-            debug!("call send");
+            trace!("call send");
             let res = inner.stream_tx.send(msg).await;
-            debug!("parse result");
+            trace!("parse result");
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -794,7 +849,7 @@ impl Client {
     pub async fn delete_many(
         &self,
         config: DeleteManyRequest,
-    ) -> Result<DeleteManyResponse, OpenIAPError> {
+    ) -> Result<i32, OpenIAPError> {
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
         match result {
@@ -807,7 +862,7 @@ impl Client {
                 let response: DeleteManyResponse =
                     prost::Message::decode(m.data.unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
-                Ok(response)
+                Ok(response.affectedrows)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
@@ -1137,6 +1192,152 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    #[tracing::instrument(skip_all)]
+    pub async fn push_workitem(
+        &self,
+        mut config: PushWorkitemRequest,
+    ) -> Result<PushWorkitemResponse, OpenIAPError> {
+        if config.wiq.is_empty() && config.wiqid.is_empty() {
+            return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
+        }
+        for f in &mut config.files {
+            if f.filename.is_empty() && f.file.is_empty() {
+                println!("Filename is empty");
+            } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
+                // does file exist?
+                if !std::path::Path::new(&f.filename).exists() {
+                    println!("File does not exist: {}", f.filename);
+                } else {
+                    // println!("File {} exists so uploading it.", f.filename);
+                    let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                    f.file = std::fs::read(&f.filename).unwrap();
+                    // f.file = compress_file(&f.filename).unwrap();
+                    // f.compressed = false;
+                    f.file = compress_file_to_vec(&f.filename).unwrap();
+                    f.compressed = true;
+                    f.filename = filename.to_string();
+                    println!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
+                }
+            }
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: PushWorkitemResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn pop_workitem(
+        &self,
+        config: PopWorkitemRequest,
+    ) -> Result<PopWorkitemResponse, OpenIAPError> {
+        if config.wiq.is_empty() && config.wiqid.is_empty() {
+            return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: PopWorkitemResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn update_workitem(
+        &self,
+        mut config: UpdateWorkitemRequest,
+    ) -> Result<UpdateWorkitemResponse, OpenIAPError> {
+        match &config.workitem {
+            Some(wiq) => {
+                if wiq.id.is_empty() {
+                    return Err(OpenIAPError::ClientError("No workitem id provided".to_string()));
+                }
+            }
+            None => {
+                return Err(OpenIAPError::ClientError("No workitem provided".to_string()));
+            }
+        }
+        for f in &mut config.files {
+            if f.filename.is_empty() && f.file.is_empty() {
+                println!("Filename is empty");
+            } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
+                // does file exist?
+                if !std::path::Path::new(&f.filename).exists() {
+                    println!("File does not exist: {}", f.filename);
+                } else {
+                    println!("File {} exists so uploading it.", f.filename);
+                    let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                    let uploadconfig = UploadRequest {
+                        filename: filename.to_string(),
+                        collectionname: "fs.files".to_string(),
+                        ..Default::default()
+                    };
+                    let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
+                    println!("File {} was upload as {}", filename, uploadresult.id);
+                    // f.filename = "".to_string();
+                    f.id = uploadresult.id.clone();
+
+                    // read file content and assign it to f.file as a base64 encoded string
+                    // f.file = base64::encode(std::fs::read(&f.filename).unwrap()).into();
+                    // f.file = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&f.filename).unwrap()).into();
+                    // f.file = "wefewwe".to_string().into();
+                    // f.file = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&f.filename).unwrap()).into();
+                    //f.file = std::fs::read(&f.filename).unwrap();
+                    // f.filename = filename.to_string();
+                    // f.id = "";
+                    // f.compressed = false;
+                    // f.id = "".to_string();
+                    // println!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
+                    // workitem.files.push( WorkitemFile {
+                    //     filename: filename.to_string(),
+                    //     id: uploadresult.id,
+                    //     compressed: false,
+                    //     file: "".to_string().into(),
+                    // });
+                    f.filename = filename.to_string();
+                    // f.filename = "".to_string();
+                }
+            } else {
+                println!("Skipped file");
+            }
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: UpdateWorkitemResponse =
+                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -1144,6 +1345,7 @@ fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
 #[cfg(test)]
 mod tests {
     use futures::stream::FuturesUnordered;
+    use prost_types::Timestamp;
     use std::{future::Future, pin::Pin};
 
     use super::*;
@@ -1511,7 +1713,7 @@ mod tests {
             response.is_ok(),
             "test_query failed with {:?}",
             response.err().unwrap()
-        );        
+        );
     }
     #[tokio::test()]
     async fn test_delete_many_ids() {
@@ -1562,7 +1764,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("{:?}", e);            
+                println!("{:?}", e);
             }
         }
     }
@@ -1608,7 +1810,7 @@ mod tests {
             }
             Err(e) => {
                 println!("{:?}", e);
-            }            
+            }
         }
     }
     #[tokio::test()]
@@ -1786,5 +1988,77 @@ mod tests {
         println!("Queue event received");
     
         client.unregister_queue(&queuename).await.unwrap();
+    }
+    #[tokio::test] // cargo test test_push_workitem -- --nocapture
+    async fn test_push_workitem() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let response = client
+            .push_workitem(
+                PushWorkitemRequest {
+                    wiq: "rustqueue".to_string(),
+                    name: "test rust workitem".to_string(),
+                    files: vec![WorkitemFile {
+                        filename: "../../testfile.csv".to_string(),
+                        ..Default::default()
+                    }],
+                    payload: "{\"test\": \"message\"}".to_string(),
+                    nextrun: Some(Timestamp::from(std::time::SystemTime::now() + std::time::Duration::from_secs(60))),
+                    ..Default::default()
+                }
+            )
+            .await;
+    
+        println!("PushWorkitem response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "PushWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        let response = client
+            .pop_workitem(
+                PopWorkitemRequest {
+                    wiq: "rustqueue".to_string(),
+                    ..Default::default()
+                }
+            )
+            .await;
+        println!("PopWorkitem response: {:?}", response);
+            
+        assert!(
+            response.is_ok(),
+            "PopWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+        let mut workitem = response.unwrap().workitem.unwrap();
+        workitem.name = "updated test rust workitem".to_string();
+        workitem.payload = "{\"test\": \"updated message\"}".to_string();
+        workitem.state = "successful".to_string();
+        // workitem.files[0].filename = "updated_testfile.csv".to_string();
+        workitem.files.remove(0);
+
+        let response = client
+            .update_workitem(
+                UpdateWorkitemRequest {
+                    workitem: Some(workitem),
+                    files: vec![WorkitemFile {
+                        filename: "../../train.csv".to_string(),
+                        ..Default::default()
+                    }, WorkitemFile {
+                        filename: "testfile.csv".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }
+            )
+            .await;
+        println!("UpdateWorkitem response: {:?}", response);
+        assert!(
+            response.is_ok(),
+            "UpdateWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
     }
 }

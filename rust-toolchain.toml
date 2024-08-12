@@ -1,0 +1,6 @@
+[toolchain]
+# channel = "nightly-2020-07-10"
+channel = "stable" # nightly, beta, stable
+components = [ "rustfmt", "rustc-dev" ]
+targets = [ "wasm32-unknown-unknown", "thumbv2-none-eabi" ]
+profile = "minimal"

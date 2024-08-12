@@ -153,11 +153,17 @@ const fs = require('fs');
             // const delete_one_result = client.delete_one({ collectionname: 'entities', id: insert_one_result._id });
             // console.log("delete_one success", delete_one_result == 1, delete_one_result);
 
-            const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }` });
-            console.log("insert_or_update_one success", insert_or_update_one_result);
-            const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }` });
-            console.log("insert_or_update_one success2", insert_or_update_one_result);
+            // const insert_or_update_one_result = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
+            // console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
+            const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
+            console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
+            const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
+            console.log("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
 
+            // const delete_many_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert_or_update one from nodejs"}' });
+            // console.log("delete_many success", delete_many_result);
+            const delete_many_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_result2._id] });
+            console.log("delete_many success", delete_many_result);
 
 
             client.log("*********************************")

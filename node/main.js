@@ -187,6 +187,20 @@ const DeleteOneResponseWrapper = StructType({
 });
 const DeleteOneResponseWrapperPtr = ref.refType(DeleteOneResponseWrapper);
 
+const DeleteManyRequestWrapper = StructType({
+    collectionname: CString,
+    query: CString,
+    recursive: bool,
+    ids: CStringArray,
+});
+const DeleteManyRequestWrapperPtr = ref.refType(DeleteManyRequestWrapper);
+const DeleteManyResponseWrapper = StructType({
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteManyResponseWrapperPtr = ref.refType(DeleteManyResponseWrapper);
+
 const DownloadRequestWrapper = StructType({
     collectionname: CString,
     id: CString,
@@ -282,6 +296,12 @@ const QueueEvent = StructType({
 });
 const QueueEventPtr = ref.refType(QueueEvent);
 
+const WorkitemFile = StructType({
+    filename: CString,
+    id: CString,
+    compressed: bool,
+    file: ref.refType(ref.types.uint8) 
+});
 
 function isMusl() {
     // For Node 10
@@ -419,6 +439,9 @@ function loadLibrary() {
             'delete_one': [DeleteOneResponseWrapperPtr, [voidPtr, DeleteOneRequestWrapperPtr]],
             'delete_one_async': ['void', [voidPtr, DeleteOneRequestWrapperPtr, 'pointer']],
             'free_delete_one_response': ['void', [DeleteOneResponseWrapperPtr]],
+            'delete_many': [DeleteManyResponseWrapperPtr, [voidPtr, DeleteManyRequestWrapperPtr]],
+            'delete_many_async': ['void', [voidPtr, DeleteManyRequestWrapperPtr, 'pointer']],
+            'free_delete_many_response': ['void', [DeleteManyResponseWrapperPtr]],
             'download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
             'download_async': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
             'free_download_response': ['void', [DownloadResponseWrapperPtr]],
@@ -855,7 +878,7 @@ class Client {
             });
         });
     }
-    insert_one({collectionname, document, w, j}) {
+    insert_one({collectionname, document, w = 1, j = false}) {
         this.log('Node.js: insert_one invoked');
         const req = new InsertOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -873,7 +896,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_one_async({collectionname, document, w, j}) {
+    insert_one_async({collectionname, document, w = 1, j = false}) {
         this.log('Node.js: insert_one invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertOneRequestWrapper({
@@ -903,7 +926,7 @@ class Client {
             });
         });
     };
-    insert_many({collectionname, documents, w, j, skipresults}) {
+    insert_many({collectionname, documents, w = 1, j = false, skipresults = false}) {
         this.log('Node.js: insert_many invoked');
         const req = new InsertManyRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -922,7 +945,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_many_async({collectionname, documents, w, j, skipresults}) {
+    insert_many_async({collectionname, documents, w = 1, j = false, skipresults = false}) {
         this.log('Node.js: insert_many invoked');
         return new Promise((resolve, reject) => {
             const req = new InsertManyRequestWrapper({
@@ -953,7 +976,7 @@ class Client {
             });
         });
     }
-    update_one({collectionname, item, w, j}) {
+    update_one({collectionname, item, w = 1, j = false}) {
         this.log('Node.js: update_one invoked');
         const req = new UpdateOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -971,7 +994,7 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    update_one_async({collectionname, item, w, j}) {
+    update_one_async({collectionname, item, w = 1, j = false}) {
         this.log('Node.js: update_one invoked');
         return new Promise((resolve, reject) => {
             const req = new UpdateOneRequestWrapper({
@@ -1001,7 +1024,7 @@ class Client {
             });
         });
     }
-    insert_or_update_one({collectionname, item, uniqeness, w, j}) {
+    insert_or_update_one({collectionname, item, uniqeness = "_id", w = 1, j = false}) {
         this.log('Node.js: insert_or_update_one invoked');
         const req = new InsertOrUpdateOneRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -1010,7 +1033,7 @@ class Client {
             w: w,
             j: j
         });
-        this.log('Node.js: call insert_or_update_one_async');
+        this.log('Node.js: call insert_or_update_one');
         const response = this.lib.insert_or_update_one(this.client, req.ref());
         const result = JSON.parse(JSON.stringify(response.deref()));
         this.lib.free_insert_or_update_one_response(response);
@@ -1019,6 +1042,37 @@ class Client {
             throw new ClientError(errorMsg);
         }
         return JSON.parse(result.result);
+    }
+    insert_or_update_one_async({collectionname, item, uniqeness = "_id", w = 1, j = false}) {
+        this.log('Node.js: insert_or_update_one invoked');
+        return new Promise((resolve, reject) => {
+            const req = new InsertOrUpdateOneRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                uniqeness: ref.allocCString(uniqeness),
+                item: ref.allocCString(item),
+                w: w,
+                j: j
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(InsertOrUpdateOneResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: insert_or_update_one_async callback');
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(JSON.parse(response.result));
+                }
+                this.lib.free_insert_or_update_one_response(responsePtr);
+            });
+
+            this.log('Node.js: call insert_or_update_one_async');
+            this.lib.insert_or_update_one_async.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('InsertOrUpdateOne failed'));
+                }
+            });
+        });
     }
     delete_one({collectionname, id, recursive}) {
         this.log('Node.js: delete_one invoked');
@@ -1062,6 +1116,56 @@ class Client {
             this.lib.delete_one_async.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteOne failed'));
+                }
+            });
+        });
+    }
+    delete_many({collectionname, query = "", ids = [], recursive = false}) {
+        this.log('Node.js: delete_many invoked');
+        const idsCStringArray = ids.map(id => ref.allocCString(id));
+        const req = new DeleteManyRequestWrapper({
+            collectionname: ref.allocCString(collectionname),
+            query: ref.allocCString(query),
+            ids: idsCStringArray,
+            recursive: recursive
+        });
+        this.log('Node.js: call delete_many');
+        const response = this.lib.delete_many(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_delete_many_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.affectedrows;
+    }
+    delete_many_async({collectionname, query = "", ids = [], recursive = false}) {
+        this.log('Node.js: delete_many invoked');
+        const idsCStringArray = ids.map(id => ref.allocCString(id));
+        return new Promise((resolve, reject) => {
+            const req = new DeleteManyRequestWrapper({
+                collectionname: ref.allocCString(collectionname),
+                query: ref.allocCString(query),
+                ids: idsCStringArray,
+                recursive: recursive
+            });
+            this.log('Node.js: create callback');
+            const callback = ffi.Callback('void', [ref.refType(DeleteManyResponseWrapper)], (responsePtr) => {
+                this.log('Node.js: delete_many_async callback');
+                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.affectedrows);
+                }
+                this.lib.free_delete_many_response(responsePtr);
+            });
+
+            this.log('Node.js: call delete_many_async');
+            this.lib.delete_many_async.async(this.client, req.ref(), callback, (err) => {
+                if (err) {
+                    reject(new ClientError('DeleteMany failed'));
                 }
             });
         });
