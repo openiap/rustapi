@@ -704,7 +704,7 @@ class Client {
         });
     }
 
-    query({ collectionname, query, projection, orderby, queryas, explain, skip, top }) {
+    query({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false,  }) {
         this.log('Node.js: query invoked');
         const req = new QueryRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -728,7 +728,7 @@ class Client {
     }
 
     refs = [];
-    query_async({ collectionname, query, projection, orderby, queryas, explain, skip, top }) {
+    query_async({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false,  }) {
         this.log('Node.js: query invoked');
         return new Promise((resolve, reject) => {
             const req = new QueryRequestWrapper({
@@ -764,7 +764,7 @@ class Client {
             });
         });
     }
-    aggregate({ collectionname, aggregates, queryas, hint, explain }) {
+    aggregate({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
         this.log('Node.js: aggregate invoked');
         if (aggregates == null) aggregates = '[]';
         if (queryas == null) queryas = '';
@@ -786,7 +786,7 @@ class Client {
         }
         return JSON.parse(result.results);
     }
-    aggregate_async({ collectionname, aggregates, queryas, hint, explain }) {
+    aggregate_async({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
         this.log('Node.js: aggregate invoked');
         if (aggregates == null) aggregates = '[]';
         if (queryas == null) queryas = '';
@@ -820,7 +820,7 @@ class Client {
             });
         });
     }
-    count({ collectionname, query, queryas, explain }) {
+    count({ collectionname, query = "", queryas = "", explain = false}) {
         this.log('Node.js: count invoked');
         const req = new CountRequestWrapper({
             collectionname: ref.allocCString(collectionname),
@@ -838,7 +838,7 @@ class Client {
         }
         return result.result;
     }
-    count_async({ collectionname, query, queryas, explain }) {
+    count_async({ collectionname, query = "", queryas = "", explain = false}) {
         this.log('Node.js: count invoked');
         return new Promise((resolve, reject) => {
             const req = new CountRequestWrapper({
