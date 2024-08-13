@@ -159,7 +159,7 @@ function loadLibrary() {
         libDir = path.join(__dirname, '../target/debug/');
         switch (process.platform) {
             case 'win32':
-                libPath = path.join(libDir, 'openiap.dll');
+                libPath = path.join(libDir, 'openiap_clib.dll');
                 break;
             case 'darwin':
                 libPath = path.join(libDir, 'libopeniap_clib.dylib');
@@ -236,7 +236,7 @@ class Client {
         // const connect = this.lib.func('ClientWrapper *connect(const char *server_address)');
         // const connect = this.lib.func('connect', 'ClientWrapper', ['str']);
 
-        const connect = this.lib.func('connect', koffi.pointer(ClientWrapper), ['str']);
+        const connect = this.lib.func('connect2', koffi.pointer(ClientWrapper), ['str']);
         const clientWrapperPtr = connect(url);
         if (clientWrapperPtr === 0) {
             throw new Error('Received a null pointer from Rust function');
