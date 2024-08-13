@@ -311,6 +311,8 @@ impl Client {
                         )));
                     }
                 }
+            } else {
+                debug!("Connect, No credentials provided so is running as guest");
             }
         }
         Ok(client)

@@ -1,37 +1,31 @@
-const koffi = require('koffi');
+const ffi = require('ffi-napi');
+const ref = require('ref-napi');
+const StructType = require('ref-struct-di')(ref);
+const ArrayType = require('ref-array-di')(ref);
 const path = require('path');
 const fs = require('fs');
 
-const CString = 'char*';
-const voidPtr = koffi.pointer('void');
-const bool = koffi.types.bool;
-const int = 'int';
-const uint64 = 'uint64_t';
-const size_t = 'size_t';
+const CString = ref.types.CString;
+const CStringArray = ArrayType(CString);
 
-function encodeStruct(value, type) {
-    const buf = Buffer.allocUnsafe(koffi.sizeof(type));
-    koffi.encode(buf, type, value);
-    return buf;
-}
-// const CStringArray = ArrayType(CString);
+const voidPtr = ref.refType(ref.types.void);
+const bool = ref.types.bool;
+const int = ref.types.int;
+const uint64 = ref.types.uint64;
+const size_t = ref.types.size_t;
 
-// // Define the ClientWrapper struct
-// const ClientWrapper = koffi.struct('ClientWrapper', {
-//     success: bool,
-//     error: CString,
-//     client: voidPtr,
-//     runtime: voidPtr
-// });
-// const ClientWrapperPtr = koffi.pointer(ClientWrapper);
-const ClientWrapper = koffi.struct('ClientWrapper', {
-    success: 'bool',
-    error: 'char*'
+
+// Define the ClientWrapper struct
+const ClientWrapper = StructType({
+    success: bool,
+    error: CString,
+    client: voidPtr,
+    runtime: voidPtr
 });
-const ClientWrapperPtr = koffi.pointer(ClientWrapper);
+const ClientWrapperPtr = ref.refType(ClientWrapper);
 
 // Define the SigninRequestWrapper struct
-const SigninRequestWrapper = koffi.struct('SigninRequestWrapper', {
+const SigninRequestWrapper = StructType({
     username: CString,
     password: CString,
     jwt: CString,
@@ -41,18 +35,18 @@ const SigninRequestWrapper = koffi.struct('SigninRequestWrapper', {
     validateonly: bool,
     ping: bool,
 });
-const SigninRequestWrapperPtr = koffi.pointer(SigninRequestWrapper);
+const SigninRequestWrapperPtr = ref.refType(SigninRequestWrapper);
 
 // Define the SigninResponseWrapper struct
-const SigninResponseWrapper = koffi.struct('SigninResponseWrapper', {
+const SigninResponseWrapper = StructType({
     success: bool,
     jwt: CString,
     error: CString
 });
-const SigninResponseWrapperPtr = koffi.pointer(SigninResponseWrapper);
+const SigninResponseWrapperPtr = ref.refType(SigninResponseWrapper);
 
 // Define the SigninRequestWrapper struct
-const QueryRequestWrapper = koffi.struct('QueryRequestWrapper', {
+const QueryRequestWrapper = StructType({
     collectionname: CString,
     query: CString,
     projection: CString,
@@ -62,15 +56,314 @@ const QueryRequestWrapper = koffi.struct('QueryRequestWrapper', {
     skip: int,
     top: int,
 });
-const QueryRequestWrapperPtr = koffi.pointer(QueryRequestWrapper);
+const QueryRequestWrapperPtr = ref.refType(QueryRequestWrapper);
 
 // Define the SigninResponseWrapper struct
-const QueryResponseWrapper = koffi.struct('QueryResponseWrapper', {
+const QueryResponseWrapper = StructType({
     success: bool,
     results: CString,
     error: CString
 });
-const QueryResponseWrapperPtr = koffi.pointer(QueryResponseWrapper);
+const QueryResponseWrapperPtr = ref.refType(QueryResponseWrapper);
+
+// Define the SigninRequestWrapper struct
+const AggregateRequestWrapper = StructType({
+    collectionname: CString,
+    aggregates: CString,
+    queryas: CString,
+    hint: CString,
+    explain: bool,
+});
+const AggregateRequestWrapperPtr = ref.refType(AggregateRequestWrapper);
+
+// Define the SigninResponseWrapper struct
+const AggregateResponseWrapper = StructType({
+    success: bool,
+    results: CString,
+    error: CString
+});
+const AggregateResponseWrapperPtr = ref.refType(AggregateResponseWrapper);
+
+const CountRequestWrapper = StructType({
+    collectionname: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const CountRequestWrapperPtr = ref.refType(CountRequestWrapper);
+const CountResponseWrapper = StructType({
+    success: bool,
+    result: int,
+    error: CString
+});
+const CountResponseWrapperPtr = ref.refType(CountResponseWrapper);
+
+const DistinctRequestWrapper = StructType({
+    collectionname: CString,
+    field: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const DistinctRequestWrapperPtr = ref.refType(DistinctRequestWrapper);
+const DistinctResponseWrapper = StructType({
+    success: bool,
+    results: ref.refType(CStringArray),
+    results_count: size_t,
+    error: CString
+});
+const DistinctResponseWrapperPtr = ref.refType(DistinctResponseWrapper);
+
+// Define the SigninRequestWrapper struct
+const InsertOneRequestWrapper = StructType({
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOneRequestWrapperPtr = ref.refType(InsertOneRequestWrapper);
+
+// Define the SigninResponseWrapper struct
+const InsertOneResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertOneResponseWrapperPtr = ref.refType(InsertOneResponseWrapper);
+
+const InsertManyRequestWrapper = StructType({
+    collectionname: CString,
+    items: CString,
+    w: int,
+    j: bool,
+    skipresults: bool,
+});
+const InsertManyRequestWrapperPtr = ref.refType(InsertManyRequestWrapper);
+const InsertManyResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertManyResponseWrapperPtr = ref.refType(InsertManyResponseWrapper);
+
+const UpdateOneRequestWrapper = StructType({
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const UpdateOneRequestWrapperPtr = ref.refType(UpdateOneRequestWrapper);
+const UpdateOneResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const UpdateOneResponseWrapperPtr = ref.refType(UpdateOneResponseWrapper);
+
+const InsertOrUpdateOneRequestWrapper = StructType({
+    collectionname: CString,
+    uniqeness: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOrUpdateOneRequestWrapperPtr = ref.refType(InsertOrUpdateOneRequestWrapper);
+const InsertOrUpdateOneResponseWrapper = StructType({
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertOrUpdateOneResponseWrapperPtr = ref.refType(InsertOrUpdateOneResponseWrapper);
+
+const DeleteOneRequestWrapper = StructType({
+    collectionname: CString,
+    id: CString,
+    recursive: bool,
+});
+const DeleteOneRequestWrapperPtr = ref.refType(DeleteOneRequestWrapper);
+const DeleteOneResponseWrapper = StructType({
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteOneResponseWrapperPtr = ref.refType(DeleteOneResponseWrapper);
+
+const DeleteManyRequestWrapper = StructType({
+    collectionname: CString,
+    query: CString,
+    recursive: bool,
+    ids: CStringArray,
+});
+const DeleteManyRequestWrapperPtr = ref.refType(DeleteManyRequestWrapper);
+const DeleteManyResponseWrapper = StructType({
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteManyResponseWrapperPtr = ref.refType(DeleteManyResponseWrapper);
+
+const DownloadRequestWrapper = StructType({
+    collectionname: CString,
+    id: CString,
+    folder: CString,
+    filename: CString
+});
+const DownloadRequestWrapperPtr = ref.refType(DownloadRequestWrapper);
+const DownloadResponseWrapper = StructType({
+    success: bool,
+    filename: CString,
+    error: CString
+});
+const DownloadResponseWrapperPtr = ref.refType(DownloadResponseWrapper);
+
+const UploadRequestWrapper = StructType({
+    filepath: CString,
+    filename: CString,
+    mimetype: CString,
+    metadata: CString,
+    collectionname: CString
+});
+const UploadRequestWrapperPtr = ref.refType(UploadRequestWrapper);
+const UploadResponseWrapper = StructType({
+    success: bool,
+    id: CString,
+    error: CString
+});
+const UploadResponseWrapperPtr = ref.refType(UploadResponseWrapper);
+
+const WatchRequestWrapper = StructType({
+    collectionname: CString,
+    paths: CString,
+});
+const WatchRequestWrapperPtr = ref.refType(WatchRequestWrapper);
+const WatchResponseWrapper = StructType({
+    success: bool,
+    watchid: CString,
+    error: CString
+});
+const WatchResponseWrapperPtr = ref.refType(WatchResponseWrapper);
+
+const UnWatchResponseWrapper = StructType({
+    success: bool,
+    error: CString
+});
+const UnWatchResponseWrapperPtr = ref.refType(UnWatchResponseWrapper);
+
+const WatchEvent = StructType({
+    id: CString,
+    operation: CString,
+    document: CString,
+})
+const WatchEventPtr = ref.refType(WatchEvent);
+
+const RegisterQueueRequestWrapper = StructType({
+    queuename: CString
+});
+const RegisterQueueRequestWrapperPtr = ref.refType(RegisterQueueRequestWrapper);
+const RegisterQueueResponseWrapper = StructType({
+    success: bool,
+    queuename: CString,
+    error: CString
+});
+const RegisterQueueResponseWrapperPtr = ref.refType(RegisterQueueResponseWrapper);
+
+const RegisterExchangeRequestWrapper = StructType({
+    exchangename: CString,
+    algorithm: CString,
+    routingkey: CString,
+    addqueue: bool,
+});
+const RegisterExchangeRequestWrapperPtr = ref.refType(RegisterExchangeRequestWrapper);
+const RegisterExchangeResponseWrapper = StructType({
+    success: bool,
+    queuename: CString,
+    error: CString
+});
+const RegisterExchangeResponseWrapperPtr = ref.refType(RegisterExchangeResponseWrapper);
+
+const UnRegisterQueueResponseWrapper = StructType({
+    success: bool,
+    error: CString
+});
+const UnRegisterQueueResponseWrapperPtr = ref.refType(UnRegisterQueueResponseWrapper);
+
+const QueueEvent = StructType({
+    queuename: CString,
+    correlation_id: CString,
+    replyto: CString,
+    routingkey: CString,
+    exchangename: CString,
+    data: CString,
+});
+const QueueEventPtr = ref.refType(QueueEvent);
+
+
+const WorkitemFileWrapper = StructType({
+    filename: CString,
+    id: CString,
+    compressed: bool,
+    file: ArrayType(ref.types.uint8) // This represents Vec<u8> in Rust
+});
+const WorkitemFileWrapperPtr = ref.refType(WorkitemFileWrapper);
+const WorkitemFileWrapperPtrArray = ArrayType(WorkitemFileWrapperPtr);
+
+const WorkitemWrapper = StructType({
+    id: CString,
+    name: CString,
+    payload: CString,
+    priority: int,
+    nextrun: uint64,
+    lastrun: uint64,
+    /// files: ref.refType(WorkitemFileWrapperPtrArray),
+    files: WorkitemFileWrapperPtrArray,
+    files_len: int,
+    state: CString,
+    wiq: CString,
+    wiqid: CString,
+    retries: int,
+    username: CString,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    errormessage: CString,
+    errorsource: CString,
+    errortype: CString
+});
+const WorkitemWrapperPtr = ref.refType(WorkitemWrapper);
+const PushWorkitemRequestWrapper = StructType({
+    wiq: CString,
+    wiqid: CString,
+    name: CString,
+    payload: CString,
+    nextrun: uint64,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    priority: int,
+    files: WorkitemFileWrapperPtrArray,
+    files_len: int,
+});
+const PushWorkitemRequestWrapperPtr = ref.refType(PushWorkitemRequestWrapper);
+const PushWorkitemResponseWrapper = StructType({
+    success: bool,
+    error: CString
+});
+const PushWorkitemResponseWrapperPtr = ref.refType(PushWorkitemResponseWrapper);
+
+const PopWorkitemRequestWrapper = StructType({
+    wiq: CString,
+    wiqid: CString,
+});
+const PopWorkitemRequestWrapperPtr = ref.refType(PopWorkitemRequestWrapper);
+const PopWorkitemResponseWrapper = StructType({
+    success: bool,
+    error: CString,
+    workitem: WorkitemWrapperPtr
+});
+const PopWorkitemResponseWrapperPtr = ref.refType(PopWorkitemResponseWrapper);
+
 
 function isMusl() {
     // For Node 10
@@ -172,7 +465,74 @@ function loadLibrary() {
     console.log(`Using library: ${libPath}`);
 
     try {
-        return koffi.load(libPath)
+        return ffi.Library(libPath, {
+            'enable_tracing': ['void', [CString, CString]],
+            'disable_tracing': ['void', []],
+            'connect': [ClientWrapperPtr, [CString]],
+            'connect_async': ['void', [CString, 'pointer']],
+            'free_client': ['void', [ClientWrapperPtr]],
+            'signin': [SigninResponseWrapperPtr, [voidPtr, SigninRequestWrapperPtr]],
+            'signin_async': ['void', [voidPtr, SigninRequestWrapperPtr, 'pointer']],
+            'free_signin_response': ['void', [SigninResponseWrapperPtr]],
+            'query': [QueryResponseWrapperPtr, [voidPtr, QueryRequestWrapperPtr]],
+            'query_async': ['void', [voidPtr, QueryRequestWrapperPtr, 'pointer']],
+            'free_query_response': ['void', [QueryResponseWrapperPtr]],
+            'aggregate': [AggregateResponseWrapperPtr, [voidPtr, AggregateRequestWrapperPtr]],
+            'aggregate_async': ['void', [voidPtr, AggregateRequestWrapperPtr, 'pointer']],
+            'free_aggregate_response': ['void', [AggregateResponseWrapperPtr]],
+            'count': [CountResponseWrapperPtr, [voidPtr, CountRequestWrapperPtr]],
+            'count_async': ['void', [voidPtr, CountRequestWrapperPtr, 'pointer']],
+            'free_count_response': ['void', [CountResponseWrapperPtr]],
+            'distinct': [DistinctResponseWrapperPtr, [voidPtr, DistinctRequestWrapperPtr]],
+            'distinct_async': ['void', [voidPtr, DistinctRequestWrapperPtr, 'pointer']],
+            'free_distinct_response': ['void', [DistinctResponseWrapperPtr]],
+            'insert_one': [InsertOneResponseWrapperPtr, [voidPtr, InsertOneRequestWrapperPtr]],
+            'insert_one_async': ['void', [voidPtr, InsertOneRequestWrapperPtr, 'pointer']],
+            'free_insert_one_response': ['void', [InsertOneResponseWrapperPtr]],
+            'insert_many': [InsertManyResponseWrapperPtr, [voidPtr, InsertManyRequestWrapperPtr]],
+            'insert_many_async': ['void', [voidPtr, InsertManyRequestWrapperPtr, 'pointer']],
+            'free_insert_many_response': ['void', [InsertManyResponseWrapperPtr]],
+            'update_one': [UpdateOneResponseWrapperPtr, [voidPtr, UpdateOneRequestWrapperPtr]],
+            'update_one_async': ['void', [voidPtr, UpdateOneRequestWrapperPtr, 'pointer']],
+            'free_update_one_response': ['void', [UpdateOneResponseWrapperPtr]],
+            'insert_or_update_one': [InsertOrUpdateOneResponseWrapperPtr, [voidPtr, InsertOrUpdateOneRequestWrapperPtr]],
+            'insert_or_update_one_async': ['void', [voidPtr, InsertOrUpdateOneRequestWrapperPtr, 'pointer']],
+            'free_insert_or_update_one_response': ['void', [InsertOrUpdateOneResponseWrapperPtr]],
+            'delete_one': [DeleteOneResponseWrapperPtr, [voidPtr, DeleteOneRequestWrapperPtr]],
+            'delete_one_async': ['void', [voidPtr, DeleteOneRequestWrapperPtr, 'pointer']],
+            'free_delete_one_response': ['void', [DeleteOneResponseWrapperPtr]],
+            'delete_many': [DeleteManyResponseWrapperPtr, [voidPtr, DeleteManyRequestWrapperPtr]],
+            'delete_many_async': ['void', [voidPtr, DeleteManyRequestWrapperPtr, 'pointer']],
+            'free_delete_many_response': ['void', [DeleteManyResponseWrapperPtr]],
+            'download': [DownloadResponseWrapperPtr, [voidPtr, DownloadRequestWrapperPtr]],
+            'download_async': ['void', [voidPtr, DownloadRequestWrapperPtr, 'pointer']],
+            'free_download_response': ['void', [DownloadResponseWrapperPtr]],
+            'upload': [UploadResponseWrapperPtr, [voidPtr, UploadRequestWrapperPtr]],
+            'upload_async': ['void', [voidPtr, UploadRequestWrapperPtr, 'pointer']],
+            'free_upload_response': ['void', [UploadResponseWrapperPtr]],
+            'watch': [WatchResponseWrapperPtr, [voidPtr, WatchRequestWrapperPtr]],
+            'next_watch_event': [WatchEventPtr, [CString]],
+            'watch_async': ['void', [voidPtr, WatchRequestWrapperPtr, 'pointer', 'pointer']],
+            'free_watch_response': ['void', [WatchResponseWrapperPtr]],
+            'free_watch_event': ['void', [WatchEventPtr]],
+            'unwatch': [UnWatchResponseWrapperPtr, [voidPtr, CString]],
+            'free_unwatch_response': ['void', [UnWatchResponseWrapperPtr]],
+            'register_queue': [RegisterQueueResponseWrapperPtr, [voidPtr, RegisterQueueRequestWrapperPtr]],
+            'free_register_queue_response': ['void', [RegisterQueueResponseWrapperPtr]],
+            'register_exchange': [RegisterExchangeResponseWrapperPtr, [voidPtr, RegisterExchangeRequestWrapperPtr]],
+            'free_register_exchange_response': ['void', [RegisterExchangeResponseWrapperPtr]],
+            'unregister_queue': [UnRegisterQueueResponseWrapperPtr, [voidPtr, CString]],
+            'free_unregister_queue_response': ['void', [UnRegisterQueueResponseWrapperPtr]],
+            'next_queue_event': [QueueEventPtr, [CString]],
+            'free_queue_event': ['void', [QueueEventPtr]],
+
+            'push_workitem': [PushWorkitemResponseWrapperPtr, [voidPtr, PushWorkitemRequestWrapperPtr]],
+            'free_push_workitem_response': ['void', [PushWorkitemResponseWrapperPtr]],
+            'pop_workitem': [PopWorkitemResponseWrapperPtr, [voidPtr, PopWorkitemRequestWrapperPtr, CString]],
+            'free_pop_workitem_response': ['void', [PopWorkitemResponseWrapperPtr]],
+
+            // 'run_async_in_node': ['void', ['pointer']]
+        });
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
     }
@@ -208,51 +568,41 @@ class Client {
     connected = false;
     free() {
         if (this.client) {
-            // this.lib.free_client(this.client);
-            this.lib.func('void free_client(ClientWrapper*)')(this.client);
+            this.lib.free_client(this.client);
         }
         this.connected = false;
     }
 
     enable_tracing(rust_log = '', tracing = '') {
-        // if (rust_log == null || rust_log == '') { rust_log = ''; }
-        // if (tracing == null || tracing == '') { tracing = ''; }
-        // rust_log = ref.allocCString(rust_log);
-        // tracing = ref.allocCString(tracing);
-        this.log('Node.js: enable_tracing invoked', rust_log, tracing);
-        this.lib.func('void enable_tracing(const char* rust_log, const char* tracing)')(rust_log, tracing);
-        this.log('Node.js: enable_tracing called');
+        if (rust_log == null || rust_log == '') { rust_log = ''; }
+        if (tracing == null || tracing == '') { tracing = ''; }
+        rust_log = ref.allocCString(rust_log);
+        tracing = ref.allocCString(tracing);
+        this.lib.enable_tracing(rust_log, tracing);
     }
     disable_tracing() {
-        this.lib.func('void disable_tracing()')();
+        this.lib.disable_tracing();
     }
     log(...args) {
         console.log(...args);
     }
 
-    async connect(url) {
+    connect(url) {
         this.connected = false;
-
-        // const connect = this.lib.func('ClientWrapper *connect(const char *server_address)');
-        // const connect = this.lib.func('connect', 'ClientWrapper', ['str']);
-
-        const connect = this.lib.func('connect', koffi.pointer(ClientWrapper), ['str']);
-        const clientWrapperPtr = connect(url);
-        if (clientWrapperPtr === 0) {
-            throw new Error('Received a null pointer from Rust function');
+        const client = this.lib.connect(url);
+        const clientres = client.deref();
+        if (!clientres.success) {
+            throw new ClientCreationError(clientres.error);
         }
-        const clientWrapper = koffi.decode(clientWrapperPtr,ClientWrapper);
-
         this.connected = true;
-        this.client = clientWrapperPtr;
-        return clientWrapper;
+        this.client = client;
     }
 
     connect_async(url) {
         this.connected = false;
         return new Promise((resolve, reject) => {
             try {
-                const callback = koffi.proto('void(ClientWrapper*)', [ClientWrapperPtr], (clientPtr) => {
+                const callback = ffi.Callback('void', [ClientWrapperPtr], (clientPtr) => {
                     this.log('Node.js: Callback invoked');
                     try {
                         this.client = clientPtr;
@@ -269,7 +619,7 @@ class Client {
                     }
                 });
                 this.log('Node.js: Calling connect_async');
-                this.lib.func('void connect_async(const char* url, void (*callback)(ClientWrapper*))')(url, callback);
+                this.lib.connect_async(url, callback);
                 this.log('Node.js: connect_async called');
             } catch (error) {
                 reject(new ClientCreationError(error.message));
@@ -286,27 +636,21 @@ class Client {
             jwt = username;
             username = "";
         }
-        // const req = new SigninRequestWrapper({
-        const req = {
-            username: username,
-            password: password,
-            jwt: jwt,
-            agent: 'node',
-            version: '',
+        const req = new SigninRequestWrapper({
+            username: ref.allocCString(username),
+            password: ref.allocCString(password),
+            jwt: ref.allocCString(jwt),
+            agent: ref.allocCString('node'),
+            version: ref.allocCString(''),
             longtoken: false,
             validateonly: false,
             ping: false
-        };
-        // const reqptr = koffi.encode(req, SigninRequestWrapper);
-        const reqptr = encodeStruct(req, SigninRequestWrapper);
+        });
 
         this.log('Node.js: call signin');
-        // const response = this.lib.func('SigninResponseWrapper* signin(void* client, SigninRequestWrapper* req)')(this.client, reqptr);
-        const response = this.lib.func('signin', koffi.pointer(SigninResponseWrapper), [ClientWrapperPtr, SigninRequestWrapperPtr])(this.client, reqptr);
-        const result = koffi.decode(response,SigninResponseWrapper);
-
-        // const result = JSON.parse(JSON.stringify(response.deref()));
-        // this.lib.free_signin_response(response);
+        const response = this.lib.signin(this.client, req.ref());
+        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.lib.free_signin_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -339,7 +683,7 @@ class Client {
             });
 
             this.log('Node.js: create callback');
-            const callback = koffi.proto('void(SigninResponseWrapper*)', (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(SigninResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: signin_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -352,7 +696,7 @@ class Client {
             });
 
             this.log('Node.js: call signin_async');
-            this.lib.func('void signin_async(void* client, SigninRequestWrapper* req, void (*callback)(SigninResponseWrapper*))')(this.client, req.ref(), callback, (err) => {
+            this.lib.signin_async.async(this.client, req.ref(), callback, (err) => {
                 if (err) {
                     reject(new ClientError(err));
                 }
@@ -399,7 +743,7 @@ class Client {
             });
             this.log('Node.js: create callback');
             this.refs.push(req);
-            const callback = ffi.Callback('void', [koffi.pointer(QueryResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(QueryResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: query_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -456,7 +800,7 @@ class Client {
                 explain: explain
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(AggregateResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(AggregateResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: aggregate_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -504,7 +848,7 @@ class Client {
                 explain: explain
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(CountResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(CountResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: count_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -636,7 +980,7 @@ class Client {
                 j: j
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertOneResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(InsertOneResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: insert_one_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -686,7 +1030,7 @@ class Client {
                 skipresults: skipresults
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertManyResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(InsertManyResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: insert_many_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -734,7 +1078,7 @@ class Client {
                 j: j
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(UpdateOneResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(UpdateOneResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: update_one_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -784,7 +1128,7 @@ class Client {
                 j: j
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertOrUpdateOneResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(InsertOrUpdateOneResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: insert_or_update_one_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -830,7 +1174,7 @@ class Client {
                 recursive: recursive
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DeleteOneResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(DeleteOneResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: delete_one_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -880,7 +1224,7 @@ class Client {
                 recursive: recursive
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DeleteManyResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(DeleteManyResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: delete_many_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -928,7 +1272,7 @@ class Client {
                 filename: ref.allocCString(filename)
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DownloadResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(DownloadResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: download_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -978,7 +1322,7 @@ class Client {
                 collectionname: ref.allocCString(collectionname)
             });
             this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(UploadResponseWrapper)], (responsePtr) => {
+            const callback = ffi.Callback('void', [ref.refType(UploadResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: upload_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
@@ -1063,7 +1407,7 @@ class Client {
             });
 
             this.log('Node.js: create callback');
-            const callbackPtr = ffi.Callback('void', [koffi.pointer(WatchResponseWrapper)], (responsePtr) => {
+            const callbackPtr = ffi.Callback('void', [ref.refType(WatchResponseWrapper)], (responsePtr) => {
                 this.log('Node.js: watch_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {

@@ -11,7 +11,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
 use tokio::runtime::Runtime;
-use tracing::{ debug, trace};
+use tracing::{ debug, info, trace};
 
 use lazy_static::lazy_static;
 lazy_static! {
@@ -253,7 +253,7 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
     let rust_log = rust_log.to_string();
     let mut filter = EnvFilter::from_default_env();
     if !rust_log.is_empty() {
-        filter = EnvFilter::new(rust_log);
+        filter = EnvFilter::new(rust_log.clone());
     }
 
     let mut subscriber = fmt::layer();
@@ -286,6 +286,7 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
             eprintln!("Tracing failed: {:?}", e);
         }
     }
+    info!("enable_tracing rust_log: {:?}, tracing: {:?}", rust_log, tracing);
 
     // .expect("setting global default subscriber failed");
     // EnvFilter::builder()
@@ -327,25 +328,34 @@ pub extern "C" fn disable_tracing() {
 pub extern "C" fn connect(server_address: *const c_char) -> *mut ClientWrapper {
     let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap() };
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
+    info!("server_address = {:?}", server_address);
+    info!("connect::begin");
     let client = runtime.block_on(Client::connect(server_address));
+    info!("connect::complete");
     if client.is_err() == true {
         let e = client.err().unwrap();
+        info!("error_msg = {:?}", format!("Connaction failed: {:?}", e));
         let error_msg = CString::new(format!("Connaction failed: {:?}", e))
             .unwrap()
             .into_raw();
-        return Box::into_raw(Box::new(ClientWrapper {
+        
+        let result = Box::into_raw(Box::new(ClientWrapper {
             client: None,
             runtime,
             success: false,
             error: error_msg,
         }));
+        info!("connect::complete error result address: {:?}", result);
+        return result;
     }
-    Box::into_raw(Box::new(ClientWrapper {
+    let result = Box::into_raw(Box::new(ClientWrapper {
         client: Some(client.unwrap()),
         runtime,
         success: true,
         error: std::ptr::null(),
-    }))
+    }));
+    info!("connect::complete result address: {:?}", result);
+    result
 }
 
 type ConnectCallback = extern "C" fn(wrapper: *mut ClientWrapper);

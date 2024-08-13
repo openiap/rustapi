@@ -1,17 +1,17 @@
-const { Client, ClientError } = require('./main');
+const { Client, ClientError } = require('./lib');
 const fs = require('fs');
 (async () => {
     try {
-        const url = 'http://localhost:50051';
+        // const url = 'http://localhost:50051';
         // const url = 'http://grpc.localhost.openiap.io/';
         // const url = 'https://grpc.localhost.openiap.io/';
         // const url = 'https://grpc.demo.openiap.io/';
         // const url = 'https://grpc.app.openiap.io/';
-        // const url = '';
+        const url = '';
         const client = new Client();
         // client.enable_tracing("openiap=debug", "close");
-        client.enable_tracing("openiap=debug", "new");
-        client.enable_tracing("openiap=info", "");
+        client.enable_tracing("openiap=trace", "new");
+        // client.enable_tracing("openiap=info", "");
 
         // setInterval(() => {
         //     console.log("NodeJS: Event loop is running");
@@ -26,7 +26,7 @@ const fs = require('fs');
         //     await new Promise(resolve => setTimeout(resolve, 1000));
         // }
         // await client.connect_async(url);
-        client.connect(url);
+        await client.connect(url);
         client.log("NodeJS:: connect completed, now call signin() again")
         // const signin_result2 = await client.signin_async();
         // if(signin_result2.success) {
