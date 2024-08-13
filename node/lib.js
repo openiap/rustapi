@@ -16,14 +16,6 @@ function encodeStruct(value, type) {
 }
 // const CStringArray = ArrayType(CString);
 
-// // Define the ClientWrapper struct
-// const ClientWrapper = koffi.struct('ClientWrapper', {
-//     success: bool,
-//     error: CString,
-//     client: voidPtr,
-//     runtime: voidPtr
-// });
-// const ClientWrapperPtr = koffi.pointer(ClientWrapper);
 const ClientWrapper = koffi.struct('ClientWrapper', {
     success: 'bool',
     error: 'char*'
@@ -186,6 +178,8 @@ class ClientError extends Error {
     }
 }
 
+var ref;
+
 class LibraryLoadError extends ClientError {
     constructor(message) {
         super(message);
@@ -236,41 +230,178 @@ class Client {
         // const connect = this.lib.func('ClientWrapper *connect(const char *server_address)');
         // const connect = this.lib.func('connect', 'ClientWrapper', ['str']);
 
-        const connect = this.lib.func('connect2', koffi.pointer(ClientWrapper), ['str']);
-        const clientWrapperPtr = connect(url);
-        if (clientWrapperPtr === 0) {
+        const connect = this.lib.func('connect2', ClientWrapperPtr, ['str']);
+        const _clientWrapperPtr = connect(url);
+        if (_clientWrapperPtr === 0) {
             throw new Error('Received a null pointer from Rust function');
         }
-        const clientWrapper = koffi.decode(clientWrapperPtr,ClientWrapper);
+        const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
 
         this.connected = true;
-        this.client = clientWrapperPtr;
+        this.client = _clientWrapperPtr;
         return clientWrapper;
     }
+    // createPromise() {
+    //     let resolvePromise, pending = true;
+    //     const promise = new Promise(async (resolve) => {
+    //         console.log("createPromise::promise");
+    //         resolvePromise = resolve;
+    //         while(pending) {
+    //             await new Promise((resolve, reject) => { setTimeout(resolve, 200); });
+    //         }
+    //         console.log("createPromise::exit, no longer pending");
+    //     });
+    //     return { promise, resolve: (value)=> {
+    //         pending = false;
+    //         resolvePromise(value)
+    //     }
+    //      };
+    // }
+    // async test_add() {
+    //     let { promise, resolve } = this.createPromise();
+    //     console.log("test_add::begin");
+    //     const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
+    //     // Sync
+    //     const add = this.lib.func('add', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+    //     // Async
+    //     const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+    //     function callback(value) {
+    //         console.log("callback with value", value);
+    //         if(value==4) {
+    //             resolve();
+    //         }
+    //     }
+    //     const cb = koffi.register(callback, koffi.pointer(TransferCallback));
+    //     console.log("call::add");
+    //     add(1, 2, cb)
+    //     console.log("call::addAsync");
+    //     addAsync(2, 2, cb)
+    //     console.log("test_add::await promise");
+    //     await promise;
+    //     console.log("test_add::done");
+    // }
+
+    test_add() {
+        return new Promise(async (resolve, reject) => {
+            console.log("test_add::begin");
+            const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
+            const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+            function callback(value) {
+                console.log("callback with value", value);
+                resolve();
+            }
+            const cb = koffi.register(callback, koffi.pointer(TransferCallback));
+            addAsync.async(2, 2, cb, (err, res) => {
+                console.log(err, res); // why is this not called?
+            });
+        });
+    }
+    test_add2() {
+        return new Promise(async (resolve, reject) => {
+            console.log("test_add::begin");
+            const TransferCallback = koffi.proto('TransferCallback2', 'void', ['int']);
+            const addAsync = this.lib.func('add_async2', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+            function callback(value) {
+                console.log("callback with value", value);
+                resolve();
+            }
+            const cb = koffi.register(callback, koffi.pointer(TransferCallback));
+            addAsync.async(2, 2, cb, (err, res) => {
+                console.log(err, res); // why is this not called?
+            });
+        });
+    }
+    // test_add() {
+    //     return new Promise(async (resolve, reject) => {
+    //         console.log("test_add::begin");
+    //         const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
+    //         // Sync
+    //         const add = this.lib.func('add', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+    //         // Async
+    //         const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
+    //         function callback(value) {
+    //             console.log("callback with value", value);
+    //             if(value==4) {
+    //                 resolve();
+    //             }
+    //         }
+    //         const cb = koffi.register(callback, koffi.pointer(TransferCallback));
+    //         console.log("call::add");
+    //         add(1, 2, cb)
+    //         console.log("call::addAsync");
+    //         addAsync(2, 2, cb)
+    //         console.log("test_add::sleep");
+    //         // await new Promise((resolve, reject) => { setTimeout(resolve, 2000); }); // wait longer than the async callback ( so more than 1 second )
+    //         console.log("test_add::done");
+    //     });
+    // }
 
     connect_async(url) {
         this.connected = false;
         return new Promise((resolve, reject) => {
             try {
-                const callback = koffi.proto('void(ClientWrapper*)', [ClientWrapperPtr], (clientPtr) => {
-                    this.log('Node.js: Callback invoked');
-                    try {
-                        this.client = clientPtr;
-                        const clientres = clientPtr.deref();
-                        this.log('Node.js: Client result');
-                        if (!clientres.success) {
-                            reject(new ClientCreationError(clientres.error));
-                        } else {
-                            this.connected = true;
-                            resolve(clientPtr);
-                        }
-                    } catch (error) {
-                        reject(new ClientCreationError(error.message));
-                    }
-                });
-                this.log('Node.js: Calling connect_async');
-                this.lib.func('void connect_async(const char* url, void (*callback)(ClientWrapper*))')(url, callback);
-                this.log('Node.js: connect_async called');
+
+                // // const connect_cb = koffi.proto('connect_cb', 'void', [ClientWrapperPtr]);
+                // const connect_cb = koffi.proto('void connectcb(ClientWrapper*)');
+                // const connect_async = this.lib.func('connect_async', 'void', ['str', koffi.pointer(connect_cb)]);
+
+                // const callback = (_ClientWrapperPtr) => {
+                //     this.log('Node.js: Callback invoked');
+                //     try {
+                //         if (_clientWrapperPtr === 0) {
+                //             throw new Error('Received a null pointer from Rust function');
+                //         }
+                //         const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
+                //         this.client = _clientWrapperPtr;
+                //         if (!clientWrapper.success) {
+                //             reject(new ClientCreationError(clientWrapper.error));
+                //         } else {
+                //             this.connected = true;
+                //             resolve(clientWrapper);
+                //         }
+                //     } catch (error) {
+                //         reject(new ClientCreationError(error.message));
+                //     }
+                // };
+
+                // let cb = koffi.register(callback, koffi.pointer(connect_cb));
+
+                // connect_async(url, cb);
+                
+                // // this.lib.func('void connect_async(const char* url, void (*callback)(ClientWrapper*))')(url, callback);
+                // this.log('Node.js: connect_async called');
+
+                // const ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
+                // // const connect_async = this.lib.func('connect_async', 'void', ['str', koffi.pointer(ConnectCallback)]);
+                // const connect_async = this.lib.func('void connect_async(const char* url, ConnectCallback* callback)');
+
+                // const cb = koffi.register((wrapper) => {
+                //     this.log('Node.js: Callback invoked');
+                //     try {
+                //         if (wrapper === 0) {
+                //             throw new Error('Received a null pointer from Rust function');
+                //         }
+                //         const clientWrapper = koffi.decode(wrapper, ClientWrapper);
+                //         this.client = wrapper;
+                //         if (!clientWrapper.success) {
+                //             reject(new ClientCreationError(clientWrapper.error));
+                //         } else {
+                //             this.connected = true;
+                //             resolve(clientWrapper);
+                //         }
+                //     } catch (error) {
+                //         reject(new ClientCreationError(error.message));
+                //     } 
+                // }, koffi.pointer(ConnectCallback));
+                // connect_async(url, cb);
+
+
+
+                setTimeout(() => {
+                    resolve({ success: true, error: null });
+                }, 10000);
+
+                
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }

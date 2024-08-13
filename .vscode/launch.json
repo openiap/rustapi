@@ -19,6 +19,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
+            "args": ["--trace-warnings"],
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/node/test.js"

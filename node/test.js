@@ -9,6 +9,16 @@ const fs = require('fs');
         // const url = 'https://grpc.app.openiap.io/';
         const url = '';
         const client = new Client();
+
+        let _int = setInterval(() => { console.log("NodeJS: Event loop is running"); }, 1000);
+        console.log("NodeJS:: test_add start.");
+        await client.test_add();
+        console.log("NodeJS:: test_add done.");
+        console.log("NodeJS:: test_add2 start.");
+        await client.test_add2();
+        console.log("NodeJS:: test_add2 done.");
+        clearInterval(_int);
+
         // client.enable_tracing("openiap=debug", "close");
         client.enable_tracing("openiap=trace", "new");
         // client.enable_tracing("openiap=info", "");
@@ -25,8 +35,8 @@ const fs = require('fs');
         // while(true) {
         //     await new Promise(resolve => setTimeout(resolve, 1000));
         // }
-        // await client.connect_async(url);
-        await client.connect(url);
+        await client.connect_async(url);
+        // await client.connect(url);
         client.log("NodeJS:: connect completed, now call signin() again")
         // const signin_result2 = await client.signin_async();
         // if(signin_result2.success) {

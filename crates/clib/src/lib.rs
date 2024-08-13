@@ -3402,3 +3402,43 @@ pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseW
     }
 }
 
+
+pub type TransferCallback = unsafe extern "C" fn(i32);
+
+// Works
+#[no_mangle]
+pub extern fn add(n1: i32, n2: i32, cb: TransferCallback){
+  unsafe { cb(n1 + n2) } 
+}
+
+#[no_mangle]
+pub extern fn add_async(n1: i32, n2: i32, cb: TransferCallback) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        println!("add_async running 1");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        println!("add_async running 2");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        println!("add_async running 3");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        println!("RUST: add_async call callback");
+        unsafe { cb(n1 + n2) } 
+    });
+}
+#[no_mangle]
+pub extern fn add_async2(n1: i32, n2: i32, cb: TransferCallback) {
+  let (tx, rx) = std::sync::mpsc::channel();
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    println!("add_async2 running 1");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    println!("add_async2 running 2");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    println!("add_async2 running 3");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    tx.send(n1 + n2)
+  });
+  let sum = rx.recv().unwrap();
+  println!("RUST: add_async2 call callback");
+  unsafe { cb(sum) } 
+}
