@@ -241,46 +241,6 @@ class Client {
         this.client = _clientWrapperPtr;
         return clientWrapper;
     }
-    // createPromise() {
-    //     let resolvePromise, pending = true;
-    //     const promise = new Promise(async (resolve) => {
-    //         console.log("createPromise::promise");
-    //         resolvePromise = resolve;
-    //         while(pending) {
-    //             await new Promise((resolve, reject) => { setTimeout(resolve, 200); });
-    //         }
-    //         console.log("createPromise::exit, no longer pending");
-    //     });
-    //     return { promise, resolve: (value)=> {
-    //         pending = false;
-    //         resolvePromise(value)
-    //     }
-    //      };
-    // }
-    // async test_add() {
-    //     let { promise, resolve } = this.createPromise();
-    //     console.log("test_add::begin");
-    //     const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
-    //     // Sync
-    //     const add = this.lib.func('add', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-    //     // Async
-    //     const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-    //     function callback(value) {
-    //         console.log("callback with value", value);
-    //         if(value==4) {
-    //             resolve();
-    //         }
-    //     }
-    //     const cb = koffi.register(callback, koffi.pointer(TransferCallback));
-    //     console.log("call::add");
-    //     add(1, 2, cb)
-    //     console.log("call::addAsync");
-    //     addAsync(2, 2, cb)
-    //     console.log("test_add::await promise");
-    //     await promise;
-    //     console.log("test_add::done");
-    // }
-
     test_add() {
         return new Promise(async (resolve, reject) => {
             console.log("test_add::begin");
@@ -311,30 +271,6 @@ class Client {
             });
         });
     }
-    // test_add() {
-    //     return new Promise(async (resolve, reject) => {
-    //         console.log("test_add::begin");
-    //         const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
-    //         // Sync
-    //         const add = this.lib.func('add', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-    //         // Async
-    //         const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-    //         function callback(value) {
-    //             console.log("callback with value", value);
-    //             if(value==4) {
-    //                 resolve();
-    //             }
-    //         }
-    //         const cb = koffi.register(callback, koffi.pointer(TransferCallback));
-    //         console.log("call::add");
-    //         add(1, 2, cb)
-    //         console.log("call::addAsync");
-    //         addAsync(2, 2, cb)
-    //         console.log("test_add::sleep");
-    //         // await new Promise((resolve, reject) => { setTimeout(resolve, 2000); }); // wait longer than the async callback ( so more than 1 second )
-    //         console.log("test_add::done");
-    //     });
-    // }
 
     connect_async(url) {
         this.connected = false;

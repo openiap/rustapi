@@ -1,6 +1,9 @@
 const { Client, ClientError } = require('./lib');
 const fs = require('fs');
 (async () => {
+    let _int = setInterval(() => { 
+        // console.log("NodeJS: Event loop is running"); 
+    }, 200);
     try {
         // const url = 'http://localhost:50051';
         // const url = 'http://grpc.localhost.openiap.io/';
@@ -10,14 +13,12 @@ const fs = require('fs');
         const url = '';
         const client = new Client();
 
-        let _int = setInterval(() => { console.log("NodeJS: Event loop is running"); }, 1000);
         console.log("NodeJS:: test_add start.");
         await client.test_add();
         console.log("NodeJS:: test_add done.");
         console.log("NodeJS:: test_add2 start.");
         await client.test_add2();
         console.log("NodeJS:: test_add2 done.");
-        clearInterval(_int);
 
         // client.enable_tracing("openiap=debug", "close");
         client.enable_tracing("openiap=trace", "new");
@@ -201,5 +202,7 @@ const fs = require('fs');
         } else {
             console.error(`An unexpected error occurred: ${error}`);
         }
+    } finally {
+        clearInterval(_int);
     }
 })();
