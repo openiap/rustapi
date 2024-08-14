@@ -325,7 +325,7 @@ pub extern "C" fn disable_tracing() {
 }
 
 #[no_mangle]
-pub extern "C" fn connect2(server_address: *const c_char) -> *mut ClientWrapper {
+pub extern "C" fn connect(server_address: *const c_char) -> *mut ClientWrapper {
     let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap() };
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
     info!("server_address = {:?}", server_address);
@@ -3229,6 +3229,107 @@ pub extern "C" fn push_workitem(
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
+pub extern "C" fn push_workitem_async( 
+    client: *mut ClientWrapper,
+    options: *mut PushWorkitemRequestWrapper,
+    callback: extern "C" fn(*mut PushWorkitemResponseWrapper),
+) {
+    let options = unsafe { &*options };
+    let client_wrapper = unsafe { &mut *client };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let files_len = options.files_len;
+    debug!("files_len: {:?}", files_len);
+    let mut files: Vec<WorkitemFile> = vec![];
+    if files_len > 0 {
+        debug!("get files of options");
+        let _files = unsafe { &*options.files };
+        debug!("slice files");
+        let _files = unsafe { std::slice::from_raw_parts(_files, files_len) };
+        debug!("loop files");
+        files = _files.iter().map(|f| {
+            debug!("process a file");
+            let file = unsafe { &**f };
+            debug!("create WorkitemFile instance 2");
+            let filename = unsafe { CStr::from_ptr(file.filename).to_str().unwrap() }.to_string();
+            debug!("filename: {:?}", filename);
+            let id = unsafe { CStr::from_ptr(file.id).to_str().unwrap() }.to_string();
+            debug!("id: {:?}", id);
+            let compressed = file.compressed;
+            debug!("compressed: {:?}", compressed); 
+            WorkitemFile {
+                filename: unsafe { CStr::from_ptr(file.filename).to_str().unwrap() }.to_string(),
+                id: unsafe { CStr::from_ptr(file.id).to_str().unwrap() }.to_string(),
+                compressed: file.compressed,
+                ..Default::default()
+                // file: file.file.clone(),
+            }
+        }).collect();
+    }
+    trace!("nextrun: {:?}", options.nextrun);
+    // convert options.nextrun to std::time::SystemTime
+    let mut nextrun = Some(Timestamp::from(
+        std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(options.nextrun as u64)
+    ));
+    trace!("nextrun: {:?}", nextrun);
+    if options.nextrun  <= 0 {
+        nextrun = None;
+    }
+    let request = PushWorkitemRequest {
+        wiq: unsafe { CStr::from_ptr(options.wiq).to_str().unwrap() }.to_string(),
+        wiqid: unsafe { CStr::from_ptr(options.wiqid).to_str().unwrap() }.to_string(),
+        name: unsafe { CStr::from_ptr(options.name).to_str().unwrap() }.to_string(),
+        payload: unsafe { CStr::from_ptr(options.payload).to_str().unwrap() }.to_string(),
+        nextrun: nextrun,
+        success_wiqid: unsafe { CStr::from_ptr(options.success_wiqid).to_str().unwrap() }.to_string(),
+        failed_wiqid: unsafe { CStr::from_ptr(options.failed_wiqid).to_str().unwrap() }.to_string(),
+        success_wiq: unsafe { CStr::from_ptr(options.success_wiq).to_str().unwrap() }.to_string(),
+        failed_wiq: unsafe { CStr::from_ptr(options.failed_wiq).to_str().unwrap() }.to_string(),
+        priority: options.priority,
+        files: files,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = PushWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    
+    runtime.spawn(async move {
+        let result = client
+            .as_ref()
+            .unwrap()
+            .push_workitem(request)
+            .await;
+        let response = match result {
+            Ok(_) => {
+                let response = PushWorkitemResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                };
+                Box::into_raw(Box::new(response))
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Push workitem failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                let response = PushWorkitemResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                };
+                Box::into_raw(Box::new(response))
+            }
+        };
+        callback(response);
+    });
+
+
+}
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
 pub extern "C" fn free_push_workitem_response(response: *mut PushWorkitemResponseWrapper) {
     if response.is_null() {
         return;
@@ -3326,7 +3427,7 @@ pub extern "C" fn pop_workitem (
                         }));
                         files.push(file);
                     }
-                    println!("files: {:?} at {:?}", files.len(), files);
+                    trace!("files: {:?} at {:?}", files.len(), files);
                     // let files = workitem.files.iter().map(|f| {
                     //     let filename = CString::new(f.filename.clone()).unwrap().into_raw();
                     //     let id = CString::new(f.id.clone()).unwrap().into_raw();
@@ -3391,6 +3492,7 @@ pub extern "C" fn pop_workitem (
     debug!("completed, return response");
     response
 }
+
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseWrapper) {

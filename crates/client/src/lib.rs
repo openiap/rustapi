@@ -1204,6 +1204,7 @@ impl Client {
             return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
         }
         for f in &mut config.files {
+            println!("File len: {:?}", f.file.len());
             if f.filename.is_empty() && f.file.is_empty() {
                 debug!("Filename is empty");
             } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
@@ -1291,10 +1292,15 @@ impl Client {
                                     collectionname: "fs.files".to_string(),
                                     ..Default::default()
                                 };
-                                let downloadresult = self
-                                    .download(downloadconfig, downloadfolder, None)
-                                    .await
-                                    .unwrap();
+                                let downloadresult = match self
+                                .download(downloadconfig, downloadfolder, None)
+                                .await {
+                                    Ok(r) => r,
+                                    Err(e) => {
+                                        debug!("Failed to download file: {}", e);
+                                        continue;
+                                    }
+                                };                                    
                                 debug!("File {} was downloaded as {}", f.filename, downloadresult.filename);
                             }
                         }

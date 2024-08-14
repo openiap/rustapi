@@ -1,6 +1,7 @@
 const koffi = require('koffi');
 const path = require('path');
 const fs = require('fs');
+const { log } = require('console');
 
 const CString = 'char*';
 const voidPtr = koffi.pointer('void');
@@ -22,7 +23,6 @@ const ClientWrapper = koffi.struct('ClientWrapper', {
 });
 const ClientWrapperPtr = koffi.pointer(ClientWrapper);
 
-// Define the SigninRequestWrapper struct
 const SigninRequestWrapper = koffi.struct('SigninRequestWrapper', {
     username: CString,
     password: CString,
@@ -34,8 +34,6 @@ const SigninRequestWrapper = koffi.struct('SigninRequestWrapper', {
     ping: bool,
 });
 const SigninRequestWrapperPtr = koffi.pointer(SigninRequestWrapper);
-
-// Define the SigninResponseWrapper struct
 const SigninResponseWrapper = koffi.struct('SigninResponseWrapper', {
     success: bool,
     jwt: CString,
@@ -43,7 +41,6 @@ const SigninResponseWrapper = koffi.struct('SigninResponseWrapper', {
 });
 const SigninResponseWrapperPtr = koffi.pointer(SigninResponseWrapper);
 
-// Define the SigninRequestWrapper struct
 const QueryRequestWrapper = koffi.struct('QueryRequestWrapper', {
     collectionname: CString,
     query: CString,
@@ -55,14 +52,244 @@ const QueryRequestWrapper = koffi.struct('QueryRequestWrapper', {
     top: int,
 });
 const QueryRequestWrapperPtr = koffi.pointer(QueryRequestWrapper);
-
-// Define the SigninResponseWrapper struct
 const QueryResponseWrapper = koffi.struct('QueryResponseWrapper', {
     success: bool,
     results: CString,
     error: CString
 });
 const QueryResponseWrapperPtr = koffi.pointer(QueryResponseWrapper);
+
+const AggregateRequestWrapper = koffi.struct('AggregateRequestWrapper',{
+    collectionname: CString,
+    aggregates: CString,
+    queryas: CString,
+    hint: CString,
+    explain: bool,
+});
+const AggregateRequestWrapperPtr = koffi.pointer(AggregateRequestWrapper);
+const AggregateResponseWrapper = koffi.struct('AggregateResponseWrapper', {
+    success: bool,
+    results: CString,
+    error: CString
+});
+const AggregateResponseWrapperPtr = koffi.pointer(AggregateResponseWrapper);
+
+const CountRequestWrapper = koffi.struct('CountRequestWrapper', {
+    collectionname: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const CountRequestWrapperPtr = koffi.pointer(CountRequestWrapper);
+const CountResponseWrapper = koffi.struct('CountResponseWrapper', {
+    success: bool,
+    result: int,
+    error: CString
+});
+const CountResponseWrapperPtr = koffi.pointer(CountResponseWrapper);
+
+const DistinctRequestWrapper = koffi.struct('DistinctRequestWrapper', {
+    collectionname: CString,
+    field: CString,
+    query: CString,
+    queryas: CString,
+    explain: bool,
+});
+const DistinctRequestWrapperPtr = koffi.pointer(DistinctRequestWrapper);
+const DistinctResponseWrapper = koffi.struct('DistinctResponseWrapper', {
+    success: bool,
+    results: 'char **',
+    results_count: size_t,
+    error: CString
+});
+const DistinctResponseWrapperPtr = koffi.pointer(DistinctResponseWrapper);
+
+const InsertOneRequestWrapper = koffi.struct('InsertOneRequestWrapper', {
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOneRequestWrapperPtr = koffi.pointer(InsertOneRequestWrapper);
+const InsertOneResponseWrapper = koffi.struct('InsertOneResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertOneResponseWrapperPtr = koffi.pointer(InsertOneResponseWrapper);
+
+const InsertManyRequestWrapper = koffi.struct('InsertManyRequestWrapper', {
+    collectionname: CString,
+    items: CString,
+    w: int,
+    j: bool,
+    skipresults: bool,
+});
+const InsertManyRequestWrapperPtr = koffi.pointer(InsertManyRequestWrapper);
+const InsertManyResponseWrapper = koffi.struct('InsertManyResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertManyResponseWrapperPtr = koffi.pointer(InsertManyResponseWrapper);
+
+const UpdateOneRequestWrapper = koffi.struct('UpdateOneRequestWrapper', {
+    collectionname: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const UpdateOneRequestWrapperPtr = koffi.pointer(UpdateOneRequestWrapper);
+const UpdateOneResponseWrapper = koffi.struct('UpdateOneResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString
+});
+const UpdateOneResponseWrapperPtr = koffi.pointer(UpdateOneResponseWrapper);
+
+const InsertOrUpdateOneRequestWrapper = koffi.struct('InsertOrUpdateOneRequestWrapper', {
+    collectionname: CString,
+    uniqeness: CString,
+    item: CString,
+    w: int,
+    j: bool,
+});
+const InsertOrUpdateOneRequestWrapperPtr = koffi.pointer(InsertOrUpdateOneRequestWrapper);
+const InsertOrUpdateOneResponseWrapper = koffi.struct('InsertOrUpdateOneResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString
+});
+const InsertOrUpdateOneResponseWrapperPtr = koffi.pointer(InsertOrUpdateOneResponseWrapper);
+
+const DeleteOneRequestWrapper = koffi.struct('DeleteOneRequestWrapper', {
+    collectionname: CString,
+    id: CString,
+    recursive: bool,
+});
+const DeleteOneRequestWrapperPtr = koffi.pointer(DeleteOneRequestWrapper);
+const DeleteOneResponseWrapper = koffi.struct('DeleteOneResponseWrapper', {
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteOneResponseWrapperPtr = koffi.pointer(DeleteOneResponseWrapper);
+
+const DeleteManyRequestWrapper = koffi.struct('DeleteManyRequestWrapper', {
+    collectionname: CString,
+    query: CString,
+    recursive: bool,
+    ids: 'char **',
+});
+const DeleteManyRequestWrapperPtr = koffi.pointer(DeleteManyRequestWrapper);
+const DeleteManyResponseWrapper = koffi.struct('DeleteManyResponseWrapper', {
+    success: bool,
+    affectedrows: int,
+    error: CString
+});
+const DeleteManyResponseWrapperPtr = koffi.pointer(DeleteManyResponseWrapper);
+
+const DownloadRequestWrapper = koffi.struct('DownloadRequestWrapper', {
+    collectionname: CString,
+    id: CString,
+    folder: CString,
+    filename: CString
+});
+const DownloadRequestWrapperPtr = koffi.pointer(DownloadRequestWrapper);
+const DownloadResponseWrapper = koffi.struct('DownloadResponseWrapper', {
+    success: bool,
+    filename: CString,
+    error: CString
+});
+const DownloadResponseWrapperPtr = koffi.pointer(DownloadResponseWrapper);
+
+const UploadRequestWrapper = koffi.struct('UploadRequestWrapper', {
+    filepath: CString,
+    filename: CString,
+    mimetype: CString,
+    metadata: CString,
+    collectionname: CString
+});
+const UploadRequestWrapperPtr = koffi.pointer(UploadRequestWrapper);
+const UploadResponseWrapper = koffi.struct('UploadResponseWrapper', {
+    success: bool,
+    id: CString,
+    error: CString
+});
+const UploadResponseWrapperPtr = koffi.pointer(UploadResponseWrapper);
+
+const WorkitemFileWrapper = koffi.struct('WorkitemFileWrapper', {
+    filename: CString,
+    id: CString,
+    compressed: bool,
+    // Uint8Array
+    file: 'uint8_t *',
+    // file: 'uint8_t *', 
+    // file: koffi.array(koffi.types.uint8_t, koffi.sizeof(koffi.types.uintptr_t))
+    // file: 'uint8 ***',
+    // file: ArrayType(ref.types.uint8) // This represents Vec<u8> in Rust
+});
+const WorkitemFileWrapperPtr = koffi.pointer(WorkitemFileWrapper);
+// const WorkitemFileWrapperPtrArray = ArrayType(WorkitemFileWrapperPtr);
+
+const WorkitemWrapper = koffi.struct('WorkitemWrapper', {
+    id: CString,
+    name: CString,
+    payload: CString,
+    priority: int,
+    nextrun: uint64,
+    lastrun: uint64,
+    /// files: koffi.pointer(WorkitemFileWrapperPtrArray),
+    // files: WorkitemFileWrapperPtrArray,
+    files: 'WorkitemFileWrapper **',
+    files_len: int,
+    state: CString,
+    wiq: CString,
+    wiqid: CString,
+    retries: int,
+    username: CString,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    errormessage: CString,
+    errorsource: CString,
+    errortype: CString
+});
+const WorkitemWrapperPtr = koffi.pointer(WorkitemWrapper);
+const PushWorkitemRequestWrapper = koffi.struct('PushWorkitemRequestWrapper', {
+    wiq: CString,
+    wiqid: CString,
+    name: CString,
+    payload: CString,
+    nextrun: uint64,
+    success_wiqid: CString,
+    failed_wiqid: CString,
+    success_wiq: CString,
+    failed_wiq: CString,
+    priority: int,
+    files: 'WorkitemFileWrapper ***',
+    files_len: int,
+});
+const PushWorkitemRequestWrapperPtr = koffi.pointer(PushWorkitemRequestWrapper);
+const PushWorkitemResponseWrapper = koffi.struct('PushWorkitemResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const PushWorkitemResponseWrapperPtr = koffi.pointer(PushWorkitemResponseWrapper);
+
+const PopWorkitemRequestWrapper = koffi.struct('PopWorkitemRequestWrapper', {
+    wiq: CString,
+    wiqid: CString,
+});
+const PopWorkitemRequestWrapperPtr = koffi.pointer(PopWorkitemRequestWrapper);
+const PopWorkitemResponseWrapper = koffi.struct('PopWorkitemResponseWrapper', {
+    success: bool,
+    error: CString,
+    workitem: WorkitemWrapperPtr
+});
+const PopWorkitemResponseWrapperPtr = koffi.pointer(PopWorkitemResponseWrapper);
+
 
 function isMusl() {
     // For Node 10
@@ -164,7 +391,81 @@ function loadLibrary() {
     console.log(`Using library: ${libPath}`);
 
     try {
-        return koffi.load(libPath)
+        const lib = koffi.load(libPath);
+
+        lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
+        lib.disable_tracing = lib.func('void disable_tracing()');
+        lib.connect = lib.func('connect', ClientWrapperPtr, ['str']);
+        lib.ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
+        lib.connect_async = lib.func('connect_async', 'void', ['str', koffi.pointer(lib.ConnectCallback)]);
+        lib.free_client = lib.func('void free_client(ClientWrapper*)');
+        lib.signin = lib.func('signin', SigninResponseWrapperPtr, [ClientWrapperPtr, SigninRequestWrapperPtr]);
+        lib.signinCallback = koffi.proto('void signinCallback(SigninResponseWrapper*)');
+        lib.signin_async = lib.func('signin_async', 'void', [ClientWrapperPtr, SigninRequestWrapperPtr, koffi.pointer(lib.signinCallback)]);
+        lib.free_signin_response = lib.func('free_signin_response', 'void', [SigninResponseWrapperPtr]);
+        lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
+        lib.queryCallback = koffi.proto('void queryCallback(QueryResponseWrapper*)');
+        lib.query_async = lib.func('query_async', 'void', [ClientWrapperPtr, QueryRequestWrapperPtr, koffi.pointer(lib.queryCallback)]);
+        lib.free_query_response = lib.func('free_query_response', 'void', [QueryResponseWrapperPtr]);
+        lib.count = lib.func('count', CountResponseWrapperPtr, [ClientWrapperPtr, CountRequestWrapperPtr]);
+        lib.countCallback = koffi.proto('void countCallback(CountResponseWrapper*)');
+        lib.count_async = lib.func('count_async', 'void', [ClientWrapperPtr, CountRequestWrapperPtr, koffi.pointer(lib.countCallback)]);
+        lib.free_count_response = lib.func('free_count_response', 'void', [CountResponseWrapperPtr]);
+        lib.distinct = lib.func('distinct', DistinctResponseWrapperPtr, [ClientWrapperPtr, DistinctRequestWrapperPtr]);
+        lib.distinctCallback = koffi.proto('void distinctCallback(DistinctResponseWrapper*)');
+        lib.distinct_async = lib.func('distinct_async', 'void', [ClientWrapperPtr, DistinctRequestWrapperPtr, koffi.pointer(lib.distinctCallback)]);
+        lib.free_distinct_response = lib.func('free_distinct_response', 'void', [DistinctResponseWrapperPtr]);
+        lib.aggregate = lib.func('aggregate', AggregateResponseWrapperPtr, [ClientWrapperPtr, AggregateRequestWrapperPtr]);
+        lib.aggregateCallback = koffi.proto('void aggregateCallback(AggregateResponseWrapper*)');
+        lib.aggregate_async = lib.func('aggregate_async', 'void', [ClientWrapperPtr, AggregateRequestWrapperPtr, koffi.pointer(lib.aggregateCallback)]);
+        lib.free_aggregate_response = lib.func('free_aggregate_response', 'void', [AggregateResponseWrapperPtr]);
+        lib.insert_one = lib.func('insert_one', InsertOneResponseWrapperPtr, [ClientWrapperPtr, InsertOneRequestWrapperPtr]);
+        lib.insert_oneCallback = koffi.proto('void insert_oneCallback(InsertOneResponseWrapper*)');
+        lib.insert_one_async = lib.func('insert_one_async', 'void', [ClientWrapperPtr, InsertOneRequestWrapperPtr, koffi.pointer(lib.insert_oneCallback)]);
+        lib.free_insert_one_response = lib.func('free_insert_one_response', 'void', [InsertOneResponseWrapperPtr]);
+        lib.insert_many = lib.func('insert_many', InsertManyResponseWrapperPtr, [ClientWrapperPtr, InsertManyRequestWrapperPtr]);
+        lib.insert_manyCallback = koffi.proto('void insert_manyCallback(InsertManyResponseWrapper*)');
+        lib.insert_many_async = lib.func('insert_many_async', 'void', [ClientWrapperPtr, InsertManyRequestWrapperPtr, koffi.pointer(lib.insert_manyCallback)]);
+        lib.free_insert_many_response = lib.func('free_insert_many_response', 'void', [InsertManyResponseWrapperPtr]);
+        lib.update_one = lib.func('update_one', UpdateOneResponseWrapperPtr, [ClientWrapperPtr, UpdateOneRequestWrapperPtr]);
+        lib.update_oneCallback = koffi.proto('void update_oneCallback(UpdateOneResponseWrapper*)');
+        lib.update_one_async = lib.func('update_one_async', 'void', [ClientWrapperPtr, UpdateOneRequestWrapperPtr, koffi.pointer(lib.update_oneCallback)]);
+        lib.free_update_one_response = lib.func('free_update_one_response', 'void', [UpdateOneResponseWrapperPtr]);
+        lib.insert_or_update_one = lib.func('insert_or_update_one', InsertOrUpdateOneResponseWrapperPtr, [ClientWrapperPtr, InsertOrUpdateOneRequestWrapperPtr]);
+        lib.insert_or_update_oneCallback = koffi.proto('void insert_or_update_oneCallback(InsertOrUpdateOneResponseWrapper*)');
+        lib.insert_or_update_one_async = lib.func('insert_or_update_one_async', 'void', [ClientWrapperPtr, InsertOrUpdateOneRequestWrapperPtr, koffi.pointer(lib.insert_or_update_oneCallback)]);
+        lib.free_insert_or_update_one_response = lib.func('free_insert_or_update_one_response', 'void', [InsertOrUpdateOneResponseWrapperPtr]);
+
+        lib.delete_one = lib.func('delete_one', DeleteOneResponseWrapperPtr, [ClientWrapperPtr, DeleteOneRequestWrapperPtr]);
+        lib.delete_oneCallback = koffi.proto('void delete_oneCallback(DeleteOneResponseWrapper*)');
+        lib.delete_one_async = lib.func('delete_one_async', 'void', [ClientWrapperPtr, DeleteOneRequestWrapperPtr, koffi.pointer(lib.delete_oneCallback)]);
+        lib.free_delete_one_response = lib.func('free_delete_one_response', 'void', [DeleteOneResponseWrapperPtr]);
+
+        lib.delete_many = lib.func('delete_many', DeleteManyResponseWrapperPtr, [ClientWrapperPtr, DeleteManyRequestWrapperPtr]);
+        lib.delete_manyCallback = koffi.proto('void delete_manyCallback(DeleteManyResponseWrapper*)');
+        lib.delete_many_async = lib.func('delete_many_async', 'void', [ClientWrapperPtr, DeleteManyRequestWrapperPtr, koffi.pointer(lib.delete_manyCallback)]);
+        lib.free_delete_many_response = lib.func('free_delete_many_response', 'void', [DeleteManyResponseWrapperPtr]);
+        
+        lib.download = lib.func('download', DownloadResponseWrapperPtr, [ClientWrapperPtr, DownloadRequestWrapperPtr]);
+        lib.downloadCallback = koffi.proto('void downloadCallback(DownloadResponseWrapper*)');
+        lib.download_async = lib.func('download_async', 'void', [ClientWrapperPtr, DownloadRequestWrapperPtr, koffi.pointer(lib.downloadCallback)]);
+        lib.free_download_response = lib.func('free_download_response', 'void', [DownloadResponseWrapperPtr]);
+        lib.upload = lib.func('upload', UploadResponseWrapperPtr, [ClientWrapperPtr, UploadRequestWrapperPtr]);
+        lib.uploadCallback = koffi.proto('void uploadCallback(UploadResponseWrapper*)');
+        lib.upload_async = lib.func('upload_async', 'void', [ClientWrapperPtr, UploadRequestWrapperPtr, koffi.pointer(lib.uploadCallback)]);
+        lib.free_upload_response = lib.func('free_upload_response', 'void', [UploadResponseWrapperPtr]);
+
+        lib.push_workitem = lib.func('push_workitem', PushWorkitemResponseWrapperPtr, [ClientWrapperPtr, PushWorkitemRequestWrapperPtr]);
+        lib.push_workitemCallback = koffi.proto('void push_workitemCallback(PushWorkitemResponseWrapper*)');
+        lib.push_workitem_async = lib.func('push_workitem_async', 'void', [ClientWrapperPtr, PushWorkitemRequestWrapperPtr, koffi.pointer(lib.push_workitemCallback)]);
+        lib.free_push_workitem_response = lib.func('free_push_workitem_response', 'void', [PushWorkitemResponseWrapperPtr]);
+        lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr]);
+        lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
+        // lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, koffi.pointer(lib.pop_workitemCallback)]);
+        lib.free_pop_workitem_response = lib.func('free_pop_workitem_response', 'void', [PopWorkitemResponseWrapperPtr]);
+
+        
+        return lib;
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
     }
@@ -199,42 +500,49 @@ class Client {
     constructor() {
         this.lib = loadLibrary();
     }
+    tracing = false;
+    informing = true;
+    verbosing = false;
     connected = false;
     free() {
         if (this.client) {
-            // this.lib.free_client(this.client);
-            this.lib.func('void free_client(ClientWrapper*)')(this.client);
+            this.verbose('this.client not null, call free_client');
+            this.lib.free_client(this.client);
+            this.client = null;
         }
         this.connected = false;
+        this.trace('free::end');
     }
 
     enable_tracing(rust_log = '', tracing = '') {
-        // if (rust_log == null || rust_log == '') { rust_log = ''; }
-        // if (tracing == null || tracing == '') { tracing = ''; }
-        // rust_log = ref.allocCString(rust_log);
-        // tracing = ref.allocCString(tracing);
-        this.log('Node.js: enable_tracing invoked', rust_log, tracing);
-        this.lib.func('void enable_tracing(const char* rust_log, const char* tracing)')(rust_log, tracing);
-        this.log('Node.js: enable_tracing called');
+        this.verbose('enable_tracing invoked', rust_log, tracing);
+        this.lib.enable_tracing(rust_log, tracing);
+        this.informing = true;
+        if(rust_log.indexOf('verbose') > -1) this.verbosing = true;
+        if(rust_log.indexOf('trace') > -1) this.tracing = true;
+        this.trace('enable_tracing called');
     }
     disable_tracing() {
-        this.lib.func('void disable_tracing()')();
+        this.lib.disable_tracing();
     }
-    log(...args) {
-        console.log(...args);
+    info(...args) {
+        if(this.informing == true) console.log('Node.js:', ...args);
     }
-
+    verbose(...args) {
+        if(this.verbosing == true) console.log('Node.js:', ...args);
+    }
+    trace(...args) {
+        if(this.tracing == true) console.log('Node.js:', ...args);
+    }
     async connect(url) {
+        this.verbose('connect invoked', url);
         this.connected = false;
-
-        // const connect = this.lib.func('ClientWrapper *connect(const char *server_address)');
-        // const connect = this.lib.func('connect', 'ClientWrapper', ['str']);
-
-        const connect = this.lib.func('connect2', ClientWrapperPtr, ['str']);
-        const _clientWrapperPtr = connect(url);
+        const _clientWrapperPtr = this.lib.connect(url);
         if (_clientWrapperPtr === 0) {
+            this.trace('Received a null pointer from Rust function');
             throw new Error('Received a null pointer from Rust function');
         }
+        this.trace('Callback invoked');
         const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
 
         this.connected = true;
@@ -273,107 +581,56 @@ class Client {
     }
 
     connect_async(url) {
+        this.verbose('connect_async invoked', url);
         this.connected = false;
         return new Promise((resolve, reject) => {
             try {
-
-                // // const connect_cb = koffi.proto('connect_cb', 'void', [ClientWrapperPtr]);
-                // const connect_cb = koffi.proto('void connectcb(ClientWrapper*)');
-                // const connect_async = this.lib.func('connect_async', 'void', ['str', koffi.pointer(connect_cb)]);
-
-                // const callback = (_ClientWrapperPtr) => {
-                //     this.log('Node.js: Callback invoked');
-                //     try {
-                //         if (_clientWrapperPtr === 0) {
-                //             throw new Error('Received a null pointer from Rust function');
-                //         }
-                //         const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
-                //         this.client = _clientWrapperPtr;
-                //         if (!clientWrapper.success) {
-                //             reject(new ClientCreationError(clientWrapper.error));
-                //         } else {
-                //             this.connected = true;
-                //             resolve(clientWrapper);
-                //         }
-                //     } catch (error) {
-                //         reject(new ClientCreationError(error.message));
-                //     }
-                // };
-
-                // let cb = koffi.register(callback, koffi.pointer(connect_cb));
-
-                // connect_async(url, cb);
-                
-                // // this.lib.func('void connect_async(const char* url, void (*callback)(ClientWrapper*))')(url, callback);
-                // this.log('Node.js: connect_async called');
-
-                // const ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
-                // // const connect_async = this.lib.func('connect_async', 'void', ['str', koffi.pointer(ConnectCallback)]);
-                // const connect_async = this.lib.func('void connect_async(const char* url, ConnectCallback* callback)');
-
-                // const cb = koffi.register((wrapper) => {
-                //     this.log('Node.js: Callback invoked');
-                //     try {
-                //         if (wrapper === 0) {
-                //             throw new Error('Received a null pointer from Rust function');
-                //         }
-                //         const clientWrapper = koffi.decode(wrapper, ClientWrapper);
-                //         this.client = wrapper;
-                //         if (!clientWrapper.success) {
-                //             reject(new ClientCreationError(clientWrapper.error));
-                //         } else {
-                //             this.connected = true;
-                //             resolve(clientWrapper);
-                //         }
-                //     } catch (error) {
-                //         reject(new ClientCreationError(error.message));
-                //     } 
-                // }, koffi.pointer(ConnectCallback));
-                // connect_async(url, cb);
-
-
-
-                setTimeout(() => {
-                    resolve({ success: true, error: null });
-                }, 10000);
-
-                
+                const cb = koffi.register((wrapper) => {
+                    this.trace('Callback invoked');
+                    try {
+                        if (wrapper === 0) {
+                            throw new Error('Received a null pointer from Rust function');
+                        }
+                        const clientWrapper = koffi.decode(wrapper, ClientWrapper);
+                        this.client = wrapper;
+                        if (!clientWrapper.success) {
+                            reject(new ClientCreationError(clientWrapper.error));
+                        } else {
+                            this.connected = true;
+                            resolve(clientWrapper);
+                        }
+                    } catch (error) {
+                        reject(new ClientCreationError(error.message));
+                    } 
+                }, koffi.pointer(this.lib.ConnectCallback));
+                this.verbose('call connect_async');
+                this.lib.connect_async(url, cb);                
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }
         });
     }
 
-    signin(username = '', password = '') {
-        this.log('Node.js: signin invoked');
-        let jwt = "";
-        if (username == null) username = '';
-        if (password == null) password = '';
-        if (username != "" && password == "") {
-            jwt = username;
-            username = "";
-        }
-        // const req = new SigninRequestWrapper({
+    signin({ username = '', password = '', jwt = '', agent = '', version = '', longtoken = false, validateonly = false, ping = false } = {}) {
+        this.verbose('signin invoked');
         const req = {
             username: username,
             password: password,
             jwt: jwt,
-            agent: 'node',
-            version: '',
-            longtoken: false,
-            validateonly: false,
-            ping: false
+            agent: agent,
+            version: version,
+            longtoken: longtoken,
+            validateonly: validateonly,
+            ping: ping
         };
-        // const reqptr = koffi.encode(req, SigninRequestWrapper);
         const reqptr = encodeStruct(req, SigninRequestWrapper);
 
-        this.log('Node.js: call signin');
-        // const response = this.lib.func('SigninResponseWrapper* signin(void* client, SigninRequestWrapper* req)')(this.client, reqptr);
-        const response = this.lib.func('signin', koffi.pointer(SigninResponseWrapper), [ClientWrapperPtr, SigninRequestWrapperPtr])(this.client, reqptr);
+        this.trace('call signin');
+        const response = this.lib.signin(this.client, reqptr);
+        this.trace('decode response');
         const result = koffi.decode(response,SigninResponseWrapper);
-
-        // const result = JSON.parse(JSON.stringify(response.deref()));
-        // this.lib.free_signin_response(response);
+        this.trace('free_signin_response');
+        this.lib.free_signin_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
@@ -384,124 +641,123 @@ class Client {
             error: null
         };
     }
-    signin_async(username, password) {
-        this.log('Node.js: signin invoked');
+    signin_async({ username = '', password = '', jwt = '', agent = '', version = '', longtoken = false, validateonly = false, ping = false } = {}) {
+        this.verbose('signin invoked');
         return new Promise((resolve, reject) => {
-            let jwt = "";
-            if (username == null) username = '';
-            if (password == null) password = '';
-            if (username != "" && password == "") {
-                jwt = username;
-                username = "";
-            }
-            const req = new SigninRequestWrapper({
-                username: ref.allocCString(username),
-                password: ref.allocCString(password),
-                jwt: ref.allocCString(jwt),
-                agent: ref.allocCString('node'),
-                version: ref.allocCString(''),
-                longtoken: false,
-                validateonly: false,
-                ping: false
-            });
-
-            this.log('Node.js: create callback');
-            const callback = koffi.proto('void(SigninResponseWrapper*)', (responsePtr) => {
-                this.log('Node.js: signin_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            const req = {
+                username: username,
+                password: password,
+                jwt: jwt,
+                agent: agent,
+                version: version,
+                longtoken: longtoken,
+                validateonly: validateonly,
+                ping: ping
+            };
+            const reqptr = encodeStruct(req, SigninRequestWrapper);
+    
+            this.trace('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('signin_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, SigninResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response);
                 }
+                this.trace('free_signin_response')
                 this.lib.free_signin_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call signin_async');
-            this.lib.func('void signin_async(void* client, SigninRequestWrapper* req, void (*callback)(SigninResponseWrapper*))')(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.signinCallback));
+            this.trace('call signin_async');
+            this.lib.signin_async(this.client, reqptr, cb, (err, res) => {
+                console.log('signin_async error', err, res);
                 if (err) {
-                    reject(new ClientError(err));
+                    reject(new ClientError('Signin failed'));
                 }
             });
         });
     }
 
-    query({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false,  }) {
-        this.log('Node.js: query invoked');
-        const req = new QueryRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            query: ref.allocCString(query),
-            projection: ref.allocCString(projection),
-            orderby: ref.allocCString(orderby),
-            queryas: ref.allocCString(queryas),
+    query({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
+        this.verbose('query invoked');
+        const req = {
+            collectionname: collectionname,
+            query: query,
+            projection: projection,
+            orderby: orderby,
+            queryas: queryas,
             explain: explain,
             skip: skip,
             top: top
-        });
-        this.log('Node.js: create callback');
-        const response = this.lib.query(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
-        this.lib.free_query_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
+        };
+        const reqptr = encodeStruct(req, QueryRequestWrapper);
+        this.trace('call query');
+        const responsePtr = this.lib.query(this.client, reqptr);
+        this.trace('decode response');
+        const response = koffi.decode(responsePtr, QueryResponseWrapper);
+        this.trace('free_query_response');
+        this.lib.free_query_response(responsePtr);
+        if (!response.success) {
+            const errorMsg = response.error;
             throw new ClientError(errorMsg);
         }
-        return JSON.parse(result.results);
+        return JSON.parse(response.results);
     }
 
-    refs = [];
-    query_async({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false,  }) {
-        this.log('Node.js: query invoked');
+    query_async({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
+        this.trace('query_async invoked');
         return new Promise((resolve, reject) => {
-            const req = new QueryRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                query: ref.allocCString(query),
-                projection: ref.allocCString(projection),
-                orderby: ref.allocCString(orderby),
-                queryas: ref.allocCString(queryas),
-                explain: ref.alloc(bool, explain),
-                skip: ref.alloc(int, skip),
-                top: ref.alloc(int, top)
-            });
-            this.log('Node.js: create callback');
-            this.refs.push(req);
-            const callback = ffi.Callback('void', [koffi.pointer(QueryResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: query_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            const req = {            
+                collectionname: collectionname,
+                query: query,
+                projection: projection,
+                orderby: orderby,
+                queryas: queryas,
+                explain: explain,
+                skip: skip,
+                top: top
+            };
+            const reqptr = encodeStruct(req, QueryRequestWrapper);
+            const callback = (responsePtr) => {
+                this.trace('query_async callback');
+                const response = koffi.decode(responsePtr, QueryResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.results));
                 }
+                this.verbose('free_query_response');
                 this.lib.free_query_response(responsePtr);
-            });
+            };
 
-
-            this.log('Node.js: call query_async');
-            this.lib.query_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.queryCallback));
+            this.trace('call query_async');
+            this.lib.query_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Query failed'));
                 }
             });
         });
     }
-    aggregate({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
-        this.log('Node.js: aggregate invoked');
-        if (aggregates == null) aggregates = '[]';
-        if (queryas == null) queryas = '';
-        if (hint == null) hint = '';
-        const req = new AggregateRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            aggregates: ref.allocCString(aggregates),
-            queryas: ref.allocCString(queryas),
-            hint: ref.allocCString(hint),
+    aggregate({ collectionname, aggregates = "[]", queryas = "", hint = "", explain = false }) {
+        this.verbose('aggregate invoked');
+        const req = {
+            collectionname: collectionname,
+            aggregates: aggregates,
+            queryas: queryas,
+            hint: hint,
             explain: explain
-        });
-        this.log('Node.js: create callback');
-        const response = this.lib.aggregate(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, AggregateRequestWrapper);
+        this.verbose('call aggregate');
+        const response = this.lib.aggregate(this.client, reqptr);
+        const result = koffi.decode(response, AggregateResponseWrapper);
+        this.verbose('free_aggregate_response');
         this.lib.free_aggregate_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -510,33 +766,33 @@ class Client {
         return JSON.parse(result.results);
     }
     aggregate_async({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
-        this.log('Node.js: aggregate invoked');
-        if (aggregates == null) aggregates = '[]';
-        if (queryas == null) queryas = '';
-        if (hint == null) hint = '';
+        this.verbose('aggregate invoked');
         return new Promise((resolve, reject) => {
-            const req = new AggregateRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                aggregates: ref.allocCString(aggregates),
-                queryas: ref.allocCString(queryas),
-                hint: ref.allocCString(hint),
+            const req = {
+                collectionname: collectionname,
+                aggregates: aggregates,
+                queryas: queryas,
+                hint: hint,
                 explain: explain
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(AggregateResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: aggregate_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, AggregateRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('aggregate_async callback');
+                const response = koffi.decode(responsePtr, AggregateResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.results));
                 }
+                this.verbose('free_aggregate_response');
                 this.lib.free_aggregate_response(responsePtr);
-            });
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.aggregateCallback));
 
-            this.log('Node.js: call aggregate_async');
-            this.lib.aggregate_async.async(this.client, req.ref(), callback, (err) => {
+            this.verbose('call aggregate_async');
+            this.lib.aggregate_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Aggregate failed'));
                 }
@@ -544,16 +800,19 @@ class Client {
         });
     }
     count({ collectionname, query = "", queryas = "", explain = false}) {
-        this.log('Node.js: count invoked');
-        const req = new CountRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            query: ref.allocCString(query),
-            queryas: ref.allocCString(queryas),
+        this.verbose('count invoked');
+        const req = {
+            collectionname: collectionname,
+            query: query,
+            queryas: queryas,
             explain: explain
-        });
-        this.log('Node.js: call count_async');
-        const response = this.lib.count(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, CountRequestWrapper);
+        this.trace('call count');
+        const response = this.lib.count(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, CountResponseWrapper);
+        this.trace('free_count_response');
         this.lib.free_count_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -562,29 +821,32 @@ class Client {
         return result.result;
     }
     count_async({ collectionname, query = "", queryas = "", explain = false}) {
-        this.log('Node.js: count invoked');
+        this.verbose('count async invoked');
         return new Promise((resolve, reject) => {
-            const req = new CountRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                query: ref.allocCString(query),
-                queryas: ref.allocCString(queryas),
+            const req = {
+                collectionname: collectionname,
+                query: query,
+                queryas: queryas,
                 explain: explain
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(CountResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: count_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, CountRequestWrapper);
+            this.trace('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('count_async callback');
+                const response = koffi.decode(responsePtr, CountResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response.result);
                 }
+                this.trace('free_count_response');
                 this.lib.free_count_response(responsePtr);
-            });
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.countCallback));
 
-            this.log('Node.js: call count_async');
-            this.lib.count_async.async(this.client, req.ref(), callback, (err) => {
+            this.trace('call count_async');
+            this.lib.count_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Count failed'));
                 }
@@ -592,83 +854,71 @@ class Client {
         });
     }
     distinct({ collectionname, field, query = "", queryas = "", explain = false }) {
-        this.log('Node.js: distinct invoked');
-        const req = new DistinctRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            field: ref.allocCString(field),
-            query: ref.allocCString(query),
-            queryas: ref.allocCString(queryas),
+        this.verbose('distinct invoked');
+        const req = {
+            collectionname: collectionname,
+            field: field,
+            query: query,
+            queryas: queryas,
             explain: explain
-        });
-        this.log('Node.js: call distinct_async');
-        const response = this.lib.distinct(this.client, req.ref());
-        const result = response.deref();
-        if (!result.success) {
-            const errorMsg = JSON.parse(JSON.stringify(result.error));
-            this.lib.free_distinct_response(response);
+        };
+        const reqptr = encodeStruct(req, DistinctRequestWrapper);
+        this.verbose('call distinct');
+        const responsePtr = this.lib.distinct(this.client, reqptr);
+        this.trace('decode response');
+        const response = koffi.decode(responsePtr, DistinctResponseWrapper);
+        let results = [];
+        this.trace('decode response results');
+        let strings = koffi.decode(response.results, 'void *', -1);
+        for(let i = 0; i < response.results_count; i++) {
+            this.trace('decode response results #', i);
+            let ptr = strings[i];
+            let value = koffi.decode(ptr, 'char', -1);
+            results.push(value.toString());
+        };
+        this.verbose('free_distinct_response');
+        this.lib.free_distinct_response(responsePtr);
+        if (!response.success) {
+            const errorMsg = response.error;
             throw new ClientError(errorMsg);
         }
-
-
-        const resultsArrayPtr = result.results;
-        const resultsCount = result.results_count;
-        const _results = [];
-
-        for (let i = 0; i < resultsCount; i++) {
-            const cstrPtr = resultsArrayPtr.readPointer(i * ref.sizeof.pointer);
-            const jsString = ref.readCString(cstrPtr);
-            _results.push(jsString);
-        }
-        const results = JSON.parse(JSON.stringify(_results));
-        this.lib.free_distinct_response(response);
         return results;
     }
     distinct_async({ collectionname, field, query = "", queryas = "", explain = false }) {
-        this.log('Node.js: distinct invoked');
+        this.verbose('distinct invoked');
         return new Promise((resolve, reject) => {
-            const req = new DistinctRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                field: ref.allocCString(field),
-                query: ref.allocCString(query),
-                queryas: ref.allocCString(queryas),
+            const req = {
+                collectionname: collectionname,
+                field: field,
+                query: query,
+                queryas: queryas,
                 explain: explain
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [DistinctResponseWrapperPtr], (responsePtr) => {
-                this.log('Node.js: distinct_async callback');
-                const response = responsePtr.deref();
+            };
+            const reqptr = encodeStruct(req, DistinctRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('distinct_async callback');
+                const response = koffi.decode(responsePtr, DistinctResponseWrapper);
+                let results = [];
+                let strings = koffi.decode(response.results, 'void *', -1);
+                for(let i = 0; i < response.results_count; i++) {
+                    let ptr = strings[i];
+                    let value = koffi.decode(ptr, 'char', -1);
+                    results.push(value.toString());
+                };
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    const resultsArrayPtr = response.results;
-                    const resultsCount = response.results_count;
-                    const results = [];
-
-                    for (let i = 0; i < resultsCount; i++) {
-                        const cstrPtr = resultsArrayPtr.readPointer(i * ref.sizeof.pointer);
-                        const jsString = ref.readCString(cstrPtr);
-                        results.push(jsString);
-                    }
-
-                    const result = {
-                        success: response.success,
-                        results: results,
-                        error: null
-                    };
-                    resolve(result);
-                    // const result = {
-                    //     success: response.success,
-                    //     results: response.results,
-                    //     error: null
-                    // };
-                    // resolve(result);
+                    resolve(results);
                 }
+                this.verbose('free_distinct_response');
                 this.lib.free_distinct_response(responsePtr);
-            });
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.distinctCallback));
 
-            this.log('Node.js: call distinct_async');
-            this.lib.distinct_async.async(this.client, req.ref(), callback, (err) => {
+            this.verbose('call distinct_async');
+            this.lib.distinct_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Distinct failed'));
                 }
@@ -676,16 +926,19 @@ class Client {
         });
     }
     insert_one({ collectionname, document, w = 1, j = false }) {
-        this.log('Node.js: insert_one invoked');
-        const req = new InsertOneRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            item: ref.allocCString(document),
+        this.verbose('insert_one invoked');
+        const req = {
+            collectionname: collectionname,
+            item: document,
             w: w,
             j: j
-        });
-        this.log('Node.js: call insert_one_async');
-        const response = this.lib.insert_one(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, InsertOneRequestWrapper);
+        this.trace('call insert_one');
+        const response = this.lib.insert_one(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, InsertOneResponseWrapper);
+        this.trace('free_insert_one_response');
         this.lib.free_insert_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -694,29 +947,31 @@ class Client {
         return JSON.parse(result.result);
     }
     insert_one_async({ collectionname, document, w = 1, j = false }) {
-        this.log('Node.js: insert_one invoked');
+        this.verbose('insert_one async invoked');
         return new Promise((resolve, reject) => {
-            const req = new InsertOneRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                item: ref.allocCString(document),
+            const req = {
+                collectionname: collectionname,
+                item: document,
                 w: w,
                 j: j
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertOneResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: insert_one_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, InsertOneRequestWrapper);
+            const callback = (responsePtr) => {
+                this.verbose('insert_one_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, InsertOneResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.result));
                 }
+                this.verbose('free_insert_one_response');
                 this.lib.free_insert_one_response(responsePtr);
-            });
-
-            this.log('Node.js: call insert_one_async');
-            this.lib.insert_one_async.async(this.client, req.ref(), callback, (err) => {
+            }
+            const cb = koffi.register(callback, koffi.pointer(this.lib.insert_oneCallback));
+            this.verbose('call insert_one_async');
+            this.lib.insert_one_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOne failed'));
                 }
@@ -724,17 +979,20 @@ class Client {
         });
     };
     insert_many({ collectionname, documents, w = 1, j = false, skipresults = false }) {
-        this.log('Node.js: insert_many invoked');
-        const req = new InsertManyRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            items: ref.allocCString(documents),
+        this.verbose('insert_many invoked');
+        const req = {
+            collectionname: collectionname,
+            items: documents,
             w: w,
             j: j,
             skipresults: skipresults
-        });
-        this.log('Node.js: call insert_many_async');
-        const response = this.lib.insert_many(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, InsertManyRequestWrapper);
+        this.trace('call insert_many');
+        const response = this.lib.insert_many(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, InsertManyResponseWrapper);
+        this.trace('free_insert_many_response');
         this.lib.free_insert_many_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -743,30 +1001,34 @@ class Client {
         return JSON.parse(result.result);
     }
     insert_many_async({ collectionname, documents, w = 1, j = false, skipresults = false }) {
-        this.log('Node.js: insert_many invoked');
+        this.verbose('insert_many invoked');
         return new Promise((resolve, reject) => {
-            const req = new InsertManyRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                items: ref.allocCString(documents),
+            const req = {
+                collectionname: collectionname,
+                items: documents,
                 w: w,
                 j: j,
                 skipresults: skipresults
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertManyResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: insert_many_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, InsertManyRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('insert_many_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, InsertManyResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.result));
                 }
+                this.verbose('free_insert_many_response');
                 this.lib.free_insert_many_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call insert_many_async');
-            this.lib.insert_many_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.insert_manyCallback));
+            this.verbose('call insert_many_async');
+            this.lib.insert_many_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertMany failed'));
                 }
@@ -774,16 +1036,19 @@ class Client {
         });
     }
     update_one({ collectionname, item, w = 1, j = false }) {
-        this.log('Node.js: update_one invoked');
-        const req = new UpdateOneRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            item: ref.allocCString(item),
+        this.info('update_one invoked');
+        const req = {
+            collectionname: collectionname,
+            item: item,
             w: w,
-            j: j
-        });
-        this.log('Node.js: call update_one_async');
-        const response = this.lib.update_one(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+            j: j            
+        };
+        const reqptr = encodeStruct(req, UpdateOneRequestWrapper);
+        this.info('call update_one');
+        const response = this.lib.update_one(this.client, reqptr);
+        this.info('decode response');
+        const result = koffi.decode(response, UpdateOneResponseWrapper);
+        this.info('free_update_one_response');
         this.lib.free_update_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -792,29 +1057,32 @@ class Client {
         return JSON.parse(result.result);
     }
     update_one_async({ collectionname, item, w = 1, j = false }) {
-        this.log('Node.js: update_one invoked');
+        this.verbose('update_one invoked');
         return new Promise((resolve, reject) => {
-            const req = new UpdateOneRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                item: ref.allocCString(item),
+            const req = {
+                collectionname: collectionname,
+                item: item,
                 w: w,
                 j: j
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(UpdateOneResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: update_one_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, UpdateOneRequestWrapper);
+            const callback = (responsePtr) => {
+                this.verbose('update_one_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, UpdateOneResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.result));
                 }
+                this.trace('free_update_one_response');
                 this.lib.free_update_one_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call update_one_async');
-            this.lib.update_one_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.update_oneCallback));
+            this.trace('call update_one_async');
+            this.lib.update_one_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('UpdateOne failed'));
                 }
@@ -822,17 +1090,20 @@ class Client {
         });
     }
     insert_or_update_one({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
-        this.log('Node.js: insert_or_update_one invoked');
-        const req = new InsertOrUpdateOneRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            uniqeness: ref.allocCString(uniqeness),
-            item: ref.allocCString(item),
+        this.verbose('insert_or_update_one invoked');
+        const req = {
+            collectionname: collectionname,
+            item: item,
+            uniqeness: uniqeness,
             w: w,
             j: j
-        });
-        this.log('Node.js: call insert_or_update_one');
-        const response = this.lib.insert_or_update_one(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, InsertOrUpdateOneRequestWrapper);
+        this.trace('call insert_or_update_one');
+        const response = this.lib.insert_or_update_one(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, InsertOrUpdateOneResponseWrapper);
+        this.trace('free_insert_or_update_one_response');
         this.lib.free_insert_or_update_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -841,46 +1112,52 @@ class Client {
         return JSON.parse(result.result);
     }
     insert_or_update_one_async({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
-        this.log('Node.js: insert_or_update_one invoked');
+        this.verbose('insert_or_update_one invoked');
         return new Promise((resolve, reject) => {
-            const req = new InsertOrUpdateOneRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                uniqeness: ref.allocCString(uniqeness),
-                item: ref.allocCString(item),
+            const req = {
+                collectionname: collectionname,
+                item: item,
+                uniqeness: uniqeness,
                 w: w,
                 j: j
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(InsertOrUpdateOneResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: insert_or_update_one_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, InsertOrUpdateOneRequestWrapper);
+            const callback = (responsePtr) => {
+                this.verbose('insert_or_update_one_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, InsertOrUpdateOneResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(JSON.parse(response.result));
                 }
+                this.trace('free_insert_or_update_one_response');
                 this.lib.free_insert_or_update_one_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call insert_or_update_one_async');
-            this.lib.insert_or_update_one_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.insert_or_update_oneCallback));
+            this.trace('call insert_or_update_one_async');
+            this.lib.insert_or_update_one_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOrUpdateOne failed'));
                 }
-            });
+            });        
         });
     }
     delete_one({ collectionname, id, recursive }) {
-        this.log('Node.js: delete_one invoked');
-        const req = new DeleteOneRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            id: ref.allocCString(id),
+        this.verbose('delete_one invoked');
+        const req = {
+            collectionname: collectionname,
+            id: id,
             recursive: recursive
-        });
-        this.log('Node.js: call delete_one_async');
-        const response = this.lib.delete_one(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        const reqptr = encodeStruct(req, DeleteOneRequestWrapper);
+        this.trace('call delete_one');
+        const response = this.lib.delete_one(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, DeleteOneResponseWrapper);
+        this.trace('free_delete_one_response');
         this.lib.free_delete_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -889,28 +1166,31 @@ class Client {
         return result.affectedrows;
     }
     delete_one_async({ collectionname, id, recursive }) {
-        this.log('Node.js: delete_one invoked');
+        this.verbose('delete_one_async invoked');
         return new Promise((resolve, reject) => {
-            const req = new DeleteOneRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                id: ref.allocCString(id),
+            const req = {
+                collectionname: collectionname,
+                id: id,
                 recursive: recursive
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DeleteOneResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: delete_one_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, DeleteOneRequestWrapper);
+            const callback = (responsePtr) => {
+                this.verbose('delete_one_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, DeleteOneResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response.affectedrows);
                 }
+                this.trace('free_delete_one_response');
                 this.lib.free_delete_one_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call delete_one_async');
-            this.lib.delete_one_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.delete_oneCallback));
+            this.trace('call delete_one_async');
+            this.lib.delete_one_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteOne failed'));
                 }
@@ -918,17 +1198,21 @@ class Client {
         });
     }
     delete_many({ collectionname, query = "", ids = [], recursive = false }) {
-        this.log('Node.js: delete_many invoked');
-        const idsCStringArray = ids.map(id => ref.allocCString(id));
-        const req = new DeleteManyRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            query: ref.allocCString(query),
-            ids: idsCStringArray,
+        this.verbose('delete_many invoked');
+        const req = {
+            collectionname: collectionname,
+            query: query,
+            ids: null,
             recursive: recursive
-        });
-        this.log('Node.js: call delete_many');
-        const response = this.lib.delete_many(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        };
+        ids.push(null); // terminate array
+        req.ids = ids;
+        const reqptr = encodeStruct(req, DeleteManyRequestWrapper);
+        this.trace('call delete_many');
+        const response = this.lib.delete_many(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, DeleteManyResponseWrapper);
+        this.trace('free_delete_many_response');
         this.lib.free_delete_many_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -937,30 +1221,32 @@ class Client {
         return result.affectedrows;
     }
     delete_many_async({ collectionname, query = "", ids = [], recursive = false }) {
-        this.log('Node.js: delete_many invoked');
-        const idsCStringArray = ids.map(id => ref.allocCString(id));
+        this.verbose('delete_many_async invoked');
         return new Promise((resolve, reject) => {
-            const req = new DeleteManyRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                query: ref.allocCString(query),
-                ids: idsCStringArray,
+            const req = {
+                collectionname: collectionname,
+                query: query,
+                ids: ids,
                 recursive: recursive
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DeleteManyResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: delete_many_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            };
+            const reqptr = encodeStruct(req, DeleteManyRequestWrapper);
+            const callback = (responsePtr) => {
+                this.verbose('delete_many_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, DeleteManyResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response.affectedrows);
                 }
+                this.trace('free_delete_many_response');
                 this.lib.free_delete_many_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call delete_many_async');
-            this.lib.delete_many_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.delete_manyCallback));
+            this.trace('call delete_many_async');
+            this.lib.delete_many_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteMany failed'));
                 }
@@ -968,16 +1254,18 @@ class Client {
         });
     }
     download({ collectionname, id, folder, filename }) {
-        this.log('Node.js: download invoked');
-        const req = new DownloadRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            id: ref.allocCString(id),
-            folder: ref.allocCString(folder),
-            filename: ref.allocCString(filename)
-        });
-        this.log('Node.js: call download_async');
-        const response = this.lib.download(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.verbose('download invoked');
+        const req = {
+            collectionname: collectionname,
+            id: id,
+            folder: folder,
+            filename: filename
+        };
+        const reqptr = encodeStruct(req, DownloadRequestWrapper);
+        this.trace('call download');
+        const response = this.lib.download(this.client, reqptr);
+        const result = koffi.decode(response, DownloadResponseWrapper);
+        this.trace('free_download_response');
         this.lib.free_download_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -986,29 +1274,32 @@ class Client {
         return result.filename;
     }
     download_async({ collectionname, id, folder, filename }) {
-        this.log('Node.js: download invoked');
+        this.verbose('download async invoked');
         return new Promise((resolve, reject) => {
-            const req = new DownloadRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                id: ref.allocCString(id),
-                folder: ref.allocCString(folder),
-                filename: ref.allocCString(filename)
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(DownloadResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: download_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            const req = {
+                collectionname: collectionname,
+                id: id,
+                folder: folder,
+                filename: filename
+            };
+            const reqptr = encodeStruct(req, DownloadRequestWrapper);
+            this.trace('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('download_async callback');
+                const response = koffi.decode(responsePtr, DownloadResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response.filename);
                 }
+                this.trace('free_download_response');
                 this.lib.free_download_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call download_async');
-            this.lib.download_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.downloadCallback));
+            this.trace('call download_async');
+            this.lib.download_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Download failed'));
                 }
@@ -1016,49 +1307,54 @@ class Client {
         });
     }
     upload({ filepath, filename, mimetype, metadata, collectionname }) {
-        this.log('Node.js: upload invoked');
-        const req = new UploadRequestWrapper({
-            filepath: ref.allocCString(filepath),
-            filename: ref.allocCString(filename),
-            mimetype: ref.allocCString(mimetype),
-            metadata: ref.allocCString(metadata),
-            collectionname: ref.allocCString(collectionname)
-        });
-        this.log('Node.js: call upload_async');
-        const response = this.lib.upload(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+        this.verbose('upload invoked');
+        const req = {
+            filepath: filepath,
+            filename: filename,
+            mimetype: mimetype,
+            metadata: metadata,
+            collectionname: collectionname
+        };
+        const reqptr = encodeStruct(req, UploadRequestWrapper);
+        this.trace('call upload');
+        const response = this.lib.upload(this.client, reqptr);
+        const result = koffi.decode(response, UploadResponseWrapper);
+        this.trace('free_upload_response');
         this.lib.free_upload_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return result.id;
+        return result.id
     }
     upload_async({ filepath, filename, mimetype, metadata, collectionname }) {
-        this.log('Node.js: upload invoked');
+        this.verbose('upload async invoked');
         return new Promise((resolve, reject) => {
-            const req = new UploadRequestWrapper({
-                filepath: ref.allocCString(filepath),
-                filename: ref.allocCString(filename),
-                mimetype: ref.allocCString(mimetype),
-                metadata: ref.allocCString(metadata),
-                collectionname: ref.allocCString(collectionname)
-            });
-            this.log('Node.js: create callback');
-            const callback = ffi.Callback('void', [koffi.pointer(UploadResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: upload_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
+            const req = {
+                filepath: filepath,
+                filename: filename,
+                mimetype: mimetype,
+                metadata: metadata,
+                collectionname: collectionname
+            };
+            const reqptr = encodeStruct(req, UploadRequestWrapper);
+            this.trace('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('upload_async callback');
+                const response = koffi.decode(responsePtr, UploadResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
                     resolve(response.id);
                 }
+                this.trace('free_upload_response');
                 this.lib.free_upload_response(responsePtr);
-            });
+            };
 
-            this.log('Node.js: call upload_async');
-            this.lib.upload_async.async(this.client, req.ref(), callback, (err) => {
+            const cb = koffi.register(callback, koffi.pointer(this.lib.uploadCallback));
+            this.trace('call upload_async');
+            this.lib.upload_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Upload failed'));
                 }
@@ -1067,12 +1363,12 @@ class Client {
     }
     watches = {}
     watch({ collectionname, paths }, callback) {
-        this.log('Node.js: watch invoked');
+        this.info('watch invoked');
         const req = new WatchRequestWrapper({
             collectionname: ref.allocCString(collectionname),
             paths: ref.allocCString(paths)
         });
-        this.log('Node.js: call watch');
+        this.info('call watch');
         const response = this.lib.watch(this.client, req.ref());
         const result = JSON.parse(JSON.stringify(response.deref()));
         this.lib.free_watch_response(response);
@@ -1089,7 +1385,7 @@ class Client {
             }
             let hadone = false;
             do {
-                // this.log('Node.js: call next');
+                // this.log('call next');
                 const responsePtr = this.lib.next_watch_event(ref.allocCString(watchid));
                 const result = responsePtr.deref();
                 if (result.id != null && result.id != "") {
@@ -1099,7 +1395,7 @@ class Client {
                         operation: result.operation,
                         document: JSON.parse(result.document),
                     }
-                    // this.log('Node.js: call next had result', event);
+                    // this.log('call next had result', event);
                     callback(event);
                     // callback(JSON.parse(result));
                 } else {
@@ -1111,11 +1407,11 @@ class Client {
         return result.watchid;
     }
     watch_async({ collectionname, paths }, callback) {
-        this.log('Node.js: watch invoked');
+        this.info('watch invoked');
         return new Promise((resolve, reject) => {
-            this.log('Node.js: create event_callbackPtr');
+            this.info('create event_callbackPtr');
             const event_callbackPtr = ffi.Callback('void', ['string'], (data) => {
-                this.log('Node.js: watch_async event callback');
+                this.info('watch_async event callback');
                 try {
                     const event = JSON.parse(data);
                     event.document = JSON.parse(event.document);
@@ -1129,9 +1425,9 @@ class Client {
                 paths: ref.allocCString(paths)
             });
 
-            this.log('Node.js: create callback');
+            this.info('create callback');
             const callbackPtr = ffi.Callback('void', [koffi.pointer(WatchResponseWrapper)], (responsePtr) => {
-                this.log('Node.js: watch_async callback');
+                this.info('watch_async callback');
                 const response = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1142,7 +1438,7 @@ class Client {
                 this.lib.free_watch_response(responsePtr);
             });
 
-            this.log('Node.js: call watch_async');
+            this.info('call watch_async');
             this.lib.watch_async.async(this.client, req.ref(), callbackPtr, event_callbackPtr, (err) => {
                 if (err) {
                     reject(new ClientError('watch failed'));
@@ -1173,11 +1469,11 @@ class Client {
 
     queues = {}
     register_queue({ queuename }, callback) {
-        this.log('Node.js: register queue invoked');
+        this.info('register queue invoked');
         const req = new RegisterQueueRequestWrapper({
             queuename: ref.allocCString(queuename)
         });
-        this.log('Node.js: call register_queue');
+        this.info('call register_queue');
         const response = this.lib.register_queue(this.client, req.ref());
         const result = JSON.parse(JSON.stringify(response.deref()));
         this.lib.free_register_queue_response(response);
@@ -1194,7 +1490,7 @@ class Client {
             }
             let hadone = false;
             do {
-                // this.log('Node.js: call next');
+                // this.log('call next');
                 const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
                 const result = JSON.parse(JSON.stringify(responsePtr.deref()));
                 if (result.queuename != null && result.queuename != "") {
@@ -1207,7 +1503,7 @@ class Client {
                         exchangename: result.exchangename,
                         data: result.data,
                     }
-                    // this.log('Node.js: call next had result', event);
+                    // this.log('call next had result', event);
                     callback(event);
                     // callback(JSON.parse(result));
                 } else {
@@ -1219,7 +1515,7 @@ class Client {
         return result.queuename;
     }
     register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
-        this.log('Node.js: register exchange invoked');
+        this.info('register exchange invoked');
         if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
         if (algorithm == null) algorithm = "";
         if (routingkey == null) routingkey = "";
@@ -1230,7 +1526,7 @@ class Client {
             routingkey: ref.allocCString(routingkey),
             addqueue: addqueue
         });
-        this.log('Node.js: call register_exchange');
+        this.info('call register_exchange');
         const response = this.lib.register_exchange(this.client, req.ref());
         const result = JSON.parse(JSON.stringify(response.deref()));
         this.lib.free_register_exchange_response(response);
@@ -1248,7 +1544,7 @@ class Client {
                 }
                 let hadone = false;
                 do {
-                    // this.log('Node.js: call next');
+                    // this.log('call next');
                     const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
                     const result = JSON.parse(JSON.stringify(responsePtr.deref()));
                     if (result.queuename != null && result.queuename != "") {
@@ -1261,7 +1557,7 @@ class Client {
                             exchangename: result.exchangename,
                             data: result.data,
                         }
-                        // this.log('Node.js: call next had result', event);
+                        // this.log('call next had result', event);
                         callback(event);
                         // callback(JSON.parse(result));
                     } else {
@@ -1296,107 +1592,195 @@ class Client {
     push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
      }) {
-        this.log('Node.js: push_workitem invoked');
+        this.verbose('push_workitem invoked');
         // if nextrun is not null and nextrun is a date
         if (nextrun != null && nextrun instanceof Date) {
-            this.log('Node.js: nextrun before', nextrun);
+            this.trace('Node.js: nextrun before', nextrun);
             // then convert nextrun to a number ( POSIX time )
             nextrun = Math.floor(nextrun.getTime() / 1000); // Convert to seconds
         } else {
             nextrun = 0;
         }
-        let filelist = [];
-        this.log('Node.js: nextrun after', nextrun);
-        for(let i = 0; i < files.length; i++) {
-            const fileinstance = new WorkitemFileWrapper({
-                filename : ref.allocCString(files[i]),
-                id : ref.allocCString(""),
-                file : Buffer.from("")
-            });
-            filelist.push(fileinstance.ref());
-        }
-
-        // const workitemFileInstance = new WorkitemFileWrapper({
-        //     filename: 'example.txt',
-        //     id: 'file-id',
-        //     compressed: false,
-        //     file: Buffer.from([/* file data as bytes */])
-        // });
-
-        const req = new PushWorkitemRequestWrapper({
-            wiq: ref.allocCString(wiq),
-            wiqid: ref.allocCString(wiqid),
-            name: ref.allocCString(name),
-            payload: ref.allocCString(payload),
+        const req = {
+            wiq: wiq,
+            wiqid: wiqid,
+            name: name,
+            payload: payload,
             nextrun: nextrun,
-            success_wiqid: ref.allocCString(success_wiqid),
-            failed_wiqid: ref.allocCString(failed_wiqid),
-            success_wiq: ref.allocCString(success_wiq),
-            failed_wiq: ref.allocCString(failed_wiq),
+            success_wiqid: success_wiqid,
+            failed_wiqid: failed_wiqid,
+            success_wiq: success_wiq,
+            failed_wiq: failed_wiq,
             priority: priority,
-            files: filelist,
-            files_len: filelist.length
-            // files: [workitemFileInstance.ref()]
-        });
-        this.log('Node.js: call push_workitem');
-        const response = this.lib.push_workitem(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
+            files: files,
+            files_len: files.length
+        };
+        for(let i = 0; i < files.length; i++) {
+            let file = files[i];
+            // is file a string ?
+            if( typeof file === 'string' ) {
+                // then convert it to a file object
+                files[i] = {
+                    filename: file,
+                    id: "",
+                    // compressed: false,
+                    // file: [null]
+                }
+            } else {
+                // if(file.file != null && file.file.length > 0) {
+                //     file.file.push(null); // terminate array
+                // }
+            }
+            const fileptr = encodeStruct(files[i], WorkitemFileWrapper);
+            files[i] = fileptr;
+        }
+        if(files.length == 0 || files[-1] != null) {
+            files.push(null); // terminate array
+        }
+        const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
+        this.verbose('call push_workitem');
+        const response = this.lib.push_workitem(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, PushWorkitemResponseWrapper);
+        this.verbose('free_push_workitem_response');
         this.lib.free_push_workitem_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return result.success;
+        return result.id;
     }
-    pop_workitem({ wiq = "", wiqid = "", downloadfolder = "" }) {
-        this.log('Node.js: pop_workitem invoked');
-        const req = new PopWorkitemRequestWrapper({
-            wiq: ref.allocCString(wiq),
-            wiqid: ref.allocCString(wiqid)
-        });
-        this.log('Node.js: call pop_workitem');
-        const _downloadfolder = ref.allocCString(downloadfolder);
-        const response = this.lib.pop_workitem(this.client, req.ref(), _downloadfolder);
-
-        this.log('Node.js: pop_workitem deref');
-        const _result = response.deref();
-        const result = JSON.parse(JSON.stringify(_result));
-        if(_result.workitem != null && _result.workitem.isNull() == false) {
-            this.log('Node.js: workitem deref');
-            let workitem = _result.workitem.deref();
-            result.workitem = JSON.parse(JSON.stringify(workitem));
-
-            // let _files = workitem.files.deref();
-            let _files = workitem.files;
-            let addr = _files.ref().address();
-            let addrashex = addr.toString(16);            
-            // this.log('Node.js: workitem files ref: [0x' + addrashex + "] files_len:", workitem.files_len);
-            // this.log('Node.js: workitem files deref', workitem.files.length);
-            const files = [];
-            for(let i = 0; i < workitem.files_len; i++) {
-                const file = JSON.parse(JSON.stringify(workitem.files[i].deref()));
-                // // this.log('Node.js: workitem file deref', file);
-                // const fileInstance = {
-                //     filename: file.filename,
-                //     id: file.id,
-                //     compressed: file.compressed,
-                //     file: file.file.buffer
-                // };
-                // this.log('Node.js: fileInstance', fileInstance);
-                delete file.compressed;
-                delete file.file;
-                files.push(file);
+    push_workitem_async({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
+        files = []
+        }) {
+        this.verbose('push_workitem invoked');
+        return new Promise((resolve, reject) => {
+            // if nextrun is not null and nextrun is a date
+            if (nextrun != null && nextrun instanceof Date) {
+                this.trace('Node.js: nextrun before', nextrun);
+                // then convert nextrun to a number ( POSIX time )
+                nextrun = Math.floor(nextrun.getTime() / 1000); // Convert to seconds
+            } else {
+                nextrun = 0;
             }
-            result.workitem.files = files;
-        } else {
-            result.workitem = null;
-        }
+            const req = {
+                wiq: wiq,
+                wiqid: wiqid,
+                name: name,
+                payload: payload,
+                nextrun: nextrun,
+                success_wiqid: success_wiqid,
+                failed_wiqid: failed_wiqid,
+                success_wiq: success_wiq,
+                failed_wiq: failed_wiq,
+                priority: priority,
+                files: files,
+                files_len: files.length
+            };
+            for(let i = 0; i < files.length; i++) {
+                let file = files[i];
+                // is file a string ?
+                if( typeof file === 'string' ) {
+                    // then convert it to a file object
+                    files[i] = {
+                        filename: file,
+                        id: "",
+                        // compressed: false,
+                        // file: [null]
+                    }
+                } else {
+                    // if(file.file != null && file.file.length > 0) {
+                    //     file.file.push(null); // terminate array
+                    // }
+                }
+                const fileptr = encodeStruct(files[i], WorkitemFileWrapper);
+                files[i] = fileptr;
+            }
+            if(files.length == 0 || files[-1] != null) {
+                files.push(null); // terminate array
+            }
+            const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('push_workitem_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, PushWorkitemResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.id);
+                }
+                this.trace('free_push_workitem_response');
+                this.lib.free_push_workitem_response(responsePtr);
+            };
+
+            const cb = koffi.register(callback, koffi.pointer(this.lib.push_workitemCallback));
+            this.verbose('call push_workitem_async');
+            if(files.length > 0) {
+                let f = files[0];
+            }
+            this.lib.push_workitem_async(this.client, reqptr, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('PushWorkitem async failed'));
+                }
+            }
+            );
+        });
+    }    
+    pop_workitem({ wiq = "", wiqid = "", downloadfolder = "" }) {
+        this.verbose('pop_workitem invoked');
+        const req = {
+            wiq: wiq,
+            wiqid: wiqid,
+            downloadfolder: downloadfolder
+        };
+        const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
+        this.trace('call pop_workitem');
+        const response = this.lib.pop_workitem(this.client, reqptr);
+        this.trace('decode response');
+        const result = koffi.decode(response, PopWorkitemResponseWrapper);
+        this.trace('free_pop_workitem_response');
         this.lib.free_pop_workitem_response(response);
         if (!result.success) {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return result.workitem;
+        if(result.workitem != null) {
+            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+            let _files = [];
+            if(workitem.files_len > 0) {
+                var files = koffi.decode(workitem.files, 'WorkitemFileWrapper ***', workitem.files_len);
+                for(let i = 0; i < workitem.files_len; i++) {
+                    let file = files[i];
+                    if(file != null) {
+                        var _file = koffi.decode(file, WorkitemFileWrapper);
+                        delete _file.compressed;
+                        delete _file.file;
+                        _files.push(_file);
+                    }
+                }
+            }
+            workitem.files = _files;
+            if(workitem.nextrun > 0) {
+                workitem.nextrun = new Date(workitem.nextrun * 1000);
+            } else {
+                delete workitem.nextrun;
+            }
+            if(workitem.lastrun > 0) {
+                workitem.lastrun = new Date(workitem.lastrun * 1000);
+            } else {
+                delete workitem.lastrun;
+            }
+            try {
+                if(workitem.payload != null && workitem.payload != "") {
+                    workitem.payload = JSON.parse(workitem.payload);
+                }
+            } catch (error) {
+            }
+            return workitem;
+        }
+        return null;
     }
 
 }
