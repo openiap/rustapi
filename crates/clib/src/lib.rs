@@ -325,7 +325,7 @@ pub extern "C" fn disable_tracing() {
 }
 
 #[no_mangle]
-pub extern "C" fn connect(server_address: *const c_char) -> *mut ClientWrapper {
+pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWrapper {
     let server_address = unsafe { CStr::from_ptr(server_address).to_str().unwrap() };
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
     info!("server_address = {:?}", server_address);

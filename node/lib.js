@@ -395,7 +395,7 @@ function loadLibrary() {
 
         lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
         lib.disable_tracing = lib.func('void disable_tracing()');
-        lib.connect = lib.func('connect', ClientWrapperPtr, ['str']);
+        lib.connect = lib.func('client_connect', ClientWrapperPtr, ['str']);
         lib.ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
         lib.connect_async = lib.func('connect_async', 'void', ['str', koffi.pointer(lib.ConnectCallback)]);
         lib.free_client = lib.func('void free_client(ClientWrapper*)');
