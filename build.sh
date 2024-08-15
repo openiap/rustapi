@@ -1,5 +1,5 @@
 
-rm -rf node/lib node/*.tgz dotnet/lib dotnet/bin dotnet/obj python/lib python/build python/dist python/lib 
+rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/*.csv dotnet/bin dotnet/obj python/lib python//*.csv python/build python/dist python/lib 
 rm -rf target/lib
 mkdir -p target/lib
 cross build --target x86_64-unknown-linux-gnu --release && cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-x64.so
