@@ -1,8 +1,9 @@
+#![warn(missing_docs)]
 use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest, InsertOneRequest, UpdateOneRequest, InsertOrUpdateOneRequest, QueryRequest, DistinctRequest,
     DeleteOneRequest, DeleteManyRequest, InsertOrUpdateManyRequest, UpdateDocumentRequest
     };
-    #[allow(dead_code)]
     impl QueryRequest {
+        /// Creates a new `QueryRequest` with the given `collectionname` and `query`.
         #[tracing::instrument(skip_all)]
         pub fn with_query(collectionname: &str, query: &str) -> Self {
             Self {
@@ -11,6 +12,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
                 ..Default::default()
             }
         }
+        /// Creates a new `QueryRequest` with the given `collectionname`, `query` and `projection`.
         #[tracing::instrument(skip_all)]
         pub fn with_projection(collectionname: &str, query: &str, projection: &str) -> Self {
             Self {
@@ -22,6 +24,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl QueryRequest {
+        /// Converts the `QueryRequest` to an `Envelope`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -40,6 +43,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl AggregateRequest {
+        /// Creates a new `AggregateRequest` with the given `collectionname` and `pipeline`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -58,6 +62,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl CountRequest {
+        /// Creates a new `CountRequest` with the given `collectionname` and `query`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -76,6 +81,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl DistinctRequest {
+        /// Creates a new `DistinctRequest` with the given `collectionname`, `field` and `query`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -95,6 +101,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
     }
     
     impl InsertOneRequest {
+        /// Creates a new `InsertOneRequest` with the given `collectionname` and `document`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -113,6 +120,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl InsertManyRequest {
+        /// Creates a new `InsertManyRequest` with the given `collectionname` and `documents`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -131,6 +139,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl UpdateOneRequest {
+        /// Creates a new `UpdateOneRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -149,6 +158,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }    
     }
     impl InsertOrUpdateOneRequest {
+        /// Creates a new `InsertOrUpdateOneRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -167,6 +177,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }
     }
     impl  InsertOrUpdateManyRequest {
+        /// Creates a new `InsertOrUpdateManyRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -185,6 +196,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }    
     }
     impl  UpdateDocumentRequest {
+        /// Creates a new `UpdateDocumentRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -201,9 +213,9 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
                 ..Default::default() 
             }
         }        
-    }
-    
+    }    
     impl DeleteOneRequest {
+        /// Creates a new `DeleteOneRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {
@@ -222,6 +234,7 @@ use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest,
         }        
     }
     impl DeleteManyRequest {
+        /// Creates a new `DeleteManyRequest` with the given `collectionname`, `filter` and `update`.
         #[tracing::instrument(skip_all)]
         pub fn to_envelope(&self) -> Envelope {
             let any_message = prost_types::Any {

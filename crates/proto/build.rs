@@ -1,4 +1,5 @@
 use std::{env, path::PathBuf};
+/// Generates the protobuf code.
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap_or(".".into()));
     tonic_build::configure()

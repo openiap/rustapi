@@ -1,3 +1,6 @@
+#![warn(missing_docs)]
+//! Testing client for OpenIAP, will over time transition to a full management client.
+
 use std::ops::Add;
 use std::sync::{Arc, Mutex};
 
@@ -10,6 +13,7 @@ use openiap_client::protos::{
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+/// Reads a line from the keyboard input.
 pub async fn keyboard_input() -> String {
     println!("Enter your message: ");
     let mut inp = String::new();
@@ -22,12 +26,14 @@ pub async fn keyboard_input() -> String {
     inp.trim().to_string()
 }
 
+/// Watch event handler
 fn onwatch(event: WatchEvent) {
     let document = event.document;
     let operation = event.operation;
     println!("{} on {}", operation, document);
 }
 
+/// Main function
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let res = Client::connect("").await;
     let b = match res {
@@ -372,6 +378,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Main function
 #[tokio::main]
 async fn main() {
     println!("Main function started.");

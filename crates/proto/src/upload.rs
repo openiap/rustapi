@@ -1,6 +1,7 @@
+#![warn(missing_docs)]
 use super::protos::{Envelope, UploadRequest, BeginStream, EndStream, Stream};
-#[allow(dead_code)]
 impl UploadRequest {
+    /// Creates a new `UploadRequest` with the given `workitem`.
     pub fn filename(filename: &str) -> Self {
         Self {
             collectionname: "fs.files".to_string(),
@@ -8,6 +9,7 @@ impl UploadRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `UploadRequest` with the given `workitem`.
     pub fn by_filename(collectionname: &str, filename: &str) -> Self {
         Self {
             collectionname: collectionname.to_string(),
@@ -17,6 +19,7 @@ impl UploadRequest {
     }
 }
 impl UploadRequest {
+    /// Creates a new `UploadRequest` with the given `workitem`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.UploadRequest".to_string(),
@@ -34,6 +37,7 @@ impl UploadRequest {
     }
 }
 impl BeginStream {
+    /// Creates a new `BeginStream` with the given `workitem`.
     pub fn to_envelope(&self, rid:String) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.BeginStream".to_string(),
@@ -50,6 +54,7 @@ impl BeginStream {
             ..Default::default() 
         }
     }
+    /// Creates a new `BeginStream` with the given `workitem`.
     pub fn from_rid(rid:String) -> Envelope {
         let req = BeginStream {
             checksum: "".to_string(),
@@ -62,6 +67,7 @@ impl BeginStream {
     }   
 }
 impl EndStream {
+    /// Creates a new `EndStream` with the given `workitem`.
     pub fn to_envelope(&self, rid:String) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.EndStream".to_string(),
@@ -78,6 +84,7 @@ impl EndStream {
             ..Default::default() 
         }
     }
+    /// Creates a new `EndStream` with the given `workitem`.
     pub fn from_rid(rid:String) -> Envelope {
         let req = EndStream {            
         };
@@ -88,6 +95,7 @@ impl EndStream {
     }   
 }
 impl Stream {
+    /// Creates a new `Stream` with the given `workitem`.
     pub fn to_envelope(&self, rid:String) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.Stream".to_string(),
@@ -104,6 +112,7 @@ impl Stream {
             ..Default::default() 
         }
     }
+    /// Creates a new `Stream` with the given `workitem`.
     pub fn from_rid(data: Vec<u8>, rid:String) -> Envelope {
         let req = Stream {
             data

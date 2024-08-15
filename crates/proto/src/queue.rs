@@ -1,26 +1,16 @@
+#![warn(missing_docs)]
 use super::protos::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, RegisterExchangeRequest, 
     WatchRequest, UnWatchRequest, QueueMessageRequest
 };
 
-// use std::fmt;
-// impl fmt::Debug for Envelope {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "Envelope {{ command: {:?}, data: {:?} }}", self.command, self.data)
-//     }    
-// }
-// impl <T: fmt::Display> fmt::Display for Envelope<T> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "Envelope {{ command: {}, data: {:?} }}", self.command, self.data)
-//     }
-// }
-
-#[allow(dead_code)]
 impl RegisterQueueRequest {
+    /// Creates a new `RegisterQueueRequest` with the given `queuename`.
     pub fn byqueuename(queuename: &str) -> Self {
         Self {
             queuename: queuename.to_string()
         }
     }
+    /// Converts the `RegisterQueueRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.RegisterQueueRequest".to_string(),
@@ -38,6 +28,7 @@ impl RegisterQueueRequest {
     }
 }
 impl RegisterExchangeRequest {
+    /// Creates a new `RegisterExchangeRequest` with the given `exchangename`.
     pub fn byexchangename(exchangename: &str) -> Self {
         Self {
             exchangename: exchangename.to_string(),
@@ -45,6 +36,7 @@ impl RegisterExchangeRequest {
             ..Default::default()
         }
     }
+    /// Converts the `RegisterExchangeRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.RegisterExchangeRequest".to_string(),
@@ -62,11 +54,13 @@ impl RegisterExchangeRequest {
     }
 }
 impl  UnRegisterQueueRequest {
+    /// Creates a new `UnRegisterQueueRequest` with the given `queuename`.
     pub fn byqueuename(queuename: &str) -> Self {
         Self {
             queuename: queuename.to_string()
         }
     }
+    /// Converts the `UnRegisterQueueRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.UnRegisterQueueRequest".to_string(),
@@ -85,12 +79,14 @@ impl  UnRegisterQueueRequest {
     
 }
 impl WatchRequest {
+    /// Creates a new `WatchRequest` with the given `collectionname` and `paths`.
     pub fn new(collectionname: &str, paths: Vec<String>) -> Self {
         Self {
             collectionname: collectionname.to_string(),
             paths
         }
     }
+    /// Converts the `WatchRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.WatchRequest".to_string(),
@@ -108,11 +104,13 @@ impl WatchRequest {
     }
 }
 impl UnWatchRequest {
+    /// Creates a new `UnWatchRequest` with the given `id`.
     pub fn byid(id: &str) -> Self {
         Self {
             id: id.to_string()
         }
     }
+    /// Converts the `UnWatchRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.UnWatchRequest".to_string(),
@@ -130,6 +128,7 @@ impl UnWatchRequest {
     }
 }
 impl  QueueMessageRequest {
+    /// Creates a new `QueueMessageRequest` with the given `queuename`, `data` and `striptoken`.
     pub fn byqueuename(queuename: &str, data: &str, striptoken: bool) -> Self {
         Self {
             queuename: queuename.to_string(),
@@ -138,6 +137,7 @@ impl  QueueMessageRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `QueueMessageRequest` with the given `exchangename`, `data` and `striptoken`.
     pub fn byexchangename(exchangename: &str, data: &str, striptoken: bool) -> Self {
         Self {
             exchangename: exchangename.to_string(),
@@ -146,6 +146,7 @@ impl  QueueMessageRequest {
             ..Default::default()
         }
     }
+    /// Converts the `QueueMessageRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.QueueMessageRequest".to_string(),

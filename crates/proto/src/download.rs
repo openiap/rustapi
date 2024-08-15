@@ -1,6 +1,7 @@
+#![warn(missing_docs)]
 use super::protos::{Envelope, DownloadRequest};
-#[allow(dead_code)]
 impl DownloadRequest {
+    /// Creates a new `DownloadRequest` with the given `id`.
     #[tracing::instrument(skip_all)]
     pub fn id(id: &str) -> Self {
         Self {
@@ -9,6 +10,7 @@ impl DownloadRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `DownloadRequest` with the given `filename`.
     #[tracing::instrument(skip_all)]
     pub fn by_id(collectionname: &str, id: &str) -> Self {
         Self {
@@ -17,6 +19,7 @@ impl DownloadRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `DownloadRequest` with the given `filename`.
     #[tracing::instrument(skip_all)]
     pub fn by_filename(collectionname: &str, filename: &str) -> Self {
         Self {
@@ -27,6 +30,7 @@ impl DownloadRequest {
     }
 }
 impl DownloadRequest {
+    /// Converts the `DownloadRequest` to an `Envelope`.
     #[tracing::instrument(skip_all)]
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {

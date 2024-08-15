@@ -1,3 +1,7 @@
+// #![warn(missing_docs)]
+//! FFI bindings for the OpenIAP client library.
+//! used by the OpenIAP client library for other programming languages to interact with the client library.
+//! For now, nodejs, python and dotnet 6
 use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
@@ -28,8 +32,8 @@ lazy_static! {
     };
 
 }
-
-#[allow(dead_code)]
+/// A wrapper for the client library.
+/// This struct is used to hold the client instance and the runtime instance.
 #[repr(C)]
 pub struct ClientWrapper {
     success: bool,
@@ -37,6 +41,7 @@ pub struct ClientWrapper {
     client: Option<Client>,
     runtime: std::sync::Arc<Runtime>,
 }
+/// WatchEventWrapper is a wrapper for the WatchEvent struct.
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct WatchEventWrapper {
@@ -53,7 +58,7 @@ impl Default for WatchEventWrapper {
         }
      }
 }
-
+/// QueryRequestWrapper is a wrapper for the QuQueryResponseWrappereryRequest struct.
 #[repr(C)]
 pub struct QueryRequestWrapper {
     collectionname: *const c_char,
@@ -65,12 +70,14 @@ pub struct QueryRequestWrapper {
     skip: i32,
     top: i32,
 }
+/// QueryResponseWrapper is a wrapper for the QueryResponse struct.
 #[repr(C)]
 pub struct QueryResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
 }
+// run query syncronously
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn query(
@@ -152,8 +159,9 @@ pub extern "C" fn query(
         }
     }))
 }
-
+/// QueryCallback is a callback function for the query_async function.
 type QueryCallback = extern "C" fn(wrapper: *mut QueryResponseWrapper);
+// run query asyncronously
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn query_async(
@@ -435,7 +443,6 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
     std::thread::sleep(std::time::Duration::from_secs(2));
 }
 
-#[allow(dead_code)]
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_client(response: *mut ClientWrapper) {

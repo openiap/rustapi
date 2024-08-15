@@ -1,7 +1,8 @@
+#![warn(missing_docs)]
 use std::fmt;
 use super::protos::Envelope;
-#[allow(dead_code)]
 impl super::protos::ErrorResponse {
+    /// Creates a new `ErrorResponse` with the given `message` and `code`.
     pub fn new(message: &str, code: i32) -> Self {
         Self {
             code,
@@ -9,6 +10,7 @@ impl super::protos::ErrorResponse {
             ..Default::default()
         }
     }
+    /// Converts the `ErrorResponse` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
             type_url: "type.googleapis.com/openiap.ErrorResponse".to_string(),
@@ -27,11 +29,14 @@ impl super::protos::ErrorResponse {
 }
 
 
-#[allow(dead_code)]
+/// Error type for OpenIAP
 #[derive(Debug)]
 pub enum OpenIAPError {
+    /// Client error
     ClientError(String),
+    /// Server error
     ServerError(String),
+    /// Custom error
     CustomError(String),
 }
 impl fmt::Display for OpenIAPError {

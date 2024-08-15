@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+//! The `openiap.client` crate provides the `Client` struct and its methods.
+//! For now this only support grpc, will over time have added support for web sockets, http, tcp and named pipes.
+
 pub use openiap_proto::errors::*;
 pub use openiap_proto::protos::*;
 pub use openiap_proto::*;
@@ -25,21 +29,32 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
+/// The `Client` struct provides the client for the OpenIAP service.
 #[derive(Debug, Clone)]
 pub struct Client {
+    /// The inner client.
     pub inner: Arc<Mutex<ClientInner>>,
 }
+/// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
+    /// The grpc client.//! 
     pub client: FlowServiceClient<tonic::transport::Channel>,
+    /// Are we signed in?
     pub signedin: bool,
+    /// Are we connected?
     pub connected: bool,
+    /// The stream sender.
     pub stream_tx: mpsc::Sender<Envelope>,
+    /// list of queries ( messages sent to server we are waiting on a response for )
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
+    /// Active streams the server (or client) has opened
     pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
+    /// List of active watches ( change streams )
     #[allow(clippy::type_complexity)]
     pub watches:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+    /// List of active queues ( message queues / mqqt queues or exchanges )
     #[allow(clippy::type_complexity)]
     pub queues:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
@@ -108,6 +123,7 @@ fn compress_file(input_path: &str, output_path: &str) -> io::Result<()> {
 
     Ok(())
 }
+/// Read a file and compresses it into a `Vec<u8>`.
 pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec::Vec<u8>> {
     // Open the input file
     let input_file = File::open(input_path)?;
@@ -131,6 +147,7 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
     Ok(compressed_data)
 }
 impl Client {
+    /// Initializes a new client and starts a connection to an OpenIAP server.
     #[tracing::instrument(skip_all)]
     pub async fn connect(dst: &str) -> Result<Self, OpenIAPError> {
         let mut strurl = dst.to_string();
@@ -473,7 +490,6 @@ impl Client {
         }
         Ok((response_rx, stream_rx))
     }
-    #[allow(dead_code)]
     #[tracing::instrument(skip_all)]
     async fn ping(&self) {
         let envelope = Envelope {
@@ -486,6 +502,7 @@ impl Client {
             Err(e) => error!("Failed to send ping: {}", e),            
         }
     }
+    /// Sign in to the OpenIAP service. If no username and password is provided, it will attempt to use environment variables.
     #[tracing::instrument(skip_all)]
     pub async fn signin(&self, mut config: SigninRequest) -> Result<SigninResponse, OpenIAPError> {
         // autodetect how to signin using environment variables
@@ -542,6 +559,7 @@ impl Client {
             }
         }
     }
+    /// Run a query towards the database
     #[tracing::instrument(skip_all)]
     pub async fn query(&self, mut config: QueryRequest) -> Result<QueryResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
@@ -578,7 +596,7 @@ impl Client {
             },
         }
     }
-    #[allow(dead_code)]
+    /// Run an aggregate pipeline towards the database
     #[tracing::instrument(skip_all)]
     pub async fn aggregate(
         &self,
@@ -621,7 +639,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Count the number of documents in a collection, with an optional query
     #[tracing::instrument(skip_all)]
     pub async fn count(&self, mut config: CountRequest) -> Result<CountResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
@@ -653,7 +671,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Get distinct values for a field in a collection, with an optional query
     #[tracing::instrument(skip_all)]
     pub async fn distinct(
         &self,
@@ -690,7 +708,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Insert a document into a collection
     #[tracing::instrument(skip_all)]
     pub async fn insert_one(
         &self,
@@ -719,7 +737,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Insert many documents into a collection
     #[tracing::instrument(skip_all)]
     pub async fn insert_many(
         &self,
@@ -748,7 +766,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Update ( replace ) a document in a collection
     #[tracing::instrument(skip_all)]
     pub async fn update_one(
         &self,
@@ -777,7 +795,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Using a unique key, insert a document or update it if it already exists ( upsert on steroids )
     #[tracing::instrument(skip_all)]
     pub async fn insert_or_update_one(
         &self,
@@ -806,7 +824,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Using a unique key, insert many documents or update them if they already exist ( upsert on steroids )
     #[tracing::instrument(skip_all)]
     pub async fn insert_or_update_many(
         &self,
@@ -835,7 +853,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Update one or more documents in a collection using a update document
     #[tracing::instrument(skip_all)]
     pub async fn update_document(
         &self,
@@ -864,7 +882,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Delete a document from a collection using a unique key
     #[tracing::instrument(skip_all)]
     pub async fn delete_one(
         &self,
@@ -893,7 +911,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
-    #[allow(dead_code)]
+    /// Delete many documents from a collection using a query or list of unique keys
     #[tracing::instrument(skip_all)]
     pub async fn delete_many(
         &self,
@@ -922,6 +940,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Download a file from the database
     #[tracing::instrument(skip_all)]
     pub async fn download(
         &self,
@@ -1007,6 +1026,7 @@ impl Client {
             Err(status) => Err(OpenIAPError::ClientError(status.to_string())),
         }
     }
+    /// Upload a file to the database
     #[tracing::instrument(skip_all)]
     pub async fn upload(
         &self,
@@ -1082,6 +1102,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
     }
+    /// Watch for changes in a collection ( change stream )
     #[tracing::instrument(skip_all)]
     pub async fn watch(
         &self,
@@ -1126,6 +1147,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Cancel a watch ( change stream ) 
     #[tracing::instrument(skip_all)]
     pub async fn unwatch(&self, id: &str) -> Result<(), OpenIAPError> {
         let config = UnWatchRequest::byid(id);
@@ -1149,6 +1171,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Register a queue for messaging ( amqp ) in the OpenIAP service
     #[tracing::instrument(skip_all)]
     pub async fn register_queue(
         &self,
@@ -1190,6 +1213,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Unregister a queue or exchange for messaging ( amqp ) in the OpenIAP service
     #[tracing::instrument(skip_all)]
     pub async fn unregister_queue(&self, queuename: &str) -> Result<(), OpenIAPError> {
         let config = UnRegisterQueueRequest::byqueuename(queuename);
@@ -1213,6 +1237,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Register a exchange for messaging ( amqp ) in the OpenIAP service
     #[tracing::instrument(skip_all)]
     pub async fn register_exchange(
         &self,
@@ -1258,6 +1283,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Send a message to a queue or exchange in the OpenIAP service
     #[tracing::instrument(skip_all)]
     pub async fn queue_message(
         &self,
@@ -1287,6 +1313,9 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Push a new workitem to a workitem queue
+    /// If the file is less than 5 megabytes it will be attached to the workitem
+    /// If the file is larger than 5 megabytes it will be uploaded to the database and attached to the workitem
     #[tracing::instrument(skip_all)]
     pub async fn push_workitem(
         &self,
@@ -1358,6 +1387,8 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Pop a workitem from a workitem queue, return None if no workitem is available
+    /// Any files attached to the workitem will be downloaded to the downloadfolder ( default "." )
     #[tracing::instrument(skip_all)]
     pub async fn pop_workitem(
         &self,
@@ -1417,6 +1448,11 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Update a workitem in a workitem queue
+    /// If the file is less than 5 megabytes it will be attached to the workitem
+    /// If the file is larger than 5 megabytes it will be uploaded to the database and attached to the workitem
+    /// If a fileid is provided it will be used to update the file
+    /// if a filename is provided without the id, it will be deleted
     #[tracing::instrument(skip_all)]
     pub async fn update_workitem(
         &self,
@@ -1478,6 +1514,7 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Delete a workitem from a workitem queue
     #[tracing::instrument(skip_all)]
     pub async fn delete_workitem(
         &self,
@@ -1519,7 +1556,6 @@ mod tests {
     use std::{future::Future, pin::Pin};
 
     use super::*;
-    #[allow(dead_code)]
     // const TEST_URL: &str = "http://localhost:50051";
     // const TEST_URL: &str = "http://grpc.demo.openiap.io";
     const TEST_URL: &str = "";
