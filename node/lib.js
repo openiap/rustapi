@@ -15,7 +15,48 @@ function encodeStruct(value, type) {
     koffi.encode(buf, type, value);
     return buf;
 }
-// const CStringArray = ArrayType(CString);
+function encode_files(req) {
+    for(let i = 0; i < req.files.length; i++) {
+        if(req.files[i] == null) continue;
+        if( typeof req.files[i] === 'string' ) {
+            req.files[i] = {
+                filename: req.files[i],
+                id: "",
+                // compressed: false,
+                // file: [null]
+            }
+        }
+        req.files[i] = encodeStruct(req.files[i], WorkitemFileWrapper);
+    }
+    if(req.files.length == 0 || req.files.at(-1) != null) {
+        req.files.push(null); // terminate array
+    }
+    // if(isworkitem) {
+    //     req.files = encodeStruct(req.files, 'WorkitemFileWrapper ***');
+    // }
+    req.files_len = req.files.length - 1;
+}
+function decode_files(res) {
+    // for(let i = 0; i < res.files_len; i++) {
+    //     res.files[i] = koffi.decode(res.files[i], WorkitemFileWrapper);
+    // }
+
+    let _files = [];
+    if(res.files_len > 0) {
+        var files = koffi.decode(res.files, 'WorkitemFileWrapper ***', res.files_len);
+        for(let i = 0; i < res.files_len; i++) {
+            let file = files[i];
+            if(file != null) {
+                var _file = koffi.decode(file, WorkitemFileWrapper);
+                delete _file.compressed;
+                delete _file.file;
+                _files.push(_file);
+            }
+        }
+    }
+    res.files = _files;
+
+}
 
 const ClientWrapper = koffi.struct('ClientWrapper', {
     success: 'bool',
@@ -229,8 +270,6 @@ const WorkitemFileWrapper = koffi.struct('WorkitemFileWrapper', {
     // file: 'uint8 ***',
     // file: ArrayType(ref.types.uint8) // This represents Vec<u8> in Rust
 });
-const WorkitemFileWrapperPtr = koffi.pointer(WorkitemFileWrapper);
-// const WorkitemFileWrapperPtrArray = ArrayType(WorkitemFileWrapperPtr);
 
 const WorkitemWrapper = koffi.struct('WorkitemWrapper', {
     id: CString,
@@ -239,9 +278,7 @@ const WorkitemWrapper = koffi.struct('WorkitemWrapper', {
     priority: int,
     nextrun: uint64,
     lastrun: uint64,
-    /// files: koffi.pointer(WorkitemFileWrapperPtrArray),
-    // files: WorkitemFileWrapperPtrArray,
-    files: 'WorkitemFileWrapper **',
+    files: 'WorkitemFileWrapper ***',
     files_len: int,
     state: CString,
     wiq: CString,
@@ -274,7 +311,8 @@ const PushWorkitemRequestWrapper = koffi.struct('PushWorkitemRequestWrapper', {
 const PushWorkitemRequestWrapperPtr = koffi.pointer(PushWorkitemRequestWrapper);
 const PushWorkitemResponseWrapper = koffi.struct('PushWorkitemResponseWrapper', {
     success: bool,
-    error: CString
+    error: CString,
+    workitem: WorkitemWrapperPtr
 });
 const PushWorkitemResponseWrapperPtr = koffi.pointer(PushWorkitemResponseWrapper);
 
@@ -290,6 +328,53 @@ const PopWorkitemResponseWrapper = koffi.struct('PopWorkitemResponseWrapper', {
 });
 const PopWorkitemResponseWrapperPtr = koffi.pointer(PopWorkitemResponseWrapper);
 
+const UpdateWorkitemRequestWrapper = koffi.struct('UpdateWorkitemRequestWrapper', {
+    workitem: WorkitemWrapperPtr,
+    ignoremaxretries: bool,
+    files: 'WorkitemFileWrapper ***',
+    files_len: int,
+});
+const UpdateWorkitemRequestWrapperPtr = koffi.pointer(UpdateWorkitemRequestWrapper);
+const UpdateWorkitemResponseWrapper = koffi.struct('UpdateWorkitemResponseWrapper', {
+    success: bool,
+    error: CString,
+    workitem: WorkitemWrapperPtr
+});
+const UpdateWorkitemResponseWrapperPtr = koffi.pointer(UpdateWorkitemResponseWrapper);
+
+const DeleteWorkitemRequestWrapper = koffi.struct('DeleteWorkitemRequestWrapper', {
+    id: CString,
+});
+const DeleteWorkitemRequestWrapperPtr = koffi.pointer(DeleteWorkitemRequestWrapper);
+const DeleteWorkitemResponseWrapper = koffi.struct('DeleteWorkitemResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const DeleteWorkitemResponseWrapperPtr = koffi.pointer(DeleteWorkitemResponseWrapper);
+
+const WatchRequestWrapper = koffi.struct('WatchRequestWrapper', {
+    collectionname: CString,
+    paths: CString,
+});
+const WatchRequestWrapperPtr = koffi.pointer(WatchRequestWrapper);
+const WatchResponseWrapper = koffi.struct('WatchResponseWrapper', {
+    success: bool,
+    watchid: CString,
+    error: CString,
+});
+const WatchResponseWrapperPtr = koffi.pointer(WatchResponseWrapper);
+const WatchEventWrapper = koffi.struct('WatchEventWrapper', {
+    id: CString,
+    operation: CString,
+    document: CString,
+});
+const WatchEventWrapperPtr = koffi.pointer(WatchEventWrapper);
+
+const UnwatchResponseWrapper = koffi.struct('UnwatchResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const UnwatchResponseWrapperPtr = koffi.pointer(UnwatchResponseWrapper);
 
 function isMusl() {
     // For Node 10
@@ -454,15 +539,39 @@ function loadLibrary() {
         lib.uploadCallback = koffi.proto('void uploadCallback(UploadResponseWrapper*)');
         lib.upload_async = lib.func('upload_async', 'void', [ClientWrapperPtr, UploadRequestWrapperPtr, koffi.pointer(lib.uploadCallback)]);
         lib.free_upload_response = lib.func('free_upload_response', 'void', [UploadResponseWrapperPtr]);
-
         lib.push_workitem = lib.func('push_workitem', PushWorkitemResponseWrapperPtr, [ClientWrapperPtr, PushWorkitemRequestWrapperPtr]);
         lib.push_workitemCallback = koffi.proto('void push_workitemCallback(PushWorkitemResponseWrapper*)');
         lib.push_workitem_async = lib.func('push_workitem_async', 'void', [ClientWrapperPtr, PushWorkitemRequestWrapperPtr, koffi.pointer(lib.push_workitemCallback)]);
         lib.free_push_workitem_response = lib.func('free_push_workitem_response', 'void', [PushWorkitemResponseWrapperPtr]);
         lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString]);
         lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
-        // lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, koffi.pointer(lib.pop_workitemCallback)]);
+        lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, koffi.pointer(lib.pop_workitemCallback)]);
         lib.free_pop_workitem_response = lib.func('free_pop_workitem_response', 'void', [PopWorkitemResponseWrapperPtr]);
+        lib.update_workitem = lib.func('update_workitem', UpdateWorkitemResponseWrapperPtr, [ClientWrapperPtr, UpdateWorkitemRequestWrapperPtr]);
+        lib.update_workitemCallback = koffi.proto('void update_workitemCallback(UpdateWorkitemResponseWrapper*)');
+        lib.update_workitem_async = lib.func('update_workitem_async', 'void', [ClientWrapperPtr, UpdateWorkitemRequestWrapperPtr, koffi.pointer(lib.update_workitemCallback)]);
+        lib.free_update_workitem_response = lib.func('free_update_workitem_response', 'void', [UpdateWorkitemResponseWrapperPtr]);
+        lib.delete_workitem = lib.func('delete_workitem', DeleteWorkitemResponseWrapperPtr, [ClientWrapperPtr, DeleteWorkitemRequestWrapperPtr]);
+        lib.delete_workitemCallback = koffi.proto('void delete_workitemCallback(DeleteWorkitemResponseWrapper*)');
+        lib.delete_workitem_async = lib.func('delete_workitem_async', 'void', [ClientWrapperPtr, DeleteWorkitemRequestWrapperPtr, koffi.pointer(lib.delete_workitemCallback)]);
+        lib.free_delete_workitem_response = lib.func('free_delete_workitem_response', 'void', [DeleteWorkitemResponseWrapperPtr]);
+
+        lib.watch = lib.func('watch', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr]);
+        lib.next_watch_event = lib.func('next_watch_event', WatchEventWrapperPtr, [CString]);
+        lib.WatchEventCallback = koffi.proto('void WatchEventCallback(WatchEventWrapper*)');
+        // lib.WatchEventCallback = koffi.proto('void WatchEventCallback()');
+        // lib.WatchEventCallback = koffi.proto('void WatchEventCallback(char*)');
+        lib.watchCallback = koffi.proto('void watchCallback(WatchResponseWrapper*)');
+        lib.watch_async = lib.func('watch_async_async', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.WatchEventCallback)]);
+        lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
+        lib.free_watch_event = lib.func('free_watch_event', 'void', [WatchEventWrapperPtr]);
+        lib.free_watch_response = lib.func('free_watch_response', 'void', [WatchResponseWrapperPtr]);
+        
+        lib.unwatch = lib.func('unwatch', UnwatchResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.unwatchCallback = koffi.proto('void unwatchCallback(UnwatchResponseWrapper*)');
+        lib.unwatch_async = lib.func('unwatch_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.unwatchCallback)]);
+        lib.free_unwatch_response = lib.func('free_unwatch_response', 'void', [UnwatchResponseWrapperPtr]);
+
 
         
         return lib;
@@ -519,7 +628,7 @@ class Client {
         this.lib.enable_tracing(rust_log, tracing);
         this.informing = true;
         if(rust_log.indexOf('verbose') > -1) this.verbosing = true;
-        if(rust_log.indexOf('trace') > -1) this.tracing = true;
+        if(rust_log.indexOf('trace') > -1) { this.tracing = true; this.verbosing = true; }
         this.trace('enable_tracing called');
     }
     disable_tracing() {
@@ -548,36 +657,6 @@ class Client {
         this.connected = true;
         this.client = _clientWrapperPtr;
         return clientWrapper;
-    }
-    test_add() {
-        return new Promise(async (resolve, reject) => {
-            console.log("test_add::begin");
-            const TransferCallback = koffi.proto('TransferCallback', 'void', ['int']);
-            const addAsync = this.lib.func('add_async', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-            function callback(value) {
-                console.log("callback with value", value);
-                resolve();
-            }
-            const cb = koffi.register(callback, koffi.pointer(TransferCallback));
-            addAsync.async(2, 2, cb, (err, res) => {
-                console.log(err, res); // why is this not called?
-            });
-        });
-    }
-    test_add2() {
-        return new Promise(async (resolve, reject) => {
-            console.log("test_add::begin");
-            const TransferCallback = koffi.proto('TransferCallback2', 'void', ['int']);
-            const addAsync = this.lib.func('add_async2', 'void', ['int', 'int', koffi.pointer(TransferCallback)]);
-            function callback(value) {
-                console.log("callback with value", value);
-                resolve();
-            }
-            const cb = koffi.register(callback, koffi.pointer(TransferCallback));
-            addAsync.async(2, 2, cb, (err, res) => {
-                console.log(err, res); // why is this not called?
-            });
-        });
     }
 
     connect_async(url) {
@@ -1361,111 +1440,6 @@ class Client {
             });
         });
     }
-    watches = {}
-    watch({ collectionname, paths }, callback) {
-        this.info('watch invoked');
-        const req = new WatchRequestWrapper({
-            collectionname: ref.allocCString(collectionname),
-            paths: ref.allocCString(paths)
-        });
-        this.info('call watch');
-        const response = this.lib.watch(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
-        this.lib.free_watch_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        let watchid = result.watchid;
-        this.watches[watchid] = setInterval(() => {
-            if (this.connected == false) {
-                clearInterval(this.watches[watchid]);
-                delete this.watches[watchid];
-                return;
-            }
-            let hadone = false;
-            do {
-                // this.log('call next');
-                const responsePtr = this.lib.next_watch_event(ref.allocCString(watchid));
-                const result = responsePtr.deref();
-                if (result.id != null && result.id != "") {
-                    hadone = true;
-                    let event = {
-                        id: result.id,
-                        operation: result.operation,
-                        document: JSON.parse(result.document),
-                    }
-                    // this.log('call next had result', event);
-                    callback(event);
-                    // callback(JSON.parse(result));
-                } else {
-                    hadone = false;
-                }
-                this.lib.free_watch_event(responsePtr);
-            } while (hadone);
-        }, 1000);
-        return result.watchid;
-    }
-    watch_async({ collectionname, paths }, callback) {
-        this.info('watch invoked');
-        return new Promise((resolve, reject) => {
-            this.info('create event_callbackPtr');
-            const event_callbackPtr = ffi.Callback('void', ['string'], (data) => {
-                this.info('watch_async event callback');
-                try {
-                    const event = JSON.parse(data);
-                    event.document = JSON.parse(event.document);
-                    callback(event);
-                } catch (error) {
-                    console.error(`watch callback error: ${error}`);
-                }
-            });
-            const req = new WatchRequestWrapper({
-                collectionname: ref.allocCString(collectionname),
-                paths: ref.allocCString(paths)
-            });
-
-            this.info('create callback');
-            const callbackPtr = ffi.Callback('void', [koffi.pointer(WatchResponseWrapper)], (responsePtr) => {
-                this.info('watch_async callback');
-                const response = JSON.parse(JSON.stringify(responsePtr.deref()));
-                if (!response.success) {
-                    const errorMsg = response.error;
-                    reject(new ClientError(errorMsg));
-                } else {
-                    resolve(response.watchid);
-                }
-                this.lib.free_watch_response(responsePtr);
-            });
-
-            this.info('call watch_async');
-            this.lib.watch_async.async(this.client, req.ref(), callbackPtr, event_callbackPtr, (err) => {
-                if (err) {
-                    reject(new ClientError('watch failed'));
-                }
-            });
-        });
-    }
-    unwatch(watchid) {
-        const response = this.lib.unwatch(this.client, watchid);
-        if (ref.isNull(response)) {
-            throw new ClientError('UnWatch failed');
-        }
-        const Obj = JSON.parse(JSON.stringify(response.deref()));
-        const result = {
-            success: Obj.success,
-            error: Obj.error
-        };
-        this.lib.free_unwatch_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        if (this.watches[watchid] != null) {
-            clearInterval(this.watches[watchid]);
-            delete this.watches[watchid];
-        }
-    }
 
     queues = {}
     register_queue({ queuename }, callback) {
@@ -1615,28 +1589,7 @@ class Client {
             files: files,
             files_len: files.length
         };
-        for(let i = 0; i < files.length; i++) {
-            let file = files[i];
-            // is file a string ?
-            if( typeof file === 'string' ) {
-                // then convert it to a file object
-                files[i] = {
-                    filename: file,
-                    id: "",
-                    // compressed: false,
-                    // file: [null]
-                }
-            } else {
-                // if(file.file != null && file.file.length > 0) {
-                //     file.file.push(null); // terminate array
-                // }
-            }
-            const fileptr = encodeStruct(files[i], WorkitemFileWrapper);
-            files[i] = fileptr;
-        }
-        if(files.length == 0 || files[-1] != null) {
-            files.push(null); // terminate array
-        }
+        encode_files(req);
         const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
         this.verbose('call push_workitem');
         const response = this.lib.push_workitem(this.client, reqptr);
@@ -1648,7 +1601,28 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return result.id;
+        if(result.workitem != null) {
+            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+            decode_files(workitem);
+            if(workitem.nextrun > 0) {
+                workitem.nextrun = new Date(workitem.nextrun * 1000);
+            } else {
+                delete workitem.nextrun;
+            }
+            if(workitem.lastrun > 0) {
+                workitem.lastrun = new Date(workitem.lastrun * 1000);
+            } else {
+                delete workitem.lastrun;
+            }
+            try {
+                if(workitem.payload != null && workitem.payload != "") {
+                    workitem.payload = JSON.parse(workitem.payload);
+                }
+            } catch (error) {
+            }
+            return workitem;
+        }
+        return null;
     }
     push_workitem_async({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
@@ -1677,28 +1651,7 @@ class Client {
                 files: files,
                 files_len: files.length
             };
-            for(let i = 0; i < files.length; i++) {
-                let file = files[i];
-                // is file a string ?
-                if( typeof file === 'string' ) {
-                    // then convert it to a file object
-                    files[i] = {
-                        filename: file,
-                        id: "",
-                        // compressed: false,
-                        // file: [null]
-                    }
-                } else {
-                    // if(file.file != null && file.file.length > 0) {
-                    //     file.file.push(null); // terminate array
-                    // }
-                }
-                const fileptr = encodeStruct(files[i], WorkitemFileWrapper);
-                files[i] = fileptr;
-            }
-            if(files.length == 0 || files[-1] != null) {
-                files.push(null); // terminate array
-            }
+            encode_files(req);
             const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
@@ -1709,7 +1662,28 @@ class Client {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    resolve(response.id);
+                    if(response.workitem != null) {
+                        var workitem = koffi.decode(response.workitem, WorkitemWrapper);
+                        decode_files(workitem);
+                        if(workitem.nextrun > 0) {
+                            workitem.nextrun = new Date(workitem.nextrun * 1000);
+                        } else {
+                            delete workitem.nextrun;
+                        }
+                        if(workitem.lastrun > 0) {
+                            workitem.lastrun = new Date(workitem.lastrun * 1000);
+                        } else {
+                            delete workitem.lastrun;
+                        }
+                        try {
+                            if(workitem.payload != null && workitem.payload != "") {
+                                workitem.payload = JSON.parse(workitem.payload);
+                            }
+                        } catch (error) {
+                        }
+                        return resolve(workitem);
+                    }
+                    resolve(null);
                 }
                 this.trace('free_push_workitem_response');
                 this.lib.free_push_workitem_response(responsePtr);
@@ -1717,9 +1691,6 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.push_workitemCallback));
             this.verbose('call push_workitem_async');
-            if(files.length > 0) {
-                let f = files[0];
-            }
             this.lib.push_workitem_async(this.client, reqptr, cb, (err) => {
                 if (err) {
                     reject(new ClientError('PushWorkitem async failed'));
@@ -1748,20 +1719,7 @@ class Client {
         }
         if(result.workitem != null) {
             var workitem = koffi.decode(result.workitem, WorkitemWrapper);
-            let _files = [];
-            if(workitem.files_len > 0) {
-                var files = koffi.decode(workitem.files, 'WorkitemFileWrapper ***', workitem.files_len);
-                for(let i = 0; i < workitem.files_len; i++) {
-                    let file = files[i];
-                    if(file != null) {
-                        var _file = koffi.decode(file, WorkitemFileWrapper);
-                        delete _file.compressed;
-                        delete _file.file;
-                        _files.push(_file);
-                    }
-                }
-            }
-            workitem.files = _files;
+            decode_files(workitem);
             if(workitem.nextrun > 0) {
                 workitem.nextrun = new Date(workitem.nextrun * 1000);
             } else {
@@ -1782,8 +1740,477 @@ class Client {
         }
         return null;
     }
+    pop_workitem_async({ wiq = "", wiqid = "", downloadfolder = "." }) {
+        this.verbose('pop_workitem async invoked');
+        return new Promise((resolve, reject) => {
+            if(downloadfolder == null || downloadfolder == "") downloadfolder = ".";
+            const req = {
+                wiq: wiq,
+                wiqid: wiqid
+            };
+            const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('pop_workitem_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, PopWorkitemResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    if(response.workitem != null) {
+                        var workitem = koffi.decode(response.workitem, WorkitemWrapper);
+                        decode_files(workitem);
+                        if(workitem.nextrun > 0) {
+                            workitem.nextrun = new Date(workitem.nextrun * 1000);
+                        } else {
+                            delete workitem.nextrun;
+                        }
+                        if(workitem.lastrun > 0) {
+                            workitem.lastrun = new Date(workitem.lastrun * 1000);
+                        } else {
+                            delete workitem.lastrun;
+                        }
+                        try {
+                            if(workitem.payload != null && workitem.payload != "") {
+                                workitem.payload = JSON.parse(workitem.payload);
+                            }
+                        } catch (error) {
+                        }
+                        resolve(workitem);
+                    } else {
+                        resolve(null);
+                    }
+                }
+                this.trace('free_pop_workitem_response');
+                this.lib.free_pop_workitem_response(responsePtr);
+            };
 
+            const cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
+            this.verbose('call pop_workitem_async');
+            this.lib.pop_workitem_async(this.client, reqptr, downloadfolder, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('PopWorkitem async failed'));
+                }
+            });
+        
+        });
+    }
+    update_workitem({ workitem, ignoremaxretries = false, files = []}) {
+        this.verbose('update_workitem invoked');
+        workitem = Object.assign({
+            id: "",
+            name: "",
+            payload: "",
+            priority: 2,
+            nextrun: 0,
+            lastrun: 0,
+            files: [null],
+            files_len: 0,
+            state: "",
+            wiq: "",
+            wiqid: "",
+            retries: 3,
+            username: "",
+            success_wiqid: "",
+            failed_wiqid: "",
+            success_wiq: "",
+            failed_wiq: "",
+            errormessage: "",
+            errorsource: "",
+            errortype: ""
+        } , workitem);
+        if(workitem.payload == null) workitem.payload = "{}";
+        if(workitem.payload != null && typeof workitem.payload === 'object') {
+            workitem.payload = JSON.stringify(workitem.payload);
+        }
+        const req = {
+            workitem: workitem,
+            ignoremaxretries: ignoremaxretries,
+            files: files,
+            files_len: files.length
+        };
+        encode_files(req);
+        if (workitem.nextrun != null && workitem.nextrun instanceof Date) {
+            this.trace('Node.js: nextrun before', workitem.nextrun);
+            // then convert nextrun to a number ( POSIX time )
+            workitem.nextrun = Math.floor(workitem.nextrun.getTime() / 1000); // Convert to seconds
+        } else {
+            workitem.nextrun = 0;
+        }
+        if (workitem.lastrun != null && workitem.lastrun instanceof Date) {
+            this.trace('Node.js: lastrun before', workitem.lastrun);
+            // then convert lastrun to a number ( POSIX time )
+            workitem.lastrun = Math.floor(workitem.lastrun.getTime() / 1000); // Convert to seconds
+        } else {
+            workitem.lastrun = 0;
+        }
+        encode_files(workitem);
+        // workitem.files = [null];
+        // workitem.files_len = 0;
+        this.verbose('encode workitem');
+        req.workitem = encodeStruct(workitem, WorkitemWrapper);
+        this.verbose('encode request');
+        const reqptr = encodeStruct(req, UpdateWorkitemRequestWrapper);
+        this.verbose('call update_workitem with ', files.length, ' files');
+        const response = this.lib.update_workitem(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, UpdateWorkitemResponseWrapper);
+        this.verbose('free_update_workitem_response');
+        this.lib.free_update_workitem_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        if(result.workitem != null) {
+            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+            decode_files(workitem);
+            if(workitem.nextrun > 0) {
+                workitem.nextrun = new Date(workitem.nextrun * 1000);
+            } else {
+                delete workitem.nextrun;
+            }
+            if(workitem.lastrun > 0) {
+                workitem.lastrun = new Date(workitem.lastrun * 1000);
+            } else {
+                delete workitem.lastrun;
+            }
+            try {
+                if(workitem.payload != null && workitem.payload != "") {
+                    workitem.payload = JSON.parse(workitem.payload);
+                }
+            } catch (error) {
+            }
+            return workitem;
+        }
+        return null;
+    }
+    update_workitem_async({ workitem, ignoremaxretries = false, files = []}) {
+        this.verbose('update_workitem async invoked');
+        return new Promise((resolve, reject) => {
+            workitem = Object.assign({
+                id: "",
+                name: "",
+                payload: "",
+                priority: 2,
+                nextrun: 0,
+                lastrun: 0,
+                files: [null],
+                files_len: 0,
+                state: "",
+                wiq: "",
+                wiqid: "",
+                retries: 3,
+                username: "",
+                success_wiqid: "",
+                failed_wiqid: "",
+                success_wiq: "",
+                failed_wiq: "",
+                errormessage: "",
+                errorsource: "",
+                errortype: ""
+            } , workitem);
+            if(workitem.payload == null) workitem.payload = "{}";
+            if(workitem.payload != null && typeof workitem.payload === 'object') {
+                workitem.payload = JSON.stringify(workitem.payload);
+            }
+            const req = {
+                workitem: workitem,
+                ignoremaxretries: ignoremaxretries,
+                files: files,
+                files_len: files.length
+            };
+            encode_files(req);
+            if (workitem.nextrun != null && workitem.nextrun instanceof Date) {
+                this.trace('Node.js: nextrun before', workitem.nextrun);
+                // then convert nextrun to a number ( POSIX time )
+                workitem.nextrun = Math.floor(workitem.nextrun.getTime() / 1000); // Convert to seconds
+            } else {
+                workitem.nextrun = 0;
+            }
+            if (workitem.lastrun != null && workitem.lastrun instanceof Date) {
+                this.trace('Node.js: lastrun before', workitem.lastrun);
+                // then convert lastrun to a number ( POSIX time )
+                workitem.lastrun = Math.floor(workitem.lastrun.getTime() / 1000); // Convert to seconds
+            } else {
+                workitem.lastrun = 0;
+            }
+            encode_files(workitem);
+            // workitem.files = [null];
+            // workitem.files_len = 0;
+            this.verbose('encode workitem');
+            req.workitem = encodeStruct(workitem, WorkitemWrapper);
+            this.verbose('encode request');
+            const reqptr = encodeStruct(req, UpdateWorkitemRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('update_workitem_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, UpdateWorkitemResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    if(response.workitem != null) {
+                        var workitem = koffi.decode(response.workitem, WorkitemWrapper);
+                        decode_files(workitem);
+                        if(workitem.nextrun > 0) {
+                            workitem.nextrun = new Date(workitem.nextrun * 1000);
+                        } else {
+                            delete workitem.nextrun;
+                        }
+                        if(workitem.lastrun > 0) {
+                            workitem.lastrun = new Date(workitem.lastrun * 1000);
+                        } else {
+                            delete workitem.lastrun;
+                        }
+                        try {
+                            if(workitem.payload != null && workitem.payload != "") {
+                                workitem.payload = JSON.parse(workitem.payload);
+                            }
+                        } catch (error) {
+                        }
+                        return resolve(workitem);
+                    }
+                    resolve(null);
+                }
+                this.trace('free_update_workitem_response');
+                this.lib.free_update_workitem_response(responsePtr);
+            };
+
+            const cb = koffi.register(callback, koffi.pointer(this.lib.update_workitemCallback));
+            this.verbose('call update_workitem_async');
+            this.lib.update_workitem_async(this.client, reqptr, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('UpdateWorkitem async failed'));
+                }
+            });
+
+        });
+
+    }
+
+    delete_workitem(id) {
+        this.verbose('delete_workitem invoked');
+        const req = {
+            id: id
+        };
+        const reqptr = encodeStruct(req, DeleteWorkitemRequestWrapper);
+        this.verbose('call delete_workitem');
+        const response = this.lib.delete_workitem(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, DeleteWorkitemResponseWrapper);
+        this.verbose('free_delete_workitem_response');
+        this.lib.free_delete_workitem_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+    }
+    delete_workitem_async(id) {
+        this.verbose('delete_workitem async invoked');
+        return new Promise((resolve, reject) => {
+            const req = {
+                id: id
+            };
+            const reqptr = encodeStruct(req, DeleteWorkitemRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('delete_workitem_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, DeleteWorkitemResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve();
+                }
+                this.trace('free_delete_workitem_response');
+                this.lib.free_delete_workitem_response(responsePtr);
+            };
+
+            const cb = koffi.register(callback, koffi.pointer(this.lib.delete_workitemCallback));
+            this.verbose('call delete_workitem_async');
+            this.lib.delete_workitem_async(this.client, reqptr, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('DeleteWorkitem async failed'));
+                }
+            });
+        });
+    }
+    watches = {}
+    watch({ collectionname, paths }, callback) {
+        this.info('watch invoked');
+        const req = {
+            collectionname: collectionname,
+            paths: paths
+        }
+        const reqptr = encodeStruct(req, WatchRequestWrapper);
+        this.info('call watch');
+        const response = this.lib.watch(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, WatchResponseWrapper);
+        this.info('free_watch_response');
+        this.lib.free_watch_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let watchid = result.watchid;
+        let event_counter = 0;
+        this.watches[watchid] = setInterval(() => {
+            if (this.connected == false) {
+                this.trace('No longer connected, so clearInterval for watchid', watchid);
+                clearInterval(this.watches[watchid]);
+                delete this.watches[watchid];
+                return;
+            }
+            let hadone = false;
+            do {
+                this.trace('call next');
+                const responsePtr = this.lib.next_watch_event(watchid);
+                this.trace('decode response');
+                const result = koffi.decode(responsePtr, WatchEventWrapper);
+                if (result.id != null && result.id != "") {
+                    hadone = true;
+                    event_counter++;
+                    let event = {
+                        id: result.id,
+                        operation: result.operation,
+                        document: JSON.parse(result.document),
+                    }
+                    this.trace('call next had result', event_counter, event);
+                    try {
+                        callback(event, event_counter);
+                    } catch (error) {
+                        console.error('Error in watch event callback', error);                        
+                    }                    
+                } else {
+                    hadone = false;
+                }
+                this.trace('free_watch_event');
+                this.lib.free_watch_event(responsePtr);
+            } while (hadone);
+        }, 1000);
+
+        return watchid;
+    }
+    event_refs = {};
+    uniqeid() {
+        return Math.random().toString(36).substr(2, 9);
+    }
+    watch_async({ collectionname, paths }, callback) {
+        this.info('watch invoked');
+        const req = {
+            collectionname: collectionname,
+            paths: paths
+        }
+        const reqptr = encodeStruct(req, WatchRequestWrapper);
+        let event_counter = 0;
+        const event_callback = (responsePtr) => {
+            event_counter++;
+            this.trace('watch_async event callback');
+            const response = koffi.decode(responsePtr, WatchEventWrapper);
+            let event = {
+                id: response.id,
+                operation: response.operation,
+                document: JSON.parse(response.document),
+            }
+            this.trace('free_watch_event');
+            this.lib.free_watch_event(responsePtr);
+            try {
+                callback(event, event_counter);
+                this.trace('event #', event_counter, ' callback done');
+            } catch (error) {
+                console.error('Error in watch event callback', error);                    
+            }
+        }
+        const event_cb = koffi.register(event_callback, koffi.pointer(this.lib.WatchEventCallback));
+
+        this.info('call watch');
+        const response = this.lib.watch(this.client, reqptr, event_cb);
+        this.verbose('decode response');
+        const result = koffi.decode(response, WatchResponseWrapper);
+        this.info('free_watch_response');
+        this.lib.free_watch_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let watchid = result.watchid;
+
+        return watchid;
+    }
+    watch_async_async({ collectionname, paths }, callback) {
+        this.trace('watch async invoked');
+        return new Promise((resolve, reject) => {
+            const req = {
+                collectionname: collectionname,
+                paths: paths
+            };
+            const reqptr = encodeStruct(req, WatchRequestWrapper);
+            const callback = (responsePtr) => {
+                this.trace('watch_async callback');
+                const response = koffi.decode(responsePtr, WatchResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.watchid);
+                }
+                this.trace('free_watch_response');
+                this.lib.free_watch_response(responsePtr);
+            };
+            let event_counter = 0;
+            const event_callback = (responsePtr) => {
+                event_counter++;
+                this.trace('watch_async event callback');
+                const response = koffi.decode(responsePtr, WatchEventWrapper);
+                let event = {
+                    id: response.id,
+                    operation: response.operation,
+                    document: JSON.parse(response.document),
+                }
+                this.trace('free_watch_event');
+                this.lib.free_watch_event(responsePtr);
+                try {
+                    callback(event, event_counter);
+                } catch (error) {
+                    console.error('Error in watch event callback', error);                    
+                }
+            }
+            const cb = koffi.register(callback, koffi.pointer(this.lib.watchCallback));
+            const event_cb = koffi.register(event_callback, koffi.pointer(this.lib.WatchEventCallback));
+
+            // this.event_refs[this.uniqeid()] = { event_callback, event_cb };
+
+            this.trace('call watch_async');
+            this.lib.watch_async(this.client, reqptr, cb, event_cb, (err) => {
+                if (err) {
+                    reject(new ClientError('Watch failed'));
+                }
+            });
+        });
+    }
+    unwatch(watchid) {
+        this.verbose('unwatch invoked');
+        const response = this.lib.unwatch(this.client, watchid);
+        this.trace('decode response');
+        const result = koffi.decode(response, UnwatchResponseWrapper);
+        this.trace('free_unwatch_response');
+        this.lib.free_unwatch_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        if (this.watches[watchid] != null) {
+            this.trace('clearInterval for watchid', watchid);
+            clearInterval(this.watches[watchid]);
+            delete this.watches[watchid];
+        }        
+    }
 }
+
 
 module.exports = {
     Client,

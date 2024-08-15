@@ -2,8 +2,8 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, WorkitemFile};
-// use tracing_subscriber::field::debug;
+use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -220,24 +220,14 @@ pub extern "C" fn query_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
     debug!("Rust: runtime.spawn");
     runtime.spawn(async move {
         debug!("Rust: client.query");
         let result = client.as_ref().unwrap().query(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
-        //     c.query(request).await
-        // });
-        // let result = client_clone.unwrap().query(request).await;
 
         let response = match result {
             Ok(data) => {
                 let results: *const c_char = CString::new(data.results).unwrap().into_raw();
-                // std::mem::forget(results);
-                // let results = std::mem::ManuallyDrop::new(CString::new(data.results).unwrap().into_raw());
                 QueryResponseWrapper {
                     success: true,
                     results: results,
@@ -375,6 +365,7 @@ pub extern "C" fn disable_tracing() {
 ///
 /// This function assumes that the pointer is valid and points to a null-terminated string.
 /// If the pointer is null or if the string is not valid UTF-8, an empty string is returned.
+#[tracing::instrument(skip_all)]
 pub fn c_char_to_str(c_char: *const c_char) -> String {
     if c_char.is_null() {
         return "".to_string();
@@ -401,6 +392,7 @@ pub fn c_char_to_str(c_char: *const c_char) -> String {
 ///
 /// * `Option<&'a mut T>` - A mutable reference wrapped in `Some` if the pointer is valid, otherwise `None`.
 #[inline(always)]
+#[tracing::instrument(skip_all)]
 pub fn safe_wrapper<'a, T>(obj: *mut T) -> Option<&'a mut T> {
     if obj.is_null() {
         None
@@ -458,17 +450,17 @@ type ConnectCallback = extern "C" fn(wrapper: *mut ClientWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn connect_async(server_address: *const c_char, callback: ConnectCallback) {
-    debug!("rust::connect_async");
+    debug!("connect_async");
     let server_address = c_char_to_str(server_address);
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
 
-    debug!("rust::Spawn the async task");
+    debug!("Spawn the async task");
     let runtime_clone = std::sync::Arc::clone(&runtime);
     runtime.spawn(async move {
-        debug!("rust::Simulated async task started");
+        debug!("Simulated async task started");
         // Simulated async task (or replace with actual Client::connect)
         let client_result = Client::connect(&server_address).await;
-        debug!("rust::Client::connect::done");
+        debug!("Client::connect::done");
         let wrapper = if let Ok(client) = client_result {
             Box::into_raw(Box::new(ClientWrapper {
                 client: Some(client),
@@ -489,7 +481,7 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
             }))
         };
 
-        debug!("rust::Client::Calling callback with result");
+        debug!("Client::Calling callback with result");
         callback(wrapper);
     });
 
@@ -2769,7 +2761,7 @@ pub extern "C" fn upload(
         return Box::into_raw(Box::new(response));
     }
     let filepath = filepath.to_string();
-    debug!("Rust::upload: filepath: {}", filepath);
+    debug!("upload: filepath: {}", filepath);
     let filename = c_char_to_str(options.filename);
     if filename.is_empty() {
         let error_msg = CString::new("Filename is required").unwrap().into_raw();
@@ -2800,7 +2792,7 @@ pub extern "C" fn upload(
 
     // let client_clone = client.clone();
 
-    debug!("Rust::upload: runtime.block_on");
+    debug!("upload: runtime.block_on");
     let result = runtime.block_on(async {
         // let c = client.as_ref().unwrap();
         // c.upload(request).await
@@ -2875,7 +2867,7 @@ pub extern "C" fn upload_async(
         return callback(Box::into_raw(Box::new(response)));
     }
     let filepath = filepath.to_string();
-    debug!("Rust::upload_async: filepath: {}", filepath);
+    debug!("upload_async: filepath: {}", filepath);
     let filename = c_char_to_str(options.filename);
     if filename.is_empty() {
         let error_msg = CString::new("Filename is required").unwrap().into_raw();
@@ -2906,17 +2898,17 @@ pub extern "C" fn upload_async(
 
     // let client_clone = client.clone();
 
-    debug!("Rust::upload_async: runtime.spawn");
+    debug!("upload_async: runtime.spawn");
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
         //     c.upload(request).await
         // });
-        debug!("Rust::upload_async: call client.upload");
+        debug!("upload_async: call client.upload");
         // let result = client_clone.unwrap().upload(request, &filepath).await;
         let result = client.as_ref().unwrap().upload(request, &filepath).await;
 
-        debug!("Rust::upload_async: call client.upload done");
+        debug!("upload_async: call client.upload done");
         let response = match result {
             Ok(data) => {
                 let id = CString::new(data.id).unwrap().into_raw();
@@ -2937,7 +2929,7 @@ pub extern "C" fn upload_async(
                 }
             }
         };
-        debug!("Rust::upload_async: call callback with response");
+        debug!("upload_async: call callback with response");
         callback(Box::into_raw(Box::new(response)));
     });
 }
@@ -3016,7 +3008,7 @@ pub extern "C" fn watch(
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
                     // let c_event = std::ffi::CString::new(event).unwrap();
-                    debug!("Rust::watch: event: {:?}", event);
+                    debug!("watch: event: {:?}", event);
                     let watchid = CString::new(event.id.clone())
                         .unwrap()
                         .into_string()
@@ -3115,16 +3107,118 @@ pub extern "C" fn free_watch_event(response: *mut WatchEventWrapper) {
     free(response);
 }
 
-type WatchCallback = extern "C" fn(wrapper: *mut WatchResponseWrapper);
+type WatchEventCallback = extern "C" fn(*mut WatchEventWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn watch_async(
     client: *mut ClientWrapper,
     options: *mut WatchRequestWrapper,
+    event_callback: WatchEventCallback,
+)  -> *mut WatchResponseWrapper {
+    debug!("watch_async");
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = WatchResponseWrapper {
+                success: false,
+                watchid: std::ptr::null(),
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response))
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = WatchResponseWrapper {
+                success: false,
+                watchid: std::ptr::null(),
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response))
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let paths = c_char_to_str(options.paths);
+    let paths = paths.split(",").map(|s| s.to_string()).collect();
+    let request = WatchRequest {
+        collectionname: c_char_to_str(options.collectionname),
+        paths: paths,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = WatchResponseWrapper {
+            success: false,
+            watchid: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response))
+    }
+
+    // let client_clone = client.clone();
+
+    trace!("watch_async: runtime.spawn");
+
+    let result = runtime.block_on(async {
+        // let result = client_clone.unwrap().watch(request).await;
+        client.as_ref().unwrap().watch(request,
+            Box::new(move |event: WatchEvent| {
+                // convert event to json
+                // let event = serde_json::to_string(&event).unwrap();
+                // let c_event = std::ffi::CString::new(event).unwrap();
+                // event_callback(c_event.as_ptr());
+                // debug!("watch_async: event: {:?}", event);
+                debug!("call event_callback");
+                event_callback(Box::into_raw(Box::new(WatchEventWrapper {
+                    id: CString::new(event.id).unwrap().into_raw(),
+                    operation: CString::new(event.operation).unwrap().into_raw(),
+                    document: CString::new(event.document).unwrap().into_raw(),
+                })));
+            })
+        ).await
+    });
+
+    trace!("parse result");
+    let response = match result {
+        Ok(data) => {
+            let id = String::from(&data);
+            let watchid = CString::new(id).unwrap().into_raw();
+            WatchResponseWrapper {
+                success: true,
+                watchid,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Watch failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            WatchResponseWrapper {
+                success: false,
+                watchid: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+
+type WatchCallback = extern "C" fn(wrapper: *mut WatchResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn watch_async_async(
+    client: *mut ClientWrapper,
+    options: *mut WatchRequestWrapper,
     callback: WatchCallback,
-    event_callback: extern "C" fn(*const c_char),
+    // event_callback: extern "C" fn(*mut WatchEventWrapper),
+    event_callback: WatchEventCallback,
+    // event_callback: extern "C" fn(*const c_char),
 ) {
-    debug!("Rust::watch_async");
+    debug!("watch_async_async");
     let options = match safe_wrapper(options) {
         Some(options) => options,
         None => {
@@ -3169,14 +3263,14 @@ pub extern "C" fn watch_async(
 
     // let client_clone = client.clone();
 
-    debug!("Rust::watch_async: runtime.spawn");
+    debug!("watch_async: runtime.spawn");
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
         //     let c = client.as_ref().unwrap();
         //     c.watch(request).await
         // });
         // let result = client_clone.unwrap().watch(request).await;
-        debug!("Rust::watch_async: call client.watch");
+        debug!("watch_async: call client.watch");
         // let result = client_clone.unwrap().watch(request,
         //     Box::new(move |event: client::openiap::WatchEvent| {
         //         // convert event to json
@@ -3190,11 +3284,66 @@ pub extern "C" fn watch_async(
             .unwrap()
             .watch(
                 request,
-                Box::new(move |event: WatchEvent| {
-                    // convert event to json
-                    let event = serde_json::to_string(&event).unwrap();
-                    let c_event = std::ffi::CString::new(event).unwrap();
-                    event_callback(c_event.as_ptr());
+                Box::new(move |_event: WatchEvent| {
+                    debug!("watch_async: spawn new task, to call event_callback");
+                    //runtime.spawn(async move {
+                        trace!("watch_async: call event_callback");
+                        let id = CString::new("id").unwrap().into_raw();
+                        let operation = CString::new("operation").unwrap().into_raw();
+                        let document = CString::new("document").unwrap().into_raw();
+                        let event = Box::into_raw(Box::new(WatchEventWrapper {
+                            id,
+                            operation,
+                            document
+                        }));
+
+                        event_callback(event);
+
+                        // let error_msg = CString::new(format!("Watch failed"))
+                        // .unwrap()
+                        // .into_raw();
+                        // let response = WatchResponseWrapper {
+                        //     success: false,
+                        //     watchid: std::ptr::null(),
+                        //     error: error_msg,
+                        // };
+                        // callback(Box::into_raw(Box::new(response)));
+                        // trace!("watch_async: call event_callback called. ");
+    
+                    //});
+                    // debug!("watch_async: spawn new task, to call event_callback");
+                    // tokio::task::spawn(async move {
+                    //     // let id = CString::new(event.id).unwrap().into_raw();
+                    //     // let operation = CString::new(event.operation).unwrap().into_raw();
+                    //     // let document = CString::new(event.document).unwrap().into_raw();
+
+                    //     // let error_msg = CString::new("Invalid options").unwrap().into_raw();
+                    //     // let response = QueryResponseWrapper {
+                    //     //     success: false,
+                    //     //     results: std::ptr::null(),
+                    //     //     error: error_msg,
+                    //     // };
+                    //     // return Box::into_raw(Box::new(response));
+            
+                        
+                    //     // let id = CString::new(id).unwrap().into_raw();
+                    //     // let operation = CString::new(operation).unwrap().into_raw();
+                    //     // let document = CString::new(document).unwrap().into_raw();
+                    //     // let event = Box::new(WatchEventWrapper {
+                    //     //     id,
+                    //     //     operation,
+                    //     //     document
+                    //     // });
+                    //     trace!("watch_async: call event_callback");
+                    //     // trace!("{:?}", event);
+                    //     // event_callback(Box::into_raw(event));
+                    //     event_callback();
+                    //     // event_callback(document);
+                    //     // let id = CString::new("findme").unwrap().into_raw();
+                    //     // event_callback(id);
+                    // });
+                    
+                    // trace!("watch_async: event_callback done");
                 }),
             )
             .await;
@@ -3220,7 +3369,7 @@ pub extern "C" fn watch_async(
             }
         };
 
-        debug!("Rust::watch_async: call callback with response");
+        debug!("watch_async: call callback with response");
         callback(Box::into_raw(Box::new(response)));
     });
 }
@@ -3256,6 +3405,14 @@ pub extern "C" fn unwatch(
     let client = &client_wrapper.client;
     let runtime = &client_wrapper.runtime;
     let watchid = c_char_to_str(watchid);
+    if watchid.is_empty() {
+        let error_msg = CString::new("Watchid is required").unwrap().into_raw();
+        let response = UnWatchResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = UnWatchResponseWrapper {
@@ -3265,29 +3422,86 @@ pub extern "C" fn unwatch(
         return Box::into_raw(Box::new(response));
     }
 
+    trace!("watchid: {:?}", watchid);
     let result = runtime.block_on(async {
         let c = client.as_ref().unwrap();
         c.unwatch(&watchid).await
     });
+    trace!("completed, parsing result");
     match result {
         Ok(_) => {
             let response = UnWatchResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
             };
+            debug!("Unwatch success");
             Box::into_raw(Box::new(response))
         }
         Err(e) => {
             let error_msg = CString::new(format!("Unwatch failed: {:?}", e))
                 .unwrap()
                 .into_raw();
+            debug!("Unwatch failed: {:?}", error_msg);
             let response = UnWatchResponseWrapper {
                 success: false,
                 error: error_msg,
             };
             Box::into_raw(Box::new(response))
         }
+    }    
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn unwatch_async(
+    client: *mut ClientWrapper,
+    watchid: *const c_char,
+    callback: extern "C" fn(*mut UnWatchResponseWrapper),
+) {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = UnWatchResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let watchid = c_char_to_str(watchid);
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UnWatchResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
     }
+
+    runtime.spawn(async move {
+        let result = client.as_ref().unwrap().unwatch(&watchid).await;
+        match result {
+            Ok(_) => {
+                let response = UnWatchResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                };
+                callback(Box::into_raw(Box::new(response)));
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Unwatch failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                let response = UnWatchResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                };
+                callback(Box::into_raw(Box::new(response)));
+            }
+        }
+    });
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3362,7 +3576,7 @@ pub extern "C" fn register_queue(
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
                     // let c_event = std::ffi::CString::new(event).unwrap();
-                    trace!("Rust::queue: event: {:?}", event);
+                    trace!("queue: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
                         .into_string()
@@ -3491,7 +3705,7 @@ pub extern "C" fn register_exchange (
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
                     // let c_event = std::ffi::CString::new(event).unwrap();
-                    trace!("Rust::exchange: event: {:?}", event);
+                    trace!("exchange: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
                         .into_string()
@@ -3715,6 +3929,124 @@ pub struct WorkitemWrapper {
     errorsource: *const c_char,
     errortype: *const c_char,
 }
+impl WorkitemWrapper {
+    #[tracing::instrument(skip_all)]
+    pub fn as_workitem(&self) -> Workitem {
+        let files_len = self.files_len;
+        let mut files: Vec<WorkitemFile> = vec![];
+        if files_len > 0 {
+            let _files = unsafe { &*self.files };
+            let _files = unsafe { std::slice::from_raw_parts(_files, files_len) };
+            files = _files.iter().map(|f| {
+                let file = unsafe { &**f };
+                WorkitemFile {
+                    filename: c_char_to_str(file.filename),
+                    id: c_char_to_str(file.id),
+                    ..Default::default()
+                    // compressed: file.compressed,
+                    // file: file.file.clone(),
+                }
+            }).collect();
+        }
+        trace!("nextrun: {:?}", self.nextrun);
+        // convert self.nextrun to std::time::SystemTime
+        let mut nextrun = Some(Timestamp::from(
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(self.nextrun as u64)
+        ));
+        trace!("nextrun: {:?}", nextrun);
+        if self.nextrun  <= 0 {
+            nextrun = None;
+        }
+        trace!("lastrun: {:?}", self.lastrun);
+        // convert self.lastrun to std::time::SystemTime
+        let mut lastrun = Some(Timestamp::from(
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(self.lastrun as u64)
+        ));
+        trace!("lastrun: {:?}", lastrun);
+        if self.lastrun  <= 0 {
+            lastrun = None;
+        }    
+        Workitem {
+            id: c_char_to_str(self.id),
+            name: c_char_to_str(self.name),
+            payload: c_char_to_str(self.payload),
+            priority: self.priority,
+            nextrun:  nextrun,
+            lastrun: lastrun,
+            files: files,
+            state: c_char_to_str(self.state),
+            wiq: c_char_to_str(self.wiq),
+            wiqid: c_char_to_str(self.wiqid),
+            retries: self.retries,
+            username: c_char_to_str(self.username),
+            success_wiqid: c_char_to_str(self.success_wiqid),
+            failed_wiqid: c_char_to_str(self.failed_wiqid),
+            success_wiq: c_char_to_str(self.success_wiq),
+            failed_wiq: c_char_to_str(self.failed_wiq),
+            errormessage: c_char_to_str(self.errormessage),
+            errorsource: c_char_to_str(self.errorsource),
+            errortype: c_char_to_str(self.errortype),
+        }
+    }
+}
+#[tracing::instrument(skip_all)]
+pub fn wrap_workitem(workitem: Workitem ) -> WorkitemWrapper {
+    trace!("parse workitem: {:?}", workitem);
+    let id = CString::new(workitem.id).unwrap().into_raw();
+    let name = CString::new(workitem.name).unwrap().into_raw();
+    let payload = CString::new(workitem.payload).unwrap().into_raw();
+    let state = CString::new(workitem.state).unwrap().into_raw();
+    let wiq = CString::new(workitem.wiq).unwrap().into_raw();
+    let wiqid = CString::new(workitem.wiqid).unwrap().into_raw();
+    let username = CString::new(workitem.username).unwrap().into_raw();
+    let success_wiqid = CString::new(workitem.success_wiqid).unwrap().into_raw();
+    let failed_wiqid = CString::new(workitem.failed_wiqid).unwrap().into_raw();
+    let success_wiq = CString::new(workitem.success_wiq).unwrap().into_raw();
+    let failed_wiq = CString::new(workitem.failed_wiq).unwrap().into_raw();
+    let errormessage = CString::new(workitem.errormessage).unwrap().into_raw();
+    let errorsource = CString::new(workitem.errorsource).unwrap().into_raw();
+    let errortype = CString::new(workitem.errortype).unwrap().into_raw();
+    let mut files: Vec<*const WorkitemFileWrapper> = vec![];
+    for f in &workitem.files {
+        trace!("parse workitem file: {:?}", f);
+        let filename = CString::new(f.filename.clone()).unwrap().into_raw();
+        let id = CString::new(f.id.clone()).unwrap().into_raw();
+        let file: Vec<u8> = Vec::new();
+        let compressed = f.compressed;
+        let file = Box::into_raw(Box::new(WorkitemFileWrapper {
+            filename,
+            id,
+            file,
+            compressed,
+        }));
+        files.push(file);
+    }
+    trace!("files: {:?} at {:?}", files.len(), files);
+    let workitem = WorkitemWrapper {
+        id,
+        name,
+        payload,
+        priority: workitem.priority,
+        nextrun: workitem.nextrun.unwrap_or(Timestamp::from(std::time::SystemTime::UNIX_EPOCH)).seconds as u64,
+        lastrun: workitem.lastrun.unwrap_or(Timestamp::from(std::time::SystemTime::UNIX_EPOCH)).seconds as u64,
+        files: files.as_ptr(),
+        files_len: files.len(),
+        state,
+        wiq,
+        wiqid,
+        retries: workitem.retries,
+        username,
+        success_wiqid,
+        failed_wiqid,
+        success_wiq,
+        failed_wiq,
+        errormessage,
+        errorsource,
+        errortype,
+    };
+    std::mem::forget(files);
+    workitem
+}
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct PushWorkitemRequestWrapper {
@@ -3736,6 +4068,7 @@ pub struct PushWorkitemRequestWrapper {
 pub struct PushWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
+    workitem: *const WorkitemWrapper,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3750,6 +4083,7 @@ pub extern "C" fn push_workitem(
             let response = PushWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                workitem: std::ptr::null(),
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3761,6 +4095,7 @@ pub extern "C" fn push_workitem(
             let response = PushWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                workitem: std::ptr::null(),
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3816,6 +4151,7 @@ pub extern "C" fn push_workitem(
         let response = PushWorkitemResponseWrapper {
             success: false,
             error: error_msg,
+            workitem: std::ptr::null(),
         };
         return Box::into_raw(Box::new(response));
     }
@@ -3830,10 +4166,26 @@ pub extern "C" fn push_workitem(
     });
 
     let response = match result {
-        Ok(_) => {
-            let response = PushWorkitemResponseWrapper {
-                success: true,
-                error: std::ptr::null(),
+        Ok(resp) => {
+            let response = match resp.workitem {
+                Some(workitem) => {
+                    let workitem = wrap_workitem(workitem);
+                    let response = PushWorkitemResponseWrapper {
+                        success: true,
+                        error: std::ptr::null(),
+                        workitem: Box::into_raw(Box::new(workitem)),
+                    };
+                    response
+                }
+                None => {
+                    let error_msg = CString::new("Push workitem failed: workitem not found").unwrap().into_raw();
+                    let response = PushWorkitemResponseWrapper {
+                        success: false,
+                        error: error_msg,
+                        workitem: std::ptr::null(),
+                    };
+                    response
+                }
             };
             Box::into_raw(Box::new(response))
         }
@@ -3844,6 +4196,7 @@ pub extern "C" fn push_workitem(
             let response = PushWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                workitem: std::ptr::null(),
             };
             Box::into_raw(Box::new(response))
         }
@@ -3865,6 +4218,7 @@ pub extern "C" fn push_workitem_async(
             let response = PushWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                workitem: std::ptr::null(),
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3876,6 +4230,7 @@ pub extern "C" fn push_workitem_async(
             let response = PushWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                workitem: std::ptr::null(),
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3937,6 +4292,7 @@ pub extern "C" fn push_workitem_async(
         let response = PushWorkitemResponseWrapper {
             success: false,
             error: error_msg,
+            workitem: std::ptr::null(),
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -3948,10 +4304,26 @@ pub extern "C" fn push_workitem_async(
             .push_workitem(request)
             .await;
         let response = match result {
-            Ok(_) => {
-                let response = PushWorkitemResponseWrapper {
-                    success: true,
-                    error: std::ptr::null(),
+            Ok(resp) => {
+                let response = match resp.workitem {
+                    Some(workitem) => {
+                        let workitem = wrap_workitem(workitem);
+                        let response = PushWorkitemResponseWrapper {
+                            success: true,
+                            error: std::ptr::null(),
+                            workitem: Box::into_raw(Box::new(workitem)),
+                        };
+                        response
+                    }
+                    None => {
+                        let error_msg = CString::new("Push workitem failed: workitem not found").unwrap().into_raw();
+                        let response = PushWorkitemResponseWrapper {
+                            success: false,
+                            error: error_msg,
+                            workitem: std::ptr::null(),
+                        };
+                        response
+                    }                    
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -3962,6 +4334,7 @@ pub extern "C" fn push_workitem_async(
                 let response = PushWorkitemResponseWrapper {
                     success: false,
                     error: error_msg,
+                    workitem: std::ptr::null(),
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -4058,73 +4431,7 @@ pub extern "C" fn pop_workitem (
         Ok(data) => {
             let workitem = match data.workitem {
                 Some(workitem) => {
-                    trace!("parse workitem: {:?}", workitem);
-                    let id = CString::new(workitem.id).unwrap().into_raw();
-                    let name = CString::new(workitem.name).unwrap().into_raw();
-                    let payload = CString::new(workitem.payload).unwrap().into_raw();
-                    let state = CString::new(workitem.state).unwrap().into_raw();
-                    let wiq = CString::new(workitem.wiq).unwrap().into_raw();
-                    let wiqid = CString::new(workitem.wiqid).unwrap().into_raw();
-                    let username = CString::new(workitem.username).unwrap().into_raw();
-                    let success_wiqid = CString::new(workitem.success_wiqid).unwrap().into_raw();
-                    let failed_wiqid = CString::new(workitem.failed_wiqid).unwrap().into_raw();
-                    let success_wiq = CString::new(workitem.success_wiq).unwrap().into_raw();
-                    let failed_wiq = CString::new(workitem.failed_wiq).unwrap().into_raw();
-                    let errormessage = CString::new(workitem.errormessage).unwrap().into_raw();
-                    let errorsource = CString::new(workitem.errorsource).unwrap().into_raw();
-                    let errortype = CString::new(workitem.errortype).unwrap().into_raw();
-                    let mut files: Vec<*const WorkitemFileWrapper> = vec![];
-                    for f in &workitem.files {
-                        trace!("parse workitem file: {:?}", f);
-                        let filename = CString::new(f.filename.clone()).unwrap().into_raw();
-                        let id = CString::new(f.id.clone()).unwrap().into_raw();
-                        let file: Vec<u8> = Vec::new();
-                        let compressed = f.compressed;
-                        let file = Box::into_raw(Box::new(WorkitemFileWrapper {
-                            filename,
-                            id,
-                            file,
-                            compressed,
-                        }));
-                        files.push(file);
-                    }
-                    trace!("files: {:?} at {:?}", files.len(), files);
-                    // let files = workitem.files.iter().map(|f| {
-                    //     let filename = CString::new(f.filename.clone()).unwrap().into_raw();
-                    //     let id = CString::new(f.id.clone()).unwrap().into_raw();
-                    //     let file = f.file.clone();
-                    //     let compressed = f.compressed;
-                    //     let file = Box::new(WorkitemFileWrapper {
-                    //         filename,
-                    //         id,
-                    //         file,
-                    //         compressed,
-                    //     });
-                    //     Box::into_raw(file)
-                    // }).collect::<Vec<*const WorkitemFileWrapper>>();
-                    let workitem = WorkitemWrapper {
-                        id,
-                        name,
-                        payload,
-                        priority: workitem.priority,
-                        nextrun: 0,
-                        lastrun: 0,
-                        files: files.as_ptr(),
-                        files_len: files.len(),
-                        state,
-                        wiq,
-                        wiqid,
-                        retries: workitem.retries,
-                        username,
-                        success_wiqid,
-                        failed_wiqid,
-                        success_wiq,
-                        failed_wiq,
-                        errormessage,
-                        errorsource,
-                        errortype,
-                    };
-                    std::mem::forget(files);
+                    let workitem = wrap_workitem(workitem);
                     Box::into_raw(Box::new(workitem))
                 },
                 None => {
@@ -4153,9 +4460,546 @@ pub extern "C" fn pop_workitem (
     debug!("completed, return response");
     response
 }
-
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn pop_workitem_async (
+    client: *mut ClientWrapper,
+    options: *mut PopWorkitemRequestWrapper,
+    downloadfolder: *const c_char,
+    callback: extern "C" fn(*mut PopWorkitemResponseWrapper),
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = PopWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = PopWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = PopWorkitemRequest {
+        wiq: c_char_to_str(options.wiq),
+        wiqid: c_char_to_str(options.wiqid),
+        ..Default::default()
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = PopWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitem: std::ptr::null(),
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let downloadfolder = c_char_to_str(downloadfolder);
+    runtime.spawn(async move {
+        let mut _downloadfolder = Some(downloadfolder.as_str());
+        if downloadfolder.is_empty() {
+            _downloadfolder = None;
+        }
+    
+        let result = client
+            .as_ref()
+            .unwrap()
+            .pop_workitem(request, _downloadfolder)
+            .await;
+        let response = match result {
+            Ok(data) => {
+                let workitem = match data.workitem {
+                    Some(workitem) => {
+                        let workitem = wrap_workitem(workitem);
+                        Box::into_raw(Box::new(workitem))
+                    },
+                    None => {
+                        std::ptr::null()
+                    }
+                };
+                let response = PopWorkitemResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                    workitem,
+                };
+                Box::into_raw(Box::new(response))
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Pop workitem failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                let response = PopWorkitemResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                    workitem: std::ptr::null(),
+                };
+                Box::into_raw(Box::new(response))
+            }
+        };
+        callback(response);
+    });
+}
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct UpdateWorkitemRequestWrapper {
+    workitem: *const WorkitemWrapper,
+    ignoremaxretries: bool,    
+    files: *const *const WorkitemFileWrapper,
+    files_len: usize,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct UpdateWorkitemResponseWrapper {
+    success: bool,
+    error: *const c_char,
+    workitem: *const WorkitemWrapper
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_workitem (
+    client: *mut ClientWrapper,
+    options: *mut UpdateWorkitemRequestWrapper,
+) -> *mut UpdateWorkitemResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = UpdateWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = UpdateWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    trace!("grab references");
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let files_len = options.files_len;
+    debug!("files_len: {:?}", files_len);
+    let mut files: Vec<WorkitemFile> = vec![];
+    if files_len > 0 {
+        debug!("get files of options");
+        let _files = unsafe { &*options.files };
+        debug!("slice files");
+        let _files = unsafe { std::slice::from_raw_parts(_files, files_len) };
+        debug!("loop files");
+        files = _files.iter().map(|f| {
+            debug!("process a file");
+            let file = unsafe { &**f };
+            debug!("create WorkitemFile instance 2");
+            let filename = c_char_to_str(file.filename);
+            debug!("filename: {:?}", filename);
+            let id = c_char_to_str(file.id);
+            debug!("id: {:?}", id);
+            let compressed = file.compressed;
+            debug!("compressed: {:?}", compressed); 
+            WorkitemFile {
+                filename: c_char_to_str(file.filename),
+                id: c_char_to_str(file.id),
+                compressed: file.compressed,
+                ..Default::default()
+                // file: file.file.clone(),
+            }
+        }).collect();
+    }
+    debug!("unwrap workitem");
+    let workitem = unsafe { &*options.workitem };
+    debug!("convert workitem wrapper to workitem");
+    let workitem = workitem.as_workitem();
+    let request = UpdateWorkitemRequest {
+        workitem: Some(workitem),
+        ignoremaxretries: options.ignoremaxretries,
+        files: files,
+    };
+    
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitem: std::ptr::null(),
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        client
+            .as_ref()
+            .unwrap()
+            .update_workitem(request)
+            .await
+    });
+
+    let response = match result {
+        Ok(resp) => {
+            let response = match resp.workitem {
+                Some(workitem) => {
+                    let workitem = wrap_workitem(workitem);
+                    let response = UpdateWorkitemResponseWrapper {
+                        success: true,
+                        error: std::ptr::null(),
+                        workitem: Box::into_raw(Box::new(workitem)),
+                    };
+                    response
+                }
+                None => {
+                    let error_msg = CString::new("Update workitem failed: workitem not found").unwrap().into_raw();
+                    let response = UpdateWorkitemResponseWrapper {
+                        success: false,
+                        error: error_msg,
+                        workitem: std::ptr::null(),
+                    };
+                    response
+                }
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Update workitem failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = UpdateWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+    };
+
+    response
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_workitem_async (
+    client: *mut ClientWrapper,
+    options: *mut UpdateWorkitemRequestWrapper,
+    callback: extern "C" fn(*mut UpdateWorkitemResponseWrapper),
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = UpdateWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = UpdateWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitem: std::ptr::null(),
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    trace!("grab references");
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let files_len = options.files_len;
+    debug!("files_len: {:?}", files_len);
+    let mut files: Vec<WorkitemFile> = vec![];
+    if files_len > 0 {
+        debug!("get files of options");
+        let _files = unsafe { &*options.files };
+        debug!("slice files");
+        let _files = unsafe { std::slice::from_raw_parts(_files, files_len) };
+        debug!("loop files");
+        files = _files.iter().map(|f| {
+            debug!("process a file");
+            let file = unsafe { &**f };
+            debug!("create WorkitemFile instance 2");
+            let filename = c_char_to_str(file.filename);
+            debug!("filename: {:?}", filename);
+            let id = c_char_to_str(file.id);
+            debug!("id: {:?}", id);
+            let compressed = file.compressed;
+            debug!("compressed: {:?}", compressed); 
+            WorkitemFile {
+                filename: c_char_to_str(file.filename),
+                id: c_char_to_str(file.id),
+                compressed: file.compressed,
+                ..Default::default()
+                // file: file.file.clone(),
+            }
+        }).collect();
+    }
+    debug!("unwrap workitem");
+    let workitem = unsafe { &*options
+    .workitem };
+
+    debug!("convert workitem wrapper to workitem");
+    let workitem = workitem.as_workitem();
+    let request = UpdateWorkitemRequest {
+        workitem: Some(workitem),
+        ignoremaxretries: options.ignoremaxretries,
+        files: files,
+    };
+
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitem: std::ptr::null(),
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    runtime.spawn(async move {
+        let result = client
+            .as_ref()
+            .unwrap()
+            .update_workitem(request)
+            .await;
+        let response = match result {
+            Ok(resp) => {
+                let response = match resp.workitem {
+                    Some(workitem) => {
+                        let workitem = wrap_workitem(workitem);
+                        let response = UpdateWorkitemResponseWrapper {
+                            success: true,
+                            error: std::ptr::null(),
+                            workitem: Box::into_raw(Box::new(workitem)),
+                        };
+                        response
+                    }
+                    None => {
+                        let error_msg = CString::new("Update workitem failed: workitem not found").unwrap().into_raw();
+                        let response = UpdateWorkitemResponseWrapper {
+                            success: false,
+                            error: error_msg,
+                            workitem: std::ptr::null(),
+                        };
+                        response
+                    }
+                };
+                Box::into_raw(Box::new(response))
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Update workitem failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                let response = UpdateWorkitemResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                    workitem: std::ptr::null(),
+                };
+                Box::into_raw(Box::new(response))
+            }
+        };
+        callback(response);
+    });
+
+
+
+    
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_update_workitem_response(response: *mut UpdateWorkitemResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct DeleteWorkitemRequestWrapper {
+    id: *const c_char,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct DeleteWorkitemResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_workitem( 
+    client: *mut ClientWrapper,
+    options: *mut DeleteWorkitemRequestWrapper,
+) -> *mut DeleteWorkitemResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = DeleteWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DeleteWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteWorkitemRequest {
+        id: c_char_to_str(options.id),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        client
+            .as_ref()
+            .unwrap()
+            .delete_workitem(request)
+            .await
+    });
+
+    let response = match result {
+        Ok(_) => {
+            let response = DeleteWorkitemResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Delete workitem failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = DeleteWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    };
+    debug!("return response {:?}", response);
+    response
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_workitem_async( 
+    client: *mut ClientWrapper,
+    options: *mut DeleteWorkitemRequestWrapper,
+    callback: extern "C" fn(*mut DeleteWorkitemResponseWrapper),
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = DeleteWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DeleteWorkitemResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = DeleteWorkitemRequest {
+        id: c_char_to_str(options.id),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteWorkitemResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    
+    runtime.spawn(async move {
+        let result = client
+            .as_ref()
+            .unwrap()
+            .delete_workitem(request)
+            .await;
+        let response = match result {
+            Ok(_) => {
+                debug!("success");
+                let response = DeleteWorkitemResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                };
+                Box::into_raw(Box::new(response))
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Delete workitem failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                debug!("failed: {:?}", error_msg);
+                let response = DeleteWorkitemResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                };
+                Box::into_raw(Box::new(response))
+            }
+        };
+        debug!("callback {:?}", response);
+        callback(response);
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_delete_workitem_response(response: *mut DeleteWorkitemResponseWrapper) {
     free(response);
 }

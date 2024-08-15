@@ -4,16 +4,6 @@ pub use openiap_proto::*;
 pub use protos::flow_service_client::FlowServiceClient;
 pub use prost_types::Timestamp;
 
-
-// use openiap_proto::errors::OpenIAPError;
-// use openiap_proto::openiap::{
-//     flow_service_client::FlowServiceClient, DownloadRequest, DownloadResponse, Envelope,
-//     QueryRequest, QueryResponse, SigninRequest, SigninResponse, UnWatchRequest, UploadRequest,
-//     UploadResponse, WatchRequest, AggregateRequest, AggregateResponse, InsertOneRequest, InsertOneResponse,
-//     DistinctRequest, DistinctResponse,
-//     CountRequest, CountResponse, InsertManyRequest, InsertManyResponse,
-//     BeginStream, EndStream, ErrorResponse, Stream, WatchEvent, WatchResponse,
-// };
 use tracing::{debug, error, info, trace};
 
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -52,7 +42,6 @@ pub struct ClientInner {
     pub queues:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
 }
-// implement debug for ClientInner
 impl std::fmt::Debug for ClientInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClientInner")
@@ -87,7 +76,6 @@ fn move_file(from: &str, to: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-// use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -219,7 +207,6 @@ impl Client {
                     )));
                 }
             };
-            // let channel = Channel::builder(uri).tls_config(tls);
             let channel = Channel::builder(uri)
                 .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots());
             let channel = match channel {
@@ -242,15 +229,6 @@ impl Client {
                 }
             };
             innerclient = FlowServiceClient::new(channel);
-            // let response = FlowServiceClient::connect(strurl).await;
-            // match channel {
-            //     Ok(client) => {
-            //         innerclient = FlowServiceClient::new(channel);
-            //     }
-            //     Err(e) => {
-            //         return Err(OpenIAPError::ClientError(format!("Failed to connect: {}", e)));
-            //     }
-            // }
         }
 
         let (stream_tx, stream_rx) = mpsc::channel(4);
@@ -341,7 +319,7 @@ impl Client {
 
         inner.connected = true;
         let mut resp_stream = response.into_inner();
-        let inner = self.inner.clone(); // Clone the Arc to extend its lifetime
+        let inner = self.inner.clone();
         tokio::spawn(async move {
             while let Some(received) = resp_stream.next().await {
                 if let Ok(received) = received {
@@ -409,7 +387,6 @@ impl Client {
                             }
                             None => (),
                         }
-                        // Send to response to waiting call
                         let _ = response_tx.send(received);
                     } else {
                         error!("Received unhandled {} message: {:?}", command, received);
@@ -418,11 +395,6 @@ impl Client {
             }
         });
         Ok(())
-    }
-    #[allow(dead_code, unused_variables)]
-    #[tracing::instrument(skip_all)]
-    pub fn set_callback(&mut self, callback: Box<dyn Fn(String) + Send + Sync>) {
-        // self.callback = Some(callback);
     }
     #[tracing::instrument(skip_all)]
     fn get_id(&self) -> usize {
@@ -1041,10 +1013,10 @@ impl Client {
         config: UploadRequest,
         filepath: &str,
     ) -> Result<UploadResponse, OpenIAPError> {
-        debug!("Rust::upload: Uploading file: {}", filepath);
+        debug!("upload: Uploading file: {}", filepath);
         let mut file = File::open(filepath)
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to open file: {}", e)))?;
-        let chunk_size = 1024 * 1024; // 1 MB
+        let chunk_size = 1024 * 1024; 
         let mut buffer = vec![0; chunk_size];
 
         let envelope = config.to_envelope();
@@ -1324,7 +1296,6 @@ impl Client {
             return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
         }
         for f in &mut config.files {
-            println!("File len: {:?}", f.file.len());
             if f.filename.is_empty() && f.file.is_empty() {
                 debug!("Filename is empty");
             } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
@@ -1465,7 +1436,6 @@ impl Client {
             if f.filename.is_empty() && f.file.is_empty() {
                 debug!("Filename is empty");
             } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
-                // does file exist?
                 if !std::path::Path::new(&f.filename).exists() {
                     debug!("File does not exist: {}", f.filename);
                 } else {
@@ -1501,6 +1471,37 @@ impl Client {
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: UpdateWorkitemResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_workitem(
+        &self,
+        config: DeleteWorkitemRequest,
+    ) -> Result<DeleteWorkitemResponse, OpenIAPError> {
+        if config.id.is_empty() {
+            return Err(OpenIAPError::ClientError("No workitem id provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: DeleteWorkitemResponse =
                     prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
@@ -1570,9 +1571,6 @@ mod tests {
             };
             tasks.push(Box::pin(client.query(query)));
         }
-        // while let Some(result) = tasks.next().await {
-        //     println!("{}", result);
-        // }
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
     }
@@ -1606,9 +1604,6 @@ mod tests {
             };
             tasks.push(Box::pin(client.aggregate(query)));
         }
-        // while let Some(result) = tasks.next().await {
-        //     println!("{}", result);
-        // }
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
     }
@@ -2178,8 +2173,6 @@ mod tests {
             )
             .await;
     
-        // println!("PushWorkitem response: {:?}", response);
-    
         assert!(
             response.is_ok(),
             "PushWorkitem failed with {:?}",
@@ -2195,7 +2188,6 @@ mod tests {
                 Some("")
             )
             .await;
-        // println!("PopWorkitem response: {:?}", response);
             
         assert!(
             response.is_ok(),
@@ -2206,17 +2198,17 @@ mod tests {
         workitem.name = "updated test rust workitem".to_string();
         workitem.payload = "{\"test\": \"updated message\"}".to_string();
         workitem.state = "successful".to_string();
-        // workitem.files[0].filename = "updated_testfile.csv".to_string();
         assert!( workitem.files.len() > 0, "workitem has no files");
 
-        // workitem.files.remove(0);
+        // delete file from workitem by setting id to empty string
         workitem.files[0].id = "".to_string();
 
-        // delete testfile.csv if exsits
+        // delete testfile.csv if exsits, so it can be re-download when popping workitem
         if std::path::Path::new("testfile.csv").exists() {
             println!("Deleting testfile.csv");
             std::fs::remove_file("testfile.csv").unwrap();
         }
+        let id = workitem.id.clone();
 
         let response = client
             .update_workitem(
@@ -2233,10 +2225,24 @@ mod tests {
                 }
             )
             .await;
-        // println!("UpdateWorkitem response: {:?}", response);
         assert!(
             response.is_ok(),
             "UpdateWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client
+            .delete_workitem(
+                DeleteWorkitemRequest {
+                    id: id,
+                    ..Default::default()
+                }
+            )
+            .await;
+    
+        assert!(
+            response.is_ok(),
+            "DeleteWorkitem failed with {:?}",
             response.err().unwrap()
         );
     }
