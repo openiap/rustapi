@@ -163,9 +163,9 @@ impl Client {
         }
         if url.scheme() == "grpc" {
             if url.port() == Some(443) {
-                strurl = format!("https://{}", url.host_str().unwrap());
+                strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
-                strurl = format!("http://{}", url.host_str().unwrap());
+                strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
             }
         }
         let mut url = url::Url::parse(strurl.as_str())
@@ -174,19 +174,19 @@ impl Client {
         let mut password = "".to_string();
         if url.username().is_empty() == false && url.password().is_none() == false {
             username = url.username().to_string();
-            password = url.password().unwrap().to_string();
+            password = url.password().unwrap_or("").to_string();
         }
         url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
 
         if url.port().is_none() {
             if url.scheme() == "https" {
-                strurl = format!("https://{}", url.host_str().unwrap());
+                strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
-                strurl = format!("http://{}", url.host_str().unwrap());
+                strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
             }
         } else {
-            strurl = format!("http://{}:{}", url.host_str().unwrap(), url.port().unwrap());
+            strurl = format!("http://{}:{}", url.host_str().unwrap_or("localhost.openiap.io"), url.port().unwrap_or(80));
         }
         info!("Connecting to {}", strurl);
 
@@ -302,7 +302,15 @@ impl Client {
                 let loginresponse = client.signin(signin).await;
                 match loginresponse {
                     Ok(response) => {
-                        debug!("Signed in as {}", response.user.as_ref().unwrap().username);
+                        match response.user {
+                            Some(user) => {
+                                debug!("Signed in as {}", user.username);
+                            }
+                            None => {
+                                debug!("Signed in as guest");
+                            }
+                            
+                        }
                     }
                     Err(e) => {
                         return Err(OpenIAPError::ClientError(format!(
@@ -574,13 +582,19 @@ impl Client {
         match result {
             Ok(m) => {
                 debug!("Ok, m.command = {}", m.command);
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }                    
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: QueryResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 debug!("Return Ok(response)");
                 Ok(response)
@@ -615,13 +629,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: AggregateResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -641,13 +661,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: CountResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -673,12 +699,18 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
-                let data = m.data.unwrap();
+                let data = data;
                 let response: DistinctResponse = prost::Message::decode(data.value.as_ref())
                     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
@@ -696,13 +728,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: InsertOneResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -719,13 +757,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: InsertManyResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -742,13 +786,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: UpdateOneResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -765,13 +815,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: InsertOrUpdateOneResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response.result)
             }
@@ -788,13 +844,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: InsertOrUpdateManyResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -811,13 +873,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: UpdateDocumentResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -834,13 +902,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: DeleteOneResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response.affectedrows)
             }
@@ -857,13 +931,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: DeleteManyResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response.affectedrows)
             }
@@ -915,8 +995,14 @@ impl Client {
                 })?;
 
                 if response.command == "error" {
+                    let data = match response.data {
+                        Some(data) => data,
+                        None => {
+                            return Err(OpenIAPError::ClientError("No data returned for SERVER error".to_string()));
+                        }
+                    };
                     let e: ErrorResponse =
-                        prost::Message::decode(response.data.unwrap().value.as_ref()).unwrap();
+                        prost::Message::decode(data.value.as_ref()).unwrap();
                     return Err(OpenIAPError::ServerError(e.message));
                 }
                 let mut downloadresponse: DownloadResponse =
@@ -1041,13 +1127,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: WatchResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 let inner = self.inner.lock().await;
@@ -1069,8 +1161,14 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
@@ -1093,13 +1191,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: RegisterQueueResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 let inner = self.inner.lock().await;
@@ -1121,8 +1225,14 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
@@ -1149,13 +1259,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: RegisterExchangeResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 if response.queuename.is_empty() == false {
                     let inner = self.inner.lock().await;
@@ -1182,13 +1298,17 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => return Err(OpenIAPError::ClientError("No data in response".to_string())),
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: QueueMessageResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -1248,13 +1368,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: PushWorkitemResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -1274,13 +1400,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: PopWorkitemResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 match &response.workitem {
@@ -1346,28 +1478,8 @@ impl Client {
                     };
                     let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
                     trace!("File {} was upload as {}", filename, uploadresult.id);
-                    // f.filename = "".to_string();
                     f.id = uploadresult.id.clone();
-
-                    // read file content and assign it to f.file as a base64 encoded string
-                    // f.file = base64::encode(std::fs::read(&f.filename).unwrap()).into();
-                    // f.file = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&f.filename).unwrap()).into();
-                    // f.file = "wefewwe".to_string().into();
-                    // f.file = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&f.filename).unwrap()).into();
-                    //f.file = std::fs::read(&f.filename).unwrap();
-                    // f.filename = filename.to_string();
-                    // f.id = "";
-                    // f.compressed = false;
-                    // f.id = "".to_string();
-                    // println!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
-                    // workitem.files.push( WorkitemFile {
-                    //     filename: filename.to_string(),
-                    //     id: uploadresult.id,
-                    //     compressed: false,
-                    //     file: "".to_string().into(),
-                    // });
                     f.filename = filename.to_string();
-                    // f.filename = "".to_string();
                 }
             } else {
                 debug!("Skipped file");
@@ -1377,13 +1489,19 @@ impl Client {
         let result = self.send(envelope).await;
         match result {
             Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
                 if m.command == "error" {
-                    let e: ErrorResponse = prost::Message::decode(m.data.unwrap().value.as_ref())
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
                 let response: UpdateWorkitemResponse =
-                    prost::Message::decode(m.data.unwrap().value.as_ref())
+                    prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
             }
@@ -1401,9 +1519,9 @@ mod tests {
 
     use super::*;
     #[allow(dead_code)]
-    const TEST_URL: &str = "http://localhost:50051";
+    // const TEST_URL: &str = "http://localhost:50051";
     // const TEST_URL: &str = "http://grpc.demo.openiap.io";
-    // const TEST_URL: &str = "";
+    const TEST_URL: &str = "";
     #[test]
     fn normal_type() {
         is_normal::<Client>();
@@ -2074,7 +2192,7 @@ mod tests {
                     wiq: "rustqueue".to_string(),
                     ..Default::default()
                 },
-                Some(".")
+                Some("")
             )
             .await;
         // println!("PopWorkitem response: {:?}", response);

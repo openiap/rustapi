@@ -45,12 +45,12 @@ const fs = require('fs');
         await client.connect_async(url);
         // await client.connect(url);
         client.info("connect completed, now call signin() again")
-        // const signin_result2 = await client.signin_async();
-        // if(signin_result2.success) {
-        //     client.info("async signed in", signin_result2.success);
-        // } else {
-        //     client.info("async signed failed", signin_result2.error);
-        // }
+        const signin_result2 = await client.signin_async();
+        if(signin_result2.success) {
+            client.info("async signed in", signin_result2.success);
+        } else {
+            client.info("async signed failed", signin_result2.error);
+        }
         const signin_result = client.signin();
         client.info("signin() complete")
         // client.info(signin_result);
@@ -189,16 +189,16 @@ const fs = require('fs');
             let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files: files1});
             console.log("push_workitem success", push_workitem_result);
 
-            for(let i = 0; i < 10; i++) {
-                let files2 = [];
-                files2.push(filepath);
-                let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2});
-                console.log("push_workitem async success", push_workitem_async_result);
-            }
+            // for(let i = 0; i < 10; i++) {
+            //     let files2 = [];
+            //     files2.push(filepath);
+            //     let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2});
+            //     console.log("push_workitem async success", push_workitem_async_result);
+            // }
 
 
-            // let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
-            // console.log("pop_workitem success", pop_workitem_result);
+            let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
+            console.log("pop_workitem success", pop_workitem_result);
 
             // let workitem = client.pop_workitem({ wiq: "rustqueue" });
             // do {

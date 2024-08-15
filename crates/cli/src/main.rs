@@ -30,14 +30,14 @@ fn onwatch(event: WatchEvent) {
 
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let res = Client::connect("").await;
-    if res.is_err() == true {
-        println!("Failed to connect to server: {:?}", res.err().unwrap());
-        return Ok(());
-    }
-    let b = res.unwrap();
-
+    let b = match res {
+        Ok(b) => b,
+        Err(e) => {
+            println!("Failed to connect to server: {:?}", e);
+            return Ok(());
+        }        
+    };
     let watchid = "";
-
     let mut input = String::from("bum");
     println!("? for help");
     while !input.eq_ignore_ascii_case("quit") {

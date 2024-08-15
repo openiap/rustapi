@@ -459,7 +459,7 @@ function loadLibrary() {
         lib.push_workitemCallback = koffi.proto('void push_workitemCallback(PushWorkitemResponseWrapper*)');
         lib.push_workitem_async = lib.func('push_workitem_async', 'void', [ClientWrapperPtr, PushWorkitemRequestWrapperPtr, koffi.pointer(lib.push_workitemCallback)]);
         lib.free_push_workitem_response = lib.func('free_push_workitem_response', 'void', [PushWorkitemResponseWrapperPtr]);
-        lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr]);
+        lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString]);
         lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
         // lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, koffi.pointer(lib.pop_workitemCallback)]);
         lib.free_pop_workitem_response = lib.func('free_pop_workitem_response', 'void', [PopWorkitemResponseWrapperPtr]);
@@ -1728,16 +1728,16 @@ class Client {
             );
         });
     }    
-    pop_workitem({ wiq = "", wiqid = "", downloadfolder = "" }) {
+    pop_workitem({ wiq = "", wiqid = "", downloadfolder = "." }) {
         this.verbose('pop_workitem invoked');
+        if(downloadfolder == null || downloadfolder == "") downloadfolder = ".";
         const req = {
             wiq: wiq,
-            wiqid: wiqid,
-            downloadfolder: downloadfolder
+            wiqid: wiqid
         };
         const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
         this.trace('call pop_workitem');
-        const response = this.lib.pop_workitem(this.client, reqptr);
+        const response = this.lib.pop_workitem(this.client, reqptr, downloadfolder);
         this.trace('decode response');
         const result = koffi.decode(response, PopWorkitemResponseWrapper);
         this.trace('free_pop_workitem_response');

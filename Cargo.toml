@@ -4,7 +4,5 @@ members = [
     "./crates/proto",
     "./crates/client",
     "./crates/clib",    
-    "./crates/cli",
-#    "./crates/napi",
-#    "./crates/openiap-napi-postbuild",
+    "./crates/cli"
 ]
