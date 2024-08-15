@@ -6,3 +6,10 @@ members = [
     "./crates/clib",    
     "./crates/cli"
 ]
+
+[profile.release]
+strip = true            # Automatically strip symbols from the binary.
+lto = true              # Enable Link Time Optimization
+codegen-units = 1       # Cargo specifies 16 parallel codegen units for release builds. This improves compile times, but prevents some optimizations.
+panic = "abort"         # skip the unwinds of the stack to produces a helpful backtrace
+

@@ -2039,6 +2039,7 @@ class Client {
         });
     }
     watches = {}
+    next_watch_interval = 200;
     watch({ collectionname, paths }, callback) {
         this.info('watch invoked');
         const req = {
@@ -2091,7 +2092,7 @@ class Client {
                 this.trace('free_watch_event');
                 this.lib.free_watch_event(responsePtr);
             } while (hadone);
-        }, 1000);
+        }, next_watch_interval);
 
         return watchid;
     }

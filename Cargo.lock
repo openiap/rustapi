@@ -671,7 +671,6 @@ version = "0.0.2"
 dependencies = [
  "lazy_static",
  "openiap-client",
- "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -702,8 +701,6 @@ version = "0.0.2"
 dependencies = [
  "prost",
  "prost-types",
- "serde",
- "serde_json",
  "tonic",
  "tonic-build",
  "tracing",

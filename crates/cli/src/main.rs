@@ -24,7 +24,6 @@ pub async fn keyboard_input() -> String {
 fn onwatch(event: WatchEvent) {
     let document = event.document;
     let operation = event.operation;
-    let document = document;
     println!("{} on {}", operation, document);
 }
 

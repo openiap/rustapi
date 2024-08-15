@@ -160,7 +160,7 @@ impl Client {
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let mut username = "".to_string();
         let mut password = "".to_string();
-        if url.username().is_empty() == false && url.password().is_none() == false {
+        if !url.username().is_empty() && !url.password().is_none() {
             username = url.username().to_string();
             password = url.password().unwrap_or("").to_string();
         }
@@ -250,11 +250,11 @@ impl Client {
         };
         client.ping().await;
         client.setup_stream(in_stream).await?;
-        if username.is_empty() == true && password.is_empty() == true {
+        if username.is_empty() && password.is_empty() {
             username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
             password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
         }
-        if username.is_empty() == false && password.is_empty() == false {
+        if !username.is_empty() && !password.is_empty() {
             debug!("Signing in with username: {}", username);
             let signin = SigninRequest::with_userpass(username.as_str(), password.as_str());
             let loginresponse = client.signin(signin).await;
@@ -274,7 +274,7 @@ impl Client {
             if jwt.is_empty() {
                 jwt = std::env::var("jwt").unwrap_or_default();
             }
-            if jwt.is_empty() == false {
+            if !jwt.is_empty() {
                 debug!("Signing in with JWT");
                 let signin = SigninRequest::with_jwt(jwt.as_str());
                 let loginresponse = client.signin(signin).await;
@@ -351,7 +351,7 @@ impl Client {
                             prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
                         let streamdata = streamresponse.data;
 
-                        if streamdata.len() > 0 {
+                        if !streamdata.is_empty() {
                             let stream = streams.get(rid.as_str()).unwrap();
 
                             match stream.send(streamdata).await {
@@ -377,15 +377,12 @@ impl Client {
                         }
                     } else if let Some(response_tx) = queries.remove(&rid) {
                         let stream = streams.get(rid.as_str());
-                        match stream {
-                            Some(stream) => {
-                                let streamdata = vec![];
-                                match stream.send(streamdata).await {
-                                    Ok(_) => _ = (),
-                                    Err(e) => error!("Failed to send data: {}", e),
-                                }
+                        if let Some(stream) = stream {
+                            let streamdata = vec![];
+                            match stream.send(streamdata).await {
+                                Ok(_) => _ = (),
+                                Err(e) => error!("Failed to send data: {}", e),
                             }
-                            None => (),
                         }
                         let _ = response_tx.send(received);
                     } else {
@@ -682,7 +679,6 @@ impl Client {
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
-                let data = data;
                 let response: DistinctResponse = prost::Message::decode(data.value.as_ref())
                     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
@@ -1435,7 +1431,7 @@ impl Client {
         for f in &mut config.files {
             if f.filename.is_empty() && f.file.is_empty() {
                 debug!("Filename is empty");
-            } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
+            } else if !f.filename.is_empty() && f.file.is_empty() && f.id.is_empty() {
                 if !std::path::Path::new(&f.filename).exists() {
                     debug!("File does not exist: {}", f.filename);
                 } else {

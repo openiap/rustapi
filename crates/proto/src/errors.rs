@@ -45,9 +45,10 @@ impl fmt::Display for OpenIAPError {
 }
 impl std::error::Error for OpenIAPError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            // OpenIAPError::NestedError(e) => Some(&**e),
-            _ => None,
-        }
+        // match self {
+        //     // OpenIAPError::NestedError(e) => Some(&**e),
+        //     _ => None,
+        // }
+        None
     }
 }

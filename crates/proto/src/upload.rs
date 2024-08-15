@@ -46,7 +46,7 @@ impl BeginStream {
         Envelope {
             command: "beginstream".into(),
             data: Some(any_message.clone()),
-            rid: rid,
+            rid,
             ..Default::default() 
         }
     }
@@ -74,7 +74,7 @@ impl EndStream {
         Envelope {
             command: "endstream".into(),
             data: Some(any_message.clone()),
-            rid: rid,
+            rid,
             ..Default::default() 
         }
     }
@@ -100,13 +100,13 @@ impl Stream {
         Envelope {
             command: "stream".into(),
             data: Some(any_message.clone()),
-            rid: rid,
+            rid,
             ..Default::default() 
         }
     }
     pub fn from_rid(data: Vec<u8>, rid:String) -> Envelope {
         let req = Stream {
-            data: data
+            data
         };
         let envelope = req.to_envelope(rid);
         let mut buf = Vec::new();

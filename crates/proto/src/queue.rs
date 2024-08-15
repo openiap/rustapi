@@ -18,8 +18,7 @@ use super::protos::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, Regi
 impl RegisterQueueRequest {
     pub fn byqueuename(queuename: &str) -> Self {
         Self {
-            queuename: queuename.to_string(),
-            ..Default::default()
+            queuename: queuename.to_string()
         }
     }
     pub fn to_envelope(&self) -> Envelope {
@@ -65,8 +64,7 @@ impl RegisterExchangeRequest {
 impl  UnRegisterQueueRequest {
     pub fn byqueuename(queuename: &str) -> Self {
         Self {
-            queuename: queuename.to_string(),
-            ..Default::default()
+            queuename: queuename.to_string()
         }
     }
     pub fn to_envelope(&self) -> Envelope {
@@ -90,8 +88,7 @@ impl WatchRequest {
     pub fn new(collectionname: &str, paths: Vec<String>) -> Self {
         Self {
             collectionname: collectionname.to_string(),
-            paths: paths,
-            ..Default::default()
+            paths
         }
     }
     pub fn to_envelope(&self) -> Envelope {
@@ -113,8 +110,7 @@ impl WatchRequest {
 impl UnWatchRequest {
     pub fn byid(id: &str) -> Self {
         Self {
-            id: id.to_string(),
-            ..Default::default()
+            id: id.to_string()
         }
     }
     pub fn to_envelope(&self) -> Envelope {
