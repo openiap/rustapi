@@ -37,8 +37,10 @@ pub struct ClientInner {
     pub stream_tx: mpsc::Sender<Envelope>,
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
+    #[allow(clippy::type_complexity)]
     pub watches:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+    #[allow(clippy::type_complexity)]
     pub queues:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
 }
@@ -160,9 +162,11 @@ impl Client {
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let mut username = "".to_string();
         let mut password = "".to_string();
-        if !url.username().is_empty() && !url.password().is_none() {
+        if let Some(p) = url.password() {
+            password = p.to_string();
+        }
+        if !url.username().is_empty()  {
             username = url.username().to_string();
-            password = url.password().unwrap_or("").to_string();
         }
         url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
@@ -419,7 +423,7 @@ impl Client {
     ) -> Result<(oneshot::Receiver<Envelope>, String), OpenIAPError> {
         {
             let inner = self.inner.lock().await;
-            if inner.connected == false {
+            if !inner.connected {
                 return Err(OpenIAPError::ClientError("Not connected".to_string()));
             }
         }
@@ -933,10 +937,10 @@ impl Client {
                 let mut temp_file = File::create(&temp_file_path).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to create temp file: {}", e))
                 })?;
-                while stream_rx.is_closed() == false {
+                while !stream_rx.is_closed() {
                     match stream_rx.recv().await {
                         Some(received) => {
-                            if received.len() == 0 {
+                            if received.is_empty() {
                                 debug!("Stream closed");
                                 break;
                             }
@@ -1241,7 +1245,7 @@ impl Client {
                 let response: RegisterExchangeResponse =
                     prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
-                if response.queuename.is_empty() == false {
+                if !response.queuename.is_empty() {
                     let inner = self.inner.lock().await;
                     inner
                         .queues
@@ -1294,7 +1298,7 @@ impl Client {
         for f in &mut config.files {
             if f.filename.is_empty() && f.file.is_empty() {
                 debug!("Filename is empty");
-            } else if f.filename.is_empty() == false && f.file.is_empty() && f.id.is_empty(){
+            } else if !f.filename.is_empty() && f.file.is_empty() && f.id.is_empty(){
                 // does file exist?
                 if !std::path::Path::new(&f.filename).exists() {
                     debug!("File does not exist: {}", f.filename);
@@ -1385,7 +1389,7 @@ impl Client {
                 match &response.workitem {
                     Some(wi) => {
                         for f in &wi.files {
-                            if f.id.is_empty() == false {
+                            if !f.id.is_empty() {
                                 let downloadconfig = DownloadRequest {
                                     id: f.id.clone(),
                                     collectionname: "fs.files".to_string(),

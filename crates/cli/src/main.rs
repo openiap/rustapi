@@ -1,4 +1,5 @@
 use std::ops::Add;
+use std::sync::{Arc, Mutex};
 
 use openiap_client::{self, Client, RegisterExchangeRequest, RegisterQueueRequest};
 
@@ -36,7 +37,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }        
     };
-    let watchid = "";
+    let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");
     println!("? for help");
     while !input.eq_ignore_ascii_case("quit") {
@@ -209,6 +210,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         }
         if input.eq_ignore_ascii_case("w") {
             let client = b.clone();
+            let watchid_clone = Arc::clone(&watchid);
+
             tokio::task::spawn(async move {
                 let s = client
                     .watch(
@@ -219,25 +222,43 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = s {
                     println!("Failed to watch: {:?}", e);
                 } else {
-                    let watchid = s.unwrap();
-                    println!("Watch created with id {}", watchid);
+                    let new_watchid = s.unwrap();
+                    println!("Watch created with id {}", new_watchid);
+                    let watchid = watchid_clone.lock();
+                    match  watchid {
+                        Ok(mut watchid) => {
+                            *watchid = new_watchid.to_string();
+                        }
+                        Err(e) => {
+                            println!("Failed to lock watchid: {:?}", e);
+                        }
+                        
+                    }
                 }
             });
         }
         if input.eq_ignore_ascii_case("uw") {
-            if !watchid.is_empty() {
-                let client = b.clone();
-                tokio::task::spawn(async move {
-                    let watchid = "".to_string();
-                    let s = client.unwatch(&watchid).await;
-                    if let Err(e) = s {
-                        println!("Failed to watch: {:?}", e);
+            let watchid = watchid.lock();
+            match watchid {
+                Ok(w) => {
+                    if w.is_empty() {
+                        println!("No watch to unwatch");
                     } else {
-                        println!("Removed watch for id {}", watchid);
+                        let client = b.clone();
+                        let uw = w.to_string();
+                        tokio::task::spawn(async move {
+                            let s = client.unwatch(&uw).await;
+                            if let Err(e) = s {
+                                println!("Failed to watch: {:?}", e);
+                            } else {
+                                println!("Removed watch for id {}", uw);
+                            }
+                        });
                     }
-                });
-            } else {
-                println!("No watch to unwatch");
+                }
+                Err(e) => {
+                    println!("Failed to lock watchid: {:?}", e);
+                }
             }
         }
         if input.eq_ignore_ascii_case("r") {
