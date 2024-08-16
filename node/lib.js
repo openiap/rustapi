@@ -2092,7 +2092,7 @@ class Client {
                 this.trace('free_watch_event');
                 this.lib.free_watch_event(responsePtr);
             } while (hadone);
-        }, next_watch_interval);
+        }, this.next_watch_interval);
 
         return watchid;
     }

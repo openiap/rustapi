@@ -45,66 +45,66 @@ const fs = require('fs');
         await client.connect_async(url);
         // await client.connect(url);
         client.info("connect completed, now call signin() again")
-        // const signin_result2 = await client.signin_async();
-        // if(signin_result2.success) {
-        //     client.info("async signed in", signin_result2.success);
-        // } else {
-        //     client.info("async signed failed", signin_result2.error);
-        // }
+        const signin_result2 = await client.signin_async();
+        if(signin_result2.success) {
+            client.info("async signed in", signin_result2.success);
+        } else {
+            client.info("async signed failed", signin_result2.error);
+        }
         const signin_result = client.signin();
         client.info("signin() complete")
         // client.info(signin_result);
         if (signin_result.success) {
             client.info("signed in", signin_result.success);
 
-            // for (y = 0; y < 1; y++) {
-            //     for (let i = 0; i < 11; i++) {
-            //         const query_result = client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-            //         console.log("Got", query_result.length, "results");
-            //     }
-            // }  
-            // let promises = [];
-            // for(y = 0; y < 1; y++) {
-            //     for(let i = 0; i < 15; i++) {
-            //         promises.push(client.query_async({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
-            //     }
-            //     client.info(
-            //         (await Promise.all(promises)).map(result => result.length)
-            //     );
-            //     promises = [];
-            // }
+            for (y = 0; y < 1; y++) {
+                for (let i = 0; i < 11; i++) {
+                    const query_result = client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
+                    console.log("Got", query_result.length, "results");
+                }
+            }  
+            let promises = [];
+            for(y = 0; y < 1; y++) {
+                for(let i = 0; i < 15; i++) {
+                    promises.push(client.query_async({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
+                }
+                client.info(
+                    (await Promise.all(promises)).map(result => result.length)
+                );
+                promises = [];
+            }
 
-            // const aggregate_async_result = await client.aggregate_async({ collectionname: 'entities', aggregates: '[]', explain: false });
-            // console.log("aggregate_async success", aggregate_async_result.length, " results");
-            // const aggregate_result = client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
-            // console.log("aggregate success", aggregate_result.length, " results");
+            const aggregate_async_result = await client.aggregate_async({ collectionname: 'entities', aggregates: '[]', explain: false });
+            console.log("aggregate_async success", aggregate_async_result.length, " results");
+            const aggregate_result = client.aggregate({ collectionname: 'entities', aggregates: '[]', explain: false });
+            console.log("aggregate success", aggregate_result.length, " results");
 
-            // const insert_many_async_result = await client.insert_many_async({ collectionname: 'entities', documents: '[{"name":"test from nodejs", "_type": "test"}, {"name":"test from nodejs", "_type": "test"}]' });
-            // console.log("insert_many_async_result success", insert_many_async_result);
-            // const insert_many_result = client.insert_many({ collectionname: 'entities', documents: '[{"name":"test from nodejs", "_type": "test"}, {"name":"test from nodejs", "_type": "test"}]' });
-            // console.log("insert_many success", insert_many_result);
+            const insert_many_async_result = await client.insert_many_async({ collectionname: 'entities', documents: '[{"name":"test from nodejs", "_type": "test"}, {"name":"test from nodejs", "_type": "test"}]' });
+            console.log("insert_many_async_result success", insert_many_async_result);
+            const insert_many_result = client.insert_many({ collectionname: 'entities', documents: '[{"name":"test from nodejs", "_type": "test"}, {"name":"test from nodejs", "_type": "test"}]' });
+            console.log("insert_many success", insert_many_result);
 
-            // const download_async_result = await client.download_async({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
-            // console.log("download async success", download_async_result);
-            // const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
-            // console.log("download success", download_result);
-
-
-            // const upload_async_result = await client.upload_async({ filepath, filename: 'node-async-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
-            // console.log("upload async success", upload_async_result);
-            // const upload_result = client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
-            // console.log("upload success", upload_result);
+            const download_async_result = await client.download_async({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
+            console.log("download async success", download_async_result);
+            const download_result = client.download({ collectionname: 'fs.files', id: '65a3aaf66d52b8c15131aebd', folder: '', filename: '' });
+            console.log("download success", download_result);
 
 
-            // var count_async_result = await client.count_async({ collectionname: 'entities', query: '{}', queryas: '' });
-            // console.log("count success", count_async_result);
-            // var count_result = client.count({ collectionname: 'entities', query: '{}', queryas: '' });
-            // console.log("count success", count_result);
+            const upload_async_result = await client.upload_async({ filepath, filename: 'node-async-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
+            console.log("upload async success", upload_async_result);
+            const upload_result = client.upload({ filepath, filename: 'node-test.csv', mimetype: '', metadata: '', collectionname: 'fs.files' });
+            console.log("upload success", upload_result);
 
-            // var distinct_async_result = await client.distinct_async({ collectionname: 'entities', field: '_type' });
-            // console.log("distinct async success", distinct_async_result);
-            // var distinct_result = client.distinct({ collectionname: 'entities', field: '_type' });
-            // console.log("distinct success", distinct_result);
+
+            var count_async_result = await client.count_async({ collectionname: 'entities', query: '{}', queryas: '' });
+            console.log("count success", count_async_result);
+            var count_result = client.count({ collectionname: 'entities', query: '{}', queryas: '' });
+            console.log("count success", count_result);
+
+            var distinct_async_result = await client.distinct_async({ collectionname: 'entities', field: '_type' });
+            console.log("distinct async success", distinct_async_result);
+            var distinct_result = client.distinct({ collectionname: 'entities', field: '_type' });
+            console.log("distinct success", distinct_result);
 
 
             let eventcount = 0;
@@ -124,118 +124,118 @@ const fs = require('fs');
 
             client.unwatch(watch_result);
 
-            // let eventcount_async = 0;
-            // const watch_async_result = await client.watch_async({ collectionname: 'entities', paths: '' }, (event) => {
-            //     console.log("async watch " + event.operation + " #", count, " for " + event.document._type + " / " + event.document.test);
-            //     eventcount_async++;
-            // });
-            // console.log("watch async created as", watch_async_result);
+            // // let eventcount_async = 0;
+            // // const watch_async_result = await client.watch_async({ collectionname: 'entities', paths: '' }, (event) => {
+            // //     console.log("async watch " + event.operation + " #", count, " for " + event.document._type + " / " + event.document.test);
+            // //     eventcount_async++;
+            // // });
+            // // console.log("watch async created as", watch_async_result);
 
-            // await new Promise(resolve => setTimeout(resolve, 2000));
-            // client.insert_one({ collectionname: 'entities', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+            // // await new Promise(resolve => setTimeout(resolve, 2000));
+            // // client.insert_one({ collectionname: 'entities', document: '{"name":"test watch from nodejs", "_type": "test"}' });
 
 
-            // while (eventcount_async < 1) {
-            //     await new Promise(resolve => setTimeout(resolve, 1000));
-            // }
+            // // while (eventcount_async < 1) {
+            // //     await new Promise(resolve => setTimeout(resolve, 1000));
+            // // }
 
-            // await client.unwatch_async(watch_async_result);
+            // // await client.unwatch_async(watch_async_result);
 
             
-            // // // let queuecount = 0;
-            // // // const queuename = client.register_queue({ queuename: 'testq' }, (event) => {
-            // // //     console.log("queue event " + event.queuename + " from " + event.replyto + " / " + event.data);
-            // // //     queuecount++;
-            // // // });
-            // // // console.log("queue registered with name", queuename);
-            // // // while (queuecount < 2) {
-            // // //     await new Promise(resolve => setTimeout(resolve, 1000));
-            // // // }
-            // // // client.unregister_queue(queuename);
-            // // // console.log("Un registered queue", queuename);
+            // // let queuecount = 0;
+            // // const queuename = client.register_queue({ queuename: 'testq' }, (event) => {
+            // //     console.log("queue event " + event.queuename + " from " + event.replyto + " / " + event.data);
+            // //     queuecount++;
+            // // });
+            // // console.log("queue registered with name", queuename);
+            // // while (queuecount < 2) {
+            // //     await new Promise(resolve => setTimeout(resolve, 1000));
+            // // }
+            // // client.unregister_queue(queuename);
+            // // console.log("Un registered queue", queuename);
 
-            // // // let exchangecount = 0;
-            // // // const exchangename = client.register_exchange({ exchangename: 'testexc' }, (event) => {
-            // // //     console.log("exchange event " + event.exchangename + " from " + event.replyto + " / " + event.data);
-            // // //     exchangecount++;
-            // // // });
-            // // // console.log("exchange registered with name", exchangename);
-            // // // while (exchangecount < 2) {
-            // // //     await new Promise(resolve => setTimeout(resolve, 1000));
-            // // // }
+            // // let exchangecount = 0;
+            // // const exchangename = client.register_exchange({ exchangename: 'testexc' }, (event) => {
+            // //     console.log("exchange event " + event.exchangename + " from " + event.replyto + " / " + event.data);
+            // //     exchangecount++;
+            // // });
+            // // console.log("exchange registered with name", exchangename);
+            // // while (exchangecount < 2) {
+            // //     await new Promise(resolve => setTimeout(resolve, 1000));
+            // // }
 
-            // const insert_one_async_result = await client.insert_one_async({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
-            // console.log("insert_one async success", insert_one_async_result._id);
-            // const insert_one_result = client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
-            // console.log("insert_one success", insert_one_result._id);
-
-
-            // const update_one_result = client.update_one({ collectionname: 'entities', item: `{"name":"test update from nodejs", "_id": "${insert_one_result._id}"}` });
-            // console.log("update_one success", update_one_result);
-            // const update_one_async_result = await client.update_one_async({ collectionname: 'entities', item: `{"name":"test update async from nodejs", "_id": "${insert_one_async_result._id}"}` });
-            // console.log("update_one async success", update_one_async_result);
-
-            // const delete_one_result = client.delete_one({ collectionname: 'entities', id: insert_one_result._id });
-            // console.log("delete_one success", delete_one_result == 1, delete_one_result);
-            // const delete_one_async_result = await client.delete_one_async({ collectionname: 'entities', id: update_one_async_result._id });
-            // console.log("delete_one async success", delete_one_async_result == 1, delete_one_async_result);
-
-            // const insert_or_update_one_async_result = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one async from nodejs", "age": 21 }`, uniqeness: "name" } );
-            // console.log("insert_or_update_one success", insert_or_update_one_async_result._id, insert_or_update_one_async_result.age);
-            // const insert_or_update_one_async_result2 = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one async from nodejs", "age": 22 }`, uniqeness: "name" });
-            // console.log("insert_or_update_one success2", insert_or_update_one_async_result2._id, insert_or_update_one_async_result2.age);
-            // const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
-            // console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
-            // const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
-            // console.log("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
-
-            // const delete_many_query_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert_or_update one from nodejs"}' });
-            // console.log("delete_many success", delete_many_query_result);
-            // const delete_many_ids_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_async_result._id, insert_or_update_one_result2._id] });
-            // console.log("delete_many success", delete_many_ids_result);
+            const insert_one_async_result = await client.insert_one_async({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+            console.log("insert_one async success", insert_one_async_result._id);
+            const insert_one_result = client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+            console.log("insert_one success", insert_one_result._id);
 
 
-            // let nextrun = new Date();
-            // nextrun.setSeconds(nextrun.getSeconds() + 60);
-            // nextrun = undefined;
-            // let files1 = [];
-            // files1.push(filepath);
-            // let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files: files1});
-            // console.log("push_workitem success", push_workitem_result);
+            const update_one_result = client.update_one({ collectionname: 'entities', item: `{"name":"test update from nodejs", "_id": "${insert_one_result._id}"}` });
+            console.log("update_one success", update_one_result);
+            const update_one_async_result = await client.update_one_async({ collectionname: 'entities', item: `{"name":"test update async from nodejs", "_id": "${insert_one_async_result._id}"}` });
+            console.log("update_one async success", update_one_async_result);
 
-            // let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test async", nextrun, files: files1});
-            // console.log("push_workitem async success", push_workitem_async_result);
+            const delete_one_result = client.delete_one({ collectionname: 'entities', id: insert_one_result._id });
+            console.log("delete_one success", delete_one_result == 1, delete_one_result);
+            const delete_one_async_result = await client.delete_one_async({ collectionname: 'entities', id: update_one_async_result._id });
+            console.log("delete_one async success", delete_one_async_result == 1, delete_one_async_result);
 
-            // // // for(let i = 0; i < 10; i++) {
-            // // //     let files2 = [];
-            // // //     files2.push(filepath);
-            // // //     let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2});
-            // // //     console.log("push_workitem async success", push_workitem_async_result);
-            // // // }
+            const insert_or_update_one_async_result = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one async from nodejs", "age": 21 }`, uniqeness: "name" } );
+            console.log("insert_or_update_one success", insert_or_update_one_async_result._id, insert_or_update_one_async_result.age);
+            const insert_or_update_one_async_result2 = await client.insert_or_update_one_async({ collectionname: 'entities', item: `{"name":"test insert_or_update one async from nodejs", "age": 22 }`, uniqeness: "name" });
+            console.log("insert_or_update_one success2", insert_or_update_one_async_result2._id, insert_or_update_one_async_result2.age);
+            const insert_or_update_one_result = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 21 }`, uniqeness: "name" } );
+            console.log("insert_or_update_one success", insert_or_update_one_result._id, insert_or_update_one_result.age);
+            const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: 'entities', item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
+            console.log("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
 
-
-            // let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
-            // console.log("pop_workitem success", pop_workitem_result);
-            // let pop_workitem_async_result = await client.pop_workitem_async({ wiq: "rustqueue" });
-            // console.log("pop_workitem async success", pop_workitem_async_result);
-
-            // // // let workitem = client.pop_workitem({ wiq: "rustqueue" });
-            // // // do {
-            // // //     console.log("pop_workitem success", workitem);
-            // // //     workitem = client.pop_workitem({ wiq: "rustqueue" });
-            // // // } while (workitem != null);
+            const delete_many_query_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert_or_update one from nodejs"}' });
+            console.log("delete_many success", delete_many_query_result);
+            const delete_many_ids_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_async_result._id, insert_or_update_one_result2._id] });
+            console.log("delete_many success", delete_many_ids_result);
 
 
-            // console.log("set pop_workitem_result.state = successful");
-            // pop_workitem_result.state = "successful";
-            // const update_workitem_result = client.update_workitem({ workitem: pop_workitem_result});
-            // console.log("update_workitem success", update_workitem_result);
-            // pop_workitem_async_result.state = "successful";
-            // const update_workitem_async_result = await client.update_workitem_async({ workitem: pop_workitem_async_result });
-            // console.log("update_workitem async success", update_workitem_async_result);
+            let nextrun = new Date();
+            nextrun.setSeconds(nextrun.getSeconds() + 60);
+            nextrun = undefined;
+            let files1 = [];
+            files1.push(filepath);
+            let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files: files1});
+            console.log("push_workitem success", push_workitem_result);
 
-            // client.delete_workitem(update_workitem_result.id);
-            // await client.delete_workitem_async(update_workitem_async_result.id);
+            let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test async", nextrun, files: files1});
+            console.log("push_workitem async success", push_workitem_async_result);
+
+            // // for(let i = 0; i < 10; i++) {
+            // //     let files2 = [];
+            // //     files2.push(filepath);
+            // //     let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2});
+            // //     console.log("push_workitem async success", push_workitem_async_result);
+            // // }
+
+
+            let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
+            console.log("pop_workitem success", pop_workitem_result);
+            let pop_workitem_async_result = await client.pop_workitem_async({ wiq: "rustqueue" });
+            console.log("pop_workitem async success", pop_workitem_async_result);
+
+            // // let workitem = client.pop_workitem({ wiq: "rustqueue" });
+            // // do {
+            // //     console.log("pop_workitem success", workitem);
+            // //     workitem = client.pop_workitem({ wiq: "rustqueue" });
+            // // } while (workitem != null);
+
+
+            console.log("set pop_workitem_result.state = successful");
+            pop_workitem_result.state = "successful";
+            const update_workitem_result = client.update_workitem({ workitem: pop_workitem_result});
+            console.log("update_workitem success", update_workitem_result);
+            pop_workitem_async_result.state = "successful";
+            const update_workitem_async_result = await client.update_workitem_async({ workitem: pop_workitem_async_result });
+            console.log("update_workitem async success", update_workitem_async_result);
+
+            client.delete_workitem(update_workitem_result.id);
+            await client.delete_workitem_async(update_workitem_async_result.id);
 
 
 
