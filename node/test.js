@@ -5,13 +5,13 @@ const fs = require('fs');
         // console.log("Event loop is running"); 
     }, 200);
     try {
-        const test_async = false;
-        const test_sync = false;
-        const test_watch = false;
-        const test_async_watch = false; // DOES NOT WORK!!!
-        const test_multiple_workitems = false;
+        const test_async = true;
+        const test_sync = true;
+        const test_watch = true;
+        const test_multiple_workitems = true;
         const test_message_queue = true;
         const test_exchange = true;
+
         // const url = 'http://localhost:50051';
         // const url = 'https://grpc.app.openiap.io/';
         const url = '';
@@ -127,25 +127,6 @@ const fs = require('fs');
                 }
     
                 client.unwatch(watch_result);
-            }
-
-            if(test_async_watch) {
-                let eventcount_async = 0;
-                const watch_async_result = await client.watch_async({ collectionname: 'entities', paths: '' }, (event) => {
-                    console.log("async watch " + event.operation + " #", count, " for " + event.document._type + " / " + event.document.test);
-                    eventcount_async++;
-                });
-                console.log("watch async created as", watch_async_result);
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                client.insert_one({ collectionname: 'entities', document: '{"name":"test watch from nodejs", "_type": "test"}' });
-
-
-                while (eventcount_async < 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-
-                await client.unwatch_async(watch_async_result);
             }
 
             if(test_async) {

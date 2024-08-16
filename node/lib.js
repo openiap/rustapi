@@ -2050,6 +2050,7 @@ class Client {
         return Math.random().toString(36).substr(2, 9);
     }
     watch_async({ collectionname, paths }, callback) {
+        throw new Error('Not implemented');
         this.verbose('watch invoked');
         const req = {
             collectionname: collectionname,
@@ -2092,6 +2093,7 @@ class Client {
         return watchid;
     }
     watch_async_async({ collectionname, paths }, callback) {
+        throw new Error('Not implemented');
         this.trace('watch async invoked');
         return new Promise((resolve, reject) => {
             const req = {
