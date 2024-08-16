@@ -376,6 +376,72 @@ const UnwatchResponseWrapper = koffi.struct('UnwatchResponseWrapper', {
 });
 const UnwatchResponseWrapperPtr = koffi.pointer(UnwatchResponseWrapper);
 
+const QueueEventWrapper = koffi.struct('QueueEventWrapper', {
+    queuename: CString,
+    correlation_id: CString,
+    replyto: CString,
+    routingkey: CString,
+    exchangename: CString,
+    data: CString,
+});
+const RegisterQueueRequestWrapper = koffi.struct('RegisterQueueRequestWrapper', {
+    queuename: CString
+});
+const RegisterQueueRequestWrapperPtr = koffi.pointer(RegisterQueueRequestWrapper);
+const RegisterQueueResponseWrapper = koffi.struct('RegisterQueueResponseWrapper', {
+    success: bool,
+    queuename: CString,
+    error: CString
+});
+const RegisterQueueResponseWrapperPtr = koffi.pointer(RegisterQueueResponseWrapper);
+
+const RegisterExchangeRequestWrapper = koffi.struct('RegisterExchangeRequestWrapper', {
+    exchangename: CString,
+    algorithm: CString,
+    routingkey: CString,
+    addqueue: bool,
+});
+const RegisterExchangeRequestWrapperPtr = koffi.pointer(RegisterExchangeRequestWrapper);
+const RegisterExchangeResponseWrapper = koffi.struct('RegisterExchangeResponseWrapper',{
+    success: bool,
+    queuename: CString,
+    error: CString
+});
+const RegisterExchangeResponseWrapperPtr = koffi.pointer(RegisterExchangeResponseWrapper);
+
+const UnRegisterQueueResponseWrapper = koffi.struct('UnRegisterQueueResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const UnRegisterQueueResponseWrapperPtr = koffi.pointer(UnRegisterQueueResponseWrapper);
+
+const QueueEvent = koffi.struct({
+    queuename: CString,
+    correlation_id: CString,
+    replyto: CString,
+    routingkey: CString,
+    exchangename: CString,
+    data: CString,
+});
+const QueueEventPtr = koffi.pointer(QueueEvent);
+
+const QueueMessageRequestWrapper = koffi.struct('QueueMessageRequestWrapper', {
+    queuename: CString,
+    correlation_id: CString,
+    replyto: CString,
+    routingkey: CString,
+    exchangename: CString,
+    data: CString,
+    striptoken: bool,
+    expiration: int,
+});
+const QueueMessageRequestWrapperPtr = koffi.pointer(QueueMessageRequestWrapper);
+const QueueMessageResponseWrapper = koffi.struct('QueueMessageResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const QueueMessageResponseWrapperPtr = koffi.pointer(QueueMessageResponseWrapper);
+
 function isMusl() {
     // For Node 10
     if (!process.report || typeof process.report.getReport !== 'function') {
@@ -520,17 +586,14 @@ function loadLibrary() {
         lib.insert_or_update_oneCallback = koffi.proto('void insert_or_update_oneCallback(InsertOrUpdateOneResponseWrapper*)');
         lib.insert_or_update_one_async = lib.func('insert_or_update_one_async', 'void', [ClientWrapperPtr, InsertOrUpdateOneRequestWrapperPtr, koffi.pointer(lib.insert_or_update_oneCallback)]);
         lib.free_insert_or_update_one_response = lib.func('free_insert_or_update_one_response', 'void', [InsertOrUpdateOneResponseWrapperPtr]);
-
         lib.delete_one = lib.func('delete_one', DeleteOneResponseWrapperPtr, [ClientWrapperPtr, DeleteOneRequestWrapperPtr]);
         lib.delete_oneCallback = koffi.proto('void delete_oneCallback(DeleteOneResponseWrapper*)');
         lib.delete_one_async = lib.func('delete_one_async', 'void', [ClientWrapperPtr, DeleteOneRequestWrapperPtr, koffi.pointer(lib.delete_oneCallback)]);
         lib.free_delete_one_response = lib.func('free_delete_one_response', 'void', [DeleteOneResponseWrapperPtr]);
-
         lib.delete_many = lib.func('delete_many', DeleteManyResponseWrapperPtr, [ClientWrapperPtr, DeleteManyRequestWrapperPtr]);
         lib.delete_manyCallback = koffi.proto('void delete_manyCallback(DeleteManyResponseWrapper*)');
         lib.delete_many_async = lib.func('delete_many_async', 'void', [ClientWrapperPtr, DeleteManyRequestWrapperPtr, koffi.pointer(lib.delete_manyCallback)]);
         lib.free_delete_many_response = lib.func('free_delete_many_response', 'void', [DeleteManyResponseWrapperPtr]);
-        
         lib.download = lib.func('download', DownloadResponseWrapperPtr, [ClientWrapperPtr, DownloadRequestWrapperPtr]);
         lib.downloadCallback = koffi.proto('void downloadCallback(DownloadResponseWrapper*)');
         lib.download_async = lib.func('download_async', 'void', [ClientWrapperPtr, DownloadRequestWrapperPtr, koffi.pointer(lib.downloadCallback)]);
@@ -555,7 +618,6 @@ function loadLibrary() {
         lib.delete_workitemCallback = koffi.proto('void delete_workitemCallback(DeleteWorkitemResponseWrapper*)');
         lib.delete_workitem_async = lib.func('delete_workitem_async', 'void', [ClientWrapperPtr, DeleteWorkitemRequestWrapperPtr, koffi.pointer(lib.delete_workitemCallback)]);
         lib.free_delete_workitem_response = lib.func('free_delete_workitem_response', 'void', [DeleteWorkitemResponseWrapperPtr]);
-
         lib.watch = lib.func('watch', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr]);
         lib.next_watch_event = lib.func('next_watch_event', WatchEventWrapperPtr, [CString]);
         lib.WatchEventCallback = koffi.proto('void WatchEventCallback(WatchEventWrapper*)');
@@ -566,13 +628,21 @@ function loadLibrary() {
         lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
         lib.free_watch_event = lib.func('free_watch_event', 'void', [WatchEventWrapperPtr]);
         lib.free_watch_response = lib.func('free_watch_response', 'void', [WatchResponseWrapperPtr]);
-        
         lib.unwatch = lib.func('unwatch', UnwatchResponseWrapperPtr, [ClientWrapperPtr, CString]);
         lib.unwatchCallback = koffi.proto('void unwatchCallback(UnwatchResponseWrapper*)');
         lib.unwatch_async = lib.func('unwatch_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.unwatchCallback)]);
         lib.free_unwatch_response = lib.func('free_unwatch_response', 'void', [UnwatchResponseWrapperPtr]);
 
-
+        lib.register_queue = lib.func('register_queue', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr]);
+        lib.free_register_queue_response = lib.func('free_register_queue_response', 'void', [RegisterQueueResponseWrapperPtr]);
+        lib.register_exchange = lib.func('register_exchange', RegisterExchangeResponseWrapperPtr, [ClientWrapperPtr, RegisterExchangeRequestWrapperPtr]);
+        lib.free_register_exchange_response = lib.func('free_register_exchange_response', 'void', [RegisterExchangeResponseWrapperPtr]);
+        lib.next_queue_event = lib.func('next_queue_event', QueueEventPtr, [CString]);
+        lib.free_queue_event = lib.func('free_queue_event', 'void', [QueueEventPtr]);
+        lib.unregister_queue = lib.func('unregister_queue', UnRegisterQueueResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.free_unregister_queue_response = lib.func('free_unregister_queue_response', 'void', [UnRegisterQueueResponseWrapperPtr]);
+        lib.queue_message = lib.func('queue_message', QueueMessageResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
+        lib.free_queue_message_response = lib.func('free_queue_message_response', 'void', [QueueMessageResponseWrapperPtr]);        
         
         return lib;
     } catch (e) {
@@ -1115,7 +1185,7 @@ class Client {
         });
     }
     update_one({ collectionname, item, w = 1, j = false }) {
-        this.info('update_one invoked');
+        this.verbose('update_one invoked');
         const req = {
             collectionname: collectionname,
             item: item,
@@ -1123,11 +1193,11 @@ class Client {
             j: j            
         };
         const reqptr = encodeStruct(req, UpdateOneRequestWrapper);
-        this.info('call update_one');
+        this.trace('call update_one');
         const response = this.lib.update_one(this.client, reqptr);
-        this.info('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, UpdateOneResponseWrapper);
-        this.info('free_update_one_response');
+        this.trace('free_update_one_response');
         this.lib.free_update_one_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -1305,9 +1375,11 @@ class Client {
             const req = {
                 collectionname: collectionname,
                 query: query,
-                ids: ids,
+                ids: null,
                 recursive: recursive
             };
+            ids.push(null); // terminate array
+            req.ids = ids;
             const reqptr = encodeStruct(req, DeleteManyRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('delete_many_async callback');
@@ -1439,129 +1511,6 @@ class Client {
                 }
             });
         });
-    }
-
-    queues = {}
-    register_queue({ queuename }, callback) {
-        this.info('register queue invoked');
-        const req = new RegisterQueueRequestWrapper({
-            queuename: ref.allocCString(queuename)
-        });
-        this.info('call register_queue');
-        const response = this.lib.register_queue(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
-        this.lib.free_register_queue_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        queuename = result.queuename;
-        this.queues[queuename] = setInterval(() => {
-            if (this.connected == false) {
-                clearInterval(this.queues[queuename]);
-                delete this.queues[queuename];
-                return;
-            }
-            let hadone = false;
-            do {
-                // this.log('call next');
-                const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
-                const result = JSON.parse(JSON.stringify(responsePtr.deref()));
-                if (result.queuename != null && result.queuename != "") {
-                    hadone = true;
-                    let event = {
-                        queuename: result.queuename,
-                        correlation_id: result.correlation_id,
-                        replyto: result.replyto,
-                        routingkey: result.routingkey,
-                        exchangename: result.exchangename,
-                        data: result.data,
-                    }
-                    // this.log('call next had result', event);
-                    callback(event);
-                    // callback(JSON.parse(result));
-                } else {
-                    hadone = false;
-                }
-                this.lib.free_queue_event(responsePtr);
-            } while (hadone);
-        }, 1000);
-        return result.queuename;
-    }
-    register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
-        this.info('register exchange invoked');
-        if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
-        if (algorithm == null) algorithm = "";
-        if (routingkey == null) routingkey = "";
-        if (addqueue == null) addqueue = true;
-        const req = new RegisterExchangeRequestWrapper({
-            exchangename: ref.allocCString(exchangename),
-            algorithm: ref.allocCString(algorithm),
-            routingkey: ref.allocCString(routingkey),
-            addqueue: addqueue
-        });
-        this.info('call register_exchange');
-        const response = this.lib.register_exchange(this.client, req.ref());
-        const result = JSON.parse(JSON.stringify(response.deref()));
-        this.lib.free_register_exchange_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        let queuename = result.queuename;
-        if (queuename != null && queuename != "") {
-            this.queues[queuename] = setInterval(() => {
-                if (this.connected == false) {
-                    clearInterval(this.queues[queuename]);
-                    delete this.queues[queuename];
-                    return;
-                }
-                let hadone = false;
-                do {
-                    // this.log('call next');
-                    const responsePtr = this.lib.next_queue_event(ref.allocCString(queuename));
-                    const result = JSON.parse(JSON.stringify(responsePtr.deref()));
-                    if (result.queuename != null && result.queuename != "") {
-                        hadone = true;
-                        let event = {
-                            queuename: result.queuename,
-                            correlation_id: result.correlation_id,
-                            replyto: result.replyto,
-                            routingkey: result.routingkey,
-                            exchangename: result.exchangename,
-                            data: result.data,
-                        }
-                        // this.log('call next had result', event);
-                        callback(event);
-                        // callback(JSON.parse(result));
-                    } else {
-                        hadone = false;
-                    }
-                    this.lib.free_queue_event(responsePtr);
-                } while (hadone);
-            }, 1000);
-        }
-        return result.queuename;
-    }
-    unregister_queue(queuename) {
-        const response = this.lib.unregister_queue(this.client, queuename);
-        if (ref.isNull(response)) {
-            throw new ClientError('unregister_queue failed');
-        }
-        const Obj = JSON.parse(JSON.stringify(response.deref()));
-        const result = {
-            success: Obj.success,
-            error: Obj.error
-        };
-        this.lib.free_unregister_queue_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        if (this.queues[queuename] != null) {
-            clearInterval(this.queues[queuename]);
-            delete this.queues[queuename];
-        }
     }
     push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
@@ -2041,17 +1990,17 @@ class Client {
     watches = {}
     next_watch_interval = 200;
     watch({ collectionname, paths }, callback) {
-        this.info('watch invoked');
+        this.verbose('watch invoked');
         const req = {
             collectionname: collectionname,
             paths: paths
         }
         const reqptr = encodeStruct(req, WatchRequestWrapper);
-        this.info('call watch');
+        this.trace('call watch');
         const response = this.lib.watch(this.client, reqptr);
         this.verbose('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
-        this.info('free_watch_response');
+        this.trace('free_watch_response');
         this.lib.free_watch_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -2101,7 +2050,7 @@ class Client {
         return Math.random().toString(36).substr(2, 9);
     }
     watch_async({ collectionname, paths }, callback) {
-        this.info('watch invoked');
+        this.verbose('watch invoked');
         const req = {
             collectionname: collectionname,
             paths: paths
@@ -2128,11 +2077,11 @@ class Client {
         }
         const event_cb = koffi.register(event_callback, koffi.pointer(this.lib.WatchEventCallback));
 
-        this.info('call watch');
+        this.trace('call watch');
         const response = this.lib.watch(this.client, reqptr, event_cb);
         this.verbose('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
-        this.info('free_watch_response');
+        this.trace('free_watch_response');
         this.lib.free_watch_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -2210,8 +2159,175 @@ class Client {
             delete this.watches[watchid];
         }        
     }
+    queues = {}
+    next_queue_interval = 200;
+    register_queue({ queuename }, callback) {
+        this.verbose('register queue invoked');
+        const req = {
+            queuename: queuename
+        };
+        const reqptr = encodeStruct(req, RegisterQueueRequestWrapper);
+        this.trace('call register_queue');
+        const response = this.lib.register_queue(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, RegisterQueueResponseWrapper);
+        this.trace('free_register_queue_response');
+        this.lib.free_register_queue_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        queuename = result.queuename;
+        const id = this.uniqeid();
+        this.queues[id] = { interval: 
+            setInterval(() => {
+                if (this.connected == false) {
+                    clearInterval(this.queues[id].interval);
+                    delete this.queues[id];
+                    return;
+                }
+                let hadone = false;
+                do {
+                    hadone = false;
+                    this.trace('call next queue event');
+                    const responsePtr = this.lib.next_queue_event(queuename);
+                    this.trace('decode response');
+                    const result = koffi.decode(responsePtr, QueueEventWrapper);
+                    if (result.queuename != null && result.queuename != "") {
+                        hadone = true;
+                        let event = {
+                            queuename: result.queuename,
+                            correlation_id: result.correlation_id,
+                            replyto: result.replyto,
+                            routingkey: result.routingkey,
+                            exchangename: result.exchangename,
+                            data: result.data,
+                        }
+                        this.trace('call next had result', event);
+                        callback(event);
+                    }
+                    
+                    this.trace('free_queue_event');
+                    this.lib.free_queue_event(responsePtr);
+                } while (hadone);
+            }, this.next_queue_interval),
+            queuename
+        };
+        return result.queuename;
+    }
+    register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
+        this.verbose('register exchange invoked');
+        if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
+        if (algorithm == null) algorithm = "";
+        if (routingkey == null) routingkey = "";
+        if (addqueue == null) addqueue = true;
+        const req = {
+            exchangename: exchangename,
+            algorithm: algorithm,
+            routingkey: routingkey,
+            addqueue: addqueue
+        };
+        const reqptr = encodeStruct(req, RegisterExchangeRequestWrapper);
+        this.trace('call register_exchange');
+        const response = this.lib.register_exchange(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, RegisterExchangeResponseWrapper);
+        this.trace('free_register_exchange_response');
+        this.lib.free_register_exchange_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let queuename = result.queuename;
+        if (queuename != null && queuename != "") {
+            const id = this.uniqeid();
+            this.queues[id] = { interval: 
+                setInterval(() => {
+                    if (this.connected == false) {
+                        clearInterval(this.queues[id].interval);
+                        delete this.queues[id];
+                        return;
+                    }
+                    let hadone = false;
+                    do {
+                        hadone = false;
+                        this.trace('call next queue event');
+                        const responsePtr = this.lib.next_queue_event(queuename);
+                        this.trace('decode response');
+                        const result = koffi.decode(responsePtr, QueueEventWrapper);
+                        if (result.queuename != null && result.queuename != "") {
+                            hadone = true;
+                            let event = {
+                                queuename: result.queuename,
+                                correlation_id: result.correlation_id,
+                                replyto: result.replyto,
+                                routingkey: result.routingkey,
+                                exchangename: result.exchangename,
+                                data: result.data,
+                            }
+                            this.trace('call next had result', event);
+                            callback(event);
+                        }
+                        this.trace('free_queue_event');
+                        this.lib.free_queue_event(responsePtr);
+                    } while (hadone);
+                }, this.next_queue_interval),
+                queuename
+            };
+        }
+        return result.queuename;
+    }
+    unregister_queue(queuename) {
+        const reqptr = this.lib.unregister_queue(this.client, queuename);
+        this.verbose('decode response');
+        const result = koffi.decode(reqptr, UnRegisterQueueResponseWrapper);
+        this.trace('free_unregister_queue_response');
+        this.lib.free_unregister_queue_response(reqptr);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let keys = Object.keys(this.queues);
+        for(let i = 0; i < keys.length; i++) {
+            if (this.queues[keys[i]].queuename == queuename) {
+                clearInterval(this.queues[keys[i]].interval);
+                delete this.queues[keys[i]];
+            }
+        }
+    }
+    queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey }) {
+        this.verbose('queue message invoked');
+        if (queuename == null || queuename == "") {
+            if(exchangename == null || exchangename == "") {
+                throw new ClientError('queuename or exchangename is required');
+            }
+        }
+        if (data == null) data = "";
+        if (replyto == null) replyto = "";
+        if (exchangename == null) exchangename = "";
+        if (correlation_id == null) correlation_id = "";
+        if (routingkey == null) routingkey = "";
+        const req = {
+            queuename: queuename,
+            data: data,
+            replyto: replyto,
+            exchangename: exchangename,
+            correlation_id: correlation_id,
+            routingkey: routingkey
+        };
+        const reqptr = encodeStruct(req, QueueMessageRequestWrapper);
+        this.trace('call queue_message');
+        const response = this.lib.queue_message(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, QueueMessageResponseWrapper);
+        this.trace('free_queue_message_response');
+        this.lib.free_queue_message_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+    }
 }
-
 
 module.exports = {
     Client,

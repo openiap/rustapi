@@ -6,7 +6,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
@@ -3745,6 +3745,105 @@ pub extern "C" fn next_queue_event (
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_queue_event(response: *mut QueueEventWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct QueueMessageRequestWrapper {
+    queuename: *const c_char,
+    correlation_id: *const c_char,
+    replyto: *const c_char,
+    routingkey: *const c_char,
+    exchangename: *const c_char,
+    data: *const c_char,
+    striptoken: bool,
+    expiration: i32,
+}
+#[repr(C)]
+pub struct QueueMessageResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn queue_message(
+    client: *mut ClientWrapper,
+    options: *mut QueueMessageRequestWrapper,
+) -> *mut QueueMessageResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = QueueMessageResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = QueueMessageResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = &client_wrapper.client;
+    let runtime = &client_wrapper.runtime;
+    let request = QueueMessageRequest {
+        queuename: c_char_to_str(options.queuename),
+        correlation_id: c_char_to_str(options.correlation_id),
+        replyto: c_char_to_str(options.replyto),
+        routingkey: c_char_to_str(options.routingkey),
+        exchangename: c_char_to_str(options.exchangename),
+        data: c_char_to_str(options.data),
+        striptoken: options.striptoken,
+        expiration: options.expiration,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = QueueMessageResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let result = runtime.block_on(async {
+        client
+            .as_ref()
+            .unwrap()
+            .queue_message(request)
+            .await
+    });
+
+    match result {
+        Ok(_) => {
+            let response = QueueMessageResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Queue message failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            let response = QueueMessageResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_queue_message_response(response: *mut QueueMessageResponseWrapper) {
     free(response);
 }
 
