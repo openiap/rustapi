@@ -3211,10 +3211,13 @@ pub extern "C" fn watch_async_async(
                     debug!("watch_async: spawn new task, to call event_callback");
                     //runtime.spawn(async move {
                         trace!("watch_async: call event_callback");
-                        let id = CString::new("id").unwrap().into_raw();
-                        let operation = CString::new("operation").unwrap().into_raw();
-                        let document = CString::new("document").unwrap().into_raw();
-                        let event = Box::into_raw(Box::new(WatchEventWrapper {
+                        // let id = CString::new("id").unwrap().into_raw();
+                        // let operation = CString::new("operation").unwrap().into_raw();
+                        // let document = CString::new("document").unwrap().into_raw();
+                    let id = CString::new(_event.id).unwrap().into_raw();
+                    let operation = CString::new(_event.operation).unwrap().into_raw();
+                    let document = CString::new(_event.document).unwrap().into_raw();
+                    let event = Box::into_raw(Box::new(WatchEventWrapper {
                             id,
                             operation,
                             document
@@ -4315,7 +4318,7 @@ pub extern "C" fn push_workitem_async(
             .await;
         let response = match result {
             Ok(resp) => {
-                Box::into_raw(Box::new(match resp.workitem {
+                match resp.workitem {
                     Some(workitem) => {
                         let workitem = wrap_workitem(workitem);
                         PushWorkitemResponseWrapper {
@@ -4331,20 +4334,21 @@ pub extern "C" fn push_workitem_async(
                             error: error_msg,
                             workitem: std::ptr::null(),
                         }
-                    }                    
-                }))
+                    }
+                }
             }
             Err(e) => {
                 let error_msg = CString::new(format!("Push workitem failed: {:?}", e))
                     .unwrap()
                     .into_raw();
-                Box::into_raw(Box::new(PushWorkitemResponseWrapper {
+                PushWorkitemResponseWrapper {
                     success: false,
                     error: error_msg,
                     workitem: std::ptr::null(),
-                }))
+                }
             }
         };
+        let response = Box::into_raw(Box::new(response));
         callback(response);
     });
 
