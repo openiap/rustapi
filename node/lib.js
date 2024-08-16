@@ -624,7 +624,7 @@ function loadLibrary() {
         // lib.WatchEventCallback = koffi.proto('void WatchEventCallback()');
         // lib.WatchEventCallback = koffi.proto('void WatchEventCallback(char*)');
         lib.watchCallback = koffi.proto('void watchCallback(WatchResponseWrapper*)');
-        lib.watch_async = lib.func('watch_async_async', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.WatchEventCallback)]);
+        lib.watch_async = lib.func('watch_async', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.WatchEventCallback)]);
         lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
         lib.free_watch_event = lib.func('free_watch_event', 'void', [WatchEventWrapperPtr]);
         lib.free_watch_response = lib.func('free_watch_response', 'void', [WatchResponseWrapperPtr]);
