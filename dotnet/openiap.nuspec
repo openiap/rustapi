@@ -2,12 +2,12 @@
 <package>
   <metadata>
     <id>openiap</id>
-    <version>0.1.0</version>
+    <version>0.0.3</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
     <owners>OpenIAP ApS</owners>
     <license type="expression">MPL-2.0</license>
-    <projectUrl>https://github.com/openiap/rustapi</projectUrl>
+    <projectUrl>https://github.com/openiap/rustapi/tree/main/dotnet</projectUrl>
     <icon>icon.png</icon>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET wrapper for the OpenIAP API using Rust bindings</description>

@@ -3,6 +3,7 @@ node_modules
 bin
 obj
 openiap.egg-info
+openiap_edge.egg-info
 __pycache__
 build
 dist

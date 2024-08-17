@@ -32,6 +32,12 @@ export OPENIAP_USERNAME=username
 export OPENIAP_PASSWORD=password
 ```
 
+rust
+```bash
+cargo run
+cargo test
+```
+
 nodejs
 ```bash
 cd node
@@ -44,8 +50,7 @@ cd python
 pip uninstall openiap -y && pip install dist/openiap-0.1.1-py3-none-any.whl && python test.py
 
 ```
-
-build and test dotnet
+dotnet
 ```bash
 cd dotnet
 dotnet run

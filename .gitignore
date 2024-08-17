@@ -7,3 +7,4 @@ onecore
 node_modules
 *.node
 package-lock.json
+test.txt

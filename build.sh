@@ -21,10 +21,10 @@ rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotne
 echo "Building python"
 rm -rf python/lib build dist lib && mkdir python/lib && cp target/lib/* python/lib && (cd python && python setup.py sdist)
 
-# cargo publish -p openiap-proto --allow-dirty
-# cargo publish -p openiap-client --allow-dirty
-# cargo publish -p openiap --allow-dirty
-# cargo publish -p openiap-clib --allow-dirty
+cargo publish -p openiap-proto --allow-dirty
+cargo publish -p openiap-client --allow-dirty
+cargo publish -p openiap --allow-dirty
+cargo publish -p openiap-clib --allow-dirty
 # 
 echo "done"
 # cross build --target aarch64-pc-windows-msvc --release && cp target/aarch64-pc-windows-msvc/release/openiap.dll target/lib/openiap-windows-arm64.dll

@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openiap"
-version = "0.1.1"
+name = "openiap-edge"
+version = "0.0.3"
 authors = [
   { name="OpenIAP ApS / Allan Zimmerman", email="info@openiap.io" },
 ]
@@ -17,6 +17,6 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/openiap/pyapi"
+"Homepage" = "https://github.com/openiap/rustapi/tree/main/python"
 "Bug Tracker" = "https://discourse.openiap.io/c/issues-and-feature-requests"
 "Funding" = "https://github.com/sponsors/skadefro"

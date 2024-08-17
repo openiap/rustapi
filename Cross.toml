@@ -57,6 +57,8 @@ pre-build = [
 
 # cargo install cross --git https://github.com/cross-rs/cross
 # https://github.com/cross-rs/cross-toolchains
+# if it breaks, a backup can be used by
+# cargo install cross --git https://github.com/skadefro/cross
 
 [target.x86_64-apple-darwin]
 image = "ghcr.io/cross-rs/x86_64-apple-darwin-cross:local"
@@ -68,3 +70,4 @@ image = "ghcr.io/cross-rs/aarch64-apple-darwin-cross:local"
 [target.i686-apple-darwin]
 image = "ghcr.io/cross-rs/i686-apple-darwin-cross:local"
 build-std = ["std"]
+# build-std = true

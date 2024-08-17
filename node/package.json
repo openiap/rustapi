@@ -1,6 +1,6 @@
 {
   "name": "openiap",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "main": "lib.js",
   "scripts": {},
@@ -14,7 +14,7 @@
     "type": "git",
     "url": "git+https://github.com/openiap/rustapi.git"
   },
-  "homepage": "https://github.com/openiap/rustapi",
+  "homepage": "https://github.com/openiap/rustapi/tree/main/node",
   "funding": "https://github.com/sponsors/skadefro",
   "bugs": {
     "url": "https://community.openiap.io/"
