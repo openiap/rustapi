@@ -140,8 +140,8 @@ const DistinctRequestWrapperPtr = koffi.pointer(DistinctRequestWrapper);
 const DistinctResponseWrapper = koffi.struct('DistinctResponseWrapper', {
     success: bool,
     results: 'char **',
-    results_count: size_t,
-    error: CString
+    error: CString,
+    results_len: int,
 });
 const DistinctResponseWrapperPtr = koffi.pointer(DistinctResponseWrapper);
 
@@ -1019,7 +1019,7 @@ class Client {
         let results = [];
         this.trace('decode response results');
         let strings = koffi.decode(response.results, 'void *', -1);
-        for(let i = 0; i < response.results_count; i++) {
+        for(let i = 0; i < response.results_len; i++) {
             this.trace('decode response results #', i);
             let ptr = strings[i];
             let value = koffi.decode(ptr, 'char', -1);
@@ -1050,7 +1050,7 @@ class Client {
                 const response = koffi.decode(responsePtr, DistinctResponseWrapper);
                 let results = [];
                 let strings = koffi.decode(response.results, 'void *', -1);
-                for(let i = 0; i < response.results_count; i++) {
+                for(let i = 0; i < response.results_len; i++) {
                     let ptr = strings[i];
                     let value = koffi.decode(ptr, 'char', -1);
                     results.push(value.toString());

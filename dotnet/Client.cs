@@ -127,8 +127,8 @@ public class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr results;
-        public UIntPtr results_count;
         public IntPtr error;
+        public int results_len;
     }
     public delegate void DistinctCallback(IntPtr responsePtr);
 
@@ -715,7 +715,7 @@ public class Client : IDisposable
                     }
                     else
                     {
-                        int resultsCount = (int)response.results_count;
+                        int resultsCount = (int)response.results_len;
                         string[] results = new string[resultsCount];
                         IntPtr[] resultPtrs = new IntPtr[resultsCount];
                         Marshal.Copy(response.results, resultPtrs, 0, resultsCount);

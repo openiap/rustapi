@@ -6,22 +6,51 @@ import time, os
 
 # Main function
 if __name__ == "__main__":
+    client = Client()
     try:
-        client = Client()
         # client.enable_tracing("openiap=trace", "new")
         client.enable_tracing("openiap=info", "")
         client.connect()
         signin_result = client.signin()
         print(signin_result)
 
-        # for x in range(1, 10):
-        #     client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
+        # # for x in range(1, 10):
+        # #     client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
 
 
-        print("*****************")
-        workitem = client.push_workitem( name="python test", wiq="rustqueue", payload="{}")
+        files = []
+        if(os.path.exists("testfile.csv")):
+            files.append("testfile.csv")
+        else:
+            files.append("../testfile.csv")
+        workitem = client.push_workitem( name="python test with file", wiq="rustqueue", payload="{}", files=files)
         print(workitem)
-            
+
+        workitem = client.pop_workitem( wiq="rustqueue")
+        print(workitem)
+        workitem["state"] = "successful"
+        client.update_workitem(workitem)
+        print(workitem)
+
+        client.delete_workitem(workitem["id"])
+
+        workitem = client.push_workitem( name="python without file", wiq="rustqueue", payload="{}")
+        print(workitem)
+
+        workitem = client.pop_workitem( wiq="rustqueue")
+        print(workitem)
+        workitem["state"] = "successful"
+        workitem["name"] = "python updated, now including a file"
+        files = []
+        if(os.path.exists("testfile.csv")):
+            files.append("testfile.csv")
+        else:
+            files.append("../testfile.csv")
+
+        client.update_workitem(workitem, files)
+        print(workitem)
+        client.delete_workitem(workitem["id"])
+
         query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
         print(query_result)
 
@@ -75,8 +104,6 @@ if __name__ == "__main__":
 
         watch_result = client.watch(collectionname="entities", paths="", callback=onwatch)
         print(watch_result)
-        # client.insert_one(collectionname="entities", item="{\"name\": \"watch test from python 1\", \"_type\": \"test\"}")
-        # client.insert_one(collectionname="entities", item="{\"name\": \"watch test from python 2\", \"_type\": \"test\"}")
         client.insert_many(collectionname="entities", items="[ {\"name\": \"watch test from python 1\", \"_type\": \"test\"}, {\"name\": \"watch test from python 2\", \"_type\": \"test\"} ]")
 
         while watchcounter[0] < 2:
@@ -90,5 +117,43 @@ if __name__ == "__main__":
         distinct_result = client.distinct(collectionname="entities", field="_type", query="{}")
         print(distinct_result)
 
+        queuecounter = [0]  
+        def onmessage(event, counter):
+            queuecounter[0] += 1
+            data = event["data"]
+            # print(f"{counter} Received event: {json.dumps(event, indent=2)}")
+            print(f"{counter} Received {data} event: ")
+
+        register_queue_result = client.register_queue(queuename="test2queue", callback=onmessage)
+        print(register_queue_result)
+
+        client.queue_message(queuename="test2queue", data="{\"test\": \"message 1\"}", striptoken=True)
+        client.queue_message(queuename="test2queue", data="{\"test\": \"message 2\"}", striptoken=True)
+
+        while queuecounter[0] < 2:
+            time.sleep(1)
+        unregister_queue = client.unregister_queue(register_queue_result)
+        print(unregister_queue)
+
+
+        exchangecounter = [0]  
+        def onexchange(event, counter):
+            exchangecounter[0] += 1
+            data = event["data"]
+            # print(f"{counter} Received event: {json.dumps(event, indent=2)}")
+            print(f"{counter} Received {data} event: ")
+
+        register_exchange_result = client.register_exchange(exchangename="testexc", callback=onexchange)
+        print(register_exchange_result)
+
+        client.queue_message(exchangename="testexc", data="{\"test\": \"message 1\"}", striptoken=True)
+        client.queue_message(exchangename="testexc", data="{\"test\": \"message 2\"}", striptoken=True)
+
+        while exchangecounter[0] < 2:
+            time.sleep(1)
+        unregister_queue =  client.unregister_queue(register_exchange_result)
+        print(unregister_queue)
+
     except ClientError as e:
         print(f"An error occurred: {e}")
+    client.free()

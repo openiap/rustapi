@@ -2,263 +2,319 @@ import ctypes
 import json
 import os
 import sys
-from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, c_size_t, CFUNCTYPE, POINTER, byref
+from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, c_uint64, CFUNCTYPE, POINTER, byref, pointer
 import threading
 import time
 
 # Define the ctypes types for C types
-CString = c_char_p
-voidPtr = c_void_p
-bool = c_bool
-c_int = c_int
 CALLBACK = CFUNCTYPE(None, c_char_p)
 
 # Define the ClientWrapper struct
 class ClientWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("error", CString),
-                ("client", voidPtr),
-                ("runtime", voidPtr)]
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p),
+                ("client", c_void_p),
+                ("runtime", c_void_p)]
 
 ConnectCallback = CFUNCTYPE(None, POINTER(ClientWrapper))
 
 # Define the SigninRequestWrapper struct
 class SigninRequestWrapper(Structure):
-    _fields_ = [("username", CString),
-                ("password", CString),
-                ("jwt", CString),
-                ("agent", CString),
-                ("version", CString),
-                ("longtoken", bool),
-                ("validateonly", bool),
-                ("ping", bool)]
+    _fields_ = [("username", c_char_p),
+                ("password", c_char_p),
+                ("jwt", c_char_p),
+                ("agent", c_char_p),
+                ("version", c_char_p),
+                ("longtoken", c_bool),
+                ("validateonly", c_bool),
+                ("ping", c_bool)]
 
 # Define the SigninResponseWrapper struct
 class SigninResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("jwt", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("jwt", c_char_p),
+                ("error", c_char_p)]
 SigninCallback = CFUNCTYPE(None, POINTER(SigninResponseWrapper))
     
 class QueryRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("query", CString),
-                ("projection", CString),
-                ("orderby", CString),
-                ("queryas", CString),
-                ("explain", bool),
+    _fields_ = [("collectionname", c_char_p),
+                ("query", c_char_p),
+                ("projection", c_char_p),
+                ("orderby", c_char_p),
+                ("queryas", c_char_p),
+                ("explain", c_bool),
                 ("skip", c_int),
                 ("top", c_int)]
 class QueryResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("results", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("results", c_char_p),
+                ("error", c_char_p)]
 QueryCallback = CFUNCTYPE(None, POINTER(QueryResponseWrapper))
 
 class AggregateRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("aggregates", CString),
-                ("queryas", CString),
-                ("hint", CString),
-                ("explain", bool)]
+    _fields_ = [("collectionname", c_char_p),
+                ("aggregates", c_char_p),
+                ("queryas", c_char_p),
+                ("hint", c_char_p),
+                ("explain", c_bool)]
 class AggregateResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("results", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("results", c_char_p),
+                ("error", c_char_p)]
 AggregateCallback = CFUNCTYPE(None, POINTER(AggregateResponseWrapper))
 
 class CountRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("query", CString),
-                ("queryas", CString),
-                ("explain", bool)]
+    _fields_ = [("collectionname", c_char_p),
+                ("query", c_char_p),
+                ("queryas", c_char_p),
+                ("explain", c_bool)]
 class CountResponseWrapper(Structure):
-    _fields_ = [("success", bool),
+    _fields_ = [("success", c_bool),
                 ("result", c_int),
-                ("error", CString)]
+                ("error", c_char_p)]
 CountCallback = CFUNCTYPE(None, POINTER(CountResponseWrapper))
 
 class DistinctRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("field", CString),
-                ("query", CString),
-                ("queryas", CString),
-                ("explain", bool)]
+    _fields_ = [("collectionname", c_char_p),
+                ("field", c_char_p),
+                ("query", c_char_p),
+                ("queryas", c_char_p),
+                ("explain", c_bool)]
 class DistinctResponseWrapper(Structure):
-    _fields_ = [("success", bool),
+    _fields_ = [("success", c_bool),
                 ('results', POINTER(c_char_p)),
-                ('results_count', c_size_t),
-                ("error", CString)]
+                ("error", c_char_p),
+                ('results_len', c_int),]
 DistinctCallback = CFUNCTYPE(None, POINTER(DistinctResponseWrapper))
 
 class InsertOneRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("item", CString),
+    _fields_ = [("collectionname", c_char_p),
+                ("item", c_char_p),
                 ("w", c_int),
-                ("j", bool)]
+                ("j", c_bool)]
 class InsertOneResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("result", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p)]
 InsertOneCallback = CFUNCTYPE(None, POINTER(InsertOneResponseWrapper))
 
 class InsertManyRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("items", CString),
+    _fields_ = [("collectionname", c_char_p),
+                ("items", c_char_p),
                 ("w", c_int),
-                ("j", bool),
-                ("skipresults", bool)]
+                ("j", c_bool),
+                ("skipresults", c_bool)]
 class InsertManyResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("result", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p)]
 InsertManyCallback = CFUNCTYPE(None, POINTER(InsertManyResponseWrapper))
 
 class UpdateOneRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("item", CString),
+    _fields_ = [("collectionname", c_char_p),
+                ("item", c_char_p),
                 ("w", c_int),
-                ("j", bool)]
+                ("j", c_bool)]
 class UpdateOneResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("result", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p)]
 UpdateOneCallback = CFUNCTYPE(None, POINTER(UpdateOneResponseWrapper))
     
 class InsertOrUpdateOneRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("uniqeness", CString),
-                ("item", CString),
+    _fields_ = [("collectionname", c_char_p),
+                ("uniqeness", c_char_p),
+                ("item", c_char_p),
                 ("w", c_int),
-                ("j", bool)]
+                ("j", c_bool)]
 class InsertOrUpdateOneResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("result", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p)]
 InsertOrUpdateOneCallback = CFUNCTYPE(None, POINTER(InsertOrUpdateOneResponseWrapper))
     
 class DownloadRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("id", CString),
-                ("folder", CString),
-                ("filename", CString)]
+    _fields_ = [("collectionname", c_char_p),
+                ("id", c_char_p),
+                ("folder", c_char_p),
+                ("filename", c_char_p)]
 class DownloadResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("filename", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("filename", c_char_p),
+                ("error", c_char_p)]
 DownloadCallback = CFUNCTYPE(None, POINTER(DownloadResponseWrapper))
 
 class UploadRequestWrapper(Structure):
-    _fields_ = [("filepath", CString),
-                ("filename", CString),
-                ("mimetype", CString),
-                ("metadata", CString),
-                ("collectionname", CString)]
+    _fields_ = [("filepath", c_char_p),
+                ("filename", c_char_p),
+                ("mimetype", c_char_p),
+                ("metadata", c_char_p),
+                ("collectionname", c_char_p)]
 class UploadResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("id", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("id", c_char_p),
+                ("error", c_char_p)]
 UploadCallback = CFUNCTYPE(None, POINTER(UploadResponseWrapper))
 
 class WorkitemFileWrapper(Structure):
-    _fields_ = [("filename", CString),
-                ("id", CString),
-                ("compressed", bool),
-                #("file", CString)
+    _fields_ = [("filename", c_char_p),
+                ("id", c_char_p),
+                ("compressed", c_bool),
+                #("file", c_char_p)
                 ]
 class WorkitemWrapper(Structure):
-    _fields_ = [("id", CString),
-                ("name", CString),
-                ("payload", CString),
+    _fields_ = [("id", c_char_p),
+                ("name", c_char_p),
+                ("payload", c_char_p),
                 ("priority", c_int),
-                ("nextrun", c_int),
-                ("lastrun", c_int),
-                ("files", ctypes.POINTER(WorkitemFileWrapper)),
-                ("files_len", c_size_t),
-                ("state", CString),
-                ("wiq", CString),
-                ("wiqid", CString),
+                ("nextrun", c_uint64),
+                ("lastrun", c_uint64),
+                ("files", POINTER(POINTER(WorkitemFileWrapper))),
+                ("files_len", c_int),
+                ("state", c_char_p),
+                ("wiq", c_char_p),
+                ("wiqid", c_char_p),
                 ("retries", c_int),
-                ("username", CString),
-                ("success_wiqid", CString),
-                ("failed_wiqid", CString),
-                ("success_wiq", CString),
-                ("failed_wiq", CString),
-                ("errormessage", CString),
-                ("errorsource", CString),
-                ("errortype", CString),
+                ("username", c_char_p),
+                ("success_wiqid", c_char_p),
+                ("failed_wiqid", c_char_p),
+                ("success_wiq", c_char_p),
+                ("failed_wiq", c_char_p),
+                ("errormessage", c_char_p),
+                ("errorsource", c_char_p),
+                ("errortype", c_char_p),
                 ]
 class PushWorkitemRequestWrapper(Structure):
-    _fields_ = [("wiq", CString),
-                ("wiqid", CString),
-                ("name",  CString),
-                ("payload",  CString),
-                ("nextrun", c_int),
-                ("success_wiqid",  CString),
-                ("failed_wiqid",  CString),
-                ("success_wiq",  CString),
-                ("failed_wiq",  CString),
+    _fields_ = [("wiq", c_char_p),
+                ("wiqid", c_char_p),
+                ("name",  c_char_p),
+                ("payload",  c_char_p),
+                ("nextrun", c_uint64),
+                ("success_wiqid",  c_char_p),
+                ("failed_wiqid",  c_char_p),
+                ("success_wiq",  c_char_p),
+                ("failed_wiq",  c_char_p),
                 ("priority", c_int),
-                ("files", POINTER(WorkitemFileWrapper)),
-                ("files_len", c_size_t)
+                ("files", POINTER(POINTER(WorkitemFileWrapper))),
+                ("files_len", c_int)
     ]
 class PushWorkitemResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("error", CString),
-                # ("workitem", WorkitemWrapper),
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p),
                 ("workitem", POINTER(WorkitemWrapper)),
-                # ("workitem", ctypes.POINTER(WorkitemWrapper)),
                 ]
 PushWorkitemCallback = CFUNCTYPE(None, POINTER(PushWorkitemResponseWrapper))
 
 class PopWorkitemRequestWrapper(Structure):
-    _fields_ = [("wiq", CString),
-                ("wiqid", CString)]
+    _fields_ = [("wiq", c_char_p),
+                ("wiqid", c_char_p)]
 class PopWorkitemResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("error", CString),
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p),
                 ("workitem", POINTER(WorkitemWrapper))]
 PopWorkitemCallback = CFUNCTYPE(None, POINTER(PopWorkitemResponseWrapper))
 
+class UpdateWorkitemRequestWrapper(Structure):
+    _fields_ = [("workitem", POINTER(WorkitemWrapper)),
+                ("ignoremaxretries", c_bool),
+                ("files", POINTER(POINTER(WorkitemFileWrapper))),
+                ("files_len", c_int)
+                ]
+class UpdateWorkitemResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p),
+                ("workitem", POINTER(WorkitemWrapper))]
+UpdateWorkitemCallback = CFUNCTYPE(None, POINTER(UpdateWorkitemResponseWrapper))
+
+class DeleteWorkitemRequestWrapper(Structure):
+    _fields_ = [("id", c_char_p)]
+class DeleteWorkitemResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
+DeleteWorkitemCallback = CFUNCTYPE(None, POINTER(DeleteWorkitemResponseWrapper))
+
 class DeleteOneRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("id", CString),
-                ("recursive", bool)]
+    _fields_ = [("collectionname", c_char_p),
+                ("id", c_char_p),
+                ("recursive", c_bool)]
 class DeleteOneResponseWrapper(Structure):
-    _fields_ = [("success", bool),
+    _fields_ = [("success", c_bool),
                 ("affectedrows", c_int),
-                ("error", CString)]
+                ("error", c_char_p)]
 DeleteOneCallback = CFUNCTYPE(None, POINTER(DeleteOneResponseWrapper))
 
 class DeleteManyRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("query", CString),
-                ("recursive", bool),
+    _fields_ = [("collectionname", c_char_p),
+                ("query", c_char_p),
+                ("recursive", c_bool),
                 # ids is a list of strings
-                ("ids", POINTER(CString))]
+                ("ids", POINTER(c_char_p))]
 class DeleteManyResponseWrapper(Structure):
-    _fields_ = [("success", bool),
+    _fields_ = [("success", c_bool),
                 ("affectedrows", c_int),
-                ("error", CString)]
+                ("error", c_char_p)]
 DeleteManyCallback = CFUNCTYPE(None, POINTER(DeleteManyResponseWrapper))
 
 class WatchEventWrapper(Structure):
-    _fields_ = [("id", CString),
-                ("operation", CString),
-                ("document", CString)]
+    _fields_ = [("id", c_char_p),
+                ("operation", c_char_p),
+                ("document", c_char_p)]
 WatchEventCallback = CFUNCTYPE(None, POINTER(WatchEventWrapper))
 class WatchRequestWrapper(Structure):
-    _fields_ = [("collectionname", CString),
-                ("paths", CString)]
+    _fields_ = [("collectionname", c_char_p),
+                ("paths", c_char_p)]
 class WatchResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("watchid", CString),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("watchid", c_char_p),
+                ("error", c_char_p)]
 WatchCallback = CFUNCTYPE(None, POINTER(WatchResponseWrapper))
 
 class UnWatchResponseWrapper(Structure):
-    _fields_ = [("success", bool),
-                ("error", CString)]
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
+
+class RegisterQueueRequestWrapper(Structure):
+    _fields_ = [("queuename", c_char_p)]
+class RegisterQueueResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("queuename", c_char_p),
+                ("error", c_char_p)]
+class QueueEventWrapper(Structure):
+    _fields_ = [("queuename", c_char_p),
+                ("correlation_id", c_char_p),
+                ("replyto", c_char_p),
+                ("routingkey", c_char_p),
+                ("exchangename", c_char_p),
+                ("data", c_char_p) ]
+RegisterQueueCallback = CFUNCTYPE(None, POINTER(RegisterQueueResponseWrapper))
+QueueEventCallback = CFUNCTYPE(None, POINTER(QueueEventWrapper))
+
+class RegisterExchangeRequestWrapper(Structure):
+    _fields_ = [("exchangename", c_char_p),
+                ("algorithm", c_char_p),
+                ("routingkey", c_char_p),
+                ("addqueue", c_bool)]
+class RegisterExchangeResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("queuename", c_char_p),
+                ("error", c_char_p)]
+
+class UnRegisterQueueResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
+
+class QueueMessageRequestWrapper(Structure):
+    _fields_ = [("queuename", c_char_p),
+                ("correlation_id", c_char_p),
+                ("replyto", c_char_p),
+                ("routingkey", c_char_p),
+                ("exchangename", c_char_p),
+                ("data", c_char_p),
+                ("striptoken", c_bool),
+                ("expiration", c_int)]
+class QueueMessageResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
 
 # Custom exception classes
 class ClientError(Exception):
@@ -276,6 +332,120 @@ class ClientCreationError(ClientError):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+def encode_files(req, files):
+    if files is None or len(files) == 0:
+        req.files = None
+        req.files_len = 0
+        return None
+
+    # Create an array of pointers to WorkitemFileWrapper
+    cfile_pointers = (ctypes.POINTER(WorkitemFileWrapper) * len(files))()
+    files_len = 0
+    for i, f in enumerate(files):
+        if f is None:
+            print("File is None")
+        elif isinstance(f, str):
+            cfile = WorkitemFileWrapper(
+                filename=c_char_p(f.encode('utf-8')),
+                id=c_char_p(b''),
+                compressed=False
+            )
+            cfile_pointers[i] = ctypes.pointer(cfile)
+            files_len += 1
+        else:
+            cfile = WorkitemFileWrapper(
+                filename=c_char_p(f["filename"].encode('utf-8')),
+                id=c_char_p(f["id"].encode('utf-8')),
+                compressed=f["compressed"]
+            )
+            cfile_pointers[i] = ctypes.pointer(cfile)
+            files_len += 1
+
+    # Assign the array of pointers to the req.files
+    req.files = ctypes.cast(cfile_pointers, ctypes.POINTER(ctypes.POINTER(WorkitemFileWrapper)))
+    # req.files_len = ctypes.c_size_t(files_len)
+    req.files_len = files_len
+    
+    # Keep a reference to prevent garbage collection
+    req._cfiles = cfile_pointers
+
+def get_raw_bytes(c_char_p_ptr):
+    """Access and print raw bytes for debugging."""
+    if c_char_p_ptr:
+        raw_bytes = ctypes.cast(c_char_p_ptr, ctypes.POINTER(ctypes.c_char * 256)).contents.raw
+        print("Raw bytes:", raw_bytes)
+        return raw_bytes
+    return None
+
+def decode_workitem(workitem_ptr):
+    """Parses the WorkitemWrapper structure and returns a dictionary."""
+    workitem = workitem_ptr.contents
+
+    # get_raw_bytes(workitem_ptr)
+    def safe_decode(c_char_p):
+        if c_char_p:
+            return c_char_p.decode('utf-8', errors='replace')
+        return ""
+
+    result = {
+        "id": safe_decode(workitem.id),
+        "name": safe_decode(workitem.name),
+        "payload": safe_decode(workitem.payload),
+        "priority": workitem.priority,
+        "nextrun": workitem.nextrun,
+        "lastrun": workitem.lastrun,
+        "files": [],
+        "files_len": workitem.files_len,
+        "state": safe_decode(workitem.state),
+        "wiq": safe_decode(workitem.wiq),
+        "wiqid": safe_decode(workitem.wiqid),
+        "retries": workitem.retries,
+        "username": safe_decode(workitem.username),
+        "success_wiqid": safe_decode(workitem.success_wiqid),
+        "failed_wiqid": safe_decode(workitem.failed_wiqid),
+        "success_wiq": safe_decode(workitem.success_wiq),
+        "failed_wiq": safe_decode(workitem.failed_wiq),
+        "errormessage": safe_decode(workitem.errormessage),
+        "errorsource": safe_decode(workitem.errorsource),
+        "errortype": safe_decode(workitem.errortype)
+    }
+
+    for i in range(workitem.files_len):
+        file = workitem.files[i]
+        file = file.contents
+
+        # print(f"Raw filename pointer: {file}, filename: {file.filename}")  # Debugging line
+
+        result["files"].append({
+            "filename": safe_decode(file.filename),
+            "id": safe_decode(file.id),
+            "compressed": file.compressed
+        })
+    return result
+def encode_workitem(workitem, files):
+    """Encodes the workitem dictionary into a WorkitemWrapper structure."""
+    req = WorkitemWrapper()
+    req.id = c_char_p(workitem.get("id", "").encode('utf-8'))
+    req.name = c_char_p(workitem.get("name", "").encode('utf-8'))
+    req.payload = c_char_p(workitem.get("payload", "").encode('utf-8'))
+    req.priority = workitem.get("priority", 0)
+    req.nextrun = workitem.get("nextrun", 0)
+    req.lastrun = workitem.get("lastrun", 0)
+    req.state = c_char_p(workitem.get("state", "").encode('utf-8'))
+    req.wiq = c_char_p(workitem.get("wiq", "").encode('utf-8'))
+    req.wiqid = c_char_p(workitem.get("wiqid", "").encode('utf-8'))
+    req.retries = workitem.get("retries", 0)
+    req.username = c_char_p(workitem.get("username", "").encode('utf-8'))
+    req.success_wiqid = c_char_p(workitem.get("success_wiqid", "").encode('utf-8'))
+    req.failed_wiqid = c_char_p(workitem.get("failed_wiqid", "").encode('utf-8'))
+    req.success_wiq = c_char_p(workitem.get("success_wiq", "").encode('utf-8'))
+    req.failed_wiq = c_char_p(workitem.get("failed_wiq", "").encode('utf-8'))
+    req.errormessage = c_char_p(workitem.get("errormessage", "").encode('utf-8'))
+    req.errorsource = c_char_p(workitem.get("errorsource", "").encode('utf-8'))
+    req.errortype = c_char_p(workitem.get("errortype", "").encode('utf-8'))
+
+    encode_files(req, files)
+    return req
 
 class Client:
     def __init__(self):
@@ -285,7 +455,11 @@ class Client:
         self.verbosing = False
         # self.client = self._create_client(url)
         self.callbacks = []  # Keep a reference to the callbacks
-    
+    def free(self):
+        if(self.client != None):
+            self.trace("Freeing client")
+            self.lib.free_client(self.client)
+            self.client = None    
     def _load_library(self):
         # Determine the path to the shared library
         lib_dir = os.path.join(os.path.dirname(__file__), 'lib')
@@ -469,11 +643,11 @@ class Client:
 
         cb = QueryCallback(callback)
 
-        req = QueryRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                  query=CString(query.encode('utf-8')),
-                                  projection=CString(projection.encode('utf-8')),
-                                  orderby=CString(orderby.encode('utf-8')),
-                                  queryas=CString(queryas.encode('utf-8')),
+        req = QueryRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                  query=c_char_p(query.encode('utf-8')),
+                                  projection=c_char_p(projection.encode('utf-8')),
+                                  orderby=c_char_p(orderby.encode('utf-8')),
+                                  queryas=c_char_p(queryas.encode('utf-8')),
                                   explain=explain,
                                   skip=skip,
                                   top=top)
@@ -510,10 +684,10 @@ class Client:
 
         cb = AggregateCallback(callback)
 
-        req = AggregateRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                      aggregates=CString(aggregates.encode('utf-8')),
-                                      queryas=CString(queryas.encode('utf-8')),
-                                      hint=CString(hint.encode('utf-8')),
+        req = AggregateRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                      aggregates=c_char_p(aggregates.encode('utf-8')),
+                                      queryas=c_char_p(queryas.encode('utf-8')),
+                                      hint=c_char_p(hint.encode('utf-8')),
                                       explain=explain)
         
         self.trace("Calling aggregate_async")
@@ -548,9 +722,9 @@ class Client:
 
         cb = CountCallback(callback)
 
-        req = CountRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                  query=CString(query.encode('utf-8')),
-                                  queryas=CString(queryas.encode('utf-8')),
+        req = CountRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                  query=c_char_p(query.encode('utf-8')),
+                                  queryas=c_char_p(queryas.encode('utf-8')),
                                   explain=explain)
         
         self.trace("Calling count_async")
@@ -579,10 +753,10 @@ class Client:
                 else:
                     result["success"] = response.success
                     results_array_ptr = response.results
-                    results_count = response.results_count
+                    results_len = response.results_len
                     results = []
 
-                    for i in range(results_count):
+                    for i in range(results_len):
                         cstr_ptr = results_array_ptr[i]
                         js_string = ctypes.cast(cstr_ptr, c_char_p).value.decode('utf-8')
                         results.append(js_string)
@@ -635,8 +809,8 @@ class Client:
 
         cb = InsertOneCallback(callback)
 
-        req = InsertOneRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                      item=CString(item.encode('utf-8')),
+        req = InsertOneRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                      item=c_char_p(item.encode('utf-8')),
                                       w=w,
                                       j=j)
         
@@ -672,8 +846,8 @@ class Client:
 
         cb = InsertManyCallback(callback)
 
-        req = InsertManyRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                      items=CString(items.encode('utf-8')),
+        req = InsertManyRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                      items=c_char_p(items.encode('utf-8')),
                                       w=w,
                                       j=j,
                                       skipresults=skipresults)
@@ -710,8 +884,8 @@ class Client:
 
         cb = UpdateOneCallback(callback)
 
-        req = UpdateOneRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                        item=CString(item.encode('utf-8')),
+        req = UpdateOneRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                        item=c_char_p(item.encode('utf-8')),
                                         w=w,
                                         j=j)
         
@@ -747,9 +921,9 @@ class Client:
 
         cb = InsertOrUpdateOneCallback(callback)
 
-        req = InsertOrUpdateOneRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                              uniqeness=CString(uniqeness.encode('utf-8')),
-                                              item=CString(item.encode('utf-8')),
+        req = InsertOrUpdateOneRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                              uniqeness=c_char_p(uniqeness.encode('utf-8')),
+                                              item=c_char_p(item.encode('utf-8')),
                                               w=w,
                                               j=j)
         
@@ -785,8 +959,8 @@ class Client:
 
         cb = DeleteOneCallback(callback)
 
-        req = DeleteOneRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                      id=CString(id.encode('utf-8')),
+        req = DeleteOneRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                      id=c_char_p(id.encode('utf-8')),
                                       recursive=recursive)
         
         self.trace("Calling delete_one_async")
@@ -821,11 +995,11 @@ class Client:
 
         cb = DeleteManyCallback(callback)
 
-        cids = (CString * len(ids))()
-        cids[:] = [CString(i.encode('utf-8')) for i in ids]
+        cids = (c_char_p * len(ids))()
+        cids[:] = [c_char_p(i.encode('utf-8')) for i in ids]
 
-        req = DeleteManyRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                      query=CString(query.encode('utf-8')),
+        req = DeleteManyRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                      query=c_char_p(query.encode('utf-8')),
                                       recursive=recursive,
                                       ids=cids)
         
@@ -862,10 +1036,10 @@ class Client:
         cb = DownloadCallback(callback)
 
 
-        req = DownloadRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                     id=CString(id.encode('utf-8')),
-                                     folder=CString(folder.encode('utf-8')),
-                                     filename=CString(filename.encode('utf-8'))
+        req = DownloadRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                     id=c_char_p(id.encode('utf-8')),
+                                     folder=c_char_p(folder.encode('utf-8')),
+                                     filename=c_char_p(filename.encode('utf-8'))
                                      )
 
         self.trace("Calling download_async")
@@ -901,11 +1075,11 @@ class Client:
         self.trace("create cb")
         cb = UploadCallback(callback)
         
-        req = UploadRequestWrapper(filepath=CString(filepath.encode('utf-8')),
-                                   filename=CString(filename.encode('utf-8')),
-                                   mimetype=CString(mimetype.encode('utf-8')),
-                                   metadata=CString(metadata.encode('utf-8')),
-                                   collectionname=CString(collectionname.encode('utf-8'))
+        req = UploadRequestWrapper(filepath=c_char_p(filepath.encode('utf-8')),
+                                   filename=c_char_p(filename.encode('utf-8')),
+                                   mimetype=c_char_p(mimetype.encode('utf-8')),
+                                   metadata=c_char_p(metadata.encode('utf-8')),
+                                   collectionname=c_char_p(collectionname.encode('utf-8'))
                                    )
         
         self.trace("Calling upload_async")
@@ -928,74 +1102,34 @@ class Client:
             try:
                 response = response_ptr.contents
                 self.trace("PushWorkitem callback invoked")
-                print("response.success", response.success)
                 if not response.success:
                     error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
                     result["error"] = ClientError(f"PushWorkitem failed: {error_message}")
                 else:
-                    # cb = PushWorkitemCallback(callback)
-                    print("*****************")
-                    print("workitem_ptr", response.workitem)
-                    workitem = response.workitem.contents
+                    workitem = decode_workitem(response.workitem)
+                    result["success"] = response.success
+                    result["workitem"] = workitem
 
-                    # print("workitem", workitem)
-                    # result["success"] = response.success
-                    result["workitem"] = {
-                        "id": workitem.id.decode('utf-8'),
-                        "name": workitem.name.decode('utf-8'),
-                        "payload": workitem.payload.decode('utf-8'),
-                        "priority": workitem.priority,
-                        "nextrun": workitem.nextrun,
-                        "lastrun": workitem.lastrun,
-                        "files": [],
-                        "files_len": workitem.files_len,
-                        #"state": workitem.state.decode('utf-8'),
-                        "wiq": workitem.wiq.decode('utf-8'),
-                        "wiqid": workitem.wiqid.decode('utf-8'),
-                        "retries": workitem.retries,
-                        "username": workitem.username.decode('utf-8'),
-                        "success_wiqid": workitem.success_wiqid.decode('utf-8'),
-                        "failed_wiqid": workitem.failed_wiqid.decode('utf-8'),
-                        "success_wiq": workitem.success_wiq.decode('utf-8'),
-                        "failed_wiq": workitem.failed_wiq.decode('utf-8'),
-                        "errormessage": workitem.errormessage.decode('utf-8'),
-                        "errorsource": workitem.errorsource.decode('utf-8'),
-                        "errortype": workitem.errortype.decode('utf-8')
-                    }
-                    print("*****************")
-                    print("workitem", result["workitem"])
-                    print("*****************")
-                    for i in range(workitem.files_len):
-                        file = workitem.files[i]
-                        result["workitem"]["files"].append({
-                            "filename": file.filename.decode('utf-8'),
-                            "id": file.id.decode('utf-8'),
-                            "compressed": file.compressed
-                        })
                 self.lib.free_push_workitem_response(response_ptr)
             finally:
                 event.set()
 
         cb = PushWorkitemCallback(callback)
 
-        cfiles = (WorkitemFileWrapper * len(files))()
-        cfiles[:] = [WorkitemFileWrapper(filename=CString(f["filename"].encode('utf-8')),
-                                            id=CString(f["id"].encode('utf-8')),
-                                            compressed=f["compressed"]) for f in files]
-        
-        req = PushWorkitemRequestWrapper(wiq=CString(wiq.encode('utf-8')),
-                                            wiqid=CString(wiqid.encode('utf-8')),
-                                            name=CString(name.encode('utf-8')),
-                                            payload=CString(payload.encode('utf-8')),
+        req = PushWorkitemRequestWrapper(wiq=c_char_p(wiq.encode('utf-8')),
+                                            wiqid=c_char_p(wiqid.encode('utf-8')),
+                                            name=c_char_p(name.encode('utf-8')),
+                                            payload=c_char_p(payload.encode('utf-8')),
                                             nextrun=nextrun,
-                                            success_wiqid=CString(success_wiqid.encode('utf-8')),
-                                            failed_wiqid=CString(failed_wiqid.encode('utf-8')),
-                                            success_wiq=CString(success_wiq.encode('utf-8')),
-                                            failed_wiq=CString(failed_wiq.encode('utf-8')),
+                                            success_wiqid=c_char_p(success_wiqid.encode('utf-8')),
+                                            failed_wiqid=c_char_p(failed_wiqid.encode('utf-8')),
+                                            success_wiq=c_char_p(success_wiq.encode('utf-8')),
+                                            failed_wiq=c_char_p(failed_wiq.encode('utf-8')),
                                             priority=priority,
-                                            files=cfiles,
-                                            files_len=len(files))
+                                            )
+        encode_files(req, files)
         
+        self.lib.push_workitem_async.argtypes = [c_void_p, POINTER(PushWorkitemRequestWrapper), PushWorkitemCallback]
         self.trace("Calling push_workitem_async")
         self.lib.push_workitem_async(self.client, byref(req), cb)
         self.trace("push_workitem_async called")
@@ -1006,7 +1140,112 @@ class Client:
             raise result["error"]
         
         return result["workitem"]
+    def pop_workitem(self, wiq = "", wiqid = "", downloadfolder = "."):
+        self.trace("Inside pop_workitem")
+        event = threading.Event()
+        result = {"success": None, "workitem": None, "error": None}
         
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("PopWorkitem callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"PopWorkitem failed: {error_message}")
+                else:
+                    workitem = decode_workitem(response.workitem)
+                    result["success"] = response.success
+                    result["workitem"] = workitem
+                self.lib.free_pop_workitem_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = PopWorkitemCallback(callback)
+
+        req = PopWorkitemRequestWrapper(wiq=c_char_p(wiq.encode('utf-8')),
+                                        wiqid=c_char_p(wiqid.encode('utf-8')))
+        
+        self.trace("Calling pop_workitem_async")
+        self.lib.pop_workitem_async(self.client, byref(req), downloadfolder, cb)
+        self.trace("pop_workitem_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["workitem"]
+    
+    def update_workitem(self, workitem, files = []):
+        self.trace("Inside update_workitem")
+        event = threading.Event()
+        result = {"success": None, "workitem": None, "error": None}
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("UpdateWorkitem callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"UpdateWorkitem failed: {error_message}")
+                else:
+                    workitem = decode_workitem(response.workitem)
+                    result["success"] = response.success
+                    result["workitem"] = workitem
+                self.lib.free_update_workitem_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = UpdateWorkitemCallback(callback)
+
+        req = UpdateWorkitemRequestWrapper()
+        encode_files(req, files)
+        workitem_wrapper = encode_workitem(workitem, [])
+        workitem_ptr = pointer(workitem_wrapper)
+
+        req.workitem = workitem_ptr
+        
+        self.trace("Calling update_workitem_async")
+        self.lib.update_workitem_async(self.client, byref(req), cb)
+        self.trace("update_workitem_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["workitem"]
+
+    def delete_workitem(self, id = ""):
+        self.trace("Inside delete_workitem")
+        event = threading.Event()
+        result = {"success": None, "error": None}
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("DeleteWorkitem callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"DeleteWorkitem failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                self.lib.free_delete_workitem_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = DeleteWorkitemCallback(callback)
+
+        req = DeleteWorkitemRequestWrapper(id=c_char_p(id.encode('utf-8')))
+        
+        self.trace("Calling delete_workitem_async")
+        self.lib.delete_workitem_async(self.client, byref(req), cb)
+        self.trace("delete_workitem_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
 
     def watch(self, collectionname = "", paths = "", callback = None):
         self.trace("Inside watch")
@@ -1048,8 +1287,8 @@ class Client:
         c_callback = WatchEventCallback(watch_event_callback)
         self.callbacks.append(c_callback)
 
-        req = WatchRequestWrapper(collectionname=CString(collectionname.encode('utf-8')),
-                                  paths=CString(paths.encode('utf-8'))
+        req = WatchRequestWrapper(collectionname=c_char_p(collectionname.encode('utf-8')),
+                                  paths=c_char_p(paths.encode('utf-8'))
                                   )
         
         self.trace("Calling watch_async")
@@ -1064,14 +1303,180 @@ class Client:
             raise result["error"]
         
         return result["watchid"]
+    
+    def register_queue(self, queuename = "", callback = None):
+        self.trace("Inside register_queue")
+        result = {"success": None, "queuename": None, "error": None}
+        if not callable(callback):
+            raise ValueError("Callback must be a callable function")
+
+        self.counter = 0
+        def queue_event_callback(eventref):
+            self.trace("Queue Event callback invoked")
+            event = eventref.contents
+            result = {
+                "queuename": event.queuename.decode('utf-8'),
+                "correlation_id": event.correlation_id.decode('utf-8'),
+                "replyto": event.replyto.decode('utf-8'),
+                "routingkey": event.routingkey.decode('utf-8'),
+                "exchangename": event.exchangename.decode('utf-8'),
+                "data": event.data.decode('utf-8')
+            }
+            self.trace("Internal callback invoked", result)
+            self.counter += 1
+            callback(result, self.counter)
+
+        c_callback = QueueEventCallback(queue_event_callback)
+        self.callbacks.append(c_callback)
+
+        req = RegisterQueueRequestWrapper(queuename=c_char_p(queuename.encode('utf-8')))
+        
+        self.trace("Calling register_queue_async")
+        #  self.lib.client_count.argtypes = [c_void_p, POINTER(CountRequestWrapper)]
+        self.lib.register_queue_async.restype = POINTER(RegisterQueueResponseWrapper)
+
+        reqref = self.lib.register_queue_async(self.client, byref(req), c_callback)
+        response = reqref.contents
+
+        if not response.success:
+            self.trace("Register Queue failed")
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            self.trace(error_message)
+            result["error"] = ClientError(f"Watch failed: {error_message}")
+        else:
+            self.trace("Register Queue success")
+            result["success"] = response.success
+            result["queuename"] = ctypes.cast(response.queuename, c_char_p).value.decode('utf-8')
+
+        self.trace("Calling free_register_queue_response")
+        self.lib.free_register_queue_response(reqref)
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["queuename"]
+
+    def register_exchange(self, exchangename = "", algorithm = "", routingkey = "", addqueue = True, callback = None):
+        self.trace("Inside register_queue")
+        result = {"success": None, "queuename": None, "error": None}
+        if not callable(callback):
+            raise ValueError("Callback must be a callable function")
+
+        self.counter = 0
+        def queue_event_callback(eventref):
+            self.trace("Exchange Event callback invoked")
+            event = eventref.contents
+            result = {
+                "queuename": event.queuename.decode('utf-8'),
+                "correlation_id": event.correlation_id.decode('utf-8'),
+                "replyto": event.replyto.decode('utf-8'),
+                "routingkey": event.routingkey.decode('utf-8'),
+                "exchangename": event.exchangename.decode('utf-8'),
+                "data": event.data.decode('utf-8')
+            }
+            self.trace("Internal callback invoked", result)
+            self.counter += 1
+            callback(result, self.counter)
+
+        c_callback = QueueEventCallback(queue_event_callback)
+        self.callbacks.append(c_callback)
+
+        req = RegisterExchangeRequestWrapper(
+            exchangename=c_char_p(exchangename.encode('utf-8')),
+            algorithm=c_char_p(algorithm.encode('utf-8')),
+            routingkey=c_char_p(routingkey.encode('utf-8')),
+            addqueue=addqueue)
+        
+        self.trace("Calling register_exchange_async")
+        self.lib.register_exchange_async.argtypes = [c_void_p, POINTER(RegisterExchangeRequestWrapper), QueueEventCallback]
+        self.lib.register_exchange_async.restype = POINTER(RegisterExchangeResponseWrapper)
+
+        reqref = self.lib.register_exchange_async(self.client, byref(req), c_callback)
+        response = reqref.contents
+
+        if not response.success:
+            self.trace("Register Exchange failed")
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            self.trace("error_message is", error_message)
+            result["error"] = ClientError(f"Watch failed: {error_message}")
+        else:
+            self.trace("Register Exchange success")
+            result["success"] = response.success
+            result["queuename"] = ctypes.cast(response.queuename, c_char_p).value.decode('utf-8')
+            self.trace("queuename is", result["queuename"])
+
+        self.trace("Calling free_register_exchange_response")
+        self.lib.free_register_exchange_response(reqref)
+        self.trace("free_register_exchange_response called")
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["queuename"]
+    
+    def unregister_queue(self, queuename):
+        self.trace("Inside unregister_queue")
+        result = {"success": None, "error": None}
+        
+        self.lib.unregister_queue.restype = POINTER(UnRegisterQueueResponseWrapper)
+        self.trace("Calling unregister_queue")
+        ref = self.lib.unregister_queue(self.client, c_char_p(queuename.encode('utf-8')), )
+        self.trace("unregister_queue called")
+        response = ref.contents
+        if not response.success:
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            result["error"] = ClientError(f"Unregister Queue failed: {error_message}")
+        else:
+            result["success"] = response.success
+        self.trace("Calling free_unregister_queue_response")
+        self.lib.free_unregister_queue_response(ref)
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
+    
+    def queue_message(self, data, queuename = "", exchangename = "", routingkey = "", replyto = "", correlation_id = "", striptoken = False, expiration = 0):
+        self.trace("Inside queue_message")
+        result = {"success": None, "error": None}
+        if queuename == "" and exchangename == "":
+            raise ValueError("Either queuename or exchangename must be provided")
+        
+        req = QueueMessageRequestWrapper(
+            queuename=c_char_p(queuename.encode('utf-8')),
+            data=c_char_p(data.encode('utf-8')),
+            exchangename=c_char_p(exchangename.encode('utf-8')),
+            routingkey=c_char_p(routingkey.encode('utf-8')),
+            replyto=c_char_p(replyto.encode('utf-8')),
+            correlation_id=c_char_p(correlation_id.encode('utf-8')),
+            striptoken=striptoken,
+            expiration=expiration
+        )
+        self.lib.queue_message.restype = POINTER(QueueMessageResponseWrapper)
+        self.trace("Calling queue_message")
+        ref = self.lib.queue_message(self.client, byref(req))
+        self.trace("queue_message called")
+        response = ref.contents
+        if not response.success:
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            result["error"] = ClientError(f"Queue Message failed: {error_message}")
+        else:
+            result["success"] = response.success
+        self.trace("Calling free_queue_message_response")
+        self.lib.free_queue_message_response(ref)
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
 
     def unwatch(self, watchid):
         if not watchid or watchid == "":
             raise ValueError("Watch ID must be provided")
-        self.lib.unwatch.argtypes = [voidPtr, CString]
+        self.lib.unwatch.argtypes = [c_void_p, c_char_p]
         self.lib.unwatch.restype = POINTER(UnWatchResponseWrapper)
         
-        unwatch = self.lib.unwatch(self.client, CString(watchid.encode('utf-8')))
+        unwatch = self.lib.unwatch(self.client, c_char_p(watchid.encode('utf-8')))
         
         if unwatch:
             unwatchObj = unwatch.contents
