@@ -8,7 +8,6 @@ const voidPtr = koffi.pointer('void');
 const bool = koffi.types.bool;
 const int = 'int';
 const uint64 = 'uint64_t';
-const size_t = 'size_t';
 
 function encodeStruct(value, type) {
     const buf = Buffer.allocUnsafe(koffi.sizeof(type));

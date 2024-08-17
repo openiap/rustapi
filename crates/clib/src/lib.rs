@@ -408,13 +408,15 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
     let server_address = c_char_to_str(server_address);
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
 
-    debug!("Spawn the async task");
+    debug!("server_address = {:?}", server_address);
+
+    trace!("Spawn the async task");
     let runtime_clone = std::sync::Arc::clone(&runtime);
     runtime.spawn(async move {
-        debug!("Simulated async task started");
+        trace!("Simulated async task started");
         // Simulated async task (or replace with actual Client::connect)
         let client_result = Client::connect(&server_address).await;
-        debug!("Client::connect::done");
+        trace!("Client::connect::done");
         let wrapper = if let Ok(client) = client_result {
             Box::into_raw(Box::new(ClientWrapper {
                 client: Some(client),
@@ -435,7 +437,7 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
             }))
         };
 
-        debug!("Client::Calling callback with result");
+        trace!("Client::Calling callback with result");
         callback(wrapper);
     });
 

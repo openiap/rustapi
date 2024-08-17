@@ -1,4 +1,4 @@
-# rust api for openiap and warppers for nodejs, python and dotnet7
+# rust api for openiap and wrappers for nodejs, python and dotnet6
 
 
 # build

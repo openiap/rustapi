@@ -4,10 +4,30 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 public class WatchEvent
 {
-    public string? id { get; set; }
-    public string? operation { get; set; }
-    public object? document { get; set; }
-
+    public WatchEvent() {
+        id = "";
+        operation = "";
+        document = "";
+    }
+    public string id { get; set; }
+    public string operation { get; set; }
+    public string document { get; set; }
+}
+public class QueueEvent {
+    public QueueEvent() {
+        queuename = "";
+        correlation_id = "";
+        replyto = "";
+        routingkey = "";
+        exchangename = "";
+        data = "";
+    }
+    public string queuename;
+    public string correlation_id;
+    public string replyto;
+    public string routingkey;
+    public string exchangename;
+    public string data;
 }
 public class Client : IDisposable
 {
@@ -152,6 +172,93 @@ public class Client : IDisposable
     public delegate void InsertOneCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct InsertManyRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr items;
+        public int w;
+        public bool j;
+        public bool skipresults;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct InsertManyResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr result;
+        public IntPtr error;
+    }
+    public delegate void InsertManyCallback(IntPtr responsePtr);
+
+        [StructLayout(LayoutKind.Sequential)]
+    public struct UpdateOneRequestWrapper{
+        public IntPtr collectionname;
+        public IntPtr item;
+        public int w;
+        public bool j;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UpdateOneResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr result;
+        public IntPtr error;
+    }
+    public delegate void UpdateOneCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct InsertOrUpdateOneRequestWrapper {
+        public IntPtr collectionname;
+        public IntPtr uniqeness;
+        public IntPtr item;
+        public int w;
+        public bool j;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct InsertOrUpdateOneResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr result;
+        public IntPtr error;
+    }
+    public delegate void InsertOrUpdateOneCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteOneRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr id;
+        public bool recursive;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteOneResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public int affectedrows;
+        public IntPtr error;
+    }
+    public delegate void DeleteOneCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteManyRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr query;
+        public bool recursive;
+        public IntPtr ids;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteManyResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public int affectedrows;
+        public IntPtr error;
+    }
+    public delegate void DeleteManyCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct DownloadRequestWrapper
     {
         public IntPtr collectionname;
@@ -168,6 +275,7 @@ public class Client : IDisposable
         public IntPtr error;
     }
     public delegate void DownloadCallback(IntPtr responsePtr);
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct UploadRequestWrapper
@@ -201,6 +309,87 @@ public class Client : IDisposable
         public IntPtr watchid;
         public IntPtr error;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WatchEventWrapper
+    {
+        public IntPtr id;
+        public IntPtr operation;
+        public IntPtr document;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UnWatchResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueueEventWrapper {
+        public IntPtr queuename;
+        public IntPtr correlation_id;
+        public IntPtr replyto;
+        public IntPtr routingkey;
+        public IntPtr exchangename;
+        public IntPtr data;
+    }
+    public delegate void QueueEventCallback(IntPtr eventStr);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RegisterQueueRequestWrapper {
+        public IntPtr queuename;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RegisterQueueResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr queuename;
+        public IntPtr error;
+    }
+    public delegate void RegisterQueueCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RegisterExchangeRequestWrapper {
+        public IntPtr exchangename;
+        public IntPtr algorithm;
+        public IntPtr routingkey;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool addqueue;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RegisterExchangeResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr queuename;
+        public IntPtr error;
+    }
+    public delegate void RegisterExchangeCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UnRegisterQueueResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueueMessageRequestWrapper {
+        public IntPtr queuename;
+        public IntPtr correlation_id;
+        public IntPtr replyto;
+        public IntPtr routingkey;
+        public IntPtr exchangename;
+        public IntPtr data;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool striptoken;
+        public int expiration;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueueMessageResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    public delegate void QueueMessageCallback(IntPtr responsePtr);
+
     public class ClientError : Exception
     {
         public ClientError(string message) : base(message) { }
@@ -322,6 +511,33 @@ public class Client : IDisposable
     public static extern void free_insert_one_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void insert_many_async(IntPtr client, ref InsertManyRequestWrapper request, InsertManyCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_insert_many_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void update_one_async(IntPtr client, ref UpdateOneRequestWrapper request, UpdateOneCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_update_one_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void insert_or_update_one_async(IntPtr client, ref InsertOrUpdateOneRequestWrapper request, InsertOrUpdateOneCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_insert_or_update_one_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void delete_one_async(IntPtr client, ref DeleteOneRequestWrapper request, DeleteOneCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_delete_one_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void delete_many_async(IntPtr client, ref DeleteManyRequestWrapper request, DeleteManyCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_delete_many_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr download_async(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -340,9 +556,40 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr watch_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr watch_async_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr unwatch(IntPtr client, string watchid);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_unwatch_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr register_queue_async(IntPtr client, ref RegisterQueueRequestWrapper request, QueueEventCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_register_queue_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr register_exchange_async(IntPtr client, ref RegisterExchangeRequestWrapper request, QueueEventCallback callback);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_register_exchange_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr unregister_queue(IntPtr client, string queuename);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_unregister_queue_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr queue_message(IntPtr client, ref QueueMessageRequestWrapper request);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_queue_message_response(IntPtr response);
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -810,6 +1057,315 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
+    public Task<string> InsertMany(string collectionname, string items, int w = 1, bool j = false, bool skipresults = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr itemsPtr = Marshal.StringToHGlobalAnsi(items);
+
+        try
+        {
+            InsertManyRequestWrapper request = new InsertManyRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                items = itemsPtr,
+                w = w,
+                j = j,
+                skipresults = skipresults
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_insert_many_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new InsertManyCallback(Callback);
+
+            insert_many_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(itemsPtr);
+        }
+        return tcs.Task;
+    }
+    public Task<string> UpdateOne(string collectionname, string item, int w = 1, bool j = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
+
+        try
+        {
+            UpdateOneRequestWrapper request = new UpdateOneRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                item = itemPtr,
+                w = w,
+                j = j
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<UpdateOneResponseWrapper>(responsePtr);
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_update_one_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new UpdateOneCallback(Callback);
+
+            update_one_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(itemPtr);
+        }
+        return tcs.Task;
+    }
+    public Task<string> InsertOrUpdateOne(string collectionname, string item, string uniqeness = "_id", int w = 1, bool j = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr uniqenessPtr = Marshal.StringToHGlobalAnsi(uniqeness);
+        IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
+
+        try
+        {
+            InsertOrUpdateOneRequestWrapper request = new InsertOrUpdateOneRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                uniqeness = uniqenessPtr,
+                item = itemPtr,
+                w = w,
+                j = j
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<InsertOrUpdateOneResponseWrapper>(responsePtr);
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_insert_or_update_one_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new InsertOrUpdateOneCallback(Callback);
+
+            insert_or_update_one_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(uniqenessPtr);
+            Marshal.FreeHGlobal(itemPtr);
+        }
+        return tcs.Task;
+    }
+    public Task<int> DeleteOne(string collectionname, string id, bool recursive = false)
+    {
+        var tcs = new TaskCompletionSource<int>();
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr idPtr = Marshal.StringToHGlobalAnsi(id);
+
+        try
+        {
+            DeleteOneRequestWrapper request = new DeleteOneRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                id = idPtr,
+                recursive = recursive
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<DeleteOneResponseWrapper>(responsePtr);
+                    int affectedrows = (int)response.affectedrows;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_delete_one_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(affectedrows);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new DeleteOneCallback(Callback);
+
+            delete_one_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(idPtr);
+        }
+        return tcs.Task;
+    }
+    public Task<int> DeleteMany(string collectionname, string query = "", string[]? ids = null, bool recursive = false) {
+        var tcs = new TaskCompletionSource<int>();
+        if(ids == null) ids = new string[] { "" };
+        if(ids.Length == 0) ids = new string[] { "" };
+        // ids = ids.Concat(new string[] { "test" }).ToArray();
+        
+        IntPtr idsPtr = Marshal.AllocHGlobal(ids.Length * IntPtr.Size);
+        IntPtr[] stringPointers = new IntPtr[ids.Length];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            stringPointers[i] = Marshal.StringToHGlobalAnsi(ids[i]);
+            Marshal.WriteIntPtr(idsPtr, i * IntPtr.Size, stringPointers[i]);
+        }
+
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
+        try
+        {
+            DeleteManyRequestWrapper request = new DeleteManyRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                query = queryPtr,
+                recursive = recursive,
+                ids = idsPtr
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<DeleteManyResponseWrapper>(responsePtr);
+                    int affectedrows = (int)response.affectedrows;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_delete_many_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(affectedrows);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new DeleteManyCallback(Callback);
+
+            delete_many_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(queryPtr);
+            Marshal.FreeHGlobal(idsPtr);
+        }
+        return tcs.Task;
+    }
+    
     public Task<string> download(string collectionname, string id, string folder, string filename)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -944,18 +1500,16 @@ public class Client : IDisposable
                 paths = pathsPtr
             };
 
-            var callback = new WatchEventCallback((IntPtr eventStr) =>
+            var callback = new WatchEventCallback((IntPtr WatchEventWrapper) =>
             {
-                Console.WriteLine("dotnet: watch event callback");
-                string eventJson = Marshal.PtrToStringAnsi(eventStr) ?? string.Empty;
-                if (eventJson != null && eventJson != "")
+                var eventObj = Marshal.PtrToStructure<WatchEventWrapper>(WatchEventWrapper);
+                var watchEvent = new WatchEvent
                 {
-                    var eventObj = System.Text.Json.JsonSerializer.Deserialize<WatchEvent>(eventJson);
-                    if (eventObj != null)
-                    {
-                        eventHandler?.Invoke(eventObj);
-                    }
-                }
+                    id = Marshal.PtrToStringAnsi(eventObj.id) ?? string.Empty,
+                    operation = Marshal.PtrToStringAnsi(eventObj.operation) ?? string.Empty,
+                    document = Marshal.PtrToStringAnsi(eventObj.document) ?? string.Empty
+                };
+                eventHandler(watchEvent);
             });
 
             void Callback(IntPtr responsePtr)
@@ -991,7 +1545,7 @@ public class Client : IDisposable
             }
             var callbackDelegate = new WatchCallback(Callback);
 
-            watch_async(clientPtr, ref request, callbackDelegate, callback);
+            watch_async_async(clientPtr, ref request, callbackDelegate, callback);
 
         }
         finally
@@ -1000,6 +1554,257 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(pathsPtr);
         }
         return tcs.Task;
+    }
+    public void UnWatch(string watchid) {
+        IntPtr watchidPtr = Marshal.StringToHGlobalAnsi(watchid);
+        try {
+            var response = unwatch(clientPtr, watchid);
+            var responseWrapper = Marshal.PtrToStructure<UnWatchResponseWrapper>(response);
+            string error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? string.Empty;
+            bool success = responseWrapper.success;
+            free_unwatch_response(response);
+            if (!success)
+            {
+                throw new ClientError(error);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(watchidPtr);
+        }
+    }
+    public Task<string> RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
+    {
+        var tcs = new TaskCompletionSource<string>();
+        IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
+
+        try
+        {
+            RegisterQueueRequestWrapper request = new RegisterQueueRequestWrapper
+            {
+                queuename = queuenamePtr
+            };
+
+            var callback = new  QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+            {
+                var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+                var watchEvent = new QueueEvent
+                {
+                    queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
+                    correlation_id = Marshal.PtrToStringAnsi(eventObj.correlation_id) ?? string.Empty,
+                    replyto = Marshal.PtrToStringAnsi(eventObj.replyto) ?? string.Empty,
+                    routingkey = Marshal.PtrToStringAnsi(eventObj.routingkey) ?? string.Empty,
+                    exchangename = Marshal.PtrToStringAnsi(eventObj.exchangename) ?? string.Empty,
+                    data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
+                };
+                eventHandler(watchEvent);
+            });
+
+            void Callback(IntPtr responsePtr)
+            {
+                Console.WriteLine("dotnet: register watch callback");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<RegisterQueueResponseWrapper>(responsePtr);
+                    string queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_register_queue_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(queuename);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+            var callbackDelegate = new RegisterQueueCallback(Callback);
+            var queuecallbackkDelegate = new RegisterQueueCallback(Callback);
+
+            var response = register_queue_async(clientPtr, ref request, callback);
+            Callback(response);
+
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(queuenamePtr);
+        }
+        return tcs.Task;
+    }
+    public Task<string> RegisterExchange(string exchangename, string algorithm = "", string routingkey = "", bool addqueue = true, Action<QueueEvent> eventHandler = null)
+    {
+        var tcs = new TaskCompletionSource<string>();
+        IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
+        IntPtr algorithmPtr = Marshal.StringToHGlobalAnsi(algorithm);
+        IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
+
+        try
+        {
+            RegisterExchangeRequestWrapper request = new RegisterExchangeRequestWrapper
+            {
+                exchangename = exchangenamePtr,
+                algorithm = algorithmPtr,
+                routingkey = routingkeyPtr,
+                addqueue = addqueue
+            };
+
+            var callback = new  QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+            {
+                var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+                var watchEvent = new QueueEvent
+                {
+                    queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
+                    correlation_id = Marshal.PtrToStringAnsi(eventObj.correlation_id) ?? string.Empty,
+                    replyto = Marshal.PtrToStringAnsi(eventObj.replyto) ?? string.Empty,
+                    routingkey = Marshal.PtrToStringAnsi(eventObj.routingkey) ?? string.Empty,
+                    exchangename = Marshal.PtrToStringAnsi(eventObj.exchangename) ?? string.Empty,
+                    data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
+                };
+                eventHandler(watchEvent);
+            });
+
+            void Callback(IntPtr responsePtr)
+            {
+                Console.WriteLine("dotnet: register watch callback");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<RegisterExchangeResponseWrapper>(responsePtr);
+                    string queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_register_exchange_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult(queuename);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+            // var callbackDelegate = new RegisterExchangeCallback(Callback);
+
+            var response = register_exchange_async(clientPtr, ref request, callback);
+            Callback(response);
+
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(exchangenamePtr);
+            Marshal.FreeHGlobal(algorithmPtr);
+            Marshal.FreeHGlobal(routingkeyPtr);
+        }
+        return tcs.Task;
+    }
+    public void UnRegisterQueue(string queuename)  {
+        IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
+        try {
+            var response = unregister_queue(clientPtr, queuename);
+            var responseWrapper = Marshal.PtrToStructure<UnRegisterQueueResponseWrapper>(response);
+            var error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? "Unknown error";
+            var success = responseWrapper.success;
+            free_unregister_queue_response(response);
+
+            if (!success) {
+                throw new ClientError(error);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(queuenamePtr);
+        }        
+    }
+    public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "") {
+        var tcs = new TaskCompletionSource<string>();
+        IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
+        IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
+        IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
+        IntPtr replytoPtr = Marshal.StringToHGlobalAnsi(replyto);
+        IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
+        IntPtr correlation_idPtr = Marshal.StringToHGlobalAnsi(correlation_id);
+
+        try
+        {
+            QueueMessageRequestWrapper request = new QueueMessageRequestWrapper
+            {
+                data = dataPtr,
+                queuename = queuenamePtr,
+                exchangename = exchangenamePtr,
+                replyto = replytoPtr,
+                routingkey = routingkeyPtr,
+                correlation_id = correlation_idPtr
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<QueueMessageResponseWrapper>(responsePtr);
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    free_queue_message_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult("ok");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new QueueMessageCallback(Callback);
+
+            var response = queue_message(clientPtr, ref request);
+            Callback(response);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(dataPtr);
+            Marshal.FreeHGlobal(queuenamePtr);
+            Marshal.FreeHGlobal(exchangenamePtr);
+            Marshal.FreeHGlobal(replytoPtr);
+            Marshal.FreeHGlobal(routingkeyPtr);
+            Marshal.FreeHGlobal(correlation_idPtr);
+        }
+        await tcs.Task;
     }
     public void Dispose()
     {
