@@ -21,6 +21,7 @@ rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotne
 echo "Building python"
 rm -rf python/lib build dist lib && mkdir python/lib && cp target/lib/* python/lib && (cd python && python setup.py sdist)
 
+
 cargo publish -p openiap-proto --allow-dirty
 cargo publish -p openiap-client --allow-dirty
 cargo publish -p openiap --allow-dirty

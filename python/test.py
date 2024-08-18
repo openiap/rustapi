@@ -51,6 +51,14 @@ if __name__ == "__main__":
         print(workitem)
         client.delete_workitem(workitem["id"])
 
+        files = []
+        workitem = client.push_workitem( name="python without file", wiq="rustqueue", payload="{}")
+        print(workitem)
+        workitem = client.pop_workitem( wiq="rustqueue")
+        workitem["state"] = "successful"
+        client.update_workitem(workitem, files)
+
+
         query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
         print(query_result)
 

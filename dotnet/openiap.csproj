@@ -1,21 +1,77 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <PackageId>openiap</PackageId>
+    <id>openiap</id>
+    <version>0.0.3</version>
+    <title>OpenIAP API Wrapper</title>
+    <authors>OpenIAP ApS / Allan Zimmermann</authors>
+    <owners>OpenIAP ApS</owners>
+    <license>MPL-2.0</license>
+    <projectUrl>https://github.com/openiap/rustapi/tree/main/dotnet</projectUrl>
+    <icon>icon.png</icon>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>A .NET wrapper for the OpenIAP API using Rust bindings</description>
+    <releaseNotes>Initial release</releaseNotes>
+    <tags>openiap, rust, api</tags>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- <PropertyGroup>
+    <OutputType>Library</OutputType>  
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup> -->
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeSource>True</IncludeSource>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
 
- <ItemGroup>
-    <None Update="lib/libopeniap_clib.so">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="lib/libopeniap_clib.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="lib/libopeniap_clib.dylib">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+
+<ItemGroup>
+  <Content Include="lib/*.so">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <PackageCopyToOutput>true</PackageCopyToOutput>
+    <pack>true</pack>
+  </Content>
+  <Content Include="lib/*.dll">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <PackageCopyToOutput>true</PackageCopyToOutput>
+    <pack>true</pack>
+  </Content>
+  <Content Include="lib/*.dylib">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <PackageCopyToOutput>true</PackageCopyToOutput>
+    <pack>true</pack>
+  </Content>
+    <!-- <Content Include="lib/*.so"  >
+      <Pack>true</Pack>
+      <PackagePath>lib/net6.0</PackagePath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content> -->
+    <!-- <Content Include="lib/*.dll">
+      <Pack>true</Pack>
+      <PackagePath>lib</PackagePath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="lib/*.dylib">
+      <Pack>true</Pack>
+      <PackagePath>lib</PackagePath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content> -->
+    <!-- <Content Include="lib/*.a">
+      <Pack>true</Pack>
+      <PackagePath>lib</PackagePath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content> -->
   </ItemGroup>
+
 </Project>

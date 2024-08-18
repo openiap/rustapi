@@ -1,1 +1,0 @@
-rm -rf bin lib && mkdir lib && cp ../target/debug/libopeniap_clib.so ./lib && dotnet build && dotnet pack -p:NuspecFile=openiap.nuspec

@@ -4284,15 +4284,24 @@ pub fn wrap_workitem(workitem: Workitem ) -> WorkitemWrapper {
         files.push(file);
     }
     trace!("files: {:?} at {:?}", files.len(), files);
+    trace!("read nextrun");
+    let nextrun = workitem.nextrun.map(|t| t.seconds as u64).unwrap_or(0);
+    trace!("nextrun: {:?}", nextrun);
+    let lastrun = workitem.lastrun.map(|t| t.seconds as u64).unwrap_or(0);
+    trace!("lastrun: {:?}", lastrun);
+    let _files = files.as_ptr();
+    trace!("files: {:?}", files);
+    let files_len = workitem.files.len() as i32;
+    trace!("files_len: {:?}", files_len);
     let workitem = WorkitemWrapper {
         id,
         name,
         payload,
         priority: workitem.priority,
-        nextrun: workitem.nextrun.unwrap_or(Timestamp::from(std::time::SystemTime::UNIX_EPOCH)).seconds as u64,
-        lastrun: workitem.lastrun.unwrap_or(Timestamp::from(std::time::SystemTime::UNIX_EPOCH)).seconds as u64,
-        files: files.as_ptr(),
-        files_len: files.len().try_into().unwrap(),
+        nextrun: nextrun,
+        lastrun: lastrun,
+        files: _files,
+        files_len: files_len,
         state,
         wiq,
         wiqid,
@@ -4306,7 +4315,9 @@ pub fn wrap_workitem(workitem: Workitem ) -> WorkitemWrapper {
         errorsource,
         errortype,
     };
+    trace!("forget files");
     std::mem::forget(files);
+    trace!("return workitem");
     workitem
 }
 #[repr(C)]
@@ -4690,6 +4701,7 @@ pub extern "C" fn pop_workitem (
             let workitem = match data.workitem {
                 Some(workitem) => {
                     let workitem = wrap_workitem(workitem);
+                    trace!("wrap workitem");
                     Box::into_raw(Box::new(workitem))
                 },
                 None => {
@@ -4779,6 +4791,7 @@ pub extern "C" fn pop_workitem_async (
                 let workitem = match data.workitem {
                     Some(workitem) => {
                         let workitem = wrap_workitem(workitem);
+                        trace!("wrap workitem");
                         Box::into_raw(Box::new(workitem))
                     },
                     None => {
@@ -4804,6 +4817,7 @@ pub extern "C" fn pop_workitem_async (
                 Box::into_raw(Box::new(response))
             }
         };
+        trace!("callback with result");
         callback(response);
     });
 }

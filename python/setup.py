@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="openiap",
-    version="0.1.1",
+    version="0.0.3",
     author="OpenIAP ApS / Allan Zimmerman",
     author_email="info@openiap.io",
     description="Simple openiap api wrapper using proto",
@@ -17,6 +17,8 @@ setup(
         "Operating System :: OS Independent",
     ],
     package_data={
-        'openiap': ['lib/libopeniap_clib.so', 'lib/libopeniap_clib.dll', 'lib/libopeniap_clib.dylib']
+        'openiap': [
+            'lib/*',
+            ]
     },
 )
