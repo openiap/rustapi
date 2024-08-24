@@ -29,6 +29,10 @@
             "name": "C#: debug Program",
             "type": "coreclr",
             "request": "launch",
+            "preLaunchTask": {
+                "task": "build",
+                "type": "dotnet"
+            },
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}/dotnet",

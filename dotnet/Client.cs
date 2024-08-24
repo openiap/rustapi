@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Data;
+using System.Data.Common;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 public class WatchEvent
@@ -511,6 +512,34 @@ public class Client : IDisposable
     }
     public delegate void PopWorkitemCallback(IntPtr responsePtr);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UpdateWorkitemRequestWrapper {
+        public IntPtr workitem;
+        public bool ignoremaxretries;
+        public IntPtr files;
+        public int files_len;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UpdateWorkitemResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+        public IntPtr workitem;
+    }
+    public delegate void UpdateWorkitemCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteWorkitemRequestWrapper {
+        public string id;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DeleteWorkitemResponseWrapper {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
+
     public class ClientError : Exception
     {
         public ClientError(string message) : base(message) { }
@@ -723,9 +752,17 @@ public class Client : IDisposable
     public static extern void free_push_workitem_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr pop_workitem_async(IntPtr client, ref PopWorkitemRequestWrapper request, PopWorkitemCallback callback, string downloadfolder);
+    public static extern IntPtr pop_workitem_async(IntPtr client, ref PopWorkitemRequestWrapper request, string downloadfolder, PopWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_pop_workitem_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr update_workitem_async(IntPtr client, ref UpdateWorkitemRequestWrapper request, UpdateWorkitemCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_update_workitem_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_delete_workitem_response(IntPtr response);
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -758,17 +795,23 @@ public class Client : IDisposable
     }
     public void info(params object[] objs) {
         if (informing) {
-            Console.WriteLine("dotnet: ", objs);
+            Console.Write("dotnet: ");
+            objs.ToList().ForEach(obj => Console.Write(obj));
+            Console.WriteLine();
         }
     } 
     public void verbose(params object[] objs) {
         if (verbosing) {
-            Console.WriteLine("dotnet: ", objs);
+            Console.Write("dotnet: ");
+            objs.ToList().ForEach(obj => Console.Write(obj));
+            Console.WriteLine();
         }
     }
     public void trace(params object[] objs) {
         if (tracing) {
-            Console.WriteLine("dotnet: ", objs);
+            Console.Write("dotnet: ");
+            objs.ToList().ForEach(obj => Console.Write(obj));
+            Console.WriteLine();
         }
     }
     public async Task connect(string url = "")
@@ -1983,7 +2026,7 @@ public class Client : IDisposable
         }
 
         var _files = _files_coll.ToArray();
-        var filePointers = new IntPtr[_files.Length]; // Array to hold pointers to WorkitemFileWrapper
+        var filePointers = new IntPtr[_files.Length]; 
 
         // Allocate memory for each WorkitemFileWrapper and store the pointer
         for (int i = 0; i < _files.Length; i++)
@@ -1996,11 +2039,6 @@ public class Client : IDisposable
         // Allocate memory for the array of pointers and copy the pointers into it
         IntPtr filesPtr = Marshal.AllocHGlobal(filePointers.Length * Marshal.SizeOf<IntPtr>());
         Marshal.Copy(filePointers, 0, filesPtr, filePointers.Length);
-
-        // filesPtr now points to the array of pointers to WorkitemFileWrapper
-
-        // Remember to free the unmanaged memory when you're done
-
 
         try
         {
@@ -2022,7 +2060,7 @@ public class Client : IDisposable
 
             void Callback(IntPtr responsePtr)
             {
-                this.trace("Freeing memory");
+                this.trace("PushWorkitem callback to dotnet");
                 try
                 {
                     if (responsePtr == IntPtr.Zero)
@@ -2131,7 +2169,6 @@ public class Client : IDisposable
         }
         return await tcs.Task;
     }
-    PopWorkitemCallback callbackDelegate;
     public async Task<Workitem> PopWorkitem(string wiq = "", string wiqid = "", string downloadfolder = ".") {
         var tcs = new TaskCompletionSource<Workitem>();
         IntPtr wiqPtr = Marshal.StringToHGlobalAnsi(wiq);
@@ -2227,9 +2264,9 @@ public class Client : IDisposable
                 }
             }
 
-            this.callbackDelegate = new PopWorkitemCallback(Callback);
+            var callbackDelegate = new PopWorkitemCallback(Callback);
 
-            pop_workitem_async(clientPtr, ref request, this.callbackDelegate, downloadfolder);
+            pop_workitem_async(clientPtr, ref request, downloadfolder, callbackDelegate);
         }
         finally
         {
@@ -2238,6 +2275,239 @@ public class Client : IDisposable
         }
         return await tcs.Task;
         
+    }
+            public bool ignoremaxretries;
+        public IntPtr files;
+
+    public async Task<Workitem> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
+        var tcs = new TaskCompletionSource<Workitem>();
+
+        if (files == null) files = new string[] { };
+        var _files_coll = new Collection<WorkitemFileWrapper>();
+
+        // Fill the collection with WorkitemFileWrapper objects
+        for (int i = 0; i < files.Length; i++) {
+            _files_coll.Add(new WorkitemFileWrapper {
+                filename = Marshal.StringToHGlobalAnsi(files[i]),
+                id = Marshal.StringToHGlobalAnsi(""),
+                compressed = false
+            });
+        }
+
+        var _files = _files_coll.ToArray();
+        var filePointers = new IntPtr[_files.Length]; 
+
+        // Allocate memory for each WorkitemFileWrapper and store the pointer
+        for (int i = 0; i < _files.Length; i++)
+        {
+            IntPtr structPtr = Marshal.AllocHGlobal(Marshal.SizeOf<WorkitemFileWrapper>());
+            Marshal.StructureToPtr(_files[i], structPtr, false);
+            filePointers[i] = structPtr; // Store the pointer
+        }
+
+        // Allocate memory for the array of pointers and copy the pointers into it
+        IntPtr filesPtr = Marshal.AllocHGlobal(filePointers.Length * Marshal.SizeOf<IntPtr>());
+        Marshal.Copy(filePointers, 0, filesPtr, filePointers.Length);
+
+        try
+        {
+            var workitemwrapper = new WorkitemWrapper {
+                id = Marshal.StringToHGlobalAnsi(workitem.id),
+                name = Marshal.StringToHGlobalAnsi(workitem.name),
+                payload = Marshal.StringToHGlobalAnsi(workitem.payload),
+                wiq = Marshal.StringToHGlobalAnsi(workitem.wiq),
+                state = Marshal.StringToHGlobalAnsi(workitem.state),
+                lastrun = workitem.lastrun,
+                nextrun = workitem.nextrun,
+                priority = workitem.priority,
+                retries = workitem.retries,
+                username = Marshal.StringToHGlobalAnsi(workitem.username),
+                wiqid = Marshal.StringToHGlobalAnsi(workitem.wiqid),
+                success_wiqid = Marshal.StringToHGlobalAnsi(workitem.success_wiqid),
+                failed_wiqid = Marshal.StringToHGlobalAnsi(workitem.failed_wiqid),
+                success_wiq = Marshal.StringToHGlobalAnsi(workitem.success_wiq),
+                failed_wiq = Marshal.StringToHGlobalAnsi(workitem.failed_wiq),
+                errormessage = Marshal.StringToHGlobalAnsi(workitem.errormessage),
+                errorsource = Marshal.StringToHGlobalAnsi(workitem.errorsource),
+                errortype = Marshal.StringToHGlobalAnsi(workitem.errortype)
+            };
+
+            // Create a GCHandle to the workitemptr object
+            GCHandle handle = GCHandle.Alloc(workitemwrapper, GCHandleType.Pinned);
+
+            // Get the IntPtr that points to the WorkitemWrapper object
+            IntPtr workitemPtr = handle.AddrOfPinnedObject();
+
+            UpdateWorkitemRequestWrapper request = new UpdateWorkitemRequestWrapper
+            {
+                workitem = workitemPtr,
+                files = filesPtr,
+                files_len = files.Length,
+                ignoremaxretries = ignoremaxretries
+            };
+
+            void Callback(IntPtr responsePtr)
+            {
+                this.trace("UpdateWorkitem callback to dotnet");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<UpdateWorkitemResponseWrapper>(responsePtr);
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+                    var workitem = default(Workitem);
+                    if(success) {
+                        var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
+                        var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
+                        var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
+                        var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
+                        var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
+                        var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
+                        var lastrun = workitem_rsp.lastrun;
+                        var nextrun = workitem_rsp.nextrun;
+                        var priority = (int)workitem_rsp.priority;
+                        var retries = (int)workitem_rsp.retries;
+                        var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
+                        var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
+                        var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
+                        var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
+                        var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
+                        var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
+                        var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
+                        var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
+                        var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                        workitem = new Workitem
+                        {
+                            id = id,
+                            name = name,
+                            payload = payload,
+                            wiq = wiq,
+                            state = state,
+                            lastrun = lastrun,
+                            nextrun = nextrun,
+                            priority = priority,
+                            retries = retries,
+                            username = username,
+                            wiqid = wiqid,
+                            success_wiqid = success_wiqid,
+                            failed_wiqid = failed_wiqid,
+                            success_wiq = success_wiq,
+                            failed_wiq = failed_wiq,
+                            errormessage = errormessage,
+                            errorsource = errorsource,
+                            errortype = errortype,
+                        };
+
+                    }
+                    free_update_workitem_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+#pragma warning disable CS8604 // Possible null reference argument.
+                        tcs.SetResult(workitem);
+#pragma warning restore CS8604 // Possible null reference argument.
+                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+                finally {
+                    this.trace("Freeing memory");
+                    // Free each WorkitemFileWrapper and its associated strings
+                    for (int i = 0; i < _files.Length; i++)
+                    {
+                        // Get the pointer to the WorkitemFileWrapper
+                        IntPtr structPtr = Marshal.ReadIntPtr(filesPtr, i * Marshal.SizeOf<IntPtr>());
+
+                        // Retrieve the WorkitemFileWrapper from the unmanaged memory
+                        WorkitemFileWrapper wrapper = Marshal.PtrToStructure<WorkitemFileWrapper>(structPtr);
+
+                        // Free the unmanaged strings
+                        Marshal.FreeHGlobal(wrapper.filename);
+                        Marshal.FreeHGlobal(wrapper.id);
+
+                        // Free the WorkitemFileWrapper memory block
+                        Marshal.FreeHGlobal(structPtr);
+                    }
+
+                    // Free the array of pointers
+                    Marshal.FreeHGlobal(filesPtr);
+
+                }
+            
+            }
+        
+
+            var callbackDelegate = new UpdateWorkitemCallback(Callback);
+
+            update_workitem_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+            // Marshal.FreeHGlobal(namePtr);
+            // Marshal.FreeHGlobal(payloadPtr);
+            // Marshal.FreeHGlobal(wiqPtr);
+        }
+        return await tcs.Task;    
+    }
+    public async Task DeleteWorkitem(string id) {
+        var tcs = new TaskCompletionSource<string>();
+        try
+        {
+            DeleteWorkitemRequestWrapper request = new DeleteWorkitemRequestWrapper { id = id };
+
+            void Callback(IntPtr responsePtr)
+            {
+                this.trace("DeleteWorkitem callback to dotnet");
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<DeleteWorkitemResponseWrapper>(responsePtr);
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    bool success = response.success;
+
+                    free_delete_workitem_response(responsePtr);
+
+                    if (!success)
+                    {
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult("ok");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }
+
+            var callbackDelegate = new DeleteWorkitemCallback(Callback);
+
+            delete_workitem_async(clientPtr, ref request, callbackDelegate);
+        }
+        finally
+        {
+        }
+        await tcs.Task;
     }
     private async Task _Dispose()
     {

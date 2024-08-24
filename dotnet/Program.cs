@@ -57,6 +57,7 @@ class Program
             if(!System.IO.File.Exists("testfile.csv")) {
                 files = new string[] { "../testfile.csv" };
             }
+            // files = new string[] {};
 
             var item = new Workitem { name = "test from dotnet 1", payload = "{\"name\": \"test from dotnet 1\"}" };
             var push_workitem_result = await client.PushWorkitem("rustqueue", item, files);
@@ -64,6 +65,12 @@ class Program
 
             var workitem = await client.PopWorkitem("rustqueue");
             Console.WriteLine("PopWorkitem: ", workitem);
+            workitem.state = "successful";
+            workitem = await client.UpdateWorkitem(workitem, new string[] { });
+            Console.WriteLine("UpdateWorkitem: ", workitem);
+
+            await client.DeleteWorkitem(workitem.id);
+
 
             // string results = await client.Query("entities", "{}", "{\"name\": 1}");
             // Console.WriteLine("results: " + results);
