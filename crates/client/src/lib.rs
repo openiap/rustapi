@@ -559,6 +559,169 @@ impl Client {
             }
         }
     }
+    /// Return a list of collections in the database
+    #[tracing::instrument(skip_all,)]
+    pub async fn list_collections(&self, includehist: bool) -> Result<String, OpenIAPError> {
+        let config = ListCollectionsRequest::new(includehist);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: ListCollectionsResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.results)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Create a new collection in the database
+    #[tracing::instrument(skip_all)]
+    pub async fn create_collection(&self, config: CreateCollectionRequest) -> Result<(), OpenIAPError> {
+        if config.collectionname.is_empty() {
+            return Err(OpenIAPError::ClientError("No collection name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Drop a collection from the database
+    #[tracing::instrument(skip_all)]
+    pub async fn drop_collection(&self, config: DropCollectionRequest) -> Result<(), OpenIAPError> {
+        if config.collectionname.is_empty() {
+            return Err(OpenIAPError::ClientError("No collection name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Get indexes for a collection in the database
+    pub async fn get_indexes(&self, config: GetIndexesRequest) -> Result<String, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            return Err(OpenIAPError::ClientError("No collection name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: GetIndexesResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.results)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Create an index in the database
+    pub async fn create_index(&self, config: CreateIndexRequest) -> Result<(), OpenIAPError> {
+        if config.collectionname.is_empty() {
+            return Err(OpenIAPError::ClientError("No collection name provided".to_string()));
+        }
+        if config.index.is_empty() {
+            return Err(OpenIAPError::ClientError("No index was provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Drop an index from the database
+    pub async fn drop_index(&self, config: DropIndexRequest) -> Result<(), OpenIAPError> {
+        if config.collectionname.is_empty() {
+            return Err(OpenIAPError::ClientError("No collection name provided".to_string()));
+        }
+        if config.name.is_empty() {
+            return Err(OpenIAPError::ClientError("No index name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     /// Run a query towards the database
     #[tracing::instrument(skip_all)]
     pub async fn query(&self, mut config: QueryRequest) -> Result<QueryResponse, OpenIAPError> {
@@ -594,6 +757,41 @@ impl Client {
                 debug!("Error !!");
                 Err(OpenIAPError::ClientError(e.to_string())) 
             },
+        }
+    }
+    /// Try and get a specefic version of a document from the database, reconstructing it from the history collection
+    #[tracing::instrument(skip_all)]
+    pub async fn get_document_version(
+        &self,
+        mut config: GetDocumentVersionRequest,
+    ) -> Result<String, OpenIAPError> {
+        if config.collectionname.is_empty() {
+            config.collectionname = "entities".to_string();
+        }
+        if config.id.is_empty() {
+            return Err(OpenIAPError::ClientError("No id provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: GetDocumentVersionResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.result)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
     /// Run an aggregate pipeline towards the database
@@ -1546,6 +1744,248 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Run custom command on server. Custom commands are commands who is "on trail", they may change and are not ready to be moved to the fixed protobuf format yet
+    #[tracing::instrument(skip_all)]
+    pub async fn custom_command(
+        &self,
+        config: CustomCommandRequest,
+    ) -> Result<String, OpenIAPError> {
+        if config.command.is_empty() {
+            return Err(OpenIAPError::ClientError("No command provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: CustomCommandResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.result)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Delete a package from the database, cleaning up all all files and data
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_package(
+        &self,
+        packageid: &str,
+    ) -> Result<(), OpenIAPError> {
+        let config = DeletePackageRequest::byid(packageid);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Start Agent
+    #[tracing::instrument(skip_all)]
+    pub async fn start_agent(
+        &self,
+        agentid: &str,
+    ) -> Result<(), OpenIAPError> {
+        let config = StartAgentRequest::byid(agentid);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Stop an agent, this will cleanup all resources and stop the agent
+    #[tracing::instrument(skip_all)]
+    pub async fn stop_agent(
+        &self,
+        agentid: &str,
+    ) -> Result<(), OpenIAPError> {
+        let config = StopAgentRequest::byid(agentid);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Delete a pod from an agent, on kubernetes this will remove the pod and kubernetes will re-create it, on docker this will remove the pod. Then use start_agent to start the agent again
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_agent_pod(
+        &self,
+        agentid: &str,
+        podname: &str,
+    ) -> Result<(), OpenIAPError> {
+        let config = DeleteAgentPodRequest::byid(agentid, podname);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Delete an agent, this will cleanup all resources and delete the agent
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_agent(
+        &self,
+        agentid: &str,
+    ) -> Result<(), OpenIAPError> {
+        let config = DeleteAgentRequest::byid(agentid);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Get all pods associated with an agent, if stats is true, it will return memory and cpu usage for each pod
+    #[tracing::instrument(skip_all)]
+    pub async fn get_agent_pods(
+        &self,
+        agentid: &str,
+        stats: bool,
+    ) -> Result<String, OpenIAPError> {
+        let config = GetAgentPodsRequest::byid(agentid, stats);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: GetAgentPodsResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.results)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Create/update a customer in the OpenIAP service. If stripe has been configured, it will create or update a customer in stripe as well
+    /// A customer is a customer object that can only be updated using this function, and 2 roles ( customername admins and customername users )
+    #[tracing::instrument(skip_all)]
+    pub async fn ensure_customer(
+        &self,
+        config: EnsureCustomerRequest,
+    ) -> Result<EnsureCustomerResponse, OpenIAPError> {
+        if config.customer.is_none() && config.stripe.is_none() {
+            return Err(OpenIAPError::ClientError("No customer or stripe provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: EnsureCustomerResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -1576,6 +2016,117 @@ mod tests {
         is_normal::<EndStream>();
     }
 
+    #[tokio::test()]
+    async fn test_get_document_version() {
+        // cargo test test_get_document_version -- --nocapture
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let item = "{\"name\": \"test from rust\", \"_type\": \"test\"}";
+        let query = InsertOneRequest {
+            collectionname: "entities".to_string(),
+            item: item.to_string(),
+            j: true,
+            w: 2,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        let response = match response {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false, "insert_one failed with {:?}", e);
+                return;
+            }
+        };
+        let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
+        let _id = _obj["_id"].as_str().unwrap();
+        let item =format!("{{\"name\":\"updated from rust\", \"_id\": \"{}\"}}", _id);
+
+        let query = UpdateOneRequest {
+            collectionname: "entities".to_string(),
+            item: item.to_string(),
+            ..Default::default()
+        };
+        let response = client.update_one(query).await;
+        _ = match response {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false, "update_one failed with {:?}", e);
+                return;
+            }
+        };
+
+        let query = GetDocumentVersionRequest {
+            collectionname: "entities".to_string(),
+            id: _id.to_string(),
+            version: 0,
+            ..Default::default()
+        };
+        let response = client.get_document_version(query).await;
+        let response = match response {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false, "get_document_version failed with {:?}", e);
+                return;
+            }
+        };
+        let _obj = serde_json::from_str(&response);
+        let _obj: serde_json::Value = match _obj {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false, "parse get_document_version result failed with {:?}", e);
+                return;
+            }
+        };
+        let name = _obj["name"].as_str().unwrap();
+        let version = _obj["_version"].as_i64().unwrap();
+        println!("version 0 Name: {}, Version: {}", name, version);
+        assert_eq!(name, "test from rust");
+
+        let query = GetDocumentVersionRequest {
+            collectionname: "entities".to_string(),
+            id: _id.to_string(),
+            version: 1,
+            ..Default::default()
+        };
+        let response = client.get_document_version(query).await;
+        assert!(
+            response.is_ok(),
+            "test_get_document_version failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let _obj: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+        let name = _obj["name"].as_str().unwrap();
+        let version = _obj["_version"].as_i64().unwrap();
+        println!("version 1 Name: {}, Version: {}", name, version);
+        assert_eq!(name, "updated from rust");
+
+
+        let query = GetDocumentVersionRequest {
+            collectionname: "entities".to_string(),
+            id: _id.to_string(),
+            version: -1,
+            ..Default::default()
+        };
+        let response = client.get_document_version(query).await;
+        assert!(
+            response.is_ok(),
+            "test_get_document_version failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let _obj: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+        let name = _obj["name"].as_str().unwrap();
+        let version = _obj["_version"].as_i64().unwrap();
+        println!("version -1 Name: {}, Version: {}", name, version);
+        assert_eq!(name, "updated from rust");
+
+
+    }
     #[tokio::test()]
     async fn test_query() {
         let client = Client::connect(TEST_URL).await.unwrap();
@@ -1730,7 +2281,7 @@ mod tests {
         
         let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
         let _id = _obj["_id"].as_str().unwrap();
-        let item =format!("{{\"name\":\"updated from rust \", \"_id\": \"{}\"}}", _id);
+        let item =format!("{{\"name\":\"updated from rust\", \"_id\": \"{}\"}}", _id);
 
         let query = UpdateOneRequest {
             collectionname: "entities".to_string(),
@@ -2281,5 +2832,346 @@ mod tests {
             "DeleteWorkitem failed with {:?}",
             response.err().unwrap()
         );
+    }
+    #[tokio::test] // cargo test test_custom_command -- --nocapture
+    async fn test_custom_command() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let response = client
+            .custom_command(
+                CustomCommandRequest::bycommand("getclients")
+            )
+            .await;
+        println!("CustomCommand response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "CustomCommand failed with {:?}",
+            response.err().unwrap()
+        );
+    }
+    #[tokio::test] // cargo test test_list_collections -- --nocapture
+    async fn test_list_collections() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let response = client
+            .list_collections(false)
+            .await;
+        println!("ListCollections response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "ListCollections failed with {:?}",
+            response.err().unwrap()
+        );
+    }
+    #[tokio::test] // cargo test test_create_drop_collections -- --nocapture
+    async fn test_create_drop_collections() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let response = client
+            .create_collection(CreateCollectionRequest::byname("rusttestcollection"))
+            .await;
+        println!("CreateCollection response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "CreateCollection failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let item = "{\"name\": \"test collection\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "rusttestcollection".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client
+            .drop_collection(DropCollectionRequest::byname("rusttestcollection"))
+            .await;
+        println!("DropCollection response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "DropCollection failed with {:?}",
+            response.err().unwrap()
+        );
+    }
+    #[tokio::test] // cargo test test_create_drop_tscollections -- --nocapture
+    async fn test_create_drop_tscollections() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let collections_json = client.list_collections(false).await.unwrap();
+        let collections: serde_json::Value = serde_json::from_str(&collections_json).unwrap();
+        let collections = collections.as_array().unwrap();
+        for collection in collections {
+            let collectionname = collection["name"].as_str().unwrap();
+            if collectionname.starts_with("rusttesttscollection") {
+                let response = client
+                    .drop_collection(DropCollectionRequest::byname(collectionname))
+                    .await;
+                println!("DropCollection response: {:?}", response);
+            
+                assert!(
+                    response.is_ok(),
+                    "DropCollection failed with {:?}",
+                    response.err().unwrap()
+                );
+            }
+        }
+
+        let mut request = CreateCollectionRequest::byname("rusttesttscollection");
+        request.timeseries = Some(ColTimeseries {
+            time_field: "time".to_string(),
+            meta_field: "".to_string(),
+            granularity: "minutes".to_string() // seconds, minutes, hours
+        });
+    
+        let response = client
+            .create_collection(request)
+            .await;
+        println!("CreateCollection response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "CreateCollection failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let item = "{\"name\": \"test collection\", \"_type\": \"test\"}".to_string();
+        let query = InsertOneRequest {
+            collectionname: "rusttesttscollection".to_string(),
+            item,
+            ..Default::default()
+        };
+        let response = client.insert_one(query).await;
+        assert!(
+            response.is_ok(),
+            "test_query failed with {:?}",
+            response.err().unwrap()
+        );
+        // let mut item: serde_json::Value = serde_json::from_str(&response.unwrap().result).unwrap();
+        // // let id = item["_id"].as_str().unwrap();
+        // item["name"] = serde_json::Value::String("test collection 2".to_string());
+        // println!("Item: {:?}", item);
+        // let query = UpdateOneRequest {
+        //     collectionname: "rusttesttscollection".to_string(),
+        //     item: item.to_string(),
+        //     ..Default::default()
+        // };
+        // let response = client.update_one(query).await;
+        // assert!(
+        //     response.is_ok(),
+        //     "test_query failed with {:?}",
+        //     response.err().unwrap()
+        // );
+
+
+        // let response = client
+        //     .drop_collection(DropCollectionRequest::byname("rusttesttscollection"))
+        //     .await;
+        // println!("DropCollection response: {:?}", response);
+    
+        // assert!(
+        //     response.is_ok(),
+        //     "DropCollection failed with {:?}",
+        //     response.err().unwrap()
+        // );
+    }
+    #[tokio::test] // cargo test test_get_create_drop_index -- --nocapture
+    async fn test_get_create_drop_index() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let response = client
+        .create_collection(CreateCollectionRequest::byname("rustindextestcollection"))
+        .await;
+        println!("CreateCollection response: {:?}", response);
+
+        assert!(
+            response.is_ok(),
+            "CreateCollection failed with {:?}",
+            response.err().unwrap()
+        );
+
+
+        let response = client.get_indexes(
+            GetIndexesRequest::bycollectionname("rustindextestcollection")
+        ).await;
+        assert!(
+            response.is_ok(),
+            "GetIndexes failed with {:?}",
+            response.err().unwrap()
+        );
+        let indexes: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+        let indexes = indexes.as_array().unwrap();
+        for index in indexes {
+            let indexname = index["name"].as_str().unwrap();
+            if indexname.starts_with("name_1") {
+                let response = client
+                .drop_index(DropIndexRequest::bycollectionname("rustindextestcollection", indexname))
+                .await;
+                println!("DropIndex response: {:?}", response);
+            
+                assert!(
+                    response.is_ok(),
+                    "DropIndex failed with {:?}",
+                    response.err().unwrap()
+                );
+            } else {
+                println!("Index: {:?}", index);
+            }
+        }
+
+        let response = client
+            .create_index(CreateIndexRequest::bycollectionname("rustindextestcollection", "{\"name\": 1}"))
+            .await;
+        println!("CreateIndex response: {:?}", response);
+    
+        assert!(
+            response.is_ok(),
+            "CreateIndex failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client.get_indexes(
+            GetIndexesRequest::bycollectionname("rustindextestcollection")
+        ).await;
+        assert!(
+            response.is_ok(),
+            "GetIndexes failed with {:?}",
+            response.err().unwrap()
+        );
+        let indexes: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+        let indexes = indexes.as_array().unwrap();
+
+        let mut found = false;
+        for index in indexes {
+            let indexname = index["name"].as_str().unwrap();
+            if indexname.starts_with("name_1") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Index name_1 not found");
+
+    }
+    #[tokio::test()] // cargo test test_start_getpods_stop_delete_agent -- --nocapture
+    async fn test_start_getpods_stop_delete_agent() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let response = client.query(QueryRequest {
+            query: "{\"slug\": \"rusttestagent\"}".to_string(),
+            collectionname: "agents".to_string(),
+            ..Default::default()
+        }).await;
+        let response = match response {
+            Ok(response) => {
+                let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
+                let items = _obj.as_array().unwrap();
+                if items.len() == 0 {
+                    let agent_json = "{\"name\": \"rusttestagent\", \"_type\": \"agent\", \"image\": \"openiap/nodeagent\", \"slug\": \"rusttestagent\", \"docker\": true }".to_string();
+                    let query = InsertOneRequest {
+                        collectionname: "agents".to_string(),
+                        item: agent_json,
+                        ..Default::default()
+                    };
+                    let response = client.insert_one(query).await;
+                    assert!(
+                        response.is_ok(),
+                        "test_query failed with {:?}",
+                        response.err().unwrap()
+                    );
+                    println!("Created rusttestagent");
+                    response.unwrap().result
+                } else {
+                    println!("rusttestagent already exists");
+                    let _obj = items[0].clone();
+                    _obj.to_string()
+                }
+            },
+            Err(e) => {
+                assert!(false, "Query failed with {:?}", e);
+                return;
+            }
+        };
+        let _obj: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let id = _obj["_id"].as_str().unwrap();
+        println!("Agent ID: {:?}", id);
+
+        let response = client
+            .start_agent(id)
+            .await;
+        assert!(
+            response.is_ok(),
+            "StartAgent failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Started rusttestagent");
+
+        let response = client
+            .get_agent_pods(id, false)
+            .await;
+        assert!(
+            response.is_ok(),
+            "GetAgentPods failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("GetAgentPods: {:?}", response);
+
+        let response = client
+            .stop_agent(id)
+            .await;
+        assert!(
+            response.is_ok(),
+            "StopAgent failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("Stopped rusttestagent");
+
+        let response = client
+            .delete_agent(id)
+            .await;
+
+        assert!(
+            response.is_ok(),
+            "DeleteAgent failed with {:?}",
+            response.err().unwrap()
+        );
+
+        println!("Deleted rusttestagent");
+
+    }
+    #[tokio::test()] // cargo test test_ensure_customer -- --nocapture
+    async fn test_ensure_customer() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let customer = Customer::byname("rusttestcustomer");
+        let request = EnsureCustomerRequest::new(Some(customer), "", None);
+        let response = client.ensure_customer(request).await;
+        let customer = match response {
+            Ok(response) => {
+                let customer = match response.customer {
+                    Some(customer) => customer,
+                    None => {
+                        assert!(false, "EnsureCustomer failed with no customer");
+                        return;
+                    }                    
+                };
+                customer
+            },
+            Err(e) => {
+                assert!(false, "EnsureCustomer failed with {:?}", e);
+                return;
+            }
+        };
+        println!("Customer: {:?}", customer);
+
     }
 }
