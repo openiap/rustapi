@@ -1953,6 +1953,38 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Get logs from a pod associated with an agent, leave podname empty to get logs from all pods
+    #[tracing::instrument(skip_all)]
+    pub async fn get_agent_pod_logs(
+        &self,
+        agentid: &str,
+        podname: &str
+    ) -> Result<String, OpenIAPError> {
+        let config = GetAgentLogRequest::new(agentid, podname);
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: GetAgentLogResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.result)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+
     /// Create/update a customer in the OpenIAP service. If stripe has been configured, it will create or update a customer in stripe as well
     /// A customer is a customer object that can only be updated using this function, and 2 roles ( customername admins and customername users )
     #[tracing::instrument(skip_all)]
@@ -3105,15 +3137,94 @@ mod tests {
         let id = _obj["_id"].as_str().unwrap();
         println!("Agent ID: {:?}", id);
 
+        let mut podname = "".to_string();
         let response = client
-            .start_agent(id)
+            .get_agent_pods(id, false)
             .await;
         assert!(
             response.is_ok(),
-            "StartAgent failed with {:?}",
+            "GetAgentPods failed with {:?}",
             response.err().unwrap()
         );
-        println!("Started rusttestagent");
+        let pods: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+        let pods = pods.as_array().unwrap();
+        if pods.len() > 0 {
+            for pod in pods {
+                let metadata = pod["metadata"].as_object().unwrap();
+                let name = metadata["name"].as_str().unwrap();
+                podname = name.to_string();
+                println!("Podname: {:?}", podname);
+                // let json = pod.to_string();
+                // println!("Pod: {:?}", json);
+                break;
+            }    
+        }
+        if podname.is_empty() {
+            let response = client
+                .start_agent(id)
+                .await;
+            assert!(
+                response.is_ok(),
+                "StartAgent failed with {:?}",
+                response.err().unwrap()
+            );
+            println!("Started rusttestagent");
+            loop {
+                let response = client
+                    .get_agent_pods(id, false)
+                    .await;
+                assert!(
+                    response.is_ok(),
+                    "GetAgentPods failed with {:?}",
+                    response.err().unwrap()
+                );
+                let pods: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
+                let pods = pods.as_array().unwrap();
+                if pods.len() > 0 {
+                    for pod in pods {
+                        let metadata = pod["metadata"].as_object().unwrap();
+                        let name = metadata["name"].as_str().unwrap();
+                        podname = name.to_string();
+                        println!("Podname: {:?}", podname);
+                        // let json = pod.to_string();
+                        // println!("Pod: {:?}", json);
+                        break;
+                    }    
+                }
+                if !podname.is_empty() {
+                    println!("Podname: {:?}", podname);
+                    break;
+                }
+            }
+        }
+
+
+        loop {
+            let response = client
+                .get_agent_pod_logs(id, &podname)
+                .await;
+            let is_ok = response.is_ok();
+            let message = match response {
+                Ok(response) => {
+                    response
+                },
+                Err(e) => {
+                    e.to_string()
+                }
+            };
+            if is_ok {
+                println!("Logs: {:?}", message);
+                if !message.is_empty() {
+                    break;
+                }
+            } else if !message.contains("waiting") {
+                assert!(
+                    is_ok,
+                    "GetAgentLogs failed with {:?}",
+                    message
+                );
+            }
+        };            
 
         let response = client
             .get_agent_pods(id, false)
@@ -3123,7 +3234,6 @@ mod tests {
             "GetAgentPods failed with {:?}",
             response.err().unwrap()
         );
-        println!("GetAgentPods: {:?}", response);
 
         let response = client
             .stop_agent(id)

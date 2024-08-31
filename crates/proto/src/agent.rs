@@ -78,10 +78,10 @@ impl StopAgentRequest {
 }
 impl GetAgentLogRequest {
     /// Creates a new `GetAgentLogRequest` with the given `agentid`.
-    pub fn byid(agentid: &str, podname: &str) -> Self {
+    pub fn new(agentid: &str, podname: &str) -> Self {
         Self {
             agentid: agentid.to_string(),
-            podname: podname.to_string(),
+            podname: podname.to_string()
         }
     }
     /// Converts the `GetAgentLogRequest` to an `Envelope`.
