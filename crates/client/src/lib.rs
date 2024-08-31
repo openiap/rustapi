@@ -1585,6 +1585,82 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Push multiple workitems to a workitem queue
+    /// If the file is less than 5 megabytes it will be attached to the workitem
+    /// If the file is larger than 5 megabytes it will be uploaded to the database and attached to the workitem
+    #[tracing::instrument(skip_all)]
+    pub async fn push_workitems(
+        &self,
+        mut config: PushWorkitemsRequest,
+    ) -> Result<PushWorkitemsResponse, OpenIAPError> {
+        if config.wiq.is_empty() && config.wiqid.is_empty() {
+            return Err(OpenIAPError::ClientError("No queue name or id provided".to_string()));
+        }
+        for wi in &mut config.items {
+            for f in &mut wi.files {
+                if f.filename.is_empty() && f.file.is_empty() {
+                    debug!("Filename is empty");
+                } else if !f.filename.is_empty() && f.file.is_empty() && f.id.is_empty(){
+                    // does file exist?
+                    if !std::path::Path::new(&f.filename).exists() {
+                        debug!("File does not exist: {}", f.filename);
+                    } else {
+                        let filesize = std::fs::metadata(&f.filename).unwrap().len();
+                        // if filesize is less than 5 meggabytes attach it, else upload
+                        if filesize < 5 * 1024 * 1024 {                    
+                            debug!("File {} exists so ATTACHING it.", f.filename);
+                            let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                            f.file = std::fs::read(&f.filename).unwrap();
+                            // f.file = compress_file(&f.filename).unwrap();
+                            // f.compressed = false;
+                            f.file = compress_file_to_vec(&f.filename).unwrap();
+                            f.compressed = true;
+                            f.filename = filename.to_string();
+                            f.id = "findme".to_string();
+                            trace!("File {} was read and assigned to f.file, size: {}", f.filename, f.file.len());
+                        } else {
+                            debug!("File {} exists so UPLOADING it.", f.filename);
+                            let filename = std::path::Path::new(&f.filename).file_name().unwrap().to_str().unwrap();
+                            let uploadconfig = UploadRequest {
+                                filename: filename.to_string(),
+                                collectionname: "fs.files".to_string(),
+                                ..Default::default()
+                            };
+                            let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
+                            trace!("File {} was upload as {}", filename, uploadresult.id);
+                            // f.filename = "".to_string();
+                            f.id = uploadresult.id.clone();
+                            f.filename = filename.to_string();
+                        }
+                    }
+                } else {
+                    debug!("File {} is already uploaded", f.filename);
+                }
+            }
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(data) => data,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data returned".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: PushWorkitemsResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     /// Pop a workitem from a workitem queue, return None if no workitem is available
     /// Any files attached to the workitem will be downloaded to the downloadfolder ( default "." )
     #[tracing::instrument(skip_all)]
@@ -2865,6 +2941,144 @@ mod tests {
             response.err().unwrap()
         );
     }
+    #[tokio::test] // cargo test test_push_workitems -- --nocapture
+    async fn test_push_workitems() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+    
+        let response = client
+            .push_workitems(
+                PushWorkitemsRequest {
+                    wiq: "rustqueue".to_string(),
+                    items: vec![
+                        Workitem {
+                            name: "test rust workitem 1".to_string(),
+                            payload: "{\"test\": \"message\"}".to_string(),
+                            files: vec![WorkitemFile {
+                                filename: "../../testfile.csv".to_string(),
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        },
+                        Workitem {
+                            name: "test rust workitem 2".to_string(),
+                            payload: "{\"test\": \"message\"}".to_string(),
+                            files: vec![WorkitemFile {
+                                filename: "../../testfile.csv".to_string(),
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        }
+                    ],
+                    ..Default::default()
+                }
+            )
+            .await;
+    
+        assert!(
+            response.is_ok(),
+            "PushWorkitems failed with {:?}",
+            response.err().unwrap()
+        );
+    
+        let response = client
+            .pop_workitem(
+                PopWorkitemRequest {
+                    wiq: "rustqueue".to_string(),
+                    ..Default::default()
+                },
+                Some("")
+            )
+            .await;
+            
+        assert!(
+            response.is_ok(),
+            "PopWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+        let mut workitem = response.unwrap().workitem.unwrap();
+        workitem.name = "updated test rust workitem".to_string();
+        workitem.payload = "{\"test\": \"updated message\"}".to_string();
+        workitem.state = "successful".to_string();
+        assert!( workitem.files.len() > 0, "workitem has no files");
+
+        // delete file from workitem by setting id to empty string
+        workitem.files[0].id = "".to_string();
+
+        // delete testfile.csv if exsits, so it can be re-download when popping workitem
+        if std::path::Path::new("testfile.csv").exists() {
+            println!("Deleting testfile.csv");
+            std::fs::remove_file("testfile.csv").unwrap();
+        }
+        let id = workitem.id.clone();
+
+        let response = client
+            .update_workitem(
+                UpdateWorkitemRequest {
+                    workitem: Some(workitem),
+                    files: vec![WorkitemFile {
+                        filename: "../../train.csv".to_string(),
+                        ..Default::default()
+                    }, WorkitemFile {
+                        filename: "testfile.csv".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }
+            )
+            .await;
+        assert!(
+            response.is_ok(),
+            "UpdateWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client
+            .delete_workitem(
+                DeleteWorkitemRequest {
+                    id: id,
+                    ..Default::default()
+                }
+            )
+            .await;
+
+        assert!(
+            response.is_ok(),
+            "DeleteWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client
+            .pop_workitem(
+                PopWorkitemRequest {
+                    wiq: "rustqueue".to_string(),
+                    ..Default::default()
+                },
+                Some("")
+            )
+            .await;
+
+        assert!(
+            response.is_ok(),
+            "PopWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+
+        let response = client
+            .delete_workitem(
+                DeleteWorkitemRequest {
+                    id: response.unwrap().workitem.unwrap().id,
+                    ..Default::default()
+                }
+            )
+            .await;
+
+        assert!(
+            response.is_ok(),
+            "DeleteWorkitem failed with {:?}",
+            response.err().unwrap()
+        );
+
+    }
     #[tokio::test] // cargo test test_custom_command -- --nocapture
     async fn test_custom_command() {
         let client = Client::connect(TEST_URL).await.unwrap();
@@ -2977,7 +3191,7 @@ mod tests {
             response.err().unwrap()
         );
 
-        let item = "{\"name\": \"test collection\", \"_type\": \"test\"}".to_string();
+        let item = "{\"name\": \"test collection\", \"_type\": \"test\", \"time\": \"2024-08-31T07:18:01.395Z\"}".to_string();
         let query = InsertOneRequest {
             collectionname: "rusttesttscollection".to_string(),
             item,

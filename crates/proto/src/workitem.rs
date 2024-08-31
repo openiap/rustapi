@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 use super::protos::{
-    Envelope, PushWorkitemRequest, PopWorkitemRequest, UpdateWorkitemRequest, DeleteWorkitemRequest
+    Envelope, PushWorkitemRequest, PushWorkitemsRequest, PopWorkitemRequest, UpdateWorkitemRequest, DeleteWorkitemRequest
 };
 
 impl PushWorkitemRequest {
@@ -16,6 +16,24 @@ impl PushWorkitemRequest {
         };
         Envelope {
             command: "pushworkitem".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+}
+impl PushWorkitemsRequest {
+    /// Creates a new `PushWorkitemsRequest` with the given `workitem`.
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.PushWorkitemsRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "pushworkitems".into(),
             data: Some(any_message.clone()),
             ..Default::default() 
         }
