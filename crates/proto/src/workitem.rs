@@ -1,6 +1,7 @@
 #![warn(missing_docs)]
 use super::protos::{
-    Envelope, PushWorkitemRequest, PushWorkitemsRequest, PopWorkitemRequest, UpdateWorkitemRequest, DeleteWorkitemRequest
+    Envelope, PushWorkitemRequest, PushWorkitemsRequest, PopWorkitemRequest, UpdateWorkitemRequest, DeleteWorkitemRequest,
+    AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest
 };
 
 impl PushWorkitemRequest {
@@ -88,6 +89,60 @@ impl DeleteWorkitemRequest {
         };
         Envelope {
             command: "deleteworkitem".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+}
+impl AddWorkItemQueueRequest {
+    /// Creates a new `AddWorkItemQueueRequest` with the given `workitem`.
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.AddWorkItemQueueRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "addworkitemqueue".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+}
+impl UpdateWorkItemQueueRequest {
+    /// Creates a new `UpdateWorkItemQueueRequest` with the given `workitem`.
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.UpdateWorkItemQueueRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "updateworkitemqueue".into(),
+            data: Some(any_message.clone()),
+            ..Default::default() 
+        }
+    }
+}
+impl DeleteWorkItemQueueRequest {
+    /// Creates a new `DeleteWorkItemQueueRequest` with the given `workitem`.
+    pub fn to_envelope(&self) -> Envelope {
+        let any_message = prost_types::Any {
+            type_url: "type.googleapis.com/openiap.DeleteWorkItemQueueRequest".to_string(),
+            value: {
+                let mut buf = Vec::new();
+                prost::Message::encode(self, &mut buf).unwrap_or(());
+                buf
+            },
+        };
+        Envelope {
+            command: "deleteworkitemqueue".into(),
             data: Some(any_message.clone()),
             ..Default::default() 
         }

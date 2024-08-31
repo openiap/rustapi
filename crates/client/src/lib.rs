@@ -42,6 +42,8 @@ pub struct ClientInner {
     pub client: FlowServiceClient<tonic::transport::Channel>,
     /// Are we signed in?
     pub signedin: bool,
+    /// The signed in user.
+    pub user: Option<User>,
     /// Are we connected?
     pub connected: bool,
     /// The stream sender.
@@ -258,6 +260,7 @@ impl Client {
         let inner = ClientInner {
             client: innerclient,
             signedin: false,
+            user: None,
             connected: false,
             stream_tx,
             queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -491,6 +494,16 @@ impl Client {
         Ok((response_rx, stream_rx))
     }
     #[tracing::instrument(skip_all)]
+    async fn signedin(&self) -> bool {
+        let inner = self.inner.lock().await;
+        inner.signedin        
+    }
+    #[tracing::instrument(skip_all)]
+    async fn user(&self) -> Option<User> {
+        let inner = self.inner.lock().await;
+        inner.user.clone()        
+    }
+    #[tracing::instrument(skip_all)]
     async fn ping(&self) {
         let envelope = Envelope {
             command: "ping".into(),
@@ -545,16 +558,24 @@ impl Client {
                             .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(e.message));
                 }
-                inner.signedin = true;
                 debug!("Sign-in successful");
                 let response: SigninResponse =
                     prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                if !config.validateonly {
+                    inner.signedin = true;
+                    inner.user = Some(response.user.as_ref().unwrap().clone());
+                }
                 Ok(response)
             }
             Err(e) => {
                 debug!("Sending Sign-in request failed {:?}", result);
                 debug!("Sign-in failed: {}", e.to_string());
+                if !config.validateonly {
+                    let mut inner = self.inner.lock().await;
+                    inner.signedin = false;
+                    inner.user = None;
+                }
                 Err(OpenIAPError::ClientError(e.to_string()))
             }
         }
@@ -1511,6 +1532,51 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Send message to a queue or exchange in the OpenIAP service, and wait for a reply
+    #[tracing::instrument(skip_all)]
+    pub async fn rpc(
+        &self,
+        mut config: QueueMessageRequest,
+    ) -> Result<String, OpenIAPError> {
+        if config.queuename.is_empty() && config.exchangename.is_empty() {
+            return Err(OpenIAPError::ClientError("No queue or exchange name provided".to_string()));
+        }
+
+        let (tx, rx) = oneshot::channel::<String>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+
+        let q = self.register_queue(RegisterQueueRequest {
+            queuename: "".to_string()
+        }, Box::new(move |event| {
+            println!("Received event: {:?}", event);
+            let tx = tx.lock().unwrap().take().unwrap();            
+            tx.send(event.data).unwrap();
+        })).await.unwrap();
+
+        config.replyto = q.clone();
+        let envelope = config.to_envelope();
+
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => return Err(OpenIAPError::ClientError("No data in response".to_string())),
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+
+                let response = rx.await.unwrap();
+                Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     /// Push a new workitem to a workitem queue
     /// If the file is less than 5 megabytes it will be attached to the workitem
     /// If the file is larger than 5 megabytes it will be uploaded to the database and attached to the workitem
@@ -1820,6 +1886,115 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Add a workitem queue to openiap instance
+    #[tracing::instrument(skip_all)]
+    pub async fn add_workitem_queue(
+        &self,
+        config: AddWorkItemQueueRequest,
+    ) -> Result<WorkItemQueue, OpenIAPError> {
+        if config.workitemqueue.is_none() {
+            return Err(OpenIAPError::ClientError("No workitem queue name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: AddWorkItemQueueResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                match response.workitemqueue {
+                    Some(wiq) => {
+                        Ok(wiq)
+                    }
+                    None => {
+                        return Err(OpenIAPError::ClientError("No workitem queue returned".to_string()));
+                    }
+                    
+                }
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Update a workitem queue in openiap instance
+    #[tracing::instrument(skip_all)]
+    pub async fn update_workitem_queue(
+        &self,
+        config: UpdateWorkItemQueueRequest,
+    ) -> Result<WorkItemQueue, OpenIAPError> {
+        if config.workitemqueue.is_none() {
+            return Err(OpenIAPError::ClientError("No workitem queue name provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: UpdateWorkItemQueueResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                match response.workitemqueue {
+                    Some(wiq) => {
+                        Ok(wiq)
+                    }
+                    None => {
+                        return Err(OpenIAPError::ClientError("No workitem queue returned".to_string()));
+                    }
+                    
+                }
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }        
+    }
+    /// Delete a workitem queue from openiap instance
+    #[tracing::instrument(skip_all)]
+    pub async fn delete_workitem_queue(
+        &self,
+        config: DeleteWorkItemQueueRequest,
+    ) -> Result<(), OpenIAPError> {
+        if config.wiq.is_empty() && config.wiqid.is_empty() {
+            return Err(OpenIAPError::ClientError("No workitem queue name or id provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                Ok(())
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
     /// Run custom command on server. Custom commands are commands who is "on trail", they may change and are not ready to be moved to the fixed protobuf format yet
     #[tracing::instrument(skip_all)]
     pub async fn custom_command(
@@ -2090,6 +2265,104 @@ impl Client {
                     prost::Message::decode(data.value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 Ok(response)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }
+    /// Invoke a workflow in the OpenRPA robot where robotid is the userid of the user the robot is running as, or a roleid with RPA enabled
+    #[tracing::instrument(skip_all)]
+    pub async fn invoke_openrpa(
+        &self,
+        config: InvokeOpenRpaRequest,
+    ) -> Result<String, OpenIAPError> {
+        if config.robotid.is_empty() {
+            return Err(OpenIAPError::ClientError("No robot id provided".to_string()));
+        }
+        if config.workflowid.is_empty() {
+            return Err(OpenIAPError::ClientError("No workflow id provided".to_string()));
+        }
+
+        let (tx, rx) = oneshot::channel::<String>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+
+        let q = self.register_queue(RegisterQueueRequest {
+            queuename: "".to_string()
+        }, Box::new(move |event| {
+            let json = event.data.clone();
+            let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
+            let command: String = obj["command"].as_str().unwrap().to_string();
+            println!("Received event: {:?}", event);
+            if command.eq("invokesuccess") {
+                println!("Robot successfully started running workflow");
+            } else if command.eq("invokeidle") {
+                println!("Workflow went idle");
+            } else if command.eq("invokeerror") {
+                println!("Robot failed to run workflow");
+                let tx = tx.lock().unwrap().take().unwrap();
+                tx.send(event.data).unwrap();
+            } else if command.eq("timeout") {
+                println!("No robot picked up the workflow");
+                let tx = tx.lock().unwrap().take().unwrap();
+                tx.send(event.data).unwrap();
+            } else if command.eq("invokecompleted") {
+                println!("Robot completed running workflow");
+                let tx = tx.lock().unwrap().take().unwrap();
+                tx.send(event.data).unwrap();
+            } else {
+                let tx = tx.lock().unwrap().take().unwrap();
+                tx.send(event.data).unwrap();
+            }
+        })).await.unwrap();
+        println!("Registered Response Queue: {:?}", q);
+        let data = format!("{{\"command\":\"invoke\",\"workflowid\":\"{}\",\"payload\": {}}}", config.workflowid, config.payload);
+        println!("Send Data: {}", data);
+        println!("To Queue: {} With reply to: {}", config.robotid, q);
+        let config = QueueMessageRequest {
+            queuename: config.robotid.clone(),
+            replyto: q.clone(),
+            data,
+            ..Default::default()
+        };
+
+        let envelope = config.to_envelope();
+        
+
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => return Err(OpenIAPError::ClientError("No data in response".to_string())),
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                prost::Message::decode(data.value.as_ref())
+                    .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+
+                let json = rx.await.unwrap();
+                println!("Received json result: {:?}", json);
+                let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
+                let command: String = obj["command"].as_str().unwrap().to_string();
+                let mut data = "".to_string();
+                if !obj["data"].as_str().is_none() {
+                    data = obj["data"].as_str().unwrap().to_string();
+                } else if !obj["data"].as_object().is_none() {
+                    data = obj["data"].to_string();
+                }
+                if !command.eq("invokecompleted") {
+                    if command.eq("timeout") {
+                        return Err(OpenIAPError::ServerError("Timeout".to_string()));
+                    } else {
+                        if data.is_empty() {
+                            return Err(OpenIAPError::ServerError("Error with no message".to_string()));
+                        }
+                        return Err(OpenIAPError::ServerError(data));
+                    } 
+                }
+                Ok(data)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
@@ -3497,5 +3770,126 @@ mod tests {
         };
         println!("Customer: {:?}", customer);
 
+    }
+    #[tokio::test()] // cargo test test_add_update_delete_workitem_queue -- --nocapture
+    async fn test_add_update_delete_workitem_queue() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let signedin = client.signedin().await;
+        let user = client.user().await.unwrap();
+        println!("signed in {:?} as: {:?}", signedin, user);
+
+        let response = client.query(QueryRequest {
+            query: "{\"name\": \"updated rusttestqueue2\"}".to_string(),
+            collectionname: "mq".to_string(),
+            ..Default::default()
+        }).await;
+        match response {
+            Ok(response) => {
+                let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
+                let items = _obj.as_array().unwrap();
+                if items.len() > 0 {
+                    let _obj = items[0].clone();
+                    let wiqid = _obj["_id"].as_str().unwrap();
+                    println!("workitemqueue id: {:?} already exists as updated rusttestqueue2, so delete it", wiqid);
+                    client.delete_workitem_queue(DeleteWorkItemQueueRequest {
+                        wiqid: wiqid.to_string(),
+                        purge: true,
+                        ..Default::default()
+                    }).await.unwrap();
+                }
+            },
+            Err(e) => {
+                assert!(false, "Query failed with {:?}", e);
+                return;
+            }            
+        }
+        let response = client.query(QueryRequest {
+            query: "{\"name\": \"rusttestqueue2\"}".to_string(),
+            collectionname: "mq".to_string(),
+            ..Default::default()
+        }).await;
+        let mut wiq = match response {
+            Ok(response) => {
+                let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
+                let items = _obj.as_array().unwrap();
+                if items.len() == 0 {
+                    let queue = WorkItemQueue {
+                        name: "rusttestqueue2".to_string(),
+                        ..Default::default()
+                    };
+                    let request = AddWorkItemQueueRequest {
+                        workitemqueue: Some(queue),
+                        skiprole: true
+                    };
+                    let response = client.add_workitem_queue(request).await;
+                    match response {
+                        Ok(response) => {
+                            println!("workitem queue: {:?}", response);
+                            response
+                        },
+                        Err(e) => {
+                            assert!(false, "AddWorkItemQueue failed with {:?}", e);
+                            return;
+                        }
+                    }
+                } else {
+                    println!("workitem queue already exists");
+                    let _obj = items[0].clone();
+                    let vacl = _obj["_acl"].as_array().unwrap();
+                    let mut acl = Vec::new();
+                    for ace in vacl {
+                        let ace = Ace {                            
+                            id: ace["_id"].as_str().unwrap().to_string(),
+                            rights: ace["rights"].as_i64().unwrap() as i32,
+                            deny: false
+                            // deny: ace["deny"].as_bool().unwrap(),                            
+                        };
+                        acl.push(ace);
+                    }
+                    WorkItemQueue {
+                        id: _obj["_id"].as_str().unwrap().to_string(),
+                        name: _obj["name"].as_str().unwrap().to_string(),
+                        acl,
+                        ..Default::default()
+                    }
+                }
+            },
+            Err(e) => {
+                assert!(false, "Query failed with {:?}", e);
+                return;
+            }
+        };
+        println!("workitemqueue id: {:?} name: {:?}", wiq.id, wiq.name);
+        wiq.name = "updated rusttestqueue2".to_string();
+        let wiqid = wiq.id.clone();
+
+        client.update_workitem_queue(UpdateWorkItemQueueRequest {
+            workitemqueue: Some(wiq),
+            purge: false,
+            skiprole: true
+        }).await.unwrap();
+
+        client.delete_workitem_queue(DeleteWorkItemQueueRequest {
+            wiqid,
+            purge: true,
+            ..Default::default()
+        }).await.unwrap();
+    }
+    #[tokio::test()] // cargo test test_invoke_openrpa -- --nocapture
+    async fn test_invoke_openrpa() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+        let response: std::result::Result<String, OpenIAPError> = client.invoke_openrpa( InvokeOpenRpaRequest {
+            robotid: "5ce94386320b9ce0bc2c3d07".to_string(), workflowid: "5e0b52194f910e30ce9e3e49".to_string(),
+            payload: "{\"test\": \"message\"}".to_string(),
+            ..Default::default()
+        }).await;
+        assert!(
+            response.is_ok(),
+            "InvokeOpenRpa failed with {:?}",
+            response.err().unwrap()
+        );
+        println!("InvokeOpenRpa response: {:?}", response.unwrap());
     }
 }
