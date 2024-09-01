@@ -2280,6 +2280,40 @@ impl Client {
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
         }
     }
+    /// Create a new workflow instance, to be used to workflow in/out nodes in NodeRED
+    #[tracing::instrument(skip_all)]
+    pub async fn create_workflow_instance(
+        &self,
+        config: CreateWorkflowInstanceRequest,
+    ) -> Result<String, OpenIAPError> {
+        if config.workflowid.is_empty() {
+            return Err(OpenIAPError::ClientError("No workflow id provided".to_string()));
+        }
+        let envelope = config.to_envelope();
+        let result = self.send(envelope).await;
+        match result {
+            Ok(m) => {
+                let data = match m.data {
+                    Some(d) => d,
+                    None => {
+                        return Err(OpenIAPError::ClientError("No data in response".to_string()));
+                    }
+                };
+                if m.command == "error" {
+                    let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                    return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+                }
+                let response: CreateWorkflowInstanceResponse =
+                    prost::Message::decode(data.value.as_ref())
+                        .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+                Ok(response.instanceid)
+            }
+            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+        }
+    }     
+
+    
     /// Invoke a workflow in the OpenRPA robot where robotid is the userid of the user the robot is running as, or a roleid with RPA enabled
     #[tracing::instrument(skip_all)]
     pub async fn invoke_openrpa(
@@ -3921,6 +3955,55 @@ mod tests {
         }).await.unwrap();
         println!("RPC response: {:?}", response);
         let response = client.unregister_queue(&pingserver).await;
+        match response {
+            Ok(response) => {
+                println!("{:?}", response);
+            }
+            Err(e) => {
+                assert!(false, "UnregisterQueue failed with {:?}", e);
+            }
+        }
+
+    }
+    #[tokio::test()] // cargo test test_create_workflow_instance -- --nocapture
+    async fn test_create_workflow_instance() {
+        let client = Client::connect(TEST_URL).await.unwrap();
+
+
+        let (tx, rx) = oneshot::channel::<()>();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx))); 
+    
+        let workflow_consumer = client.register_queue(RegisterQueueRequest::byqueuename("workflow_consumer"), {
+            let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
+             Box::new(move |event| {
+                println!("Workflow event: {:?}", event);
+                if let Some(tx) = tx.lock().unwrap().take() {
+                    let _ = tx.send(());
+                }
+            })
+        }).await.unwrap();
+
+
+        let response = client.create_workflow_instance(CreateWorkflowInstanceRequest {
+            workflowid: "66d434b753218675491931c5".to_string(),
+            data: "{\"test\": \"message\"}".to_string(),
+            initialrun: true,
+            name: "Rust initialed workflow".to_string(),
+            targetid: "5ce9422d320b9c09742c3ced".to_string(), // 6242d68a73057b27d277be88
+            resultqueue: workflow_consumer.clone(),
+            ..Default::default()
+        }).await;
+        assert!(
+            response.is_ok(),
+            "CreateWorkflowInstance failed with {:?}",
+            response.err().unwrap()
+        );
+
+        // Await the workflow event
+        rx.await.unwrap();
+        println!("Workflow event received");
+
+        let response = client.unregister_queue(&workflow_consumer).await;
         match response {
             Ok(response) => {
                 println!("{:?}", response);
