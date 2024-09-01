@@ -1572,6 +1572,17 @@ impl Client {
                     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 let response = rx.await.unwrap();
+
+                let ur_response = self.unregister_queue(&q).await;
+                match ur_response {
+                    Ok(_) => {
+                        println!("Unregistered Response Queue: {:?}", q);
+                    }
+                    Err(e) => {
+                        println!("Failed to unregister Response Queue: {:?}", e);
+                    }
+                }
+
                 Ok(response)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
@@ -2361,6 +2372,15 @@ impl Client {
                         }
                         return Err(OpenIAPError::ServerError(data));
                     } 
+                }
+                let response = self.unregister_queue(&q).await;
+                match response {
+                    Ok(_) => {
+                        println!("Unregistered Response Queue: {:?}", q);
+                    }
+                    Err(e) => {
+                        println!("Failed to unregister Response Queue: {:?}", e);
+                    }
                 }
                 Ok(data)
             }
@@ -3875,6 +3895,41 @@ mod tests {
             purge: true,
             ..Default::default()
         }).await.unwrap();
+    }
+    #[tokio::test()] // cargo test test_rpc -- --nocapture
+    async fn test_rpc() {
+        let client = Arc::new(Client::connect(TEST_URL).await.unwrap());
+        let pingserver = client.register_queue(RegisterQueueRequest::byqueuename("pingserver"), {
+            let client = client.clone(); // Clone the Arc to move into the closure
+             Box::new(move |event| {
+                let client = client.clone(); // Clone here to move it into the spawn block
+                tokio::task::spawn(async move {
+                    client.queue_message(QueueMessageRequest {
+                        queuename: event.replyto.clone(),
+                        data: "{\"command\": \"pong\"}".to_string(),
+                        striptoken: true,
+                        ..Default::default()
+                    }).await.unwrap();
+                });
+            })
+        }).await.unwrap();
+        let response = client.rpc(QueueMessageRequest {
+            queuename: "pingserver".to_string(),
+            data: "{\"command\": \"ping\"}".to_string(),
+            striptoken: true,
+            ..Default::default()
+        }).await.unwrap();
+        println!("RPC response: {:?}", response);
+        let response = client.unregister_queue(&pingserver).await;
+        match response {
+            Ok(response) => {
+                println!("{:?}", response);
+            }
+            Err(e) => {
+                assert!(false, "UnregisterQueue failed with {:?}", e);
+            }
+        }
+
     }
     #[tokio::test()] // cargo test test_invoke_openrpa -- --nocapture
     async fn test_invoke_openrpa() {
