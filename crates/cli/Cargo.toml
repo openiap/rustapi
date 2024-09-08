@@ -2,10 +2,10 @@
 name = "openiap"
 description = "openiap test client"
 license = "MPL-2.0"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [dependencies]
-openiap-client = { path = "../client", version = "0.0.3" }
+openiap-client = { path = "../client", version = "0.0.4" }
 tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
 tokio-stream = "0.1.15"

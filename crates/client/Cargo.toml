@@ -2,11 +2,11 @@
 name = "openiap-client"
 description = "openiap client library"
 license = "MPL-2.0"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [dependencies]
-openiap-proto = { path = "../proto", version = "0.0.3" }
+openiap-proto = { path = "../proto", version = "0.0.4" }
 tonic = { version = "0.12.0", features = ["tls-roots"] } # "transport", "gzip", "tls", "tls-webpki-roots"
 futures = "0.3"
 prost = "0.13.1"

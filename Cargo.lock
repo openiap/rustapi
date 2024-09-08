@@ -658,7 +658,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "openiap"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "openiap-client",
  "tokio",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-clib"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "lazy_static",
  "openiap-client",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-client"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "flate2",
  "futures",
@@ -697,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-proto"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "prost",
  "prost-types",
