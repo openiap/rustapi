@@ -135,6 +135,42 @@ impl CreateCollectionRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `CreateCollectionRequest` with the given `name` and `expire_after_seconds`.
+    pub fn with_ttl(collectionname: &str, ttl: i32) -> Self {
+        Self {
+            collectionname: collectionname.to_string(),
+            expire_after_seconds: ttl,
+            ..Default::default()
+        }
+    }
+    /// Creates a new `CreateCollectionRequest` for a time series collection
+    pub fn timeseries(collectionname: &str, timefield: &str, granularity: &str) -> Self {
+        Self {
+            collectionname: collectionname.to_string(),
+            timeseries: Some(
+                crate::protos::ColTimeseries {
+                    time_field: timefield.to_string(),
+                    granularity: granularity.to_string(),
+                    meta_field: "".to_string(),
+                },                                
+            ),            
+            ..Default::default()
+        }
+    }
+    /// Creates a new `CreateCollectionRequest` for a time series collection
+    pub fn timeseries_with_meta(collectionname: &str, timefield: &str, meta_field: &str, granularity: &str) -> Self {
+        Self {
+            collectionname: collectionname.to_string(),
+            timeseries: Some(
+                crate::protos::ColTimeseries {
+                    time_field: timefield.to_string(),
+                    granularity: granularity.to_string(),
+                    meta_field: meta_field.to_string(),
+                },                                
+            ),            
+            ..Default::default()
+        }
+    }
     /// Converts the `CreateCollectionRequest` to an `Envelope`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
