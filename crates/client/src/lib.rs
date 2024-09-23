@@ -450,7 +450,7 @@ impl Client {
         match o {
             Ok(_) => {
                 let response = o.unwrap();
-                let body = response.body.as_str();
+                let body = response.as_str().unwrap();
                 config = Some(serde_json::from_str(body).unwrap());
             },
             Err(e) => {
