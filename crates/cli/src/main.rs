@@ -3,13 +3,17 @@
 
 use std::ops::Add;
 use std::sync::{Arc, Mutex};
+use std::thread::available_parallelism;
 
-use openiap_client::{self, Client, RegisterExchangeRequest, RegisterQueueRequest};
+use openiap_client::{self, enable_tracing, Client, RegisterExchangeRequest, RegisterQueueRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
     WatchEvent, WatchRequest,
 };
+use sysinfo::System;
+use sysinfo::SystemExt;
+
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -32,9 +36,69 @@ fn onwatch(event: WatchEvent) {
     let operation = event.operation;
     println!("{} on {}", operation, document);
 }
+/// Do some calculation, to geneerate some CPU load
+pub fn factorial(num: u128) -> u128 {
+    (1..=num).product()
+}
+/// Do some calculation, to geneerate some CPU load
+fn add_one_loop(&n_loops: &u64) {
+    for _in in 0..n_loops {
+        let _ = factorial(20);
+    }
+}
 
 /// Main function
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    // Display system information:
+    println!("System name:             {:?}", sys.name());
+    println!("System kernel version:   {:?}", sys.kernel_version());
+    println!("System OS version:       {:?}", sys.os_version());
+    println!("System host name:        {:?}", sys.host_name());
+    // Number of CPUs:
+    println!("Number of available threads: {}", sys.cpus().len());
+
+
+    // let pid = get_current_pid()?;
+    // let sys = System::new_all();
+    // println!("System name:             {:?}", sys.name());
+    // println!("System kernel version:   {:?}", sys.kernel_version());
+    // println!("System OS version:       {:?}", sys.os_version());
+    // println!("System host name:        {:?}", sys.host_name());
+    // let sys = Arc::new(Mutex::new(sys));
+    // std::thread::spawn(move || {
+    //     loop {
+    //         {
+    //             let mut file = std::fs::File::create("testfile.txt").unwrap();
+    //             let _ = file.write_all("Hello world".as_bytes());
+    //             file.sync_all().unwrap();
+    //         }
+    //         {
+    //             let mut file = std::fs::File::open("testfile.txt").unwrap();
+    //             let mut contents = String::new();
+    //             file.read_to_string(&mut contents).unwrap();
+    //         }
+
+    //         std::thread::sleep(std::time::Duration::from_secs(5));
+    //         let mut sys = sys.lock().unwrap();
+    //         sys.refresh_process(pid);
+    //         sys.refresh_all();
+    //         if let Some(process) = sys.process(pid) {
+    //             let disk_io = process.disk_usage();
+    //             println!("read: {:?} write: {:?} total read: {:?} total write: {:?}", disk_io.read_bytes, disk_io.written_bytes, disk_io.total_read_bytes, disk_io.total_written_bytes);
+    //         }
+    //     }
+    // });
+
+    // let num_calcs = 1000000;
+    let num_calcs = 100000;
+
+    let available_cores: u64 = available_parallelism().unwrap().get() as u64; // get info how many threads we can use and use half of them
+    let iter_per_core: u64 = num_calcs / available_cores;
+    let num_iters = 5000;
+
+    enable_tracing("openiap=debug", "");
     let res = Client::connect("").await;
     let b = match res {
         Ok(b) => b,
@@ -64,6 +128,21 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("uw: Unwatch");
             println!("r: Register queue");
             println!("m: Queue message");
+        }
+        if input.eq_ignore_ascii_case("c") || input.eq_ignore_ascii_case("cpu") {
+            println!("Calculating factorial of 20 {} times", num_calcs);
+            // std::thread::spawn(move || add_one_loop(&iter_per_core));
+            for _i in 0..num_iters {
+                // let mut results = Vec::new();
+                let mut threads = Vec::new();
+                for _i in 0..available_cores {
+                    threads.push(std::thread::spawn(move || add_one_loop(&iter_per_core)));
+                }
+                // for thread in threads {
+                //     results.extend(thread.join());
+                // }
+                
+            }
         }
         if input.eq_ignore_ascii_case("q") {
             let client = b.clone();
