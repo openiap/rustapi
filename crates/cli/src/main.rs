@@ -99,7 +99,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let num_iters = 5000;
 
     enable_tracing("openiap=debug", "");
-    let res = Client::connect("").await;
+    // let res = Client::connect("").await;
+    let res = Client::connect("https://demo.openiap.io").await;
     let b = match res {
         Ok(b) => b,
         Err(e) => {
