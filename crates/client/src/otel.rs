@@ -4,6 +4,7 @@ use sysinfo::SystemExt;
 use sysinfo::{get_current_pid, System};
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
+use opentelemetry::global::{set_error_handler, Error as OtelError};
 use std::sync::{Arc, Mutex};
 use tracing::{trace};
 
@@ -150,7 +151,12 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
         },
     );
     match result {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            let _ = set_error_handler(Box::new(|_error: OtelError| {
+                trace!("Error in OpenTelemetry: {:?}", _error);
+            }));
+            Ok(())
+        },
         Err(e) => {
             return Err(format!("Could not register callback: {}", e));
         }

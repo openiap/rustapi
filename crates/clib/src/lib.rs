@@ -270,17 +270,11 @@ pub struct AggregateRequestWrapper {
     explain: bool,
 }
 
-// use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing_subscriber::{filter::EnvFilter, fmt, prelude::*};
-// use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char) {
-    // tracing_subscriber::registry()
-    //     .with(fmt::layer())
-    //     .with(EnvFilter::from_default_env())
-    //     .init();
     let rust_log = c_char_to_str(rust_log);
     let rust_log = rust_log.to_string();
     let mut filter = EnvFilter::from_default_env();
@@ -319,34 +313,6 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
         }
     }
     info!("enable_tracing rust_log: {:?}, tracing: {:?}", rust_log, tracing);
-
-    // .expect("setting global default subscriber failed");
-    // EnvFilter::builder()
-    // .with_default_directive(LevelFilter::ERROR.into())
-    // .from_env_lossy();
-
-    // use tracing_subscriber::{
-    //     layer::{Layer, SubscriberExt},
-    //     filter::{FilterFn
-    //         // , LevelFilter
-    //     },
-    //     util::SubscriberInitExt,
-    // };
-
-    // let my_filter = FilterFn::new(|metadata| {
-    //     // print ln!("metadata.target() = {:?}", metadata.target());
-    //     // if metadata.target().starts_with("openiap") {
-    //     //     print ln!("metadata.target() = {:?}", metadata);
-    //     // }
-    //     metadata.target().starts_with("openiap")
-    // }); // .with_max_level_hint(LevelFilter::DEBUG);
-
-    // let my_layer = tracing_subscriber::fmt::layer()
-    //     .with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL);
-
-    // tracing_subscriber::registry()
-    //     .with(my_layer.with_filter(my_filter))
-    //     .init();
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]

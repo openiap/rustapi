@@ -21,22 +21,68 @@
 //! }
 //! ```
 
+
+// expected struct `WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>`
+//    found struct `WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>`
+
+// type Sock = tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
+type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+// type SockSplit = (
+//     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, tokio_tungstenite::tungstenite::Message>,
+//     SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>
+// );
+// type Sock = async_tungstenite::tungstenite::WebSocket<async_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
+// type SockSplit = (
+//     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, async_tungstenite::tungstenite::Message>,
+//     SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>
+// );
+
+// use futures::stream::{ SplitSink, SplitStream };
+// use futures::StreamExt;
+// use futures::{SinkExt, StreamExt};
+use futures::{StreamExt };
+
+/// Client enum, used to determine which client to use.
+#[derive(Debug)]
+#[derive(Clone)]
+pub enum ClientEnum {
+    /// Not set yet
+    None,
+    /// Used when client wants to connect using gRPC 
+    Grpc(FlowServiceClient<tonic::transport::Channel>),
+    /// Used when client wants to connect using websockets
+    WS(Arc<Mutex<Sock>>)
+}
+
 pub use openiap_proto::errors::*;
 pub use openiap_proto::protos::*;
 pub use openiap_proto::*;
 pub use prost_types::Timestamp;
 pub use protos::flow_service_client::FlowServiceClient;
 use prost::Message;
+use futures::SinkExt;
+// futures-util = "0.3.30"
+// use futures_util::{StreamExt, SinkExt};
 
+
+use tokio_tungstenite::{ // MaybeTlsStream, 
+    WebSocketStream };
+// use async_tungstenite::tungstenite::stream::MaybeTlsStream;
+// use async_tungstenite::{ WebSocketStream };
+
+// use tokio::net::TcpStream;
+// use tokio_tungstenite::connect_async;
+// use tokio_tungstenite::connect_async_tls_with_config;
 // use tokio_tungstenite::tungstenite::stream::MaybeTlsStream;
 // use tokio_tungstenite::tungstenite::WebSocket;
 use tracing::{debug, error, info, trace};
 
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tokio_stream::{wrappers::ReceiverStream};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = StdError> = ::std::result::Result<T, E>;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::ops::AddAssign;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 // use std::thread;
@@ -52,6 +98,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 mod otel;
 mod tests;
+mod ws;
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
@@ -65,30 +112,17 @@ pub struct Client {
     pub config: Option<Config>,
 }
 
-type Sock = tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
 
-
-// mismatched types
-// expected struct `WebSocket<WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<_>>>`
-//    found struct `WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<_>>`
-
-// #[derive(Debug)]
-/// Client enum, used to determine which client to use.
-#[derive(Clone)]
-pub enum ClientEnum {
-    /// Not set yet
-    None,
-    /// Used when client wants to connect using gRPC 
-    Grpc(FlowServiceClient<tonic::transport::Channel>),
-    /// Used when client wants to connect using websockets
-    WS(Arc<Mutex<Sock>>)
-}
 
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
     /// The grpc client.//!
     pub client: ClientEnum,
+    /// Websocket read/write streams
+    // pub split: Option<Arc<Mutex<SockSplit>>>,
+    /// Inceasing message count, used as unique id for messages.
+    pub msgcount: Arc<Mutex<i32>>,
     /// Are we signed in?
     pub signedin: bool,
     /// The signed in user.
@@ -97,6 +131,14 @@ pub struct ClientInner {
     pub connected: bool,
     /// The stream sender.
     pub stream_tx: mpsc::Sender<Envelope>,
+    // pub stdin_tx: futures::channel::mpsc::UnboundedSender<Vec<u8>>,
+    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<Vec<u8>>>>,
+    pub stdin_tx: futures::channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>,
+    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<tokio_tungstenite::tungstenite::Message>>>,
+
+//     expected struct `futures::futures_channel::mpsc::UnboundedSender<Vec<u8>>`
+//    found struct `futures::futures_channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>`
+
     /// list of queries ( messages sent to server we are waiting on a response for )
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     /// Active streams the server (or client) has opened
@@ -114,26 +156,47 @@ pub struct ClientInner {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct Config {
+    #[serde(default)]
     wshost: String,
+    #[serde(default)]
     wsurl: String,
+    #[serde(default)]
     domain: String,
+    #[serde(default)]
     auto_create_users: bool,
+    #[serde(default)]
     namespace: String,
+    #[serde(default)]
     agent_domain_schema: String,
+    #[serde(default)]
     version: String,
+    #[serde(default)]
     validate_emails: bool,
+    #[serde(default)]
     forgot_pass_emails: bool,
+    #[serde(default)]
     supports_watch: bool,
+    #[serde(default)]
     amqp_enabled_exchange: bool,
+    #[serde(default)]
     multi_tenant: bool,
+    #[serde(default)]
     enable_entity_restriction: bool,
+    #[serde(default)]
     enable_web_tours: bool,
+    #[serde(default)]
     collections_with_text_index: Vec<String>,
+    #[serde(default)]
     timeseries_collections: Vec<String>,
+    #[serde(default)]
     ping_clients_interval: i32,
+    #[serde(default)]
     validlicense: bool,
+    #[serde(default)]
     forceddomains: Vec<String>,
+    #[serde(default)]
     grafana_url: String,
+    #[serde(default)]
     otel_metric_url: String,
 }
 impl std::fmt::Debug for ClientInner {
@@ -378,6 +441,172 @@ pub fn enable_tracing(rust_log: &str, tracing: &str) {
         rust_log, tracing
     );
 }
+// inner: Arc<Mutex<ClientInner>>
+async fn send_envelope(mut inner: ClientInner, mut envelope: Envelope) -> Result<(), OpenIAPError> {
+    // let mut inner = self.inner.lock().await;
+    match inner.client {
+        ClientEnum::Grpc(ref mut _client) => {
+            match inner.stream_tx.send(envelope).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            }
+        }
+        ClientEnum::WS(ref mut _client) => {
+            {
+                let mut seq = inner.msgcount.lock().await;
+                envelope.seq = seq.clone();
+                if envelope.rid.is_empty() {
+                    envelope.rid = seq.to_string();
+                }
+                seq.add_assign(1);
+            }
+            // let cmd = envelope.command.clone();
+            // get envelope length, then add it as the first 4 bytes of the message
+            let envelope = envelope.encode_to_vec();
+            let size = envelope.len() as u32;
+
+            // Write the size in little-endian format (like writeUInt32LE in Node.js)
+            let mut size_bytes = size.to_le_bytes().to_vec(); 
+
+            // let mut split_guard = inner.split.as_ref().unwrap().lock().await;
+            // let (ref mut write, ref mut _read) = *split_guard;
+
+            // write.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)).await;
+            // write.send(tokio_tungstenite::tungstenite::Message::binary(envelope)).await;
+
+            // Ok(())
+            // let mut client = client.lock().await;
+            // debug!("Sending data size for {}: {:?}", cmd, size_bytes);
+            // let _ = match client.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)) {
+            //     Ok(_) => {
+            //         // debug!("Successfully sent data for {}", cmd);
+            //         Ok(())
+            //     },
+            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            // };
+            // match client.send(tokio_tungstenite::tungstenite::Message::binary(envelope)) {
+            //     Ok(_) => {
+            //         debug!("Successfully sent data for {}", cmd);
+            //         Ok(())
+            //     },
+            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            // }
+            
+
+            // // Append the actual envelope data
+            // size_bytes.extend_from_slice(&envelope);
+
+            // // Now size_bytes contains the 4-byte length followed by the envelope
+            // let size_bytes = size_bytes;
+
+            // let mut client = client.lock().await;
+            // debug!("Sending data for {}: {:?}", cmd, size_bytes);
+            // match client.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)) {
+            //     Ok(_) => {
+            //         debug!("Successfully sent data for {}", cmd);
+            //         Ok(())
+            //     },
+            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            // }
+
+            // Append the actual envelope data
+            size_bytes.extend_from_slice(&envelope);
+
+            // Now size_bytes contains the 4-byte length followed by the envelope
+            let size_bytes = size_bytes;
+
+            match inner.stdin_tx.send(tokio_tungstenite::tungstenite::Message::Binary(size_bytes)).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            }
+
+
+            // let mut client = _client.lock().await;
+            // debug!("Sending data for {}: {:?}", cmd, size_bytes);
+            // match client.send(async_tungstenite::tungstenite::Message::binary(size_bytes)) {
+            //     Ok(_) => {
+            //         debug!("Successfully sent data for {}", cmd);
+            //         Ok(())
+            //     },
+            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+            // }
+
+        }
+        ClientEnum::None => {
+            return Err(OpenIAPError::ClientError("Invalid client".to_string()));
+        }
+    }
+}
+
+async fn parse_incomming_envelope(inner: ClientInner, received: Envelope) {
+    let command = received.command.clone();
+    // let id = received.command.clone();
+    let rid = received.rid.clone();
+    let mut queries = inner.queries.lock().await;
+    let mut streams = inner.streams.lock().await;
+    let watches = inner.watches.lock().await;
+    let queues = inner.queues.lock().await;
+
+    debug!("Received #{} #{} {} message", received.id, rid, command);
+    if command == "ping" {
+        // let envelope = Envelope {
+        //     command: "pong".into(),
+        //     rid: id.clone(),
+        //     ..Default::default()
+        // };
+        // match send_envelope(inner.to_owned() ,envelope).await {
+        //     Ok(_) => _ = (),
+        //     Err(e) => error!("Failed to send data: {}", e),
+        // }
+        ()
+    } else if command == "refreshtoken" {
+        // TODO: store jwt at some point in the future
+    } else if command == "beginstream"
+        || command == "stream"
+        || command == "endstream"
+    {
+        let streamresponse: Stream =
+            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+        let streamdata = streamresponse.data;
+
+        if !streamdata.is_empty() {
+            let stream = streams.get(rid.as_str()).unwrap();
+
+            match stream.send(streamdata).await {
+                Ok(_) => _ = (),
+                Err(e) => error!("Failed to send data: {}", e),
+            }
+        }
+
+        if command == "endstream" {
+            let _ = streams.remove(rid.as_str());
+        }
+    } else if command == "watchevent" {
+        let watchevent: WatchEvent =
+            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+        if let Some(callback) = watches.get(watchevent.id.as_str()) {
+            callback(watchevent);
+        }
+    } else if command == "queueevent" {
+        let queueevent: QueueEvent =
+            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+        if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
+            callback(queueevent);
+        }
+    } else if let Some(response_tx) = queries.remove(&rid) {
+        let stream = streams.get(rid.as_str());
+        if let Some(stream) = stream {
+            let streamdata = vec![];
+            match stream.send(streamdata).await {
+                Ok(_) => _ = (),
+                Err(e) => error!("Failed to send data: {}", e),
+            }
+        }
+        let _ = response_tx.send(received);
+    } else {
+        error!("Received unhandled {} message: {:?}", command, received);
+    }    
+}
 
 impl Client {
     /// Connect will initializes a new client and starts a connection to an OpenIAP server.\
@@ -426,7 +655,8 @@ impl Client {
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let usegprc = url.scheme() == "grpc";
-        if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "grpc" {
+        let issecure = url.scheme() == "https" || url.scheme() == "wss";
+        if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "grpc"  && url.scheme() != "ws"  && url.scheme() != "wss" {
             return Err(OpenIAPError::ClientError("Invalid URL scheme".to_string()));
         }
         if url.scheme() == "grpc" {
@@ -451,13 +681,14 @@ impl Client {
 
         if url.port().is_none() {
             if url.scheme() == "https" {
-                strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
+                strurl = format!("{}://{}", url.scheme(), url.host_str().unwrap_or("app.openiap.io"));
             } else {
-                strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
+                strurl = format!("{}://{}", url.scheme(), url.host_str().unwrap_or("app.openiap.io"));
             }
         } else {
             strurl = format!(
-                "http://{}:{}",
+                "{}://{}:{}",
+                url.scheme(), 
                 url.host_str().unwrap_or("localhost.openiap.io"),
                 url.port().unwrap_or(80)
             );
@@ -467,15 +698,26 @@ impl Client {
         let config: Option<Config>;
 
         //  ", url.scheme() + "://" + url.host_str().replace("grpc.", "").as_str();
-        let configurl = format!("{}://{}/config", url.scheme(), url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+        // let configurl = format!("{}://{}/config", url.scheme(), url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+        let configurl: String;
+        if issecure {
+            configurl = format!("{}://{}/config", "https", url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+        } else {
+            configurl = format!("{}://{}/config", "http", url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+        }
+        
         let configurl = url::Url::parse(configurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let o = minreq::get(configurl).send();
         match o {
             Ok(_) => {
                 let response = o.unwrap();
-                let body = response.as_str().unwrap();
-                config = Some(serde_json::from_str(body).unwrap());
+                if response.status_code == 200 {
+                    let body = response.as_str().unwrap();
+                    config = Some(serde_json::from_str(body).unwrap());
+                } else {
+                    config = None;
+                }
             },
             Err(e) => {
                 return Err(OpenIAPError::ClientError(format!(
@@ -492,85 +734,107 @@ impl Client {
                 otel_metric_url = config.otel_metric_url.clone();
             }
         }
-        if !otel_metric_url.is_empty() {
-            match init_telemetry(&strurl, otel_metric_url.as_str()) {
-                Ok(_) => (),
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to initialize telemetry: {}",
-                        e
-                    )));
-                }
-            }
-        } else {
-            match init_telemetry("", otel_metric_url.as_str()) {
-                Ok(_) => (),
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to initialize telemetry: {}",
-                        e
-                    )));
-                }
+        match init_telemetry(&strurl, otel_metric_url.as_str()) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(OpenIAPError::ClientError(format!(
+                    "Failed to initialize telemetry: {}",
+                    e
+                )));
             }
         }
         let innerclient: ClientEnum;
 
 
-        if !usegprc {
-            let (socket, response) = tokio_tungstenite::tungstenite::connect("wss://demo.openiap.io/ws").expect("Can't connect");
-
-            // let tls = native_tls::TlsConnector::builder()
-            // .build()?;
-            // let connector = tokio_tungstenite::Connector::NativeTls(tls);
-
-
-            // let (mut socket, response) = tokio_tungstenite::connect_async_tls_with_config(
-            //     url,
-
-            // )
+        let client = if !usegprc {
+            strurl = format!("{}/ws/v2", strurl);
+            // let (socket, _response) = async_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
+            // let (socket, _) =  async_tungstenite::async_std::connect_async(strurl.clone()).await.expect("Can't connect");
+            // let (socket, _) =  tokio_tungstenite::connect_async(strurl.clone()).await.expect("Can't connect");
             
-            // connect("wss://demo.openiap.io/ws").expect("Can't connect");
+            // // let write: SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, async_tungstenite::tungstenite::Message>;
+            // // let read: SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
+            // // (write, read) = socket.split();
+            // let (write, read) = futures::StreamExt::split(socket);
 
-            println!("Connected to the server");
-            println!("Response HTTP code: {}", response.status());
-            println!("Response contains the following headers:");
-            for (header, _value) in response.headers() {
-                println!("* {header}");
-            }
+            // let split = Some(Arc::new(Mutex::new((write, read))));
+
+            // // let (socket, _response) = tokio_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
+            // // let (socket, _) = tokio_tungstenite::connect_async(strurl.clone()).await
+            // // .expect("Could not connect to server");
+
+            // // let write: SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, tokio_tungstenite::tungstenite::Message>;
+            // // let read: SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
+            // // (write, read) = socket.split();
+            // // let split = Some(Arc::new(Mutex::new((write, read))));
+
+            // // let (socket, _response) = tokio_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
+            // // let (write, read) = socket.split();
+
+            // // let (ws_stream, _) = connect_async(strurl).await.expect("Failed to connect");
+            // // connect_async_tls_with_config(request, config, false, connector)
+            // // let (write, read) = ws_stream.split();
+
+            // // println!("Response HTTP code: {}", response.status());
+            // // for (header, _value) in response.headers() {
+            // //     println!("* {header}");
+            // // }
+
+
 
             
-
-            // socket.send(tokio_tungstenite::tungstenite::Message::Text("Hello WebSocket".into())).unwrap();
-            // loop {
-            //     let msg = socket.read().expect("Error reading message");
-            //     println!("Received: {msg}");
-            //     if msg.len() == 0 {
-            //         break;
-            //     }
-            // }
-            let (stream_tx, _stream_rx) = mpsc::channel(4);
+            let (stream_tx, stream_rx) = mpsc::channel(4);
+        
+            let (socket, _) =  tokio_tungstenite::connect_async(strurl.clone()).await.expect("Can't connect");
             innerclient = ClientEnum::WS(Arc::new(Mutex::new(socket)));
+            // // innerclient = ClientEnum::WSSocket(Arc::new(Mutex::new(ws_stream)));
+            
+            let stdin_tx = ws::setup(&strurl, stream_tx.clone()).await;
+            // let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
+
             let inner = ClientInner {
                 client: innerclient,
+                // split: split,
+                // split: None,
+                msgcount: Arc::new(Mutex::new(0)),
                 signedin: false,
                 user: None,
-                connected: false,
+                connected: true,
                 stream_tx,
+                stdin_tx, 
+                // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
             };
-    
+
+            
+            let inner = Arc::new(Mutex::new(inner));
             let client = Client {
-                inner: Arc::new(Mutex::new(inner)),
+                inner: inner,
                 config,
             };
-            client.setup_ws_stream(_stream_rx).await?;
-            return Ok(client);
-        }
 
-        
+            let client2 = client.clone();
+            tokio::spawn(async move  {
+                tokio_stream::wrappers::ReceiverStream::new(stream_rx).for_each(|envelope| async {
+
+                    let command = envelope.command.clone();
+                    let rid = envelope.rid.clone();
+                    let id = envelope.id.clone();
+                    println!("Received command: {}, id: {}, rid: {}", command, id, rid);
+
+                    let inner = client2.inner.lock().await;
+                    parse_incomming_envelope(inner.clone(), envelope).await;
+                    // send_envelope(inner.clone(), envelope).await;
+                }).await;
+            });        
+
+            client
+        } else {
+
+
 
         if url.scheme() == "http" {
             let response = FlowServiceClient::connect(strurl).await;
@@ -628,25 +892,35 @@ impl Client {
 
         let (stream_tx, stream_rx) = mpsc::channel(4);
         let in_stream = ReceiverStream::new(stream_rx);
+        let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
 
         let inner = ClientInner {
             client: innerclient,
+            // split: None,
+            msgcount: Arc::new(Mutex::new(0)),
             signedin: false,
             user: None,
             connected: false,
             stream_tx,
+            stdin_tx, 
+            // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
             queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
             streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
             watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            queues: Arc::new(Mutex::new(std::collections::HashMap::new()))
         };
 
         let client = Client {
             inner: Arc::new(Mutex::new(inner)),
             config,
         };
-        client.ping().await;
         client.setup_grpc_stream(in_stream).await?;
+        client
+
+        };
+
+        
+        client.ping().await;
         if username.is_empty() && password.is_empty() {
             username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
             password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
@@ -697,6 +971,8 @@ impl Client {
         }
         Ok(client)
     }
+
+    
     /// internal function, used to setup gRPC stream used for communication with the server.
     /// This function is called by [connect] and should not be called directly.
     /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
@@ -726,257 +1002,14 @@ impl Client {
         tokio::spawn(async move {
             while let Some(received) = resp_stream.next().await {
                 if let Ok(received) = received {
-                    let command = received.command.clone();
-                    let rid = received.rid.clone();
                     let inner = inner.lock().await;
-                    let mut queries = inner.queries.lock().await;
-                    let mut streams = inner.streams.lock().await;
-                    let watches = inner.watches.lock().await;
-                    let queues = inner.queues.lock().await;
-
-                    debug!("Received #{} #{} {} message", received.id, rid, command);
-                    if command == "ping" {
-                        let envelope = Envelope {
-                            command: "pong".into(),
-                            ..Default::default()
-                        };
-                        match inner.stream_tx.send(envelope).await {
-                            Ok(_) => _ = (),
-                            Err(e) => error!("Failed to send data: {}", e),
-                        }
-                    } else if command == "refreshtoken" {
-                        // TODO: store jwt at some point in the future
-                    } else if command == "beginstream"
-                        || command == "stream"
-                        || command == "endstream"
-                    {
-                        let streamresponse: Stream =
-                            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                        let streamdata = streamresponse.data;
-
-                        if !streamdata.is_empty() {
-                            let stream = streams.get(rid.as_str()).unwrap();
-
-                            match stream.send(streamdata).await {
-                                Ok(_) => _ = (),
-                                Err(e) => error!("Failed to send data: {}", e),
-                            }
-                        }
-
-                        if command == "endstream" {
-                            let _ = streams.remove(rid.as_str());
-                        }
-                    } else if command == "watchevent" {
-                        let watchevent: WatchEvent =
-                            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                        if let Some(callback) = watches.get(watchevent.id.as_str()) {
-                            callback(watchevent);
-                        }
-                    } else if command == "queueevent" {
-                        let queueevent: QueueEvent =
-                            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                        if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
-                            callback(queueevent);
-                        }
-                    } else if let Some(response_tx) = queries.remove(&rid) {
-                        let stream = streams.get(rid.as_str());
-                        if let Some(stream) = stream {
-                            let streamdata = vec![];
-                            match stream.send(streamdata).await {
-                                Ok(_) => _ = (),
-                                Err(e) => error!("Failed to send data: {}", e),
-                            }
-                        }
-                        let _ = response_tx.send(received);
-                    } else {
-                        error!("Received unhandled {} message: {:?}", command, received);
-                    }
+                    parse_incomming_envelope(inner.clone(), received).await;
                 }
             }
         });
         Ok(())
     }
-        /// internal function, used to setup gRPC stream used for communication with the server.
-    /// This function is called by [connect] and should not be called directly.
-    /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
-    #[tracing::instrument(skip_all)]
-    async fn setup_ws_stream(&self, in_stream: tokio::sync::mpsc::Receiver<Envelope>) -> Result<(), OpenIAPError> {
-        let mut inner = self.inner.lock().await;
-        let client = match inner.client {
-            ClientEnum::WS(ref client) => client.clone(),
-            _ => {
-                return Err(OpenIAPError::ClientError("Invalid client".to_string()));
-            }
-        };
-        inner.connected = true;
-        // let inner = self.inner.clone();
-        tokio::spawn(async move {
-
-            
-
-            // socket.send(tokio_tungstenite::tungstenite::Message::Text("Hello WebSocket".into())).unwrap();
-            // loop {
-            //     let msg = socket.read().expect("Error reading message");
-            //     println!("Received: {msg}");
-            //     if msg.len() == 0 {
-            //         break;
-            //     }
-            // }
-            let mut client = client.lock().await;
-
-            let envelope = Envelope {
-                command: "ping".into(),
-                ..Default::default()
-            };
-            match client.send(tokio_tungstenite::tungstenite::Message::binary(envelope.encode_to_vec())) {
-                Ok(_) => (),
-                Err(e) => error!("Failed to send ping: {}", e),
-            }
-
-            loop {
-                let msg = client.read().expect("Error reading message");
-                let received: Envelope;
-                if msg.is_binary() {
-                    let bin_msg = msg.into_data();
-                    received = match Envelope::decode(&*bin_msg) {
-                        Ok(received) => {
-                            let command = received.command.clone();
-                            let rid = received.rid.clone();
-                            println!("Received command: {}, rid: {}", command, rid);
-                            // Handle the decoded protobuf message here
-                            received
-                        },
-                        Err(e) => {
-                            eprintln!("Failed to decode protobuf message: {:?}", e);
-                            continue;
-                        }
-                    };
-                    let command = received.command.clone();
-                    let rid = received.rid.clone();
-                    println!("Received command: {}, rid: {}", command, rid);
-                } else {
-                    // let msg = msg.to_text().unwrap();
-                    // // const size = (this.buffer[3] << 24) + (this.buffer[2] << 16) + (this.buffer[1] << 8) + this.buffer[0];
-                    // let msg_bytes = msg.as_bytes();
-                    // let size: u64 = ((msg_bytes[3] as u64) << 24) + ((msg_bytes[2] as u64) << 16) + ((msg_bytes[1] as u64) << 8) + (msg_bytes[0] as u64);
-                    // println!("Received: {} {}", size, msg);
-
-
-                    let msg = client.read().expect("Error reading message");
-                    let msg_text = msg.to_text().unwrap();
-                    println!("Received: {}", msg_text);
-            
-                    // If the message is JSON, you can parse it
-                    match serde_json::from_str::<Envelope>(msg_text) {
-                        Ok(received) => {
-                            // Process the received message
-                            println!("Parsed JSON: {:?}", received);
-                        }
-                        Err(e) => {
-                            // Handle the error if the message is not valid JSON
-                            error!("Failed to parse JSON: {}", e);
-                        }
-                    }
-                    continue;
-                }
-
-
-                // while let Some(message) = client.next().await {
-                //     match message {
-                //         Ok(Message::Binary(bin_msg)) => {
-                //             match Envelope::decode(&*bin_msg) {
-                //                 Ok(received) => {
-                //                     let command = received.command.clone();
-                //                     let rid = received.rid.clone();
-                //                     println!("Received command: {}, rid: {}", command, rid);
-                //                     // Handle the decoded protobuf message here
-                //                 },
-                //                 Err(e) => {
-                //                     eprintln!("Failed to decode protobuf message: {:?}", e);
-                //                 }
-                //             }
-                //         },
-                //         Ok(Message::Text(text_msg)) => {
-                //             println!("Received unexpected text message: {}", text_msg);
-                //         },
-                //         Err(e) => {
-                //             eprintln!("Error in websocket stream: {:?}", e);
-                //         }
-                //     }
-                // }
-                
-                // if let Ok(received) = received {
-                //     let command = received.command.clone();
-                //     let rid = received.rid.clone();
-                //     let inner = inner.lock().await;
-                //     let mut queries = inner.queries.lock().await;
-                //     let mut streams = inner.streams.lock().await;
-                //     let watches = inner.watches.lock().await;
-                //     let queues = inner.queues.lock().await;
-
-                //     debug!("Received #{} #{} {} message", received.id, rid, command);
-                //     if command == "ping" {
-                //         let envelope = Envelope {
-                //             command: "pong".into(),
-                //             ..Default::default()
-                //         };
-                //         match inner.stream_tx.send(envelope).await {
-                //             Ok(_) => _ = (),
-                //             Err(e) => error!("Failed to send data: {}", e),
-                //         }
-                //     } else if command == "refreshtoken" {
-                //         // TODO: store jwt at some point in the future
-                //     } else if command == "beginstream"
-                //         || command == "stream"
-                //         || command == "endstream"
-                //     {
-                //         let streamresponse: Stream =
-                //             prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                //         let streamdata = streamresponse.data;
-
-                //         if !streamdata.is_empty() {
-                //             let stream = streams.get(rid.as_str()).unwrap();
-
-                //             match stream.send(streamdata).await {
-                //                 Ok(_) => _ = (),
-                //                 Err(e) => error!("Failed to send data: {}", e),
-                //             }
-                //         }
-
-                //         if command == "endstream" {
-                //             let _ = streams.remove(rid.as_str());
-                //         }
-                //     } else if command == "watchevent" {
-                //         let watchevent: WatchEvent =
-                //             prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                //         if let Some(callback) = watches.get(watchevent.id.as_str()) {
-                //             callback(watchevent);
-                //         }
-                //     } else if command == "queueevent" {
-                //         let queueevent: QueueEvent =
-                //             prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-                //         if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
-                //             callback(queueevent);
-                //         }
-                //     } else if let Some(response_tx) = queries.remove(&rid) {
-                //         let stream = streams.get(rid.as_str());
-                //         if let Some(stream) = stream {
-                //             let streamdata = vec![];
-                //             match stream.send(streamdata).await {
-                //                 Ok(_) => _ = (),
-                //                 Err(e) => error!("Failed to send data: {}", e),
-                //             }
-                //         }
-                //         let _ = response_tx.send(received);
-                //     } else {
-                //         error!("Received unhandled {} message: {:?}", command, received);
-                //     }
-                // }
-            }
-        });
-        Ok(())
-    }
-    /// Internal function, used to generate a unique id for each message sent to the server.
+      /// Internal function, used to generate a unique id for each message sent to the server.
     #[tracing::instrument(skip_all)]
     fn get_id(&self) -> usize {
         static COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -1012,16 +1045,17 @@ impl Client {
         }
         let (response_tx, response_rx) = oneshot::channel();
         let id = self.get_id().to_string();
-        trace!("Sending #{} {} message", id, msg.command);
+        debug!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
         {
             trace!("get inner lock");
             let inner = self.inner.lock().await;
-            trace!("get query lock");
-            inner.queries.lock().await.insert(id.clone(), response_tx);
+            {
+                trace!("get query lock");
+                inner.queries.lock().await.insert(id.clone(), response_tx);
+            }
             trace!("call send");
-            let res = inner.stream_tx.send(msg).await;
-            trace!("parse result");
+            let res = send_envelope(inner.to_owned() ,msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1049,7 +1083,7 @@ impl Client {
             let inner = self.inner.lock().await;
             inner.queries.lock().await.insert(id.clone(), response_tx);
             inner.streams.lock().await.insert(id.clone(), stream_tx);
-            let res = inner.stream_tx.send(msg).await;
+            let res = send_envelope(inner.to_owned() ,msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1077,7 +1111,7 @@ impl Client {
             ..Default::default()
         };
         let inner = self.inner.lock().await;
-        match inner.stream_tx.send(envelope).await {
+        match send_envelope(inner.to_owned() ,envelope).await {
             Ok(_) => (),
             Err(e) => error!("Failed to send ping: {}", e),
         }
@@ -2166,11 +2200,12 @@ impl Client {
 
             let envelope = BeginStream::from_rid(rid.clone());
             debug!("Sending beginstream to #{}", rid);
-            inner
-                .stream_tx
-                .send(envelope)
-                .await
-                .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+            send_envelope(inner.to_owned(), envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+            // inner
+            //     .stream_tx
+            //     .send(envelope)
+            //     .await
+            //     .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
             let mut counter = 0;
 
             loop {
@@ -2186,18 +2221,23 @@ impl Client {
                 let chunk = buffer[..bytes_read].to_vec();
                 let envelope = Stream::from_rid(chunk, rid.clone());
                 debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
-                inner.stream_tx.send(envelope).await.map_err(|e| {
+                send_envelope(inner.to_owned() ,envelope).await.map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to send data: {}", e))
-                })?;
+                })?
+                // inner.stream_tx.send(envelope).await.map_err(|e| {
+                //     OpenIAPError::ClientError(format!("Failed to send data: {}", e))
+                // })?;
             }
 
             let envelope = EndStream::from_rid(rid.clone());
             debug!("Sending endstream to #{}", rid);
-            inner
-                .stream_tx
-                .send(envelope)
-                .await
+            send_envelope(inner.to_owned(), envelope).await
                 .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+            // inner
+            //     .stream_tx
+            //     .send(envelope)
+            //     .await
+            //     .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
         }
 
         debug!("Wait for upload response for #{}", rid);

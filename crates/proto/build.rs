@@ -7,7 +7,7 @@ fn main() {
         // .type_attribute("WatchEvent", "#[derive(serde::Serialize, serde::Deserialize)]")
         // .type_attribute("Workitem", "#[derive(serde::Serialize, serde::Deserialize)]")
         // .type_attribute("WorkItemQueue", "#[derive(serde::Serialize, serde::Deserialize)]")
-        .compile_well_known_types(false)
+        // .compile_well_known_types(false)
         .compile(&["proto/base.proto"], &["proto"])
         .unwrap_or_default();
 }
