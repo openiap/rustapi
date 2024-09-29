@@ -12,19 +12,17 @@ impl Client {
     /// Setup a websocket connection to the server
     pub async fn setup_ws(&self, strurl:& str,
         stream_tx: tokio::sync::mpsc::Sender<Envelope>,
-    ) -> futures_channel::mpsc::UnboundedSender<Message>
+    ) -> Result<futures_channel::mpsc::UnboundedSender<Message>, Box<dyn std::error::Error>>
     {
         let (stdin_tx, stdin_rx) = futures_channel::mpsc::unbounded();
         // tokio::spawn(read_stdin(stdin_tx));
 
-        let (ws_stream, _) = connect_async(strurl).await.expect("Failed to connect");
+        let (ws_stream, _) = connect_async(strurl).await?;
         println!("WebSocket handshake has been successfully completed");
 
         let (write, read) = ws_stream.split();
 
         let stdin_to_ws = stdin_rx.map(Ok).forward(write);
-
-        let event_sender = self.event_sender.clone();
 
         let buffer: Vec<u8> = vec![];
         let buffer = Arc::new(Mutex::new(buffer));
@@ -34,13 +32,12 @@ impl Client {
             read.for_each(move |message| {
                 let buffer = Arc::clone(&buffer);
                 let stream_tx: Arc<Mutex<tokio::sync::mpsc::Sender<Envelope>>> = Arc::clone(&inner_stream_tx);
-                let event_sender = event_sender.clone();
                 let me = me.clone();
                 async move {
                     if message.is_err() {
-                        let errmsg = message.err().unwrap(); 
+                        let errmsg = message.err().unwrap().to_string();
                         eprintln!("Failed to receive message from websocket: {:?}", errmsg);
-                        if !me.is_connected().await { event_sender.send(crate::ClientEvent::Disconnected(errmsg.to_string())).await.unwrap(); me.set_connected(false).await; }
+                        me.set_connected(false, Some(&errmsg));
                         return;
                     }
                     // println!("Received a message from the server");
@@ -88,17 +85,22 @@ impl Client {
                 }
             })
         };
-
-        tokio::spawn(async {
+        let me = self.clone();
+        tokio::spawn( async move {
             let res = stdin_to_ws.await;
+            let me = me.clone();
             if res.is_err() {
-                eprintln!("Failed to send message to websocket: {:?}", res.err());
+                let errmsg = res.err().unwrap().to_string(); 
+                eprintln!("Failed to receive message from websocket: {:?}", errmsg);
+                me.set_connected(false, Some(&errmsg));
+                return;
             }
         });
         
         tokio::spawn(async {
             ws_to_stdout.await;
         });
-        return stdin_tx;
+        self.set_connected(true, None);
+        Ok(stdin_tx)
     }
 }
