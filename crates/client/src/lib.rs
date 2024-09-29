@@ -22,6 +22,64 @@
 //! ```
 
 
+/// The `Client` struct provides the client for the OpenIAP service.
+/// Initialize a new client, by calling the [Client::connect] method.
+#[derive(Clone)]
+pub struct Client {
+    /// The inner client.
+    pub inner: Arc<Mutex<ClientInner>>,
+    /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
+    pub config: Option<Config>,
+    /// Should client automatically reconnect, if disconnected?
+    pub auto_reconnect: bool,
+    /// URL used to connect to server, processed and without credentials
+    pub url: String,
+    event_sender: async_channel::Sender<ClientEvent>,
+    event_receiver: async_channel::Receiver<ClientEvent>,
+    envelop_sender: async_channel::Sender<Envelope>,
+    envelop_receiver: async_channel::Receiver<Envelope>,
+    /// Is client connected?
+    pub connected: Arc<Mutex<bool>>,
+}
+
+/// The `ClientInner` struct provides the inner client for the OpenIAP service.
+#[derive(Clone)]
+pub struct ClientInner {
+    /// The grpc client.//!
+    pub client: ClientEnum,
+    /// Websocket read/write streams
+    // pub split: Option<Arc<Mutex<SockSplit>>>,
+    /// Inceasing message count, used as unique id for messages.
+    pub msgcount: Arc<Mutex<i32>>,
+    /// Are we signed in?
+    pub signedin: bool,
+    /// The signed in user.
+    pub user: Option<User>,
+    /// The stream sender.
+    pub stream_tx: mpsc::Sender<Envelope>,
+    // pub stdin_tx: futures::channel::mpsc::UnboundedSender<Vec<u8>>,
+    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<Vec<u8>>>>,
+    /// The stdin sender.
+    pub stdin_tx: futures::channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>,
+    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<tokio_tungstenite::tungstenite::Message>>>,
+
+//     expected struct `futures::futures_channel::mpsc::UnboundedSender<Vec<u8>>`
+//    found struct `futures::futures_channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>`
+
+    /// list of queries ( messages sent to server we are waiting on a response for )
+    pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
+    /// Active streams the server (or client) has opened
+    pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
+    /// List of active watches ( change streams )
+    #[allow(clippy::type_complexity)]
+    pub watches:
+        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
+    /// List of active queues ( message queues / mqqt queues or exchanges )
+    #[allow(clippy::type_complexity)]
+    pub queues:
+        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
+}
+
 // expected struct `WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>`
 //    found struct `WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>`
 
@@ -41,6 +99,8 @@ type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStr
 // use futures::StreamExt;
 // use futures::{SinkExt, StreamExt};
 use futures::{StreamExt };
+use async_channel::{unbounded};
+
 
 /// Client enum, used to determine which client to use.
 #[derive(Debug)]
@@ -52,6 +112,27 @@ pub enum ClientEnum {
     Grpc(FlowServiceClient<tonic::transport::Channel>),
     /// Used when client wants to connect using websockets
     WS(Arc<Mutex<Sock>>)
+}
+
+/// Client event enum, used to determine which event has occurred.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClientEvent {
+    /// The client has connected
+    Connected,
+    /// The client has disconnected
+    Disconnected(String),
+    /// The client has signed in
+    SignedIn,
+    /// The client has signed out
+    SignedOut,
+    /// The client has received a message
+    Message(Envelope),
+    /// The client has received a stream
+    Stream(Vec<u8>),
+    /// The client has received a watch event
+    Watch(WatchEvent),
+    /// The client has received a queue event
+    Queue(QueueEvent),
 }
 
 pub use openiap_proto::errors::*;
@@ -102,56 +183,7 @@ mod ws;
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
-/// The `Client` struct provides the client for the OpenIAP service.
-/// Initialize a new client, by calling the [Client::connect] method.
-#[derive(Debug, Clone)]
-pub struct Client {
-    /// The inner client.
-    pub inner: Arc<Mutex<ClientInner>>,
-    /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
-    pub config: Option<Config>,
-}
 
-
-
-/// The `ClientInner` struct provides the inner client for the OpenIAP service.
-#[derive(Clone)]
-pub struct ClientInner {
-    /// The grpc client.//!
-    pub client: ClientEnum,
-    /// Websocket read/write streams
-    // pub split: Option<Arc<Mutex<SockSplit>>>,
-    /// Inceasing message count, used as unique id for messages.
-    pub msgcount: Arc<Mutex<i32>>,
-    /// Are we signed in?
-    pub signedin: bool,
-    /// The signed in user.
-    pub user: Option<User>,
-    /// Are we connected?
-    pub connected: bool,
-    /// The stream sender.
-    pub stream_tx: mpsc::Sender<Envelope>,
-    // pub stdin_tx: futures::channel::mpsc::UnboundedSender<Vec<u8>>,
-    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<Vec<u8>>>>,
-    pub stdin_tx: futures::channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>,
-    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<tokio_tungstenite::tungstenite::Message>>>,
-
-//     expected struct `futures::futures_channel::mpsc::UnboundedSender<Vec<u8>>`
-//    found struct `futures::futures_channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>`
-
-    /// list of queries ( messages sent to server we are waiting on a response for )
-    pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
-    /// Active streams the server (or client) has opened
-    pub streams: Arc<Mutex<std::collections::HashMap<String, StreamSender>>>,
-    /// List of active watches ( change streams )
-    #[allow(clippy::type_complexity)]
-    pub watches:
-        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(WatchEvent) + Send + Sync>>>>,
-    /// List of active queues ( message queues / mqqt queues or exchanges )
-    #[allow(clippy::type_complexity)]
-    pub queues:
-        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
-}
 /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[allow(dead_code)]
@@ -204,7 +236,6 @@ impl std::fmt::Debug for ClientInner {
         f.debug_struct("ClientInner")
             // .field("client", &self.client)
             .field("signedin", &self.signedin)
-            .field("connected", &self.connected)
             .field("stream_tx", &self.stream_tx)
             .field("queries", &self.queries)
             .field("streams", &self.streams)
@@ -442,13 +473,17 @@ pub fn enable_tracing(rust_log: &str, tracing: &str) {
     );
 }
 // inner: Arc<Mutex<ClientInner>>
-async fn send_envelope(mut inner: ClientInner, mut envelope: Envelope) -> Result<(), OpenIAPError> {
+async fn send_envelope(client: &Client, mut inner: ClientInner, mut envelope: Envelope) -> Result<(), OpenIAPError> {
     // let mut inner = self.inner.lock().await;
     match inner.client {
         ClientEnum::Grpc(ref mut _client) => {
             match inner.stream_tx.send(envelope).await {
                 Ok(_) => Ok(()),
-                Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+                Err(e) => {
+                    let errmsg = e.to_string();
+                    if !client.is_connected().await { client.event_sender.send(crate::ClientEvent::Disconnected(errmsg.to_string())).await.unwrap(); client.set_connected(false).await; }
+                    Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
+                },
             }
         }
         ClientEnum::WS(ref mut _client) => {
@@ -468,47 +503,6 @@ async fn send_envelope(mut inner: ClientInner, mut envelope: Envelope) -> Result
             // Write the size in little-endian format (like writeUInt32LE in Node.js)
             let mut size_bytes = size.to_le_bytes().to_vec(); 
 
-            // let mut split_guard = inner.split.as_ref().unwrap().lock().await;
-            // let (ref mut write, ref mut _read) = *split_guard;
-
-            // write.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)).await;
-            // write.send(tokio_tungstenite::tungstenite::Message::binary(envelope)).await;
-
-            // Ok(())
-            // let mut client = client.lock().await;
-            // debug!("Sending data size for {}: {:?}", cmd, size_bytes);
-            // let _ = match client.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)) {
-            //     Ok(_) => {
-            //         // debug!("Successfully sent data for {}", cmd);
-            //         Ok(())
-            //     },
-            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
-            // };
-            // match client.send(tokio_tungstenite::tungstenite::Message::binary(envelope)) {
-            //     Ok(_) => {
-            //         debug!("Successfully sent data for {}", cmd);
-            //         Ok(())
-            //     },
-            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
-            // }
-            
-
-            // // Append the actual envelope data
-            // size_bytes.extend_from_slice(&envelope);
-
-            // // Now size_bytes contains the 4-byte length followed by the envelope
-            // let size_bytes = size_bytes;
-
-            // let mut client = client.lock().await;
-            // debug!("Sending data for {}: {:?}", cmd, size_bytes);
-            // match client.send(tokio_tungstenite::tungstenite::Message::binary(size_bytes)) {
-            //     Ok(_) => {
-            //         debug!("Successfully sent data for {}", cmd);
-            //         Ok(())
-            //     },
-            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
-            // }
-
             // Append the actual envelope data
             size_bytes.extend_from_slice(&envelope);
 
@@ -517,20 +511,12 @@ async fn send_envelope(mut inner: ClientInner, mut envelope: Envelope) -> Result
 
             match inner.stdin_tx.send(tokio_tungstenite::tungstenite::Message::Binary(size_bytes)).await {
                 Ok(_) => Ok(()),
-                Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
+                Err(e) => {
+                    let errmsg = e.to_string();
+                    if !client.is_connected().await { client.event_sender.send(crate::ClientEvent::Disconnected(errmsg.to_string())).await.unwrap(); client.set_connected(false).await; }
+                    Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
+                },
             }
-
-
-            // let mut client = _client.lock().await;
-            // debug!("Sending data for {}: {:?}", cmd, size_bytes);
-            // match client.send(async_tungstenite::tungstenite::Message::binary(size_bytes)) {
-            //     Ok(_) => {
-            //         debug!("Successfully sent data for {}", cmd);
-            //         Ok(())
-            //     },
-            //     Err(e) => Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e))),
-            // }
-
         }
         ClientEnum::None => {
             return Err(OpenIAPError::ClientError("Invalid client".to_string()));
@@ -549,15 +535,6 @@ async fn parse_incomming_envelope(inner: ClientInner, received: Envelope) {
 
     debug!("Received #{} #{} {} message", received.id, rid, command);
     if command == "ping" {
-        // let envelope = Envelope {
-        //     command: "pong".into(),
-        //     rid: id.clone(),
-        //     ..Default::default()
-        // };
-        // match send_envelope(inner.to_owned() ,envelope).await {
-        //     Ok(_) => _ = (),
-        //     Err(e) => error!("Failed to send data: {}", e),
-        // }
         ()
     } else if command == "refreshtoken" {
         // TODO: store jwt at some point in the future
@@ -656,7 +633,12 @@ impl Client {
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let usegprc = url.scheme() == "grpc";
         let issecure = url.scheme() == "https" || url.scheme() == "wss";
-        if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "grpc"  && url.scheme() != "ws"  && url.scheme() != "wss" {
+        if url.scheme() != "http"
+            && url.scheme() != "https"
+            && url.scheme() != "grpc"
+            && url.scheme() != "ws"
+            && url.scheme() != "wss"
+        {
             return Err(OpenIAPError::ClientError("Invalid URL scheme".to_string()));
         }
         if url.scheme() == "grpc" {
@@ -681,14 +663,22 @@ impl Client {
 
         if url.port().is_none() {
             if url.scheme() == "https" {
-                strurl = format!("{}://{}", url.scheme(), url.host_str().unwrap_or("app.openiap.io"));
+                strurl = format!(
+                    "{}://{}",
+                    url.scheme(),
+                    url.host_str().unwrap_or("app.openiap.io")
+                );
             } else {
-                strurl = format!("{}://{}", url.scheme(), url.host_str().unwrap_or("app.openiap.io"));
+                strurl = format!(
+                    "{}://{}",
+                    url.scheme(),
+                    url.host_str().unwrap_or("app.openiap.io")
+                );
             }
         } else {
             strurl = format!(
                 "{}://{}:{}",
-                url.scheme(), 
+                url.scheme(),
                 url.host_str().unwrap_or("localhost.openiap.io"),
                 url.port().unwrap_or(80)
             );
@@ -701,11 +691,23 @@ impl Client {
         // let configurl = format!("{}://{}/config", url.scheme(), url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
         let configurl: String;
         if issecure {
-            configurl = format!("{}://{}/config", "https", url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+            configurl = format!(
+                "{}://{}/config",
+                "https",
+                url.host_str()
+                    .unwrap_or("localhost.openiap.io")
+                    .replace("grpc.", "")
+            );
         } else {
-            configurl = format!("{}://{}/config", "http", url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
+            configurl = format!(
+                "{}://{}/config",
+                "http",
+                url.host_str()
+                    .unwrap_or("localhost.openiap.io")
+                    .replace("grpc.", "")
+            );
         }
-        
+
         let configurl = url::Url::parse(configurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let o = minreq::get(configurl).send();
@@ -718,7 +720,7 @@ impl Client {
                 } else {
                     config = None;
                 }
-            },
+            }
             Err(e) => {
                 return Err(OpenIAPError::ClientError(format!(
                     "Failed to get config: {}",
@@ -744,53 +746,18 @@ impl Client {
             }
         }
         let innerclient: ClientEnum;
-
-
         let client = if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
-            // let (socket, _response) = async_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
-            // let (socket, _) =  async_tungstenite::async_std::connect_async(strurl.clone()).await.expect("Can't connect");
-            // let (socket, _) =  tokio_tungstenite::connect_async(strurl.clone()).await.expect("Can't connect");
-            
-            // // let write: SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, async_tungstenite::tungstenite::Message>;
-            // // let read: SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
-            // // (write, read) = socket.split();
-            // let (write, read) = futures::StreamExt::split(socket);
 
-            // let split = Some(Arc::new(Mutex::new((write, read))));
-
-            // // let (socket, _response) = tokio_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
-            // // let (socket, _) = tokio_tungstenite::connect_async(strurl.clone()).await
-            // // .expect("Could not connect to server");
-
-            // // let write: SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, tokio_tungstenite::tungstenite::Message>;
-            // // let read: SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
-            // // (write, read) = socket.split();
-            // // let split = Some(Arc::new(Mutex::new((write, read))));
-
-            // // let (socket, _response) = tokio_tungstenite::tungstenite::connect(strurl).expect("Can't connect");
-            // // let (write, read) = socket.split();
-
-            // // let (ws_stream, _) = connect_async(strurl).await.expect("Failed to connect");
-            // // connect_async_tls_with_config(request, config, false, connector)
-            // // let (write, read) = ws_stream.split();
-
-            // // println!("Response HTTP code: {}", response.status());
-            // // for (header, _value) in response.headers() {
-            // //     println!("* {header}");
-            // // }
-
-
-
-            
             let (stream_tx, stream_rx) = mpsc::channel(4);
-        
-            let (socket, _) =  tokio_tungstenite::connect_async(strurl.clone()).await.expect("Can't connect");
+
+            let (socket, _) = tokio_tungstenite::connect_async(strurl.clone())
+                .await
+                .expect("Can't connect");
             innerclient = ClientEnum::WS(Arc::new(Mutex::new(socket)));
             // // innerclient = ClientEnum::WSSocket(Arc::new(Mutex::new(ws_stream)));
-            
-            let stdin_tx = ws::setup(&strurl, stream_tx.clone()).await;
-            // let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
+
+            let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
 
             let inner = ClientInner {
                 client: innerclient,
@@ -799,9 +766,114 @@ impl Client {
                 msgcount: Arc::new(Mutex::new(0)),
                 signedin: false,
                 user: None,
-                connected: true,
+                stream_tx: stream_tx.clone(),
+                stdin_tx,
+                // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
+                queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            };
+            let (ces, cer) = unbounded::<ClientEvent>();
+            let (es, er) = unbounded::<Envelope>();
+            let inner = Arc::new(Mutex::new(inner));
+            let client = Client {
+                url: strurl.clone(),
+                inner: inner,
+                config,
+                connected: Arc::new(Mutex::new(true)),
+                auto_reconnect: true,
+                event_sender: ces,
+                event_receiver: cer,
+                envelop_sender: es,
+                envelop_receiver: er,
+            };
+
+            // client.inner.lock().await.stdin_tx = setup_ client:: ws::setup(&strurl, stream_tx.clone()).await;
+            let stdin_tx = client.setup_ws(&strurl, stream_tx).await;
+            client.inner.lock().await.stdin_tx = stdin_tx;
+
+            let client2 = client.clone();
+            tokio::spawn(async move {
+                tokio_stream::wrappers::ReceiverStream::new(stream_rx)
+                    .for_each(|envelope| async {
+                        let command = envelope.command.clone();
+                        let rid = envelope.rid.clone();
+                        let id = envelope.id.clone();
+                        trace!("Received command: {}, id: {}, rid: {}", command, id, rid);
+                        let inner = client2.inner.lock().await;
+                        parse_incomming_envelope(inner.clone(), envelope).await;
+                    })
+                    .await;
+            });
+
+            client
+        } else {
+            if url.scheme() == "http" {
+                let response = FlowServiceClient::connect(strurl.clone()).await;
+                match response {
+                    Ok(client) => {
+                        innerclient = ClientEnum::Grpc(client);
+                    }
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to connect: {}",
+                            e
+                        )));
+                    }
+                }
+            } else {
+                let uri = tonic::transport::Uri::builder()
+                    .scheme(url.scheme())
+                    .authority(url.host().unwrap().to_string())
+                    .path_and_query("/")
+                    .build();
+                let uri = match uri {
+                    Ok(uri) => uri,
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to build URI: {}",
+                            e
+                        )));
+                    }
+                };
+
+                let channel = Channel::builder(uri)
+                    .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots());
+                let channel = match channel {
+                    Ok(channel) => channel,
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to build channel: {}",
+                            e
+                        )));
+                    }
+                };
+                let channel = channel.connect().await;
+                let channel = match channel {
+                    Ok(channel) => channel,
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to connect: {}",
+                            e
+                        )));
+                    }
+                };
+                innerclient = ClientEnum::Grpc(FlowServiceClient::new(channel));
+            }
+
+            let (stream_tx, stream_rx) = mpsc::channel(4);
+            let in_stream = ReceiverStream::new(stream_rx);
+            let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
+
+            let inner = ClientInner {
+                client: innerclient,
+                // split: None,
+                msgcount: Arc::new(Mutex::new(0)),
+                signedin: false,
+                user: None,
                 stream_tx,
-                stdin_tx, 
+                stdin_tx,
                 // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -809,117 +881,23 @@ impl Client {
                 queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
             };
 
-            
-            let inner = Arc::new(Mutex::new(inner));
-            let client = Client {
-                inner: inner,
+            let (ces, cer) = unbounded::<ClientEvent>();
+            let (es, er) = unbounded::<Envelope>();
+            let mut client = Client {
+                url: strurl.clone(),
+                inner: Arc::new(Mutex::new(inner)),
                 config,
+                auto_reconnect: true,
+                connected: Arc::new(Mutex::new(true)),
+                event_sender: ces,
+                event_receiver: cer,
+                envelop_sender: es,
+                envelop_receiver: er,
             };
-
-            let client2 = client.clone();
-            tokio::spawn(async move  {
-                tokio_stream::wrappers::ReceiverStream::new(stream_rx).for_each(|envelope| async {
-
-                    let command = envelope.command.clone();
-                    let rid = envelope.rid.clone();
-                    let id = envelope.id.clone();
-                    println!("Received command: {}, id: {}, rid: {}", command, id, rid);
-
-                    let inner = client2.inner.lock().await;
-                    parse_incomming_envelope(inner.clone(), envelope).await;
-                    // send_envelope(inner.clone(), envelope).await;
-                }).await;
-            });        
-
+            client.setup_grpc_stream(in_stream).await?;
             client
-        } else {
-
-
-
-        if url.scheme() == "http" {
-            let response = FlowServiceClient::connect(strurl).await;
-            match response {
-                Ok(client) => {
-                    innerclient = ClientEnum::Grpc(client);
-                }
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to connect: {}",
-                        e
-                    )));
-                }
-            }
-        } else {
-            let uri = tonic::transport::Uri::builder()
-                .scheme(url.scheme())
-                .authority(url.host().unwrap().to_string())
-                .path_and_query("/")
-                .build();
-            let uri = match uri {
-                Ok(uri) => uri,
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to build URI: {}",
-                        e
-                    )));
-                }
-            };
-
-
-            let channel = Channel::builder(uri)
-                .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots());
-            let channel = match channel {
-                Ok(channel) => channel,
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to build channel: {}",
-                        e
-                    )));
-                }
-            };
-            let channel = channel.connect().await;
-            let channel = match channel {
-                Ok(channel) => channel,
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to connect: {}",
-                        e
-                    )));
-                }
-            };
-            innerclient = ClientEnum::Grpc(FlowServiceClient::new(channel));
-        }
-
-        let (stream_tx, stream_rx) = mpsc::channel(4);
-        let in_stream = ReceiverStream::new(stream_rx);
-        let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
-
-        let inner = ClientInner {
-            client: innerclient,
-            // split: None,
-            msgcount: Arc::new(Mutex::new(0)),
-            signedin: false,
-            user: None,
-            connected: false,
-            stream_tx,
-            stdin_tx, 
-            // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
-            queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            queues: Arc::new(Mutex::new(std::collections::HashMap::new()))
         };
 
-        let client = Client {
-            inner: Arc::new(Mutex::new(inner)),
-            config,
-        };
-        client.setup_grpc_stream(in_stream).await?;
-        client
-
-        };
-
-        
         client.ping().await;
         if username.is_empty() && password.is_empty() {
             username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
@@ -971,14 +949,62 @@ impl Client {
         }
         Ok(client)
     }
-
-    
+    /// Reconnect will attempt to reconnect to the OpenIAP server.
+    #[tracing::instrument(skip_all)]
+    pub async fn reconnect(&mut self) -> Result<(), OpenIAPError> {
+        let inner = self.inner.clone();
+        let mut inner = inner.lock().await;
+        let client = inner.client.clone();
+        let stream_tx = inner.stream_tx.clone();
+        let me = Arc::new(Mutex::new(self.clone()));
+        let me = Arc::clone(&me);
+        match client {
+            ClientEnum::WS(ref _client) => {
+                let me = me.lock().await;
+                me.setup_ws(&me.url, stream_tx).await;
+            }
+            ClientEnum::Grpc(ref _client) => {
+                let (stream_tx, stream_rx) = mpsc::channel(4);
+                let in_stream = ReceiverStream::new(stream_rx);
+                inner.stream_tx = stream_tx;
+                self.setup_grpc_stream(in_stream).await?;
+            }
+            ClientEnum::None => {
+                return Err(OpenIAPError::ClientError("Invalid client".to_string()));
+            }
+        }
+        Ok(())
+    }
+    /// Set the connected flag to true or false
+    pub async fn set_connected(&self, connected: bool) {
+        let mut conn = self.connected.lock().await;
+        *conn = connected;        
+    }
+    /// Check if the client is connected
+    pub async fn is_connected(&self) -> bool {
+        let conn = self.connected.lock().await;
+        *conn
+    }
+    /// Method to allow the user to subscribe with a callback function
+    pub async fn on_event<F>(&self, callback: F)
+    where
+        F: Fn(ClientEvent) + Send + Sync + 'static,
+    {
+        // call the callback function every time there is an event in the client.event_receiver
+        let event_receiver = self.event_receiver.clone();
+        let callback = callback;
+        tokio::spawn(async move {
+            while let Ok(event) = event_receiver.recv().await {
+                callback(event);
+            }
+        });
+    }
     /// internal function, used to setup gRPC stream used for communication with the server.
     /// This function is called by [connect] and should not be called directly.
     /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
     #[tracing::instrument(skip_all)]
-    async fn setup_grpc_stream(&self, in_stream: ReceiverStream<Envelope>) -> Result<(), OpenIAPError> {
-        let mut inner = self.inner.lock().await;
+    async fn setup_grpc_stream(&mut self, in_stream: ReceiverStream<Envelope>) -> Result<(), OpenIAPError> {
+        let inner = self.inner.lock().await;
         let mut client = match inner.client {
             ClientEnum::Grpc(ref client) => client.clone(),
             _ => {
@@ -995,8 +1021,7 @@ impl Client {
                 )));
             }
         };
-
-        inner.connected = true;
+        self.set_connected(true).await;
         let mut resp_stream = response.into_inner();
         let inner = self.inner.clone();
         tokio::spawn(async move {
@@ -1038,8 +1063,7 @@ impl Client {
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, String), OpenIAPError> {
         {
-            let inner = self.inner.lock().await;
-            if !inner.connected {
+            if !self.is_connected().await {
                 return Err(OpenIAPError::ClientError("Not connected".to_string()));
             }
         }
@@ -1055,7 +1079,7 @@ impl Client {
                 inner.queries.lock().await.insert(id.clone(), response_tx);
             }
             trace!("call send");
-            let res = send_envelope(inner.to_owned() ,msg).await;
+            let res = send_envelope(self, inner.to_owned() ,msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1070,8 +1094,7 @@ impl Client {
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, mpsc::Receiver<Vec<u8>>), OpenIAPError> {
         {
-            let inner = self.inner.lock().await;
-            if !inner.connected {
+            if !self.is_connected().await {
                 return Err(OpenIAPError::ClientError("Not connected".to_string()));
             }
         }
@@ -1083,7 +1106,7 @@ impl Client {
             let inner = self.inner.lock().await;
             inner.queries.lock().await.insert(id.clone(), response_tx);
             inner.streams.lock().await.insert(id.clone(), stream_tx);
-            let res = send_envelope(inner.to_owned() ,msg).await;
+            let res = send_envelope(self,inner.to_owned() ,msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1111,7 +1134,7 @@ impl Client {
             ..Default::default()
         };
         let inner = self.inner.lock().await;
-        match send_envelope(inner.to_owned() ,envelope).await {
+        match send_envelope(self, inner.to_owned() ,envelope).await {
             Ok(_) => (),
             Err(e) => error!("Failed to send ping: {}", e),
         }
@@ -2200,12 +2223,7 @@ impl Client {
 
             let envelope = BeginStream::from_rid(rid.clone());
             debug!("Sending beginstream to #{}", rid);
-            send_envelope(inner.to_owned(), envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
-            // inner
-            //     .stream_tx
-            //     .send(envelope)
-            //     .await
-            //     .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+            send_envelope(self, inner.to_owned(), envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
             let mut counter = 0;
 
             loop {
@@ -2221,23 +2239,15 @@ impl Client {
                 let chunk = buffer[..bytes_read].to_vec();
                 let envelope = Stream::from_rid(chunk, rid.clone());
                 debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
-                send_envelope(inner.to_owned() ,envelope).await.map_err(|e| {
+                send_envelope(self, inner.to_owned() ,envelope).await.map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to send data: {}", e))
                 })?
-                // inner.stream_tx.send(envelope).await.map_err(|e| {
-                //     OpenIAPError::ClientError(format!("Failed to send data: {}", e))
-                // })?;
             }
 
             let envelope = EndStream::from_rid(rid.clone());
             debug!("Sending endstream to #{}", rid);
-            send_envelope(inner.to_owned(), envelope).await
+            send_envelope(self, inner.to_owned(), envelope).await
                 .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
-            // inner
-            //     .stream_tx
-            //     .send(envelope)
-            //     .await
-            //     .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
         }
 
         debug!("Wait for upload response for #{}", rid);

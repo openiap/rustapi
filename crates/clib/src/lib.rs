@@ -108,7 +108,7 @@ pub extern "C" fn query(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = QueryRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -135,7 +135,7 @@ pub extern "C" fn query(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().query(request).await;
-        client.as_ref().unwrap().query(request).await
+        client.as_mut().unwrap().query(request).await
     });
 
     Box::into_raw(Box::new(match result {
@@ -194,7 +194,7 @@ pub extern "C" fn query_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let collectionname = c_char_to_str(options.collectionname);
     let query = c_char_to_str(options.query);
@@ -229,7 +229,7 @@ pub extern "C" fn query_async(
     debug!("Rust: runtime.spawn");
     runtime.spawn(async move {
         debug!("Rust: client.query");
-        let result = client.as_ref().unwrap().query(request).await;
+        let result = client.as_mut().unwrap().query(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -525,7 +525,7 @@ pub extern "C" fn signin(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
 
     let request = SigninRequest {
@@ -553,7 +553,7 @@ pub extern "C" fn signin(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().signin(request).await;
-        client.as_ref().unwrap().signin(request).await
+        client.as_mut().unwrap().signin(request).await
     });
 
     let response = match result {
@@ -612,7 +612,7 @@ pub extern "C" fn signin_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
 
     let request = SigninRequest {
@@ -640,7 +640,7 @@ pub extern "C" fn signin_async(
 
     runtime.spawn(async move {
         // let result = client_clone.unwrap().signin(request).await;
-        let result = client.as_ref().unwrap().signin(request).await;
+        let result = client.as_mut().unwrap().signin(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -712,7 +712,7 @@ pub extern "C" fn aggregate(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = AggregateRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -736,7 +736,7 @@ pub extern "C" fn aggregate(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().aggregate(request).await;
-        client.as_ref().unwrap().aggregate(request).await
+        client.as_mut().unwrap().aggregate(request).await
     });
 
     let response = match result {
@@ -796,7 +796,7 @@ pub extern "C" fn aggregate_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = AggregateRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -821,9 +821,9 @@ pub extern "C" fn aggregate_async(
     debug!("Rust: runtime.spawn");
     runtime.spawn(async move {
         debug!("Rust: client.aggregate");
-        let result = client.as_ref().unwrap().aggregate(request).await;
+        let result = client.as_mut().unwrap().aggregate(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.aggregate(request).await
         // });
         // let result = client_clone.unwrap().aggregate(request).await;
@@ -901,7 +901,7 @@ pub extern "C" fn count(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = CountRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -924,7 +924,7 @@ pub extern "C" fn count(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().count(request).await;
-        client.as_ref().unwrap().count(request).await
+        client.as_mut().unwrap().count(request).await
     });
 
     let response = match result {
@@ -983,7 +983,7 @@ pub extern "C" fn count_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = CountRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1005,9 +1005,9 @@ pub extern "C" fn count_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().count(request).await;
+        let result = client.as_mut().unwrap().count(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.count(request).await
         // });
         // let result = client_clone.unwrap().count(request).await;
@@ -1090,7 +1090,7 @@ pub extern "C" fn distinct(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DistinctRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1116,7 +1116,7 @@ pub extern "C" fn distinct(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().distinct(request).await;
-        client.as_ref().unwrap().distinct(request).await
+        client.as_mut().unwrap().distinct(request).await
     });
 
     let response = match result {
@@ -1190,7 +1190,7 @@ pub extern "C" fn distinct_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DistinctRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1215,7 +1215,7 @@ pub extern "C" fn distinct_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().distinct(request).await;
+        let result = client.as_mut().unwrap().distinct(request).await;
         let response = match result {
             Ok(data) => {
                 let results_cstrings: Vec<CString> = data
@@ -1323,7 +1323,7 @@ pub extern "C" fn insert_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = InsertOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1346,7 +1346,7 @@ pub extern "C" fn insert_one(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().insert_one(request).await;
-        client.as_ref().unwrap().insert_one(request).await
+        client.as_mut().unwrap().insert_one(request).await
     });
 
     let response = match result {
@@ -1405,7 +1405,7 @@ pub extern "C" fn insert_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = InsertOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1427,9 +1427,9 @@ pub extern "C" fn insert_one_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().insert_one(request).await;
+        let result = client.as_mut().unwrap().insert_one(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.insert_one(request).await
         // });
         // let result = client_clone.unwrap().insert_one(request).await;
@@ -1505,7 +1505,7 @@ pub extern "C" fn insert_many(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = InsertManyRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1528,7 +1528,7 @@ pub extern "C" fn insert_many(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().insert_many(request).await;
-        client.as_ref().unwrap().insert_many(request).await
+        client.as_mut().unwrap().insert_many(request).await
     });
 
     let response = match result {
@@ -1583,7 +1583,7 @@ pub extern "C" fn insert_many_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = InsertManyRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1605,9 +1605,9 @@ pub extern "C" fn insert_many_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().insert_many(request).await;
+        let result = client.as_mut().unwrap().insert_many(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.insert_many(request).await
         // });
         // let result = client_clone.unwrap().insert_many(request).await;
@@ -1684,7 +1684,7 @@ pub extern "C" fn update_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = UpdateOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1707,7 +1707,7 @@ pub extern "C" fn update_one(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().update_one(request).await;
-        client.as_ref().unwrap().update_one(request).await
+        client.as_mut().unwrap().update_one(request).await
     });
 
     let response = match result {
@@ -1766,7 +1766,7 @@ pub extern "C" fn update_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = UpdateOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1788,9 +1788,9 @@ pub extern "C" fn update_one_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().update_one(request).await;
+        let result = client.as_mut().unwrap().update_one(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.update_one(request).await
         // });
         // let result = client_clone.unwrap().update_one(request).await;
@@ -1870,7 +1870,7 @@ pub extern "C" fn insert_or_update_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     debug!("Rust: insert_or_update_one create request");
 
@@ -1907,7 +1907,7 @@ pub extern "C" fn insert_or_update_one(
     debug!("Rust: run insert_or_update_one in runtime");
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().insert_or_update_one(request).await;
-        client.as_ref().unwrap().insert_or_update_one(request).await
+        client.as_mut().unwrap().insert_or_update_one(request).await
     });
 
     let response = match result {
@@ -1966,7 +1966,7 @@ pub extern "C" fn insert_or_update_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     debug!("Rust: insert_or_update_one_async create request");
     let request = InsertOrUpdateOneRequest {
@@ -1990,9 +1990,9 @@ pub extern "C" fn insert_or_update_one_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().insert_or_update_one(request).await;
+        let result = client.as_mut().unwrap().insert_or_update_one(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.insert_or_update_one(request).await
         // });
         // let result = client_clone.unwrap().insert_or_update_one(request).await;
@@ -2069,7 +2069,7 @@ pub extern "C" fn delete_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -2091,7 +2091,7 @@ pub extern "C" fn delete_one(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().delete_one(request).await;
-        client.as_ref().unwrap().delete_one(request).await
+        client.as_mut().unwrap().delete_one(request).await
     });
 
     let response = match result {
@@ -2149,7 +2149,7 @@ pub extern "C" fn delete_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -2170,9 +2170,9 @@ pub extern "C" fn delete_one_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().delete_one(request).await;
+        let result = client.as_mut().unwrap().delete_one(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.delete_one(request).await
         // });
         // let result = client_clone.unwrap().delete_one(request).await;
@@ -2250,7 +2250,7 @@ pub extern "C" fn delete_many(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteManyRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -2285,7 +2285,7 @@ pub extern "C" fn delete_many(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().delete_many(request).await;
-        client.as_ref().unwrap().delete_many(request).await
+        client.as_mut().unwrap().delete_many(request).await
     });
 
     let response = match result {
@@ -2343,7 +2343,7 @@ pub extern "C" fn delete_many_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteManyRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -2377,9 +2377,9 @@ pub extern "C" fn delete_many_async(
     // let runtime_clone = std::sync::Arc::clone(&runtime);
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().delete_many(request).await;
+        let result = client.as_mut().unwrap().delete_many(request).await;
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.delete_many(request).await
         // });
         // let result = client_clone.unwrap().delete_many(request).await;
@@ -2457,7 +2457,7 @@ pub extern "C" fn download(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let folder = c_char_to_str(options.folder);
     let filename = c_char_to_str(options.filename);
@@ -2479,10 +2479,10 @@ pub extern "C" fn download(
     // let client_clone = client.clone();
 
     let result = runtime.block_on(async {
-        // let c = client.as_ref().unwrap();
+        // let c = client.as_mut().unwrap();
         // c.download(request).await
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .download(request, Some(&folder), Some(&filename))
             .await
@@ -2544,7 +2544,7 @@ pub extern "C" fn download_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let folder = c_char_to_str(options.folder);
     let filename = c_char_to_str(options.filename);
@@ -2567,7 +2567,7 @@ pub extern "C" fn download_async(
 
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.download(request).await
         // });
         // let result = client_clone
@@ -2575,7 +2575,7 @@ pub extern "C" fn download_async(
         //     .download(request, Some(folder), Some(filename))
         //     .await;
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .download(request, Some(&folder), Some(&filename))
             .await;
@@ -2654,7 +2654,7 @@ pub extern "C" fn upload(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let filepath = c_char_to_str(options.filepath);
     if filepath.is_empty() {
@@ -2699,9 +2699,9 @@ pub extern "C" fn upload(
 
     debug!("upload: runtime.block_on");
     let result = runtime.block_on(async {
-        // let c = client.as_ref().unwrap();
+        // let c = client.as_mut().unwrap();
         // c.upload(request).await
-        client.as_ref().unwrap().upload(request, &filepath).await
+        client.as_mut().unwrap().upload(request, &filepath).await
     });
 
     let response = match result {
@@ -2759,7 +2759,7 @@ pub extern "C" fn upload_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let filepath = c_char_to_str(options.filepath);
     if filepath.is_empty() {
@@ -2805,12 +2805,12 @@ pub extern "C" fn upload_async(
     debug!("upload_async: runtime.spawn");
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.upload(request).await
         // });
         debug!("upload_async: call client.upload");
         // let result = client_clone.unwrap().upload(request, &filepath).await;
-        let result = client.as_ref().unwrap().upload(request, &filepath).await;
+        let result = client.as_mut().unwrap().upload(request, &filepath).await;
 
         debug!("upload_async: call client.upload done");
         let response = match result {
@@ -2884,7 +2884,7 @@ pub extern "C" fn watch(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     // let events = &client_wrapper.events;
     let paths = c_char_to_str(options.paths);
@@ -2904,7 +2904,7 @@ pub extern "C" fn watch(
     }
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .watch(
                 request,
@@ -3044,7 +3044,7 @@ pub extern "C" fn watch_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let paths = c_char_to_str(options.paths);
     let paths = paths.split(",").map(|s| s.to_string()).collect();
@@ -3068,7 +3068,7 @@ pub extern "C" fn watch_async(
 
     let result = runtime.block_on(async {
         // let result = client_clone.unwrap().watch(request).await;
-        client.as_ref().unwrap().watch(request,
+        client.as_mut().unwrap().watch(request,
             Box::new(move |event: WatchEvent| {
                 debug!("call event_callback");
                 event_callback(Box::into_raw(Box::new(WatchEventWrapper {
@@ -3142,7 +3142,7 @@ pub extern "C" fn watch_async_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let paths = c_char_to_str(options.paths);
     let paths = paths.split(",").map(|s| s.to_string()).collect();
@@ -3165,13 +3165,13 @@ pub extern "C" fn watch_async_async(
     debug!("watch_async: runtime.spawn");
     runtime.spawn(async move {
         // let result = runtime.block_on(async {
-        //     let c = client.as_ref().unwrap();
+        //     let c = client.as_mut().unwrap();
         //     c.watch(request).await
         // });
         // let result = client_clone.unwrap().watch(request).await;
         debug!("watch_async: call client.watch");
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .watch(
                 request,
@@ -3296,7 +3296,7 @@ pub extern "C" fn unwatch(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let watchid = c_char_to_str(watchid);
     if watchid.is_empty() {
@@ -3318,7 +3318,7 @@ pub extern "C" fn unwatch(
 
     trace!("watchid: {:?}", watchid);
     let result = runtime.block_on(async {
-        let c = client.as_ref().unwrap();
+        let c = client.as_mut().unwrap();
         c.unwatch(&watchid).await
     });
     trace!("completed, parsing result");
@@ -3362,7 +3362,7 @@ pub extern "C" fn unwatch_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let watchid = c_char_to_str(watchid);
     if client.is_none() {
@@ -3375,7 +3375,7 @@ pub extern "C" fn unwatch_async(
     }
 
     runtime.spawn(async move {
-        let result = client.as_ref().unwrap().unwatch(&watchid).await;
+        let result = client.as_mut().unwrap().unwatch(&watchid).await;
         match result {
             Ok(_) => {
                 let response = UnWatchResponseWrapper {
@@ -3445,7 +3445,7 @@ pub extern "C" fn register_queue(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     // let events = &client_wrapper.events;
     let request = RegisterQueueRequest {
@@ -3462,7 +3462,7 @@ pub extern "C" fn register_queue(
     }
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .register_queue(
                 request,
@@ -3553,7 +3553,7 @@ pub extern "C" fn register_queue_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = RegisterQueueRequest {
         queuename: c_char_to_str(options.queuename),
@@ -3572,7 +3572,7 @@ pub extern "C" fn register_queue_async(
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .register_queue(
                 request,
@@ -3676,7 +3676,7 @@ pub extern "C" fn register_exchange (
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = RegisterExchangeRequest {
         exchangename: c_char_to_str(options.exchangename),
@@ -3696,7 +3696,7 @@ pub extern "C" fn register_exchange (
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .register_exchange(request,
                 Box::new(move |event: QueueEvent| {
@@ -3779,7 +3779,7 @@ pub extern "C" fn register_exchange_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = RegisterExchangeRequest {
         exchangename: c_char_to_str(options.exchangename),
@@ -3801,7 +3801,7 @@ pub extern "C" fn register_exchange_async(
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .register_exchange(request,
                 Box::new(move |event: QueueEvent| {
@@ -3977,7 +3977,7 @@ pub extern "C" fn queue_message(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = QueueMessageRequest {
         queuename: c_char_to_str(options.queuename),
@@ -4000,7 +4000,7 @@ pub extern "C" fn queue_message(
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .queue_message(request)
             .await
@@ -4054,7 +4054,7 @@ pub extern "C" fn unregister_queue(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let queuename = c_char_to_str(queuename);
     if client.is_none() {
@@ -4067,7 +4067,7 @@ pub extern "C" fn unregister_queue(
     }
 
     let result = runtime.block_on(async {
-        let c = client.as_ref().unwrap();
+        let c = client.as_mut().unwrap();
         c.unregister_queue(&queuename).await
     });
     match result {
@@ -4339,7 +4339,7 @@ pub extern "C" fn push_workitem(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
@@ -4403,7 +4403,7 @@ pub extern "C" fn push_workitem(
     let result = runtime.block_on(async {
         client
             .
-            as_ref()
+            as_mut()
             .unwrap()
             .push_workitem(request)
             .await
@@ -4473,7 +4473,7 @@ pub extern "C" fn push_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
@@ -4537,7 +4537,7 @@ pub extern "C" fn push_workitem_async(
     
     runtime.spawn(async move {
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .push_workitem(request)
             .await;
@@ -4632,7 +4632,7 @@ pub extern "C" fn pop_workitem (
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = PopWorkitemRequest {
         wiq: c_char_to_str(options.wiq),
@@ -4655,7 +4655,7 @@ pub extern "C" fn pop_workitem (
     }
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .pop_workitem(request, _downloadfolder)
             .await
@@ -4724,7 +4724,7 @@ pub extern "C" fn pop_workitem_async (
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = PopWorkitemRequest {
         wiq: c_char_to_str(options.wiq),
@@ -4748,7 +4748,7 @@ pub extern "C" fn pop_workitem_async (
         }
     
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .pop_workitem(request, _downloadfolder)
             .await;
@@ -4839,7 +4839,7 @@ pub extern "C" fn update_workitem (
         }
     };
     trace!("grab references");
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
@@ -4891,7 +4891,7 @@ pub extern "C" fn update_workitem (
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .update_workitem(request)
             .await
@@ -4962,7 +4962,7 @@ pub extern "C" fn update_workitem_async (
         }
     };
     trace!("grab references");
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
@@ -5016,7 +5016,7 @@ pub extern "C" fn update_workitem_async (
 
     runtime.spawn(async move {
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .update_workitem(request)
             .await;
@@ -5101,7 +5101,7 @@ pub extern "C" fn delete_workitem(
             return Box::into_raw(Box::new(response));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteWorkitemRequest {
         id: c_char_to_str(options.id),
@@ -5117,7 +5117,7 @@ pub extern "C" fn delete_workitem(
 
     let result = runtime.block_on(async {
         client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .delete_workitem(request)
             .await
@@ -5174,7 +5174,7 @@ pub extern "C" fn delete_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let client = &client_wrapper.client;
+    let mut client = client_wrapper.client.clone();
     let runtime = &client_wrapper.runtime;
     let request = DeleteWorkitemRequest {
         id: c_char_to_str(options.id),
@@ -5190,7 +5190,7 @@ pub extern "C" fn delete_workitem_async(
     
     runtime.spawn(async move {
         let result = client
-            .as_ref()
+            .as_mut()
             .unwrap()
             .delete_workitem(request)
             .await;

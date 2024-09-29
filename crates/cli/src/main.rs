@@ -5,7 +5,7 @@ use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
-use openiap_client::{self, enable_tracing, Client, RegisterExchangeRequest, RegisterQueueRequest};
+use openiap_client::{self, enable_tracing, Client, InsertManyRequest, RegisterExchangeRequest, RegisterQueueRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -99,8 +99,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let num_iters = 5000;
 
     enable_tracing("openiap=debug", "");
-    // let res = Client::connect("").await;
-    let res = Client::connect("wss://home.openiap.io/ws/v2").await;
+    let res = Client::connect("").await;
+
     // let res = Client::connect("wss://home.openiap.io/ws/v2").await;
     let b = match res {
         Ok(b) => b,
@@ -109,6 +109,15 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }        
     };
+    b.on_event(|event| {
+        match event {
+            openiap_client::ClientEvent::Connected => println!("Client connected!"),
+            openiap_client::ClientEvent::Disconnected(e) => println!("Client disconnected! {:?}", e),
+            openiap_client::ClientEvent::Message(msg) => println!("Received message: {:?}", msg),
+            _ => println!("Received unknown event"),
+        }
+    }).await;
+
     let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");
     println!("? for help");
@@ -122,6 +131,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("s: Sign in as guest");
             println!("s2: Sign in as testuser");
             println!("i: Insert");
+            println!("im: Insert Many");
             println!("d: Download");
             println!("u: Upload train.csv");
             println!("uu: Upload assistant-linux-x86_64.AppImage");
@@ -234,6 +244,22 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Failed to insert: {:?}", e);
                 } else {
                     println!("inserted as {}", s.unwrap().result);
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("im") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let request = InsertManyRequest {
+                    collectionname: "entities".to_string(),
+                    items: "[{\"name\":\"Allan\", \"_type\":\"Allan\"}, {\"name\":\"Allan2\", \"_type\":\"Allan\"}]".to_string(),
+                    ..Default::default()
+                };
+                let s = client.insert_many(request).await;
+                if let Err(e) = s {
+                    println!("Failed to insert: {:?}", e);
+                } else {
+                    println!("inserted as {}", s.unwrap().results);
                 }
             });
         }

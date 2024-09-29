@@ -34,6 +34,6 @@ sysinfo = "0.29"
 indexmap = "1.8"
 hostname = "^0.4"
 
-
+async-channel = { version = "2.3.1" }
 tokio-tungstenite = { version = "0.24.0", features = [ "native-tls" ] }
 # async-tungstenite = { version = "0.28.0", features = [ "async-native-tls" ] }

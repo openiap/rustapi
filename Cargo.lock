@@ -1189,6 +1189,7 @@ dependencies = [
 name = "openiap-client"
 version = "0.0.4"
 dependencies = [
+ "async-channel 2.3.1",
  "flate2",
  "futures",
  "futures-channel",

@@ -18,7 +18,7 @@ mod tests {
     const TEST_URL: &str = "";
     #[test]
     fn normal_type() {
-        is_normal::<Client>();
+        is_normal::<Pin<Box<Client>>>();
         is_normal::<ClientInner>();
         is_normal::<SigninRequest>();
         is_normal::<SigninResponse>();
