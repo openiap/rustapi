@@ -15,7 +15,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
 use tokio::runtime::Runtime;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, error};
 
 mod safe_wrappers;
 use safe_wrappers::{c_char_to_str, safe_wrapper};
@@ -309,7 +309,7 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
             debug!("Tracing enabled");
         }
         Err(e) => {
-            eprintln!("Tracing failed: {:?}", e);
+            error!("Tracing failed: {:?}", e);
         }
     }
     info!("enable_tracing rust_log: {:?}, tracing: {:?}", rust_log, tracing);

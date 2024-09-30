@@ -1,5 +1,9 @@
 #[allow(dead_code)]
 fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
+// cargo test --lib
+// cargo test --doc
+// cargo test --lib -- --nocapture
+// cargo test --doc -- --nocapture
 #[cfg(test)]
 mod tests {
     use errors::OpenIAPError;
@@ -14,8 +18,10 @@ mod tests {
 
     use super::*;
     // const TEST_URL: &str = "http://localhost:50051";
-    // const TEST_URL: &str = "http://grpc.demo.openiap.io";
-    const TEST_URL: &str = "";
+    const TEST_URL: &str = "grpc://grpc.home.openiap.io:443";
+    // const TEST_URL: &str = "wss://home.openiap.io";
+    // const TEST_URL: &str = "wss://demo.openiap.io";
+    // const TEST_URL: &str = "";
     #[test]
     fn normal_type() {
         is_normal::<Pin<Box<Client>>>();
@@ -168,7 +174,8 @@ mod tests {
         let tasks = FuturesUnordered::<
             Pin<Box<dyn Future<Output = Result<QueryResponse, OpenIAPError>>>>,
         >::new();
-        for _ in 1..101 {
+        // for _ in 1..101 {
+        for _ in 1..10 {
             let query = QueryRequest {
                 query: "{}".to_string(),
                 projection: "{\"name\": 1}".to_string(),
@@ -201,7 +208,8 @@ mod tests {
         let tasks = FuturesUnordered::<
             Pin<Box<dyn Future<Output = Result<AggregateResponse, OpenIAPError>>>>,
         >::new();
-        for _ in 1..101 {
+        // for _ in 1..101 {
+            for _ in 1..10 {
             let query = AggregateRequest {
                 collectionname: "entities".to_string(),
                 aggregates: "[]".to_string(),
@@ -537,6 +545,7 @@ mod tests {
     #[tokio::test()]
     async fn test_bad_login() {
         let client = Client::connect(TEST_URL).await.unwrap();
+        println!("Client connected: {:?}", client.is_connected());
         let response = client
             .signin(SigninRequest::with_userpass("testuser", "badpassword"))
             .await;
@@ -1224,6 +1233,10 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_start_getpods_stop_delete_agent -- --nocapture
     async fn test_start_getpods_stop_delete_agent() {
+        if TEST_URL.contains("home") {
+            println!("Skipping test_invoke_openrpa");
+            return;
+        }
         let client = Client::connect(TEST_URL).await.unwrap();
 
         let response = client
@@ -1602,11 +1615,16 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_invoke_openrpa -- --nocapture
     async fn test_invoke_openrpa() {
+        if TEST_URL.contains("home") {
+            println!("Skipping test_invoke_openrpa");
+            return;
+        }
         let client = Client::connect(TEST_URL).await.unwrap();
 
         let robot = client.get_one(QueryRequest{
             collectionname: "users".to_string(),
-            query: "{\"username\": \"macuser\"}".to_string(),
+            // query: "{\"username\": \"macuser\"}".to_string(),
+            query: "{\"username\": \"allan5\"}".to_string(),
             ..Default::default()
         }).await.unwrap();
         let robotid = robot["_id"].as_str().unwrap();

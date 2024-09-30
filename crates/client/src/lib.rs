@@ -3,7 +3,7 @@
 //! For now this only support grpc, will over time have added support for web sockets, http, tcp and named pipes.
 //! Initialize a new client, by calling the [Client::connect] method.
 //! ```
-//! use openiap_client::{ OpenIAPError, Client, QueryRequest };
+//! use openiap_client::{OpenIAPError, Client, QueryRequest};
 //! #[tokio::main]
 //! async fn main() -> Result<(), OpenIAPError> {
 //!     let client = Client::connect("").await?;
@@ -21,6 +21,42 @@
 //! }
 //! ```
 
+pub use openiap_proto::errors::*;
+pub use openiap_proto::protos::*;
+pub use openiap_proto::*;
+pub use prost_types::Timestamp;
+pub use protos::flow_service_client::FlowServiceClient;
+
+use tokio_tungstenite::{WebSocketStream};
+use tracing::{debug, error, info, trace};
+// use tokio_stream::{wrappers::ReceiverStream};
+type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
+type Result<T, E = StdError> = ::std::result::Result<T, E>;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+// use std::thread;
+use tokio::sync::Mutex;
+use tonic::transport::Channel;
+
+use tokio::sync::{mpsc, oneshot};
+
+use std::env;
+use std::time::Duration;
+
+mod otel;
+mod tests;
+mod ws;
+mod grpc;
+mod util;
+pub use crate::util::enable_tracing;
+
+type QuerySender = oneshot::Sender<Envelope>;
+type StreamSender = mpsc::Sender<Vec<u8>>;
+type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+use futures::{StreamExt };
+use async_channel::{unbounded};
 
 /// The `Client` struct provides the client for the OpenIAP service.
 /// Initialize a new client, by calling the [Client::connect] method.
@@ -36,34 +72,22 @@ pub struct Client {
     pub url: String,
     event_sender: async_channel::Sender<ClientEvent>,
     event_receiver: async_channel::Receiver<ClientEvent>,
+    out_envelope_sender: async_channel::Sender<Envelope>,
+    out_envelope_receiver: async_channel::Receiver<Envelope>,
     /// Is client connected?
     pub connected: Arc<std::sync::Mutex<bool>>,
-    /// The stdin sender.
-    pub stdin_tx: futures::channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>,
 }
-
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
     /// The grpc client.//!
     pub client: ClientEnum,
-    /// Websocket read/write streams
-    // pub split: Option<Arc<Mutex<SockSplit>>>,
     /// Inceasing message count, used as unique id for messages.
     pub msgcount: Arc<Mutex<i32>>,
     /// Are we signed in?
     pub signedin: bool,
     /// The signed in user.
     pub user: Option<User>,
-    /// The stream sender.
-    pub stream_tx: mpsc::Sender<Envelope>,
-    // pub stdin_tx: futures::channel::mpsc::UnboundedSender<Vec<u8>>,
-    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<Vec<u8>>>>,
-    // pub stdin_rx: Arc<Mutex<futures::channel::mpsc::UnboundedReceiver<tokio_tungstenite::tungstenite::Message>>>,
-
-//     expected struct `futures::futures_channel::mpsc::UnboundedSender<Vec<u8>>`
-//    found struct `futures::futures_channel::mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>`
-
     /// list of queries ( messages sent to server we are waiting on a response for )
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     /// Active streams the server (or client) has opened
@@ -77,32 +101,8 @@ pub struct ClientInner {
     pub queues:
         Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
 }
-
-// expected struct `WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>`
-//    found struct `WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>`
-
-// type Sock = tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
-type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
-// type SockSplit = (
-//     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, tokio_tungstenite::tungstenite::Message>,
-//     SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>
-// );
-// type Sock = async_tungstenite::tungstenite::WebSocket<async_tungstenite::tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
-// type SockSplit = (
-//     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, async_tungstenite::tungstenite::Message>,
-//     SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>
-// );
-
-// use futures::stream::{ SplitSink, SplitStream };
-// use futures::StreamExt;
-// use futures::{SinkExt, StreamExt};
-use futures::{StreamExt };
-use async_channel::{unbounded};
-
-
 /// Client enum, used to determine which client to use.
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ClientEnum {
     /// Not set yet
     None,
@@ -111,7 +111,6 @@ pub enum ClientEnum {
     /// Used when client wants to connect using websockets
     WS(Arc<Mutex<Sock>>)
 }
-
 /// Client event enum, used to determine which event has occurred.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientEvent {
@@ -132,56 +131,6 @@ pub enum ClientEvent {
     /// The client has received a queue event
     Queue(QueueEvent),
 }
-
-pub use openiap_proto::errors::*;
-pub use openiap_proto::protos::*;
-pub use openiap_proto::*;
-pub use prost_types::Timestamp;
-pub use protos::flow_service_client::FlowServiceClient;
-use prost::Message;
-use futures::SinkExt;
-// futures-util = "0.3.30"
-// use futures_util::{StreamExt, SinkExt};
-
-
-use tokio_tungstenite::{ // MaybeTlsStream, 
-    WebSocketStream };
-// use async_tungstenite::tungstenite::stream::MaybeTlsStream;
-// use async_tungstenite::{ WebSocketStream };
-
-// use tokio::net::TcpStream;
-// use tokio_tungstenite::connect_async;
-// use tokio_tungstenite::connect_async_tls_with_config;
-// use tokio_tungstenite::tungstenite::stream::MaybeTlsStream;
-// use tokio_tungstenite::tungstenite::WebSocket;
-use tracing::{debug, error, info, trace};
-
-use tokio_stream::{wrappers::ReceiverStream};
-type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
-type Result<T, E = StdError> = ::std::result::Result<T, E>;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::ops::AddAssign;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-// use std::thread;
-use tokio::sync::Mutex;
-use tonic::transport::Channel;
-
-use tokio::sync::{mpsc, oneshot};
-use tonic::Request;
-
-use std::env;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-mod otel;
-mod tests;
-mod ws;
-
-type QuerySender = oneshot::Sender<Envelope>;
-type StreamSender = mpsc::Sender<Vec<u8>>;
-
 /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[allow(dead_code)]
@@ -234,355 +183,11 @@ impl std::fmt::Debug for ClientInner {
         f.debug_struct("ClientInner")
             // .field("client", &self.client)
             .field("signedin", &self.signedin)
-            .field("stream_tx", &self.stream_tx)
             .field("queries", &self.queries)
             .field("streams", &self.streams)
             .finish()
     }
 }
-
-fn generate_unique_filename(base: &str) -> PathBuf {
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let timestamp = since_the_epoch.as_secs();
-    let filename = format!("{}_{}.tmp", base, timestamp);
-    let dir = env::temp_dir();
-    dir.join(filename)
-}
-#[tracing::instrument]
-fn move_file(from: &str, to: &str) -> std::io::Result<()> {
-    // Attempt to rename the file first
-    if let Err(_e) = std::fs::rename(from, to) {
-        // If renaming fails due to a cross-device link error, fall back to copying
-        std::fs::copy(from, to)?;
-        std::fs::remove_file(from)?;
-    }
-    Ok(())
-}
-
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::io::{self, BufReader, BufWriter};
-#[allow(dead_code)]
-fn compress_file(input_path: &str, output_path: &str) -> io::Result<()> {
-    // Open the input file
-    let input_file = File::open(input_path)?;
-    let mut reader = BufReader::new(input_file);
-
-    // Create the output file
-    let output_file = File::create(output_path)?;
-    let writer = BufWriter::new(output_file);
-
-    // Create a GzEncoder with default compression level
-    let mut encoder = GzEncoder::new(writer, Compression::default());
-
-    // Buffer to hold the data
-    let mut buffer = Vec::new();
-
-    // Read the entire input file into the buffer
-    reader.read_to_end(&mut buffer)?;
-
-    // Write the compressed data to the output file
-    encoder.write_all(&buffer)?;
-
-    // Finalize the compression
-    encoder.finish()?;
-
-    Ok(())
-}
-/// Read a file and compresses it into a `Vec<u8>`.
-pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec::Vec<u8>> {
-    // Open the input file
-    let input_file = File::open(input_path)?;
-    let mut reader = BufReader::new(input_file);
-
-    // Buffer to hold the input data
-    let mut buffer = Vec::new();
-
-    // Read the entire input file into the buffer
-    reader.read_to_end(&mut buffer)?;
-
-    // Create a GzEncoder to compress data into a Vec<u8>
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-
-    // Write the compressed data to the encoder
-    encoder.write_all(&buffer)?;
-
-    // Finalize the compression and get the compressed data
-    let compressed_data = encoder.finish()?;
-
-    Ok(compressed_data)
-}
-
-use opentelemetry::{
-    // global,
-    KeyValue, // trace::Tracer
-};
-use opentelemetry_otlp::{
-    // ExportConfig, Protocol, 
-    WithExportConfig};
-// use opentelemetry_sdk::metrics::reader::{DefaultAggregationSelector, DefaultTemporalitySelector};
-use opentelemetry_sdk::{
-    // trace::{self, RandomIdGenerator, Sampler},
-    Resource,
-};
-use std::time::Duration;
-use opentelemetry_otlp::{new_exporter, new_pipeline};
-use opentelemetry_sdk::{runtime::Tokio};
-
-struct ProviderWrapper {
-    provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>
-}
-use lazy_static::lazy_static;
-lazy_static! {
-    static ref provider1: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
-        provider: None
-    });
-    static ref provider2: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
-        provider: None
-    });
-}
-use opentelemetry::metrics::MeterProvider;
-/// Initialize telemetry
-pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    if strurl.is_empty() {
-        return Err(Box::new(OpenIAPError::ClientError("No URL provided".to_string())));
-    }
-    let period = 5;
-    let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
-    let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
-    let url = url::Url::parse(strurl)
-    .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-    let mut apihostname = url.host_str().unwrap_or("localhost.openiap.io").to_string();
-    if apihostname.starts_with("grpc.") {
-        apihostname = apihostname[5..].to_string();
-    }
-
-    let mut hasher = md5::Context::new();
-    hasher.write_all(apihostname.as_bytes()).unwrap();
-    let ofid = format!("{:x}", hasher.compute());
-
-    if enable_analytics {
-        debug!("Initializing generic telemetry");
-        let mut providers1 = provider1.lock().unwrap();
-        if providers1.provider.is_none() {
-            let exporter1 = new_exporter()
-                .tonic()
-                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-                .with_endpoint("https://otel.stats.openiap.io:443");
-            let provider = new_pipeline()
-            .metrics(Tokio)
-            .with_exporter(exporter1)
-            .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
-            .with_period(Duration::from_secs(period))
-            .build().unwrap();
-            let meter1 = provider.meter("process-meter1");
-            // let meter: opentelemetry::metrics::Meter = meterprovider1.meter("process-meter1");
-            // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
-            match otel::register_metrics(meter1, &ofid) {
-                Ok(_) => (),
-                Err(e) => {
-                    debug!("Failed to initialize process observer: {}", e);
-                }
-            }
-            providers1.provider = Some(provider);
-        }
-    }
-
-    if !otlpurl.is_empty() {
-        debug!("Adding {} for telemetry", otlpurl);
-        let mut providers2 = provider2.lock().unwrap();
-        if providers2.provider.is_none() {
-            let exporter2 = new_exporter()
-                .tonic()
-                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-                .with_endpoint(otlpurl);
-            let provider = new_pipeline()
-                .metrics(Tokio)
-                .with_exporter(exporter2)
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
-                .with_period(Duration::from_secs(period))
-                .build().unwrap();
-
-            let meter2 = provider.meter("process-meter2");
-            // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
-            match otel::register_metrics(meter2, &ofid) {
-                Ok(_) => (),
-                Err(e) => {
-                    eprintln!("Failed to initialize process observer: {}", e);
-                }
-            }
-            providers2.provider = Some(provider);
-        }
-    }
-
-    Ok(())
-}
-/// Enable global tracing ( cannot be updated once set )\
-/// - rust_log is a [tracing_subscriber::EnvFilter] string ( use empty string to use environment variable RUST_LOG )\
-/// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active or full.\
-/// \
-/// To enable tracing, and only track debug messsages and all new function calls for this create, use\
-/// ```
-/// use openiap_client::enable_tracing;
-/// enable_tracing("openiap=debug", "new");
-/// ```
-pub fn enable_tracing(rust_log: &str, tracing: &str) {
-    let rust_log = rust_log.to_string();
-    let mut filter = tracing_subscriber::EnvFilter::from_default_env();
-    if !rust_log.is_empty() {
-        filter = tracing_subscriber::EnvFilter::new(rust_log.clone());
-    }
-
-    let mut subscriber = tracing_subscriber::fmt::layer();
-    let tracing = tracing.to_string();
-    if !tracing.is_empty() {
-        subscriber = match tracing.to_lowercase().as_str() {
-            "new" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NEW),
-            "enter" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ENTER),
-            "exit" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT),
-            "close" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE),
-            "none" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NONE),
-            "active" => {
-                subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ACTIVE)
-            }
-            "full" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL),
-            _ => subscriber,
-        }
-    }
-    let subscriber = tracing_subscriber::Layer::with_subscriber(
-        tracing_subscriber::Layer::and_then(subscriber, filter),
-        tracing_subscriber::registry(),
-    );
-
-    match tracing::subscriber::set_global_default(subscriber) {
-        Ok(()) => {
-            debug!("Tracing enabled");
-        }
-        Err(e) => {
-            eprintln!("Tracing failed: {:?}", e);
-        }
-    }
-    info!(
-        "enable_tracing rust_log: {:?}, tracing: {:?}",
-        rust_log, tracing
-    );
-}
-// inner: Arc<Mutex<ClientInner>>
-async fn send_envelope(mut client: Client, mut inner: ClientInner, mut envelope: Envelope) -> Result<(), OpenIAPError> {
-    // let mut inner = self.inner.lock().await;
-    match inner.client {
-        ClientEnum::Grpc(ref mut _client) => {
-            match inner.stream_tx.send(envelope).await {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    let errmsg = e.to_string();                    
-                    client.set_connected(false, Some(&errmsg));
-                    Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
-                },
-            }
-        }
-        ClientEnum::WS(ref mut _client) => {
-            {
-                let mut seq = inner.msgcount.lock().await;
-                envelope.seq = seq.clone();
-                if envelope.rid.is_empty() {
-                    envelope.rid = seq.to_string();
-                }
-                seq.add_assign(1);
-            }
-            // let cmd = envelope.command.clone();
-            // get envelope length, then add it as the first 4 bytes of the message
-            let envelope = envelope.encode_to_vec();
-            let size = envelope.len() as u32;
-
-            // Write the size in little-endian format (like writeUInt32LE in Node.js)
-            let mut size_bytes = size.to_le_bytes().to_vec(); 
-
-            // Append the actual envelope data
-            size_bytes.extend_from_slice(&envelope);
-
-            // Now size_bytes contains the 4-byte length followed by the envelope
-            let size_bytes = size_bytes;
-
-            match client.stdin_tx.send(tokio_tungstenite::tungstenite::Message::Binary(size_bytes)).await {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    let errmsg = e.to_string();
-                    client.set_connected(false, Some(&errmsg));
-                    Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
-                },
-            }
-        }
-        ClientEnum::None => {
-            return Err(OpenIAPError::ClientError("Invalid client".to_string()));
-        }
-    }
-}
-
-async fn parse_incomming_envelope(inner: ClientInner, received: Envelope) {
-    let command = received.command.clone();
-    // let id = received.command.clone();
-    let rid = received.rid.clone();
-    let mut queries = inner.queries.lock().await;
-    let mut streams = inner.streams.lock().await;
-    let watches = inner.watches.lock().await;
-    let queues = inner.queues.lock().await;
-
-    debug!("Received #{} #{} {} message", received.id, rid, command);
-    if command == "ping" {
-        ()
-    } else if command == "refreshtoken" {
-        // TODO: store jwt at some point in the future
-    } else if command == "beginstream"
-        || command == "stream"
-        || command == "endstream"
-    {
-        let streamresponse: Stream =
-            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-        let streamdata = streamresponse.data;
-
-        if !streamdata.is_empty() {
-            let stream = streams.get(rid.as_str()).unwrap();
-
-            match stream.send(streamdata).await {
-                Ok(_) => _ = (),
-                Err(e) => error!("Failed to send data: {}", e),
-            }
-        }
-
-        if command == "endstream" {
-            let _ = streams.remove(rid.as_str());
-        }
-    } else if command == "watchevent" {
-        let watchevent: WatchEvent =
-            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-        if let Some(callback) = watches.get(watchevent.id.as_str()) {
-            callback(watchevent);
-        }
-    } else if command == "queueevent" {
-        let queueevent: QueueEvent =
-            prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-        if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
-            callback(queueevent);
-        }
-    } else if let Some(response_tx) = queries.remove(&rid) {
-        let stream = streams.get(rid.as_str());
-        if let Some(stream) = stream {
-            let streamdata = vec![];
-            match stream.send(streamdata).await {
-                Ok(_) => _ = (),
-                Err(e) => error!("Failed to send data: {}", e),
-            }
-        }
-        let _ = response_tx.send(received);
-    } else {
-        error!("Received unhandled {} message: {:?}", command, received);
-    }    
-}
-
 impl Client {
     /// Connect will initializes a new client and starts a connection to an OpenIAP server.\
     /// Use "" to autodetect the server from the environment variables (apiurl or grpcapiurl), or provide a URL.\
@@ -595,7 +200,7 @@ impl Client {
     /// 
     /// To troubleshoot issues, call [enable_tracing].
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, QueryRequest };
+    /// use openiap_client::{OpenIAPError, Client, QueryRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -614,6 +219,14 @@ impl Client {
     /// ```
     #[tracing::instrument(skip_all)]
     pub async fn connect(dst: &str) -> Result<Self, OpenIAPError> {
+        #[cfg(test)]
+        {   
+            // enable_tracing("openiap=trace", "new");
+            // enable_tracing("openiap=debug", "new");
+            // enable_tracing("trace", "");
+            enable_tracing("openiap=error", "");
+            // enable_tracing("openiap=debug", "");
+        }
         let mut strurl = dst.to_string();
         if strurl.is_empty() {
             strurl = std::env::var("apiurl").unwrap_or("".to_string());
@@ -685,8 +298,6 @@ impl Client {
 
         let config: Option<Config>;
 
-        //  ", url.scheme() + "://" + url.host_str().replace("grpc.", "").as_str();
-        // let configurl = format!("{}://{}/config", url.scheme(), url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", ""));
         let configurl: String;
         if issecure {
             configurl = format!(
@@ -734,7 +345,7 @@ impl Client {
                 otel_metric_url = config.otel_metric_url.clone();
             }
         }
-        match init_telemetry(&strurl, otel_metric_url.as_str()) {
+        match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
             Ok(_) => (),
             Err(e) => {
                 return Err(OpenIAPError::ClientError(format!(
@@ -747,33 +358,26 @@ impl Client {
         let client = if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
 
-            let (stream_tx, stream_rx) = mpsc::channel(4);
+            let (_stream_tx, stream_rx) = mpsc::channel(60);
 
             let (socket, _) = tokio_tungstenite::connect_async(strurl.clone())
                 .await
                 .expect("Can't connect");
             innerclient = ClientEnum::WS(Arc::new(Mutex::new(socket)));
-            // // innerclient = ClientEnum::WSSocket(Arc::new(Mutex::new(ws_stream)));
-
-            let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
-
             let inner = ClientInner {
                 client: innerclient,
-                // split: split,
-                // split: None,
                 msgcount: Arc::new(Mutex::new(0)),
                 signedin: false,
                 user: None,
-                stream_tx: stream_tx.clone(),
-                // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 queues: Arc::new(Mutex::new(std::collections::HashMap::new())),
             };
             let (ces, cer) = unbounded::<ClientEvent>();
+            let (out_es, out_er) = unbounded::<Envelope>();
             let inner = Arc::new(Mutex::new(inner));
-            let mut client = Client {
+            let client = Client {
                 url: strurl.clone(),
                 inner: inner,
                 config,
@@ -781,31 +385,29 @@ impl Client {
                 auto_reconnect: true,
                 event_sender: ces,
                 event_receiver: cer,
-                stdin_tx,
+                out_envelope_sender: out_es,
+                out_envelope_receiver: out_er,
             };
 
-            // client.inner.lock().await.stdin_tx = setup_ client:: ws::setup(&strurl, stream_tx.clone()).await;
-            let stdin_tx = match client.setup_ws(&strurl, stream_tx).await {
-                Ok(stdin_tx) => stdin_tx,
+            match client.setup_ws(&strurl).await {
+                Ok(_) => (),
                 Err(e) => {
                     return Err(OpenIAPError::ClientError(format!(
                         "Failed to setup WS: {}",
                         e
                     )));
                 }
-            };
-            client.stdin_tx = stdin_tx;
+            }
 
             let client2 = client.clone();
             tokio::spawn(async move {
                 tokio_stream::wrappers::ReceiverStream::new(stream_rx)
-                    .for_each(|envelope| async {
+                    .for_each(|envelope: Envelope| async {
                         let command = envelope.command.clone();
                         let rid = envelope.rid.clone();
                         let id = envelope.id.clone();
                         trace!("Received command: {}, id: {}, rid: {}", command, id, rid);
-                        let inner = client2.inner.lock().await;
-                        parse_incomming_envelope(inner.clone(), envelope).await;
+                        client2.parse_incomming_envelope(envelope).await;
                     })
                     .await;
             });
@@ -865,18 +467,11 @@ impl Client {
                 innerclient = ClientEnum::Grpc(FlowServiceClient::new(channel));
             }
 
-            let (stream_tx, stream_rx) = mpsc::channel(4);
-            let in_stream = ReceiverStream::new(stream_rx);
-            let (stdin_tx, _stdin_rx) = futures::channel::mpsc::unbounded();
-
             let inner = ClientInner {
                 client: innerclient,
-                // split: None,
                 msgcount: Arc::new(Mutex::new(0)),
                 signedin: false,
                 user: None,
-                stream_tx,
-                // stdin_rx: Arc::new(Mutex::new(stdin_rx)),
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -884,6 +479,7 @@ impl Client {
             };
 
             let (ces, cer) = unbounded::<ClientEvent>();
+            let (out_es, out_er) = unbounded::<Envelope>();
             let mut client = Client {
                 url: strurl.clone(),
                 inner: Arc::new(Mutex::new(inner)),
@@ -892,9 +488,10 @@ impl Client {
                 connected: Arc::new(std::sync::Mutex::new(true)),
                 event_sender: ces,
                 event_receiver: cer,
-                stdin_tx,
+                out_envelope_sender: out_es,
+                out_envelope_receiver: out_er,
             };
-            client.setup_grpc_stream(in_stream).await?;
+            client.setup_grpc_stream().await?;
             client
         };
 
@@ -959,18 +556,10 @@ impl Client {
             return Ok(());   
         }
         let client;
-        let stream_tx;
-        let mut in_stream: ReceiverStream<Envelope> = ReceiverStream::new(mpsc::channel(4).1);
         {
             let inner = self.inner.clone();
-            let mut inner = inner.lock().await;
+            let inner = inner.lock().await;
             client = inner.client.clone();
-            stream_tx = inner.stream_tx.clone();
-            if let ClientEnum::Grpc(_) = client {
-                let (new_stream_tx, stream_rx) = mpsc::channel(4);
-                in_stream = ReceiverStream::new(stream_rx);
-                inner.stream_tx = new_stream_tx;
-            }
         } // dropped `inner` to unlock the mutex
     
         let me = Arc::new(Mutex::new(self.clone()));
@@ -979,10 +568,8 @@ impl Client {
         match client {
             ClientEnum::WS(ref _client) => {
                 let me = me.lock().await;
-                match me.setup_ws(&me.url, stream_tx).await {
-                    Ok(stdin_tx) => {
-                        self.stdin_tx = stdin_tx;
-                    }
+                match me.setup_ws(&me.url).await {
+                    Ok(_) => (),
                     Err(e) => {
                         return Err(OpenIAPError::ClientError(format!(
                             "Failed to setup WS: {}",
@@ -992,11 +579,10 @@ impl Client {
                 }
             }
             ClientEnum::Grpc(ref _client) => {
-                println!("Reconnecting to gRPC");
-    
+                info!("Reconnecting to gRPC");    
                 // Call `setup_grpc_stream` after unlocking `inner`
-                self.setup_grpc_stream(in_stream).await?;
-                println!("Completed reconnecting to gRPC");
+                self.setup_grpc_stream().await?;
+                info!("Completed reconnecting to gRPC");
             }
             ClientEnum::None => {
                 return Err(OpenIAPError::ClientError("Invalid client".to_string()));
@@ -1010,11 +596,10 @@ impl Client {
     pub fn set_connected(&self, connected: bool, message: Option<&str>) {
         {
             let mut conn = self.connected.lock().unwrap();
-            println!("Set connected: {} from {}", connected, *conn);
+            trace!("Set connected: {} from {}", connected, *conn);
             if connected == true && *conn == false {
                 let me = self.clone();
                 tokio::spawn(async move {
-                    println!("Connected");
                     let client = me.clone();
                     client.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
                 });
@@ -1026,7 +611,7 @@ impl Client {
                     None => "".to_string(),
                 };
                 tokio::spawn(async move {
-                    println!("Disconnected: {}", message);
+                    trace!("Disconnected: {}", message);
                     let client = me.clone();
                     client.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
                 });
@@ -1036,10 +621,10 @@ impl Client {
         if !connected {
             let client = self.clone();
             tokio::spawn(async move {
-                println!("Reconnecting in 5 seconds");
+                info!("Reconnecting in 10 seconds");
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 let mut client = client.clone();
-                println!("Reconnecting . . .");
+                info!("Reconnecting . . .");
                 client.reconnect().await.unwrap_or_else(|e| {
                     error!("Failed to reconnect: {}", e);
                 });
@@ -1049,7 +634,6 @@ impl Client {
     /// Check if the client is connected
     pub fn is_connected(&self) -> bool {
         let conn = self.connected.lock().unwrap();
-        println!("is_connected: {}", *conn);
         *conn
     }
     /// Method to allow the user to subscribe with a callback function
@@ -1066,48 +650,7 @@ impl Client {
             }
         });
     }
-    /// internal function, used to setup gRPC stream used for communication with the server.
-    /// This function is called by [connect] and should not be called directly.
-    /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
-    #[tracing::instrument(skip_all)]
-    async fn setup_grpc_stream(&mut self, in_stream: ReceiverStream<Envelope>) -> Result<(), OpenIAPError> {
-        println!("setup_grpc_stream");
-        let inner = self.inner.lock().await;
-        println!("setup_grpc_stream:1");
-        let mut client = match inner.client {
-            ClientEnum::Grpc(ref client) => client.clone(),
-            _ => {
-                return Err(OpenIAPError::ClientError("Invalid client".to_string()));
-            }
-        };
-        println!("setup_grpc_stream:2");
-        let response = client.setup_stream(Request::new(in_stream)).await;
-        println!("setup_grpc_stream:3");
-        let response = match response {
-            Ok(response) => response,
-            Err(e) => {
-                return Err(OpenIAPError::ClientError(format!(
-                    "Failed to setup stream: {}",
-                    e
-                )));
-            }
-        };
-        println!("setup_grpc_stream:4");
-        let mut resp_stream = response.into_inner();
-        let inner = self.inner.clone();
-        tokio::spawn(async move {
-            while let Some(received) = resp_stream.next().await {
-                if let Ok(received) = received {
-                    let inner = inner.lock().await;
-                    parse_incomming_envelope(inner.clone(), received).await;
-                }
-            }
-        });
-        println!("set connected");
-        self.set_connected(true, None);
-        Ok(())
-    }
-      /// Internal function, used to generate a unique id for each message sent to the server.
+    /// Internal function, used to generate a unique id for each message sent to the server.
     #[tracing::instrument(skip_all)]
     fn get_id(&self) -> usize {
         static COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -1142,7 +685,7 @@ impl Client {
         }
         let (response_tx, response_rx) = oneshot::channel();
         let id = self.get_id().to_string();
-        debug!("Sending #{} {} message", id, msg.command);
+        // debug!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
         {
             trace!("get inner lock");
@@ -1151,8 +694,7 @@ impl Client {
                 trace!("get query lock");
                 inner.queries.lock().await.insert(id.clone(), response_tx);
             }
-            trace!("call send");
-            let res = send_envelope(self.clone(), inner.to_owned() ,msg).await;
+            let res = self.send_envelope(msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1179,7 +721,7 @@ impl Client {
             let inner = self.inner.lock().await;
             inner.queries.lock().await.insert(id.clone(), response_tx);
             inner.streams.lock().await.insert(id.clone(), stream_tx);
-            let res = send_envelope(self.clone(),inner.to_owned() ,msg).await;
+            let res = self.send_envelope(msg).await;
             match res {
                 Ok(_) => (),
                 Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
@@ -1187,6 +729,93 @@ impl Client {
         }
         Ok((response_rx, stream_rx))
     }
+    #[tracing::instrument(skip_all, target = "openiap::client")]
+    async fn send_envelope(&self, envelope: Envelope) -> Result<(), OpenIAPError> {
+        let env = envelope.clone();
+        let command = envelope.command.clone();
+        let cli = self.clone();
+        // trace!("Spawn thread to send {} message", command);
+        debug!("Send #{} #{} {} message", envelope.id, envelope.rid, command);
+        // let handle = tokio::spawn( async move {
+            trace!("Sending {} message, in the thread", command);
+            let res = cli.out_envelope_sender.send(env).await;
+            if res.is_err() {
+                error!("{:?}", res);
+                let errmsg = res.unwrap_err().to_string();
+                cli.set_connected(false, Some(&errmsg));
+                return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
+            } else {
+                return Ok(())
+            }
+        // });
+        // handle.await.unwrap();
+        // let command = envelope.command.clone();
+        // trace!("After spawning of thread {} message", command);
+        // Ok(())
+    }
+    #[tracing::instrument(skip_all, target = "openiap::client")]
+    async fn parse_incomming_envelope(&self, received: Envelope) {
+        let command = received.command.clone();
+        trace!("parse_incomming_envelope, command: {}", command);
+        // let id = received.command.clone();
+        let inner = self.inner.lock().await;
+        let rid = received.rid.clone();
+        let mut queries = inner.queries.lock().await;
+        let mut streams = inner.streams.lock().await;
+        let watches = inner.watches.lock().await;
+        let queues = inner.queues.lock().await;
+    
+        debug!("Received #{} #{} {} message", received.id, rid, command);
+        if command == "ping" {
+            ()
+        } else if command == "refreshtoken" {
+            // TODO: store jwt at some point in the future
+        } else if command == "beginstream"
+            || command == "stream"
+            || command == "endstream"
+        {
+            let streamresponse: Stream =
+                prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+            let streamdata = streamresponse.data;
+    
+            if !streamdata.is_empty() {
+                let stream = streams.get(rid.as_str()).unwrap();
+    
+                match stream.send(streamdata).await {
+                    Ok(_) => _ = (),
+                    Err(e) => error!("Failed to send data: {}", e),
+                }
+            }
+    
+            if command == "endstream" {
+                let _ = streams.remove(rid.as_str());
+            }
+        } else if command == "watchevent" {
+            let watchevent: WatchEvent =
+                prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+            if let Some(callback) = watches.get(watchevent.id.as_str()) {
+                callback(watchevent);
+            }
+        } else if command == "queueevent" {
+            let queueevent: QueueEvent =
+                prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
+            if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
+                callback(queueevent);
+            }
+        } else if let Some(response_tx) = queries.remove(&rid) {
+            let stream = streams.get(rid.as_str());
+            if let Some(stream) = stream {
+                let streamdata = vec![];
+                match stream.send(streamdata).await {
+                    Ok(_) => _ = (),
+                    Err(e) => error!("Failed to send data: {}", e),
+                }
+            }
+            let _ = response_tx.send(received);
+        } else {
+            error!("Received unhandled {} message: {:?}", command, received);
+        }    
+    }    
     /// Return true if we are connected and signed in to the OpenIAP service.
     #[tracing::instrument(skip_all)]
     async fn signedin(&self) -> bool {
@@ -1206,8 +835,7 @@ impl Client {
             command: "ping".into(),
             ..Default::default()
         };
-        let inner = self.inner.lock().await;
-        match send_envelope(self.clone(), inner.to_owned() ,envelope).await {
+        match self.send_envelope(envelope).await {
             Ok(_) => (),
             Err(e) => error!("Failed to send ping: {}", e),
         }
@@ -1284,7 +912,7 @@ impl Client {
     /// Return a list of collections in the database
     /// - includehist: include historical collections, default is false.
     /// ```
-    /// use openiap_client::{ Client, OpenIAPError };
+    /// use openiap_client::{Client, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1322,7 +950,7 @@ impl Client {
     /// You can create a collection by simply adding a new document to it using [Client::insert_one].
     /// Or you can create a collecting using the following example:
     /// ```
-    /// use openiap_client::{ Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError };
+    /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1335,7 +963,7 @@ impl Client {
     /// ```
     /// You can create a normal collection with a TTL index on the _created field, using the following example:
     /// ```
-    /// use openiap_client::{ Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError };
+    /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1352,7 +980,7 @@ impl Client {
     /// You can create a time series collection using the following example:
     /// granularity can be one of: seconds, minutes, hours
     /// ```
-    /// use openiap_client::{ Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError };
+    /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1428,7 +1056,7 @@ impl Client {
     }
     /// Return all indexes for a collection in the database
     /// ```
-    /// use openiap_client::{ Client, GetIndexesRequest, OpenIAPError };
+    /// use openiap_client::{Client, GetIndexesRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1470,7 +1098,7 @@ impl Client {
     /// Create an index in the database.
     /// Example of creating an index on the name field in the rustindextestcollection collection, and then dropping it again:
     /// ```
-    /// use openiap_client::{ Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
+    /// use openiap_client::{Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1489,7 +1117,7 @@ impl Client {
     /// ```
     /// Example of creating an unique index on the address field in the rustindextestcollection collection, and then dropping it again:
     /// ```
-    /// use openiap_client::{ Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
+    /// use openiap_client::{Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1573,7 +1201,7 @@ impl Client {
     }
     /// To query all documents in the entities collection where _type is test, you can use the following example:
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, QueryRequest };
+    /// use openiap_client::{OpenIAPError, Client, QueryRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1591,7 +1219,7 @@ impl Client {
     /// ```
     /// To query all documents in the entities collection, and only return the name and _id field for all documents, you can use the following example:
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, QueryRequest };
+    /// use openiap_client::{OpenIAPError, Client, QueryRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1615,12 +1243,9 @@ impl Client {
         }
 
         let envelope = config.to_envelope();
-        debug!("Sending query {:?}", envelope);
         let result = self.send(envelope).await;
-        debug!("Get result from send, mathing result");
         match result {
             Ok(m) => {
-                debug!("Ok, m.command = {}", m.command);
                 let data = match m.data {
                     Some(data) => data,
                     None => {
@@ -1646,7 +1271,7 @@ impl Client {
     /// Try and get a single document from the database.\
     /// If no document is found, it will return None.
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, QueryRequest };
+    /// use openiap_client::{OpenIAPError, Client, QueryRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1701,7 +1326,7 @@ impl Client {
 
     /// Try and get a specefic version of a document from the database, reconstructing it from the history collection
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, GetDocumentVersionRequest, InsertOneRequest, UpdateOneRequest };
+    /// use openiap_client::{OpenIAPError, Client, GetDocumentVersionRequest, InsertOneRequest, UpdateOneRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
@@ -1845,7 +1470,7 @@ impl Client {
     /// Run an aggregate pipeline towards the database
     /// Example of running an aggregate pipeline on the entities collection, counting the number of documents with _type=test, and grouping them by name:
     /// ```
-    /// use openiap_client::{ OpenIAPError, Client, AggregateRequest };
+    /// use openiap_client::{OpenIAPError, Client, AggregateRequest};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///    let client = Client::connect("").await?;
@@ -2200,7 +1825,7 @@ impl Client {
         let envelope = config.to_envelope();
         match self.sendwithstream(envelope).await {
             Ok((response_rx, mut stream_rx)) => {
-                let temp_file_path = generate_unique_filename("openiap");
+                let temp_file_path = util::generate_unique_filename("openiap");
                 debug!("Temp file: {:?}", temp_file_path);
                 let mut temp_file = File::create(&temp_file_path).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to create temp file: {}", e))
@@ -2265,7 +1890,7 @@ impl Client {
                 }
                 let filepath = format!("{}/{}", folder, final_filename);
                 trace!("Moving file to {}", filepath);
-                move_file(temp_file_path.to_str().unwrap(), filepath.as_str()).map_err(|e| {
+                util::move_file(temp_file_path.to_str().unwrap(), filepath.as_str()).map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to move file: {}", e))
                 })?;
                 debug!("Downloaded file to {}", filepath);
@@ -2292,11 +1917,9 @@ impl Client {
         let envelope = config.to_envelope();
         let (response_rx, rid) = self.send_noawait(envelope).await?;
         {
-            let inner = self.inner.lock().await;
-
             let envelope = BeginStream::from_rid(rid.clone());
             debug!("Sending beginstream to #{}", rid);
-            send_envelope(self.clone(), inner.to_owned(), envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+            self.send_envelope(envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
             let mut counter = 0;
 
             loop {
@@ -2312,14 +1935,14 @@ impl Client {
                 let chunk = buffer[..bytes_read].to_vec();
                 let envelope = Stream::from_rid(chunk, rid.clone());
                 debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
-                send_envelope(self.clone(), inner.to_owned() ,envelope).await.map_err(|e| {
+                self.send_envelope(envelope).await.map_err(|e| {
                     OpenIAPError::ClientError(format!("Failed to send data: {}", e))
                 })?
             }
 
             let envelope = EndStream::from_rid(rid.clone());
             debug!("Sending endstream to #{}", rid);
-            send_envelope(self.clone(), inner.to_owned(), envelope).await
+            self.send_envelope(envelope).await
                 .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
         }
 
@@ -2335,7 +1958,6 @@ impl Client {
                     })?;
                     return Err(OpenIAPError::ServerError(error_response.message));
                 }
-
                 let upload_response: UploadResponse =
                     prost::Message::decode(response.data.unwrap().value.as_ref()).map_err(|e| {
                         OpenIAPError::ClientError(format!("Failed to decode UploadResponse: {}", e))
@@ -2653,7 +2275,7 @@ impl Client {
                         f.file = std::fs::read(&f.filename).unwrap();
                         // f.file = compress_file(&f.filename).unwrap();
                         // f.compressed = false;
-                        f.file = compress_file_to_vec(&f.filename).unwrap();
+                        f.file = util::compress_file_to_vec(&f.filename).unwrap();
                         f.compressed = true;
                         f.filename = filename.to_string();
                         f.id = "findme".to_string();
@@ -2741,7 +2363,7 @@ impl Client {
                             f.file = std::fs::read(&f.filename).unwrap();
                             // f.file = compress_file(&f.filename).unwrap();
                             // f.compressed = false;
-                            f.file = compress_file_to_vec(&f.filename).unwrap();
+                            f.file = util::compress_file_to_vec(&f.filename).unwrap();
                             f.compressed = true;
                             f.filename = filename.to_string();
                             f.id = "findme".to_string();
@@ -3399,21 +3021,21 @@ impl Client {
                     let json = event.data.clone();
                     let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
                     let command: String = obj["command"].as_str().unwrap().to_string();
-                    println!("Received event: {:?}", event);
+                    debug!("Received event: {:?}", event);
                     if command.eq("invokesuccess") {
-                        println!("Robot successfully started running workflow");
+                        debug!("Robot successfully started running workflow");
                     } else if command.eq("invokeidle") {
-                        println!("Workflow went idle");
+                        debug!("Workflow went idle");
                     } else if command.eq("invokeerror") {
-                        println!("Robot failed to run workflow");
+                        debug!("Robot failed to run workflow");
                         let tx = tx.lock().unwrap().take().unwrap();
                         tx.send(event.data).unwrap();
                     } else if command.eq("timeout") {
-                        println!("No robot picked up the workflow");
+                        debug!("No robot picked up the workflow");
                         let tx = tx.lock().unwrap().take().unwrap();
                         tx.send(event.data).unwrap();
                     } else if command.eq("invokecompleted") {
-                        println!("Robot completed running workflow");
+                        debug!("Robot completed running workflow");
                         let tx = tx.lock().unwrap().take().unwrap();
                         tx.send(event.data).unwrap();
                     } else {
@@ -3424,13 +3046,13 @@ impl Client {
             )
             .await
             .unwrap();
-        println!("Registered Response Queue: {:?}", q);
+        debug!("Registered Response Queue: {:?}", q);
         let data = format!(
             "{{\"command\":\"invoke\",\"workflowid\":\"{}\",\"payload\": {}}}",
             config.workflowid, config.payload
         );
-        println!("Send Data: {}", data);
-        println!("To Queue: {} With reply to: {}", config.robotid, q);
+        debug!("Send Data: {}", data);
+        debug!("To Queue: {} With reply to: {}", config.robotid, q);
         let config = QueueMessageRequest {
             queuename: config.robotid.clone(),
             replyto: q.clone(),
@@ -3458,7 +3080,7 @@ impl Client {
                 //     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
                 let json = rx.await.unwrap();
-                println!("Received json result: {:?}", json);
+                debug!("Received json result: {:?}", json);
                 let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
                 let command: String = obj["command"].as_str().unwrap().to_string();
                 let mut data = "".to_string();

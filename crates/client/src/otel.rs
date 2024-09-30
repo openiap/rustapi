@@ -1,12 +1,12 @@
-use sysinfo::NetworkExt;
-use sysinfo::ProcessExt;
-use sysinfo::SystemExt;
-use sysinfo::{get_current_pid, System};
+use crate::otel;
+use openiap_proto::errors::OpenIAPError;
+use sysinfo::{get_current_pid, System, NetworkExt, ProcessExt, SystemExt};
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
 use opentelemetry::global::{set_error_handler, Error as OtelError};
+use tracing::{trace, debug, error};
 use std::sync::{Arc, Mutex};
-use tracing::{trace};
+use std::io::Write;
 
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
 const PROCESS_CPU_UTILIZATION: &str = "process.cpu.utilization";
@@ -20,7 +20,7 @@ const HOSTNAME: Key = Key::from_static_str("hostname");
 const OFID: Key = Key::from_static_str("ofid");
 
 /// Register metrics for the process with the given OpenTelemetry meter.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, target = "otel::register_metrics")]
 pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
     let pid = get_current_pid()?;
 
@@ -142,11 +142,11 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
                     disk_io.written_bytes.try_into().unwrap(),
                     &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
                 );
-                trace!(
-                    "hostname: {:?}, mem: {:?} v mem: {:?} cpu usage: {:?}  cpu util: {:?} elapsed: {:?} rx: {:?} tx: {:?}",
-                    hostname::get().unwrap().into_string().unwrap(),
-                    pmemory, vmemory, cpu_usage, cpu_utilization, elapsed_seconds, received, transmitted
-                );
+                // trace!(
+                //     "hostname: {:?}, mem: {:?} v mem: {:?} cpu usage: {:?}  cpu util: {:?} elapsed: {:?} rx: {:?} tx: {:?}",
+                //     hostname::get().unwrap().into_string().unwrap(),
+                //     pmemory, vmemory, cpu_usage, cpu_utilization, elapsed_seconds, received, transmitted
+                // );
             }
         },
     );
@@ -161,4 +161,101 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
             return Err(format!("Could not register callback: {}", e));
         }
     }
+}
+
+use opentelemetry::{KeyValue};
+use opentelemetry_otlp::{WithExportConfig};
+use opentelemetry_sdk::{Resource};
+use std::time::Duration;
+use opentelemetry_otlp::{new_exporter, new_pipeline};
+use opentelemetry_sdk::{runtime::Tokio};
+use opentelemetry::metrics::MeterProvider;
+
+struct ProviderWrapper {
+    provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>
+}
+use lazy_static::lazy_static;
+lazy_static! {
+    static ref provider1: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
+        provider: None
+    });
+    static ref provider2: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
+        provider: None
+    });
+}
+/// Initialize telemetry
+#[tracing::instrument(skip_all, target = "otel::init_telemetry")]
+pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    if strurl.is_empty() {
+        return Err(Box::new(OpenIAPError::ClientError("No URL provided".to_string())));
+    }
+    let period = 5;
+    let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
+    let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
+    let url = url::Url::parse(strurl)
+    .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
+    let mut apihostname = url.host_str().unwrap_or("localhost.openiap.io").to_string();
+    if apihostname.starts_with("grpc.") {
+        apihostname = apihostname[5..].to_string();
+    }
+
+    let mut hasher = md5::Context::new();
+    hasher.write_all(apihostname.as_bytes()).unwrap();
+    let ofid = format!("{:x}", hasher.compute());
+
+    if enable_analytics {
+        debug!("Initializing generic telemetry");
+        let mut providers1 = provider1.lock().unwrap();
+        if providers1.provider.is_none() {
+            let exporter1 = new_exporter()
+                .tonic()
+                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+                .with_endpoint("https://otel.stats.openiap.io:443");
+            let provider = new_pipeline()
+            .metrics(Tokio)
+            .with_exporter(exporter1)
+            .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
+            .with_period(Duration::from_secs(period))
+            .build().unwrap();
+            let meter1 = provider.meter("process-meter1");
+            // let meter: opentelemetry::metrics::Meter = meterprovider1.meter("process-meter1");
+            // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
+            match otel::register_metrics(meter1, &ofid) {
+                Ok(_) => (),
+                Err(e) => {
+                    debug!("Failed to initialize process observer: {}", e);
+                }
+            }
+            providers1.provider = Some(provider);
+        }
+    }
+
+    if !otlpurl.is_empty() {
+        debug!("Adding {} for telemetry", otlpurl);
+        let mut providers2 = provider2.lock().unwrap();
+        if providers2.provider.is_none() {
+            let exporter2 = new_exporter()
+                .tonic()
+                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+                .with_endpoint(otlpurl);
+            let provider = new_pipeline()
+                .metrics(Tokio)
+                .with_exporter(exporter2)
+                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
+                .with_period(Duration::from_secs(period))
+                .build().unwrap();
+
+            let meter2 = provider.meter("process-meter2");
+            // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
+            match otel::register_metrics(meter2, &ofid) {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Failed to initialize process observer: {}", e);
+                }
+            }
+            providers2.provider = Some(provider);
+        }
+    }
+
+    Ok(())
 }

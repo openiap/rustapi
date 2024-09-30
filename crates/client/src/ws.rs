@@ -1,51 +1,87 @@
-use futures_util::{ StreamExt};
+use tracing::{error, trace};
+use futures_util::{StreamExt};
 use openiap_proto::protos::Envelope;
-
 use prost::Message as _;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-
 use std::sync::{Arc};
 use tokio::sync::{Mutex};
+use futures::SinkExt;
+use std::ops::AddAssign;
 
 use crate::Client;
 impl Client {
     /// Setup a websocket connection to the server
-    pub async fn setup_ws(&self, strurl:& str,
-        stream_tx: tokio::sync::mpsc::Sender<Envelope>,
-    ) -> Result<futures_channel::mpsc::UnboundedSender<Message>, Box<dyn std::error::Error>>
+    pub async fn setup_ws(&self, strurl:& str) -> Result<(), Box<dyn std::error::Error>>
     {
-        let (stdin_tx, stdin_rx) = futures_channel::mpsc::unbounded();
-        // tokio::spawn(read_stdin(stdin_tx));
-
         let (ws_stream, _) = connect_async(strurl).await?;
-        println!("WebSocket handshake has been successfully completed");
+        trace!("WebSocket handshake has been successfully completed");
+        let (mut write, read) = ws_stream.split();
 
-        let (write, read) = ws_stream.split();
+        let envelope_receiver = self.out_envelope_receiver.clone();
+        let me = self.clone();
+        tokio::spawn( async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+            loop {
+                interval.tick().await;
+                let envelope = envelope_receiver.recv().await;
+                let mut envelope = envelope.unwrap();
+                let command = envelope.command.clone();
 
-        let stdin_to_ws = stdin_rx.map(Ok).forward(write);
+                {
+                    let inner = me.inner.lock().await;
+                    let mut seq = inner.msgcount.lock().await;
+                    envelope.seq = seq.clone();
+                    if envelope.id.is_empty() {
+                        envelope.id = seq.to_string();
+                    }
+                    seq.add_assign(1);
+                }
+
+                // get envelope length, then add it as the first 4 bytes of the message
+                let envelope = envelope.encode_to_vec();
+                let size = envelope.len() as u32;
+
+                // Write the size in little-endian format (like writeUInt32LE in Node.js)
+                let mut size_bytes = size.to_le_bytes().to_vec(); 
+
+                // Append the actual envelope data
+                size_bytes.extend_from_slice(&envelope);
+
+                // Now size_bytes contains the 4-byte length followed by the envelope
+                let size_bytes = size_bytes;
+                match write.send(Message::Binary(size_bytes)).await {
+                    Ok(_) => {
+                        trace!("Sent a {} message to the server", command);
+                    },
+                    Err(e) => {
+                        error!("Failed to send {} message to websocket: {:?}", command, e);
+                        me.set_connected(false, Some(&e.to_string()));
+                        return;
+                    }
+                };
+            }
+        });
 
         let buffer: Vec<u8> = vec![];
         let buffer = Arc::new(Mutex::new(buffer));
-        let inner_stream_tx = Arc::new(Mutex::new(stream_tx.clone()));
         let me = self.clone();
         let ws_to_stdout = {
             read.for_each(move |message| {
                 let buffer = Arc::clone(&buffer);
-                let stream_tx: Arc<Mutex<tokio::sync::mpsc::Sender<Envelope>>> = Arc::clone(&inner_stream_tx);
                 let me = me.clone();
                 async move {
                     if message.is_err() {
                         let errmsg = message.err().unwrap().to_string();
-                        eprintln!("Failed to receive message from websocket: {:?}", errmsg);
+                        error!("Failed to receive message from websocket: {:?}", errmsg);
                         me.set_connected(false, Some(&errmsg));
                         return;
                     }
-                    // println!("Received a message from the server");
                     let data = message.unwrap().into_data();
                     let mut buffer = buffer.lock().await;
                     buffer.extend(&data);
 
                     if buffer.len() < 4 {
+                        // trace!("Buffer length is less than 4");
                         return;
                     }
 
@@ -56,51 +92,30 @@ impl Client {
 
                     // Make sure we have the full message (4 bytes for the size + payload)
                     if buffer.len() < (4 + size as usize) {
+                        // trace!("Buffer length is less than 4 + size: {}", 4 + size as usize);
                         return; // Wait for more data
                     }
 
                     let payload = &buffer[4..(4 + size as usize)].to_vec();
                     buffer.drain(0..(4 + size as usize));
+                    // trace!("Decoding payload: {:?}", payload);
                     let received = match Envelope::decode(&payload[..]) {
                         Ok(received) => {
                             received
                         },
                         Err(e) => {
-                            eprintln!("Failed to decode protobuf message: {:?}", e);
+                            error!("Failed to decode protobuf message: {:?}", e);
                             return;
                         }
                     };
-                    let stream_tx = stream_tx.lock().await;
-                    match stream_tx.send(received).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            eprintln!("Failed to send message to stream: {:?}", e);
-                        }                    
-                    };
-                    // stream_tx.send(received).await.unwrap();
-                    // let inner = inner.lock().await;
-                    // parse_incomming_envelope(inner.clone(), received).await;
-                    // continue;
-                    // tokio::io::stdout().write_all(&data).await.unwrap();
+                    me.parse_incomming_envelope(received).await;
                 }
             })
         };
-        let me = self.clone();
-        tokio::spawn( async move {
-            let res = stdin_to_ws.await;
-            let me = me.clone();
-            if res.is_err() {
-                let errmsg = res.err().unwrap().to_string(); 
-                eprintln!("Failed to receive message from websocket: {:?}", errmsg);
-                me.set_connected(false, Some(&errmsg));
-                return;
-            }
-        });
-        
         tokio::spawn(async {
             ws_to_stdout.await;
         });
         self.set_connected(true, None);
-        Ok(stdin_tx)
+        Ok(())
     }
 }
