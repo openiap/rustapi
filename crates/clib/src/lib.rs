@@ -15,7 +15,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
 use tokio::runtime::Runtime;
-use tracing::{ debug, info, trace};
+use tracing::{debug, info, trace};
 
 mod safe_wrappers;
 use safe_wrappers::{c_char_to_str, safe_wrapper};
