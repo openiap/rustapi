@@ -26,6 +26,7 @@ pub use openiap_proto::protos::*;
 pub use openiap_proto::*;
 pub use prost_types::Timestamp;
 pub use protos::flow_service_client::FlowServiceClient;
+use sqids::Sqids;
 
 use tokio_tungstenite::{WebSocketStream};
 use tracing::{debug, error, info, trace};
@@ -177,6 +178,8 @@ pub struct Config {
     grafana_url: String,
     #[serde(default)]
     otel_metric_url: String,
+    #[serde(default)]
+    enable_analytics: bool,
 }
 impl std::fmt::Debug for ClientInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -243,7 +246,7 @@ impl Client {
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let usegprc = url.scheme() == "grpc";
-        let issecure = url.scheme() == "https" || url.scheme() == "wss";
+        let mut issecure = url.scheme() == "https" || url.scheme() == "wss";
         if url.scheme() != "http"
             && url.scheme() != "https"
             && url.scheme() != "grpc"
@@ -254,6 +257,7 @@ impl Client {
         }
         if url.scheme() == "grpc" {
             if url.port() == Some(443) {
+                issecure = true;
                 strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
                 strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
@@ -338,20 +342,24 @@ impl Client {
             }
         }
 
+        let mut enable_analytics = true;
         let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
         if config.is_some() {
             let config = config.as_ref().unwrap();
             if !config.otel_metric_url.is_empty() {
                 otel_metric_url = config.otel_metric_url.clone();
             }
+            enable_analytics = config.enable_analytics;
         }
-        match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(OpenIAPError::ClientError(format!(
-                    "Failed to initialize telemetry: {}",
-                    e
-                )));
+        if enable_analytics {
+            match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
+                Ok(_) => (),
+                Err(e) => {
+                    return Err(OpenIAPError::ClientError(format!(
+                        "Failed to initialize telemetry: {}",
+                        e
+                    )));
+                }
             }
         }
         let innerclient: ClientEnum;
@@ -494,8 +502,6 @@ impl Client {
             client.setup_grpc_stream().await?;
             client
         };
-
-        client.ping().await;
         if username.is_empty() && password.is_empty() {
             username = std::env::var("OPENIAP_USERNAME").unwrap_or_default();
             password = std::env::var("OPENIAP_PASSWORD").unwrap_or_default();
@@ -652,9 +658,13 @@ impl Client {
     }
     /// Internal function, used to generate a unique id for each message sent to the server.
     #[tracing::instrument(skip_all)]
-    fn get_id(&self) -> usize {
+    fn get_id(&self) -> String {
         static COUNTER: AtomicUsize = AtomicUsize::new(1);
-        COUNTER.fetch_add(1, Ordering::Relaxed)
+        let num1 = COUNTER.fetch_add(1, Ordering::Relaxed) as u64;
+        let num2 = COUNTER.fetch_add(1, Ordering::Relaxed) as u64;
+        let num3 = COUNTER.fetch_add(1, Ordering::Relaxed) as u64;
+        let sqids = Sqids::default();
+        sqids.encode(&[num1, num2, num3 ]).unwrap().to_string()
     }
     /// Internal function, Send a message to the OpenIAP server, and wait for a response.
     #[tracing::instrument(skip_all)]
@@ -684,7 +694,7 @@ impl Client {
             }
         }
         let (response_tx, response_rx) = oneshot::channel();
-        let id = self.get_id().to_string();
+        let id = self.get_id();
         // debug!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
         {
@@ -715,7 +725,7 @@ impl Client {
         }
         let (response_tx, response_rx) = oneshot::channel();
         let (stream_tx, stream_rx) = mpsc::channel(1024 * 1024);
-        let id = self.get_id().to_string();
+        let id = self.get_id();
         msg.id = id.clone();
         {
             let inner = self.inner.lock().await;
@@ -730,12 +740,21 @@ impl Client {
         Ok((response_rx, stream_rx))
     }
     #[tracing::instrument(skip_all, target = "openiap::client")]
-    async fn send_envelope(&self, envelope: Envelope) -> Result<(), OpenIAPError> {
+    async fn send_envelope(&self, mut envelope: Envelope) -> Result<(), OpenIAPError> {
         let env = envelope.clone();
         let command = envelope.command.clone();
+        if envelope.id.is_empty() {
+            let id = self.get_id();
+            envelope.id = id.clone();
+        }
+
         let cli = self.clone();
         // trace!("Spawn thread to send {} message", command);
-        debug!("Send #{} #{} {} message", envelope.id, envelope.rid, command);
+        if envelope.rid.is_empty() {
+            debug!("Send #{} #{} {} message", envelope.seq, envelope.id, command);
+        } else {
+            debug!("Send #{} #{} (reply to #{}) {} message", envelope.seq, envelope.id, envelope.rid, command);
+        }
         // let handle = tokio::spawn( async move {
             trace!("Sending {} message, in the thread", command);
             let res = cli.out_envelope_sender.send(env).await;
@@ -765,9 +784,14 @@ impl Client {
         let watches = inner.watches.lock().await;
         let queues = inner.queues.lock().await;
     
-        debug!("Received #{} #{} {} message", received.id, rid, command);
+        if rid.is_empty() {
+            debug!("Received #{} #{} {} message", received.seq, received.id, command);
+        }else {
+            debug!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
+        }
+        
         if command == "ping" {
-            ()
+            self.pong(&received.id).await;
         } else if command == "refreshtoken" {
             // TODO: store jwt at some point in the future
         } else if command == "beginstream"
@@ -831,13 +855,30 @@ impl Client {
     /// Internal function, used to send a ping to the OpenIAP server.
     #[tracing::instrument(skip_all)]
     async fn ping(&self) {
+        let id = self.get_id();
         let envelope = Envelope {
+            id: id.clone(),
             command: "ping".into(),
             ..Default::default()
         };
         match self.send_envelope(envelope).await {
             Ok(_) => (),
             Err(e) => error!("Failed to send ping: {}", e),
+        }
+    }
+    /// Internal function, used to send a pong response to the OpenIAP server.
+    #[tracing::instrument(skip_all)]
+    async fn pong(&self, rid: &str) {
+        let id = self.get_id();
+        let envelope = Envelope {
+            id: id.clone(),
+            command: "pong".into(),
+            rid: rid.to_string(),
+            ..Default::default()
+        };
+        match self.send_envelope(envelope).await {
+            Ok(_) => (),
+            Err(e) => error!("Failed to send pong: {}", e),
         }
     }
     /// Sign in to the OpenIAP service. \
@@ -911,16 +952,7 @@ impl Client {
     }
     /// Return a list of collections in the database
     /// - includehist: include historical collections, default is false.
-    /// ```
-    /// use openiap_client::{Client, OpenIAPError};
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), OpenIAPError> {
-    ///     let client = Client::connect("").await?;
-    ///     let collections = client.list_collections(false).await?;
-    ///     println!("Collections: {}", collections);
-    ///     Ok(())
-    /// }
-    /// ```
+    /// please see create_collection for examples on how to create collections.
     #[tracing::instrument(skip_all)]
     pub async fn list_collections(&self, includehist: bool) -> Result<String, OpenIAPError> {
         let config = ListCollectionsRequest::new(includehist);
@@ -954,6 +986,8 @@ impl Client {
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
     ///     let client = Client::connect("").await?;
+    ///     //let collections = client.list_collections(false).await?;
+    ///     //println!("Collections: {}", collections);
     ///     let config = CreateCollectionRequest::byname("rusttestcollection");
     ///     client.create_collection(config).await?;
     ///     let config = DropCollectionRequest::byname("rusttestcollection");
@@ -962,7 +996,7 @@ impl Client {
     /// }
     /// ```
     /// You can create a normal collection with a TTL index on the _created field, using the following example:
-    /// ```
+    /// ```ignore
     /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
@@ -979,7 +1013,7 @@ impl Client {
     /// ```
     /// You can create a time series collection using the following example:
     /// granularity can be one of: seconds, minutes, hours
-    /// ```
+    /// ```ignore
     /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
@@ -1116,7 +1150,7 @@ impl Client {
     /// }
     /// ```
     /// Example of creating an unique index on the address field in the rustindextestcollection collection, and then dropping it again:
-    /// ```
+    /// ```ignore
     /// use openiap_client::{Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {

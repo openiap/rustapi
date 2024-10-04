@@ -7,7 +7,7 @@ impl SigninRequest {
         Self {
             username: username.to_string(),
             password: password.to_string(),
-            ping: false,
+            ping: true,
             ..Default::default()
         }
     }

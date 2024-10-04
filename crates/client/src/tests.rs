@@ -1,9 +1,10 @@
 #[allow(dead_code)]
 fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
-// cargo test --lib
-// cargo test --doc
-// cargo test --lib -- --nocapture
-// cargo test --doc -- --nocapture
+// cargo test -- --test-threads 1
+// cargo test --lib -- --test-threads 1
+// cargo test --doc -- --test-threads 1
+// cargo test --lib -- --nocapture --test-threads 1
+// cargo test --doc -- --nocapture --test-threads 1
 #[cfg(test)]
 mod tests {
     use errors::OpenIAPError;
@@ -18,10 +19,10 @@ mod tests {
 
     use super::*;
     // const TEST_URL: &str = "http://localhost:50051";
-    const TEST_URL: &str = "grpc://grpc.home.openiap.io:443";
+    // const TEST_URL: &str = "grpc://grpc.home.openiap.io:443";
     // const TEST_URL: &str = "wss://home.openiap.io";
     // const TEST_URL: &str = "wss://demo.openiap.io";
-    // const TEST_URL: &str = "";
+    const TEST_URL: &str = "";
     #[test]
     fn normal_type() {
         is_normal::<Pin<Box<Client>>>();
@@ -634,7 +635,7 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn test_watch() {
+    async fn test_watch() { // cargo test test_watch -- --nocapture
         let client = Client::connect(TEST_URL).await.unwrap();
 
         let (tx, rx) = oneshot::channel::<()>();
@@ -673,6 +674,7 @@ mod tests {
             "test_query failed with {:?}",
             response.err().unwrap()
         );
+        println!("Inserted document: {:?}", response);
 
         // Await the watch event
         rx.await.unwrap();
