@@ -63,6 +63,24 @@ const ClientWrapper = koffi.struct('ClientWrapper', {
 });
 const ClientWrapperPtr = koffi.pointer(ClientWrapper);
 
+
+const ClientEventResponseWrapper = koffi.struct('ClientEventResponseWrapper', {
+    success: 'bool',
+    eventid: 'char*',
+    error: 'char*'
+});
+const ClientEventResponseWrapperPtr = koffi.pointer(ClientEventResponseWrapper);
+const ClientEventWrapper = koffi.struct('ClientEventWrapper', {
+    event: 'char*',
+    reason: 'char*'
+});
+const ClientEventWrapperPtr = koffi.pointer(ClientEventWrapper);
+const OffClientEventResponseWrapper = koffi.struct('OffClientEventResponseWrapper', {
+    success: 'bool',
+    error: 'char*'
+});
+const OffClientEventResponseWrapperPtr = koffi.pointer(OffClientEventResponseWrapper);
+
 const SigninRequestWrapper = koffi.struct('SigninRequestWrapper', {
     username: CString,
     password: CString,
@@ -544,6 +562,14 @@ function loadLibrary() {
         const lib = koffi.load(libPath);
 
         lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
+
+        lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
+        lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
+        lib.off_client_event = lib.func('off_client_event', OffClientEventResponseWrapperPtr, [CString]);
+        lib.free_off_event_response = lib.func('free_off_event_response', 'void', [OffClientEventResponseWrapperPtr]);
+        lib.free_event_response = lib.func('free_event_response', 'void', [ClientEventResponseWrapperPtr]);
+        lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
+
         lib.disable_tracing = lib.func('void disable_tracing()');
         lib.connect = lib.func('client_connect', ClientWrapperPtr, ['str']);
         lib.ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
@@ -2044,6 +2070,86 @@ class Client {
 
         return watchid;
     }
+
+    clientevents = {}
+    next_watch_interval = 200;
+    on_client_event(callback) {
+        this.verbose('on_client_event invoked');
+        this.trace('call on_client_event');
+        const response = this.lib.on_client_event(this.client);
+        this.verbose('decode response');
+        const result = koffi.decode(response, ClientEventResponseWrapper);
+        this.trace('free_event_response');
+        this.lib.free_event_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let eventid = result.eventid;
+        let event_counter = 0;
+        this.info('on_client_event eventid', eventid);
+        this.clientevents[eventid] = setInterval(() => {
+            // this.info('on_client_event setInterval');
+            if (this.connected == false) {
+                this.trace('No longer connected, so clearInterval for eventid', eventid);
+                clearInterval(this.clientevents[eventid]);
+                delete this.clientevents[eventid];
+                return;
+            }
+            let hadone = false;
+            do {
+                this.trace('call next');
+                const responsePtr = this.lib.next_client_event(eventid);
+                this.trace('decode response');
+                const result = koffi.decode(responsePtr, ClientEventWrapper);
+                if (result.event != null && result.event != "") {
+                    hadone = true;
+                    event_counter++;
+                    let event = {
+                        event: result.event,
+                        reason: result.reason
+                    }
+                    this.trace('call next had result', event_counter, event);
+                    try {
+                        callback(event, event_counter);
+                    } catch (error) {
+                        console.error('Error in client event callback', error);                        
+                    }                    
+                } else {
+                    hadone = false;
+                }
+                this.trace('free_client_event');
+                this.lib.free_client_event(responsePtr);
+            } while (hadone);
+        }, this.next_watch_interval);
+
+        return eventid;
+    }
+    off_client_event(eventid) {
+        this.verbose('off_client_event invoked');
+        const response = this.lib.off_client_event(this.client, eventid);
+        this.trace('decode response');
+        const result = koffi.decode(response, OffClientEventResponseWrapper);
+        this.trace('free_off_event_response');
+        this.lib.free_off_event_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        if (this.clientevents[eventid] != null) {
+            this.trace('clearInterval for eventid', eventid);
+            clearInterval(this.clientevents[eventid]);
+            delete this.clientevents[eventid];
+        }        
+    }
+    // lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
+    // lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
+    // lib.free_event_response = lib.func('free_event_response', 'void', [ClientEventResponseWrapperPtr]);
+    // lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
+
+
+
+
     event_refs = {};
     uniqeid() {
         return Math.random().toString(36).substr(2, 9);

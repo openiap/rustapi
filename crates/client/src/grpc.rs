@@ -12,9 +12,8 @@ impl Client {
     /// This function is called by [connect] and should not be called directly.
     /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
     #[tracing::instrument(skip_all)]
-    pub async fn setup_grpc_stream(&mut self) -> Result<(), OpenIAPError> {
-        let inner = self.inner.lock().await;
-        let mut client = match inner.client {
+    pub async fn setup_grpc_stream(&self) -> Result<(), OpenIAPError> {
+        let mut client = match self.get_client() {
             ClientEnum::Grpc(ref client) => client.clone(),
             _ => {
                 return Err(OpenIAPError::ClientError("Invalid client".to_string()));

@@ -6,7 +6,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::{Client, ClientEvent, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
@@ -22,11 +22,16 @@ use safe_wrappers::{c_char_to_str, safe_wrapper};
 
 use lazy_static::lazy_static;
 lazy_static! {
+    // TODO: Add max size for the queues
     static ref WATCH_EVENTS: std::sync::Mutex<HashMap<String, VecDeque<WatchEvent>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
     static ref QUEUE_EVENTS: std::sync::Mutex<HashMap<String, VecDeque<QueueEvent>>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
+    };
+    static ref CLIENT_EVENTS: std::sync::Mutex<HashMap<String, VecDeque<ClientEvent>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
@@ -338,10 +343,11 @@ pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWr
     let runtime = std::sync::Arc::new(Runtime::new().unwrap());
     info!("server_address = {:?}", server_address);
     info!("connect::begin");
-    let client = runtime.block_on(Client::connect(&server_address));
+    let client = Client::new();
+    let res: Result<(), openiap_client::OpenIAPError> = runtime.block_on(client.connect_async(&server_address));
     info!("connect::complete");
-    if client.is_err() {
-        let e = client.err().unwrap();
+    if res.is_err() {
+        let e = res.err().unwrap();
         info!("error_msg = {:?}", format!("Connaction failed: {:?}", e));
         let error_msg = CString::new(format!("Connaction failed: {:?}", e))
             .unwrap()
@@ -357,7 +363,7 @@ pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWr
         return result;
     }
     let result = Box::into_raw(Box::new(ClientWrapper {
-        client: Some(client.unwrap()),
+        client: Some(client),
         runtime,
         success: true,
         error: std::ptr::null(),
@@ -380,10 +386,11 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
     let runtime_clone = std::sync::Arc::clone(&runtime);
     runtime.spawn(async move {
         trace!("Simulated async task started");
-        // Simulated async task (or replace with actual Client::connect)
-        let client_result = Client::connect(&server_address).await;
+        // Simulated async task (or replace with actual Client::new_connect)
+        let client = Client::new();
+        let client_result = client.connect_async(&server_address).await;
         trace!("Client::connect::done");
-        let wrapper = if let Ok(client) = client_result {
+        let wrapper = if let Ok(_) = client_result {
             Box::into_raw(Box::new(ClientWrapper {
                 client: Some(client),
                 runtime: runtime_clone,
@@ -438,6 +445,7 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
         if let Some(client) = &response_ref.client {
             // let client_clone = client.clone();
             let runtime = &response_ref.runtime;
+            client.disconnect();
 
             // Ensure that the runtime properly shuts down after the block_on call
             runtime.block_on(async move {
@@ -5222,5 +5230,209 @@ pub extern "C" fn delete_workitem_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_delete_workitem_response(response: *mut DeleteWorkitemResponseWrapper) {
+    free(response);
+}
+
+
+
+
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ClientEventWrapper {
+    event: *const c_char,
+    reason: *const c_char,
+}
+impl Default for ClientEventWrapper {
+    fn default() -> Self { 
+        ClientEventWrapper {
+            event: std::ptr::null(),
+            reason: std::ptr::null(),
+        }
+     }
+}
+#[repr(C)]
+pub struct ClientEventResponseWrapper {
+    success: bool,
+    eventid: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn on_client_event(
+    client: *mut ClientWrapper
+) -> *mut ClientEventResponseWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Invalid options, client is None").unwrap().into_raw();
+            let response = ClientEventResponseWrapper {
+                success: false,
+                eventid: std::ptr::null(),
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let mut client = client_wrapper.client.clone();
+    let runtime = &client_wrapper.runtime;
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = ClientEventResponseWrapper {
+            success: false,
+            eventid: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.as_mut().unwrap();
+    let eventid = Client::get_uniqueid();
+    let _eventid = eventid.clone();
+    runtime.block_on(async {
+        client
+            .on_event(
+                Box::new(move |event: ClientEvent| {
+                    // convert event to json
+                    // let event = serde_json::to_string(&event).unwrap();
+                    // let c_event = std::ffi::CString::new(event).unwrap();
+                    println!("!!!!!!!!!!! client event: {:?}", event);
+                    let clientid = _eventid.clone();
+                    debug!("client event: {:?}", event);
+                    let mut e = CLIENT_EVENTS.lock().unwrap();
+                    let queue = e.get_mut(&clientid);
+                    match queue {
+                        Some(q) => {
+                            q.push_back(event);
+                        }
+                        None => {
+                            let mut q = std::collections::VecDeque::new();
+                            q.push_back(event);
+                            e.insert(clientid, q);
+                        }
+                    }
+                }),
+            )
+            .await
+    });
+
+    let mut events = CLIENT_EVENTS.lock().unwrap();
+    let _eventid = eventid.clone();
+    let queue = events.get_mut(&_eventid);
+    if queue.is_none() {
+        let q = std::collections::VecDeque::new();
+        let k = String::from(&eventid);
+        events.insert(k, q);
+    };
+    let response = ClientEventResponseWrapper {
+        success: true,
+        eventid: CString::new(eventid).unwrap().into_raw(),
+        error: std::ptr::null(),
+    };
+    return Box::into_raw(Box::new(response));
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn next_client_event (
+    clientid: *const c_char,
+    
+) -> *mut ClientEventWrapper {
+    debug!("unwrap clientid");
+    let clientid = c_char_to_str(clientid);
+    debug!("clientid {:}", clientid);
+    let clientid = clientid.to_string();
+    debug!("unwrap events");
+    let mut e = CLIENT_EVENTS.lock().unwrap();
+    debug!("get queue");
+    let queue = e.get_mut(&clientid);
+    match queue {
+        Some(q) => {
+            match q.pop_front() {
+                Some(event) => {
+                    debug!("got client event");
+                    let event = match event {
+                        ClientEvent::Connected => ClientEventWrapper { event: CString::new("Connected").unwrap().into_raw(),reason: std::ptr::null() },
+                        ClientEvent::Disconnected(reason) => ClientEventWrapper { event: CString::new("Disconnected").unwrap().into_raw(),reason: CString::new(reason).unwrap().into_raw() },
+                        ClientEvent::SignedIn => ClientEventWrapper { event: CString::new("SignedIn").unwrap().into_raw(),reason: std::ptr::null() },
+                        ClientEvent::SignedOut => ClientEventWrapper { event: CString::new("SignedOut").unwrap().into_raw(),reason: std::ptr::null() },
+                        // ClientEvent::Stream(data) => {
+                        //     let data = CString::new(data).unwrap().into_raw();
+                        //     ClientEventWrapper { event: CString::new("Stream").unwrap().into_raw(),reason: data }
+                        // },
+                        // ClientEvent::Ping => ClientEventWrapper { event: CString::new("Ping").unwrap().into_raw(),reason: std::ptr::null() },
+                        // ClientEvent::Queue(data) => {
+                        //     let data = CString::new(data.data).unwrap().into_raw();
+                        //     ClientEventWrapper { event: CString::new("Queue").unwrap().into_raw(),reason: data }
+                        // },
+                        // ClientEvent::Watch(data) => {
+                        //     let data = CString::new(data.document).unwrap().into_raw();
+                        //     ClientEventWrapper { event: CString::new("Watch").unwrap().into_raw(),reason: data }
+                        // },
+                        // _ => ClientEventWrapper { event: CString::new("Unknown").unwrap().into_raw(),reason: std::ptr::null() },
+                    };
+                    Box::into_raw(Box::new(event))
+                }
+                None => {
+                    debug!("No event");
+                    Box::into_raw(Box::new(ClientEventWrapper::default())) 
+                },
+            }
+        },
+        None => {
+            debug!("Queue for {:} not found", clientid);
+            Box::into_raw(Box::new(ClientEventWrapper::default())) 
+        },
+    }
+}
+
+#[repr(C)]
+pub struct OffClientEventResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn off_client_event(
+    eventid: *const c_char,
+) -> *mut OffClientEventResponseWrapper {
+    let eventid = c_char_to_str(eventid);
+    if eventid.is_empty() {
+        let error_msg = CString::new("eventid is required").unwrap().into_raw();
+        let response = OffClientEventResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    trace!("eventid: {:?}", eventid);
+    
+    let mut e = CLIENT_EVENTS.lock().unwrap();
+    let queue = e.get_mut(&eventid);
+    match queue {
+        Some(q) => {
+            q.clear();
+            e.remove(&eventid);
+        }
+        None => {
+        }
+    };
+    Box::into_raw(Box::new(OffClientEventResponseWrapper {
+        success: true,
+        error: std::ptr::null(),
+    }))    
+}
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_off_event_response(response: *mut OffClientEventResponseWrapper) {
+    free(response);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_event_response(response: *mut ClientEventResponseWrapper) {
+    free(response);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_client_event(response: *mut ClientEventWrapper) {
     free(response);
 }

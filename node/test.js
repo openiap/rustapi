@@ -4,8 +4,9 @@ const fs = require('fs');
     let _int = setInterval(() => { 
         // console.log("Event loop is running"); 
     }, 200);
+    const client = new Client();
     try {
-        const test_async = true;
+        const test_async = false;
         const test_sync = true;
         const test_watch = true;
         const test_multiple_workitems = true;
@@ -15,7 +16,6 @@ const fs = require('fs');
         // const url = 'http://localhost:50051';
         // const url = 'https://grpc.app.openiap.io/';
         const url = '';
-        const client = new Client();
         // client.enable_tracing("openiap=debug", "close");
         // client.enable_tracing("openiap=trace", "new");
         client.enable_tracing("openiap=info", "");
@@ -32,6 +32,11 @@ const fs = require('fs');
         } else {
             client.connect(url);
         }
+
+        client.on_client_event((event) => {
+            console.log("client event", event);
+        });
+
         client.info("connect completed, now call signin() again")
         if(test_async) {
             const signin_result2 = await client.signin_async();
@@ -47,7 +52,7 @@ const fs = require('fs');
         if (signin_result.success) {
             client.info("signed in", signin_result.success);
 
-            if(test_async) {
+            if(test_sync) {
                 for (y = 0; y < 1; y++) {
                     for (let i = 0; i < 11; i++) {
                         const query_result = client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
@@ -289,11 +294,6 @@ const fs = require('fs');
                 console.log("exchange event loop done");
                 client.unregister_queue(queuename);            
             }
-
-            client.info("*********************************")
-            client.info("done, free client");
-            client.info("*********************************")
-            client.free();
         } else {
             client.info("signed failed", signin_result.error);
         }
@@ -305,5 +305,11 @@ const fs = require('fs');
         }
     } finally {
         clearInterval(_int);
+        if(client) {
+            client.info("*********************************")
+            client.info("done, free client");
+            client.info("*********************************")
+            client.free();
+        }
     }
 })();

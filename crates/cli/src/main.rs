@@ -98,25 +98,52 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let iter_per_core: u64 = num_calcs / available_cores;
     let num_iters = 5000;
 
+    let b = Client::new();
     enable_tracing("openiap=debug", "");
-    let res = Client::connect("").await;
+    b.on_event(Box::new(|event| {
+        match event {
+            openiap_client::ClientEvent::Connected => println!("Client connected!"),
+            openiap_client::ClientEvent::Disconnected(e) => println!("Client disconnected! {:?}", e),
+            // openiap_client::ClientEvent::Message(msg) => println!("Received message: {:?}", msg),
+            _ => println!("Received unknown event"),
+        }
+    })).await;
+    // let res = b.connect_async("").await;
+    // let res = b.connect("");
+    // println!("b.connect_called: {:?}", b.connect_called);
 
-    // let res = Client::connect("wss://home.openiap.io/ws/v2").await;
-    let b = match res {
+    // // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
+    // match res {
+    //     Ok(b) => b,
+    //     Err(e) => {
+    //         println!("Failed to connect to server: {:?}", e);
+    //         return Ok(());
+    //     }        
+    // };
+    let res = b.connect_async("").await;
+
+    // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
+    match res {
         Ok(b) => b,
         Err(e) => {
             println!("Failed to connect to server: {:?}", e);
             return Ok(());
         }        
     };
-    b.on_event(|event| {
-        match event {
-            openiap_client::ClientEvent::Connected => println!("Client connected!"),
-            openiap_client::ClientEvent::Disconnected(e) => println!("Client disconnected! {:?}", e),
-            openiap_client::ClientEvent::Message(msg) => println!("Received message: {:?}", msg),
-            _ => println!("Received unknown event"),
-        }
-    }).await;
+
+    // b.disconnect();
+
+    // let res = b.connect_async("").await;
+
+    // // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
+    // match res {
+    //     Ok(b) => b,
+    //     Err(e) => {
+    //         println!("Failed to connect to server: {:?}", e);
+    //         return Ok(());
+    //     }        
+    // };
+
 
     let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");

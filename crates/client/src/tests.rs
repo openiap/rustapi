@@ -43,7 +43,7 @@ mod tests {
     #[tokio::test()]
     async fn test_get_document_version() {
         // cargo test test_get_document_version -- --nocapture
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item = "{\"name\": \"test from rust\", \"_type\": \"test\"}";
         let query = InsertOneRequest {
@@ -154,7 +154,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_query() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = QueryRequest {
             query: "{}".to_string(),
             projection: "{\"name\": 1}".to_string(),
@@ -171,7 +171,7 @@ mod tests {
     #[tokio::test()]
     async fn test_multiple_query() {
         // cargo test test_multiple_query -- --nocapture
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let tasks = FuturesUnordered::<
             Pin<Box<dyn Future<Output = Result<QueryResponse, OpenIAPError>>>>,
         >::new();
@@ -189,7 +189,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_aggreate() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = AggregateRequest {
             collectionname: "entities".to_string(),
             aggregates: "[]".to_string(),
@@ -205,7 +205,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_aggreate_multiple() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let tasks = FuturesUnordered::<
             Pin<Box<dyn Future<Output = Result<AggregateResponse, OpenIAPError>>>>,
         >::new();
@@ -224,7 +224,7 @@ mod tests {
     #[tokio::test()]
     async fn test_count() {
         // cargo test test_count -- --nocapture
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = CountRequest {
             collectionname: "entities".to_string(),
             query: "{}".to_string(),
@@ -241,7 +241,7 @@ mod tests {
     #[tokio::test()]
     async fn test_distinct() {
         // cargo test test_distinct -- --nocapture
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = DistinctRequest {
             collectionname: "entities".to_string(),
             field: "_type".to_string(),
@@ -257,7 +257,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_insert_one() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = InsertOneRequest {
             collectionname: "entities".to_string(),
             item: "{\"name\": \"test from rust\", \"_type\": \"test\"}".to_string(),
@@ -273,7 +273,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_insert_many() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let query = InsertManyRequest {
             collectionname: "entities".to_string(),
             items: "[{\"name\": \"test many from rust 1\", \"_type\": \"test\"}, {\"name\": \"test many from rust 2\", \"_type\": \"test\"}]".to_string(),
@@ -289,7 +289,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_update_one() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item = "{\"name\": \"update test from rust\", \"_type\": \"test\"}".to_string();
         let query = InsertOneRequest {
@@ -324,7 +324,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_insert_or_update_one() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item = "{\"name\": \"insert or update one test from rust\", \"_type\": \"test\", \"age\": \"21\"}".to_string();
         let query = InsertOrUpdateOneRequest {
@@ -379,7 +379,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_insert_or_update_many() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item1 = "{\"name\": \"insert or update many test from rust 1\", \"_type\": \"test\", \"age\": \"21\"}".to_string();
         let item2 = "{\"name\": \"insert or update many test from rust 2\", \"_type\": \"test\", \"age\": \"23\"}".to_string();
@@ -441,7 +441,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_delete_one() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item = "{\"name\": \"delete test from rust\", \"_type\": \"test\"}".to_string();
         let query = InsertOneRequest {
@@ -475,7 +475,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_delete_many_query() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item =
             "{\"name\": \"delete many query test from rust\", \"_type\": \"test\"}".to_string();
@@ -510,7 +510,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_delete_many_ids() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let item =
             "{\"name\": \"delete many ids test from rust\", \"_type\": \"test\"}".to_string();
@@ -545,7 +545,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_bad_login() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         println!("Client connected: {:?}", client.is_connected());
         let response = client
             .signin(SigninRequest::with_userpass("testuser", "badpassword"))
@@ -562,7 +562,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_upload() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let path = env::current_dir().unwrap();
         println!("The current directory is {}", path.display());
 
@@ -583,7 +583,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_upload_as_guest() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         client
             .signin(SigninRequest::with_userpass("guest", "password"))
             .await
@@ -606,7 +606,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_download() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let response = client
             .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
             .await;
@@ -619,7 +619,7 @@ mod tests {
     }
     #[tokio::test()]
     async fn test_download_as_guest() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let response = client
             .signin(SigninRequest::with_userpass("guest", "password"))
             .await
@@ -636,7 +636,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_watch() { // cargo test test_watch -- --nocapture
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
@@ -684,7 +684,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_register_queue() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
@@ -734,7 +734,7 @@ mod tests {
     #[tokio::test] // cargo test test_register_exchange -- --nocapture
     async fn test_register_exchange() {
         let exchangename = "secrettestexchange";
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
@@ -783,7 +783,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_push_workitem -- --nocapture
     async fn test_push_workitem() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .push_workitem(PushWorkitemRequest {
@@ -873,7 +873,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_push_workitems -- --nocapture
     async fn test_push_workitems() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .push_workitems(PushWorkitemsRequest {
@@ -1005,7 +1005,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_custom_command -- --nocapture
     async fn test_custom_command() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .custom_command(CustomCommandRequest::bycommand("getclients"))
@@ -1020,7 +1020,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_list_collections -- --nocapture
     async fn test_list_collections() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client.list_collections(false).await;
         println!("ListCollections response: {:?}", response);
@@ -1033,7 +1033,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_create_drop_collections -- --nocapture
     async fn test_create_drop_collections() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .create_collection(CreateCollectionRequest::byname("rusttestcollection"))
@@ -1072,7 +1072,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_create_drop_tscollections -- --nocapture
     async fn test_create_drop_tscollections() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let collections_json = client.list_collections(false).await.unwrap();
         let collections: serde_json::Value = serde_json::from_str(&collections_json).unwrap();
@@ -1150,7 +1150,7 @@ mod tests {
     }
     #[tokio::test] // cargo test test_get_create_drop_index -- --nocapture
     async fn test_get_create_drop_index() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .create_collection(CreateCollectionRequest::byname("rustindextestcollection"))
@@ -1239,7 +1239,7 @@ mod tests {
             println!("Skipping test_start_getpods_stop_delete_agent");
             return;
         }
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
             .query(QueryRequest {
@@ -1381,7 +1381,7 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_ensure_customer -- --nocapture
     async fn test_ensure_customer() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let customer = Customer::byname("rusttestcustomer");
         let request = EnsureCustomerRequest::new(Some(customer), "", None);
@@ -1406,9 +1406,9 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_add_update_delete_workitem_queue -- --nocapture
     async fn test_add_update_delete_workitem_queue() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
-        let signedin = client.signedin().await;
+        let signedin = client.is_signedin();
         let user = client.user().await.unwrap();
         println!("signed in {:?} as: {:?}", signedin, user);
 
@@ -1523,7 +1523,7 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_rpc -- --nocapture
     async fn test_rpc() {
-        let client = Arc::new(Client::connect(TEST_URL).await.unwrap());
+        let client = Arc::new(Client::new_connect(TEST_URL).await.unwrap());
         let pingserver = client
             .register_queue(RegisterQueueRequest::byqueuename("pingserver"), {
                 let client = client.clone(); // Clone the Arc to move into the closure
@@ -1566,7 +1566,7 @@ mod tests {
     }
     #[tokio::test()] // cargo test test_create_workflow_instance -- --nocapture
     async fn test_create_workflow_instance() {
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
@@ -1621,7 +1621,7 @@ mod tests {
             println!("Skipping test_invoke_openrpa");
             return;
         }
-        let client = Client::connect(TEST_URL).await.unwrap();
+        let client = Client::new_connect(TEST_URL).await.unwrap();
         let robot = client.get_one(QueryRequest{
             collectionname: "users".to_string(),
             // query: "{\"username\": \"macuser\"}".to_string(),
