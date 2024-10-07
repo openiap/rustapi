@@ -65,6 +65,8 @@ pub struct Client {
     connect_called: Arc<std::sync::Mutex<bool>>,
     /// The tokio runtime.
     runtime: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>>,
+    on_disconnect_sender: async_channel::Sender<()>,
+    on_disconnect_receiver: async_channel::Receiver<()>,
     /// The inner client object
     pub client: Arc<std::sync::Mutex<ClientEnum>>,
     /// The inner client.
@@ -205,7 +207,10 @@ impl Client {
     pub fn new() -> Self {
         let (ces, cer) = unbounded::<ClientEvent>();
         let (out_es, out_er) = unbounded::<Envelope>();
+        let (dis_es, dis_er) = unbounded::<()>();
         Self {
+            on_disconnect_sender: dis_es,
+            on_disconnect_receiver: dis_er,
             client: Arc::new(std::sync::Mutex::new(ClientEnum::None)),
             connect_called: Arc::new(std::sync::Mutex::new(false)),
             runtime: Arc::new(std::sync::Mutex::new(None)),
@@ -841,19 +846,13 @@ impl Client {
     
         match client {
             ClientEnum::WS(ref _client) => {
-                match self.setup_ws(&self.get_url()).await {
-                    Ok(_) => (),
-                    Err(e) => {
-                        return Err(OpenIAPError::ClientError(format!(
-                            "Failed to setup WS: {}",
-                            e
-                        )));
-                    }
-                }
+                info!("Reconnecting to websocket");
+                self.setup_ws(&self.get_url()).await?;
+                info!("Completed reconnecting to websocket");
+                self.post_connected().await;
             }
             ClientEnum::Grpc(ref _client) => {
-                info!("Reconnecting to gRPC");    
-                // Call `setup_grpc_stream` after unlocking `inner`
+                info!("Reconnecting to gRPC");
                 self.setup_grpc_stream().await?;
                 info!("Completed reconnecting to gRPC");
                 self.post_connected().await;
@@ -861,8 +860,7 @@ impl Client {
             ClientEnum::None => {
                 return Err(OpenIAPError::ClientError("Invalid client".to_string()));
             }
-        }
-    
+        }    
         Ok(())
     }
     /// Disconnect the client from the OpenIAP server.
@@ -870,15 +868,6 @@ impl Client {
         self.set_auto_reconnect(false);
         self.set_connected(false, Some("Disconnected"));
     }
-    // /// Close down the client, and release tokio resources.
-    // pub fn dispose(&mut self) {
-    //     if self.disposed {
-    //         return;
-    //     }
-    //     let rt_guard: std::sync::MutexGuard<'_, tokio::runtime::Runtime> = self.runtime.lock().unwrap();
-    //     drop(rt_guard);
-    //     self.disposed = true;
-    // }
     /// Set the connected flag to true or false
     pub fn set_connected(&self, connected: bool, message: Option<&str>) {
         {
@@ -902,6 +891,7 @@ impl Client {
                     };
                     handle.spawn(async move {
                         trace!("Disconnected: {}", message);
+                        me.on_disconnect_sender.send(()).await.unwrap();
                         me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
                     });
                 }

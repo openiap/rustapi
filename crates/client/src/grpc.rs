@@ -33,12 +33,12 @@ impl Client {
             }
         };
 
+        self.set_msgcount(-1); // Reset message count
+
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
-        tokio::spawn( async move {
-            // let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let sender = tokio::spawn( async move {
             loop {
-                // interval.tick().await;
                 let envelope = envelope_receiver.recv().await;
                 let mut envelope = envelope.unwrap();
                 envelope.seq = me.inc_msgcount().clone();
@@ -65,34 +65,22 @@ impl Client {
                 };
             }
         });
-
-
-        // let envelope_receiver = self.out_envelope_receiver.clone();
-        // let me = self.clone();
-        // tokio::spawn( async move {
-        //     // let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
-        //     loop {
-        //         // interval.tick().await;
-        //         let envelope = envelope_receiver.recv().await;
-        //         println!("Received envelope {:?}", envelope);
-        //         let mut envelope = envelope.unwrap();
-        //         // let command = envelope.command.clone();
-        //         {
-        //             envelope.seq = me.inc_msgcount().clone();
-        //             if envelope.id.is_empty() {
-        //                 envelope.id = envelope.seq.to_string();
-        //             }
-        //         }
-        //     }
-        // });
         let mut resp_stream = response.into_inner();
         let me = self.clone();
-        tokio::spawn(async move {
+        let reader = tokio::spawn(async move {
             while let Some(received) = resp_stream.next().await {
                 if let Ok(received) = received {
                     me.parse_incomming_envelope(received).await;
                 }
             }
+        });
+        let on_disconnect_receiver = self.on_disconnect_receiver.clone();
+        tokio::spawn(async move {
+            on_disconnect_receiver.recv().await.unwrap();
+            println!("Killing the sender and reader for gRPC");
+            sender.abort();
+            reader.abort();
+            println!("Killed the sender and reader for gRPC");
         });
         self.set_connected(true, None);
         Ok(())

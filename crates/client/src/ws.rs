@@ -1,6 +1,6 @@
 use tracing::{error, debug, trace};
 use futures_util::{StreamExt};
-use openiap_proto::protos::Envelope;
+use openiap_proto::{errors::OpenIAPError, protos::Envelope};
 use prost::Message as _;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use std::sync::Arc;
@@ -12,17 +12,32 @@ use crate::Client;
 
 impl Client {
     /// Setup a websocket connection to the server
-    pub async fn setup_ws(&self, strurl: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let (ws_stream, _) = connect_async(strurl).await?;
+    // pub async fn setup_ws(&self, strurl: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn setup_ws(&self, strurl: &str) -> Result<(), OpenIAPError> {
+        let ws_stream = match connect_async(strurl).await {
+            Ok((ws_stream, _)) => ws_stream,
+            Err(e) => {
+                error!("Failed to connect to websocket: {:?}", e);
+                self.set_connected(false, Some(&e.to_string()));
+                return Err(OpenIAPError::ClientError(e.to_string()));
+            }            
+        };
         trace!("WebSocket handshake has been successfully completed");
         let (mut write, mut read) = ws_stream.split();
+
+        self.set_msgcount(-1); // Reset message count
 
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
         
         // Spawn sending task
-        tokio::spawn(async move {
+        let sender = tokio::spawn(async move {
             while let Ok(envelope) = envelope_receiver.recv().await {
+                println!("Received envelope");
+                if me.is_connected() == false {
+                    error!("Failed to send message to websocket: not connected");
+                    return;
+                }
                 let mut envelope = envelope;
                 let command = envelope.command.clone();
                 
@@ -55,10 +70,14 @@ impl Client {
         let me = self.clone();
 
         // Reading task with backpressure handling
-        tokio::spawn({
+        let reader = tokio::spawn({
             let buffer = Arc::clone(&buffer);
             async move {
                 while let Some(message) = read.next().await {
+                    if me.is_connected() == false {
+                        error!("Failed to send message to websocket: not connected");
+                        return;
+                    }
                     let data = match message {
                         Ok(msg) => msg.into_data(),
                         Err(e) => {
@@ -93,7 +112,14 @@ impl Client {
                 }
             }
         });
-
+        let on_disconnect_receiver = self.on_disconnect_receiver.clone();
+        tokio::spawn(async move {
+            on_disconnect_receiver.recv().await.unwrap();
+            println!("Killing the sender and reader for websocket");
+            sender.abort();
+            reader.abort();
+            println!("Killed the sender and reader for websocket");
+        });
         self.set_connected(true, None);
         Ok(())
     }
