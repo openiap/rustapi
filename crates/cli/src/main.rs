@@ -121,6 +121,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     //     }        
     // };
     let res = b.connect_async("").await;
+    // let res = b.connect("");
 
     // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
     match res {

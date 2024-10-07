@@ -14,7 +14,7 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
 use tracing::{debug, info, trace, error};
 
 mod safe_wrappers;
@@ -43,8 +43,7 @@ lazy_static! {
 pub struct ClientWrapper {
     success: bool,
     error: *const c_char,
-    client: Option<Client>,
-    runtime: std::sync::Arc<Runtime>,
+    client: Option<Client>
 }
 /// WatchEventWrapper is a wrapper for the WatchEvent struct.
 #[repr(C)]
@@ -113,8 +112,6 @@ pub extern "C" fn query(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
     let request = QueryRequest {
         collectionname: c_char_to_str(options.collectionname),
         query: c_char_to_str(options.query),
@@ -125,7 +122,7 @@ pub extern "C" fn query(
         skip: options.skip,
         top: options.top
     };
-    if client.is_none() {
+    if client_wrapper.client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = QueryResponseWrapper {
             success: false,
@@ -134,15 +131,12 @@ pub extern "C" fn query(
         };
         return Box::into_raw(Box::new(response));
     }
+    let client = client_wrapper.client.clone().unwrap();
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().query(request).await;
-        client.as_mut().unwrap().query(request).await
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.query(request))
     });
-
     Box::into_raw(Box::new(match result {
         Ok(data) => {
             let results: *const c_char = CString::new(data.results).unwrap().into_raw();
@@ -199,8 +193,7 @@ pub extern "C" fn query_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let collectionname = c_char_to_str(options.collectionname);
     let query = c_char_to_str(options.query);
     let projection = c_char_to_str(options.projection);
@@ -232,9 +225,11 @@ pub extern "C" fn query_async(
     }
 
     debug!("Rust: runtime.spawn");
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         debug!("Rust: client.query");
-        let result = client.as_mut().unwrap().query(request).await;
+        let result = client.query(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -338,13 +333,34 @@ fn free<T>(ptr: *mut T) {
 }
 
 #[no_mangle]
-pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWrapper {
-    let server_address = c_char_to_str(server_address);
-    let runtime = std::sync::Arc::new(Runtime::new().unwrap());
-    info!("server_address = {:?}", server_address);
-    info!("connect::begin");
+pub extern "C" fn create_client() -> *mut ClientWrapper {
     let client = Client::new();
-    let res: Result<(), openiap_client::OpenIAPError> = runtime.block_on(client.connect_async(&server_address));
+    println!("create_client");
+    Box::into_raw(Box::new(ClientWrapper {
+        client: Some(client),
+        success: true,
+        error: std::ptr::null(),
+    }))    
+}
+/// A wrapper for the client library.
+/// This struct is used to hold the client instance and the runtime instance.
+#[repr(C)]
+pub struct ConnectResponseWrapper {
+    success: bool,
+    error: *const c_char
+}
+#[no_mangle]
+pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address: *const c_char) -> *mut ConnectResponseWrapper {
+    let server_address = c_char_to_str(server_address);
+    info!("server_address = {:?}", server_address);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    info!("connect::begin");
+    let res: Result<(), openiap_client::OpenIAPError> = client.connect(&server_address);
     info!("connect::complete");
     if res.is_err() {
         let e = res.err().unwrap();
@@ -353,18 +369,14 @@ pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWr
             .unwrap()
             .into_raw();
         
-        let result = Box::into_raw(Box::new(ClientWrapper {
-            client: None,
-            runtime,
+        let result = Box::into_raw(Box::new(ConnectResponseWrapper {
             success: false,
             error: error_msg,
         }));
         info!("connect::complete error result address: {:?}", result);
         return result;
     }
-    let result = Box::into_raw(Box::new(ClientWrapper {
-        client: Some(client),
-        runtime,
+    let result = Box::into_raw(Box::new(ConnectResponseWrapper {
         success: true,
         error: std::ptr::null(),
     }));
@@ -372,28 +384,27 @@ pub extern "C" fn client_connect(server_address: *const c_char) -> *mut ClientWr
     result
 }
 
-type ConnectCallback = extern "C" fn(wrapper: *mut ClientWrapper);
+type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
-pub extern "C" fn connect_async(server_address: *const c_char, callback: ConnectCallback) {
+pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *const c_char, callback: ConnectCallback) {
     debug!("connect_async");
     let server_address = c_char_to_str(server_address);
-    let runtime = std::sync::Arc::new(Runtime::new().unwrap());
-
     debug!("server_address = {:?}", server_address);
 
+    let client = match safe_wrapper( client ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+
     trace!("Spawn the async task");
-    let runtime_clone = std::sync::Arc::clone(&runtime);
-    runtime.spawn(async move {
-        trace!("Simulated async task started");
-        // Simulated async task (or replace with actual Client::new_connect)
-        let client = Client::new();
-        let client_result = client.connect_async(&server_address).await;
-        trace!("Client::connect::done");
+    let client_result: Result<(), openiap_client::OpenIAPError> = client.connect(&server_address);
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let wrapper = if let Ok(_) = client_result {
-            Box::into_raw(Box::new(ClientWrapper {
-                client: Some(client),
-                runtime: runtime_clone,
+            Box::into_raw(Box::new(ConnectResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
             }))
@@ -402,21 +413,21 @@ pub extern "C" fn connect_async(server_address: *const c_char, callback: Connect
             let error_msg = CString::new(format!("Connection failed: {:?}", e))
                 .unwrap()
                 .into_raw();
-            Box::into_raw(Box::new(ClientWrapper {
-                client: None,
-                runtime: runtime_clone,
+            Box::into_raw(Box::new(ConnectResponseWrapper {
                 success: false,
                 error: error_msg,
             }))
         };
-
         trace!("Client::Calling callback with result");
         callback(wrapper);
     });
-
-    // Keep the main thread alive for a short time to ensure the async task completes
-    std::thread::sleep(std::time::Duration::from_secs(2));
 }
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_connect_response(response: *mut ConnectResponseWrapper) {
+    free(response);
+}
+
 
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -444,11 +455,11 @@ pub extern "C" fn free_client(response: *mut ClientWrapper) {
 
         if let Some(client) = &response_ref.client {
             // let client_clone = client.clone();
-            let runtime = &response_ref.runtime;
             client.disconnect();
 
+            let handle = client.get_runtime_handle();
             // Ensure that the runtime properly shuts down after the block_on call
-            runtime.block_on(async move {
+            handle.spawn(async move {
                 {
                     // let inner = client_clone.inner.lock().await;
                     let inner = client.inner.lock().await;
@@ -533,8 +544,7 @@ pub extern "C" fn signin(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
 
     let request = SigninRequest {
         username: c_char_to_str(options.username),
@@ -556,12 +566,10 @@ pub extern "C" fn signin(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().signin(request).await;
-        client.as_mut().unwrap().signin(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.signin(request))
     });
 
     let response = match result {
@@ -620,8 +628,7 @@ pub extern "C" fn signin_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
 
     let request = SigninRequest {
         username: c_char_to_str(options.username),
@@ -643,12 +650,11 @@ pub extern "C" fn signin_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         // let result = client_clone.unwrap().signin(request).await;
-        let result = client.as_mut().unwrap().signin(request).await;
+        let result = client.signin(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -720,8 +726,7 @@ pub extern "C" fn aggregate(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = AggregateRequest {
         collectionname: c_char_to_str(options.collectionname),
         aggregates: c_char_to_str(options.aggregates),
@@ -738,13 +743,10 @@ pub extern "C" fn aggregate(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().aggregate(request).await;
-        client.as_mut().unwrap().aggregate(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.aggregate(request))
     });
 
     let response = match result {
@@ -804,8 +806,7 @@ pub extern "C" fn aggregate_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = AggregateRequest {
         collectionname: c_char_to_str(options.collectionname),
         aggregates: c_char_to_str(options.aggregates),
@@ -825,12 +826,13 @@ pub extern "C" fn aggregate_async(
 
     // let client_clone = client.clone();
     // let runtime_clone = std::sync::Arc::clone(&runtime);
-
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
     debug!("Rust: runtime.spawn");
-    runtime.spawn(async move {
+    handle.spawn(async move {
         debug!("Rust: client.aggregate");
-        let result = client.as_mut().unwrap().aggregate(request).await;
-        // let result = runtime.block_on(async {
+        let result = client.aggregate(request).await;
+        // let result = tokio::task::block_in_place(|| {
         //     let c = client.as_mut().unwrap();
         //     c.aggregate(request).await
         // });
@@ -909,8 +911,7 @@ pub extern "C" fn count(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = CountRequest {
         collectionname: c_char_to_str(options.collectionname),
         query: c_char_to_str(options.query),
@@ -927,12 +928,10 @@ pub extern "C" fn count(
         return Box::into_raw(Box::new(response));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().count(request).await;
-        client.as_mut().unwrap().count(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.count(request))
     });
 
     let response = match result {
@@ -991,8 +990,7 @@ pub extern "C" fn count_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = CountRequest {
         collectionname: c_char_to_str(options.collectionname),
         query: c_char_to_str(options.query),
@@ -1008,13 +1006,11 @@ pub extern "C" fn count_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().count(request).await;
-        // let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.count(request).await;
+        // let result = tokio::task::block_in_place(|| {
         //     let c = client.as_mut().unwrap();
         //     c.count(request).await
         // });
@@ -1098,8 +1094,7 @@ pub extern "C" fn distinct(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DistinctRequest {
         collectionname: c_char_to_str(options.collectionname),
         field: c_char_to_str(options.field),
@@ -1118,13 +1113,10 @@ pub extern "C" fn distinct(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().distinct(request).await;
-        client.as_mut().unwrap().distinct(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.distinct(request))
     });
 
     let response = match result {
@@ -1198,8 +1190,7 @@ pub extern "C" fn distinct_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DistinctRequest {
         collectionname: c_char_to_str(options.collectionname),
         field: c_char_to_str(options.field),
@@ -1218,12 +1209,10 @@ pub extern "C" fn distinct_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().distinct(request).await;
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.distinct(request).await;
         let response = match result {
             Ok(data) => {
                 let results_cstrings: Vec<CString> = data
@@ -1331,8 +1320,7 @@ pub extern "C" fn insert_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = InsertOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
@@ -1348,13 +1336,10 @@ pub extern "C" fn insert_one(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().insert_one(request).await;
-        client.as_mut().unwrap().insert_one(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.insert_one(request))
     });
 
     let response = match result {
@@ -1413,8 +1398,7 @@ pub extern "C" fn insert_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = InsertOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
@@ -1431,12 +1415,11 @@ pub extern "C" fn insert_one_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().insert_one(request).await;
-        // let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.insert_one(request).await;
+        // let result = tokio::task::block_in_place(|| {
         //     let c = client.as_mut().unwrap();
         //     c.insert_one(request).await
         // });
@@ -1513,8 +1496,7 @@ pub extern "C" fn insert_many(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = InsertManyRequest {
         collectionname: c_char_to_str(options.collectionname),
         items: c_char_to_str(options.items),
@@ -1530,13 +1512,10 @@ pub extern "C" fn insert_many(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().insert_many(request).await;
-        client.as_mut().unwrap().insert_many(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.insert_many(request))
     });
 
     let response = match result {
@@ -1591,8 +1570,7 @@ pub extern "C" fn insert_many_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = InsertManyRequest {
         collectionname: c_char_to_str(options.collectionname),
         items: c_char_to_str(options.items),
@@ -1609,17 +1587,10 @@ pub extern "C" fn insert_many_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().insert_many(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.insert_many(request).await
-        // });
-        // let result = client_clone.unwrap().insert_many(request).await;
-
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.insert_many(request).await;
         let response = match result {
             Ok(data) => {
                 let results = CString::new(data.results).unwrap().into_raw();
@@ -1692,8 +1663,7 @@ pub extern "C" fn update_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = UpdateOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
@@ -1709,13 +1679,10 @@ pub extern "C" fn update_one(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().update_one(request).await;
-        client.as_mut().unwrap().update_one(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.update_one(request))
     });
 
     let response = match result {
@@ -1774,8 +1741,7 @@ pub extern "C" fn update_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = UpdateOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
@@ -1792,17 +1758,10 @@ pub extern "C" fn update_one_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().update_one(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.update_one(request).await
-        // });
-        // let result = client_clone.unwrap().update_one(request).await;
-
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.update_one(request).await;
         let response = match result {
             Ok(data) => {
                 let result = CString::new(data.result).unwrap().into_raw();
@@ -1878,8 +1837,7 @@ pub extern "C" fn insert_or_update_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     debug!("Rust: insert_or_update_one create request");
 
     trace!("Rust: parse collectionname");
@@ -1908,14 +1866,11 @@ pub extern "C" fn insert_or_update_one(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
+    let client = client.unwrap();
     debug!("Rust: run insert_or_update_one in runtime");
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().insert_or_update_one(request).await;
-        client.as_mut().unwrap().insert_or_update_one(request).await
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.insert_or_update_one(request))
     });
 
     let response = match result {
@@ -1974,8 +1929,7 @@ pub extern "C" fn insert_or_update_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     debug!("Rust: insert_or_update_one_async create request");
     let request = InsertOrUpdateOneRequest {
         collectionname: c_char_to_str(options.collectionname),
@@ -1993,17 +1947,10 @@ pub extern "C" fn insert_or_update_one_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().insert_or_update_one(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.insert_or_update_one(request).await
-        // });
-        // let result = client_clone.unwrap().insert_or_update_one(request).await;
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.insert_or_update_one(request).await;
 
         let response = match result {
             Ok(data) => {
@@ -2077,8 +2024,7 @@ pub extern "C" fn delete_one(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         id: c_char_to_str(options.id),
@@ -2093,13 +2039,10 @@ pub extern "C" fn delete_one(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().delete_one(request).await;
-        client.as_mut().unwrap().delete_one(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.delete_one(request))
     });
 
     let response = match result {
@@ -2157,8 +2100,7 @@ pub extern "C" fn delete_one_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteOneRequest {
         collectionname: c_char_to_str(options.collectionname),
         id: c_char_to_str(options.id),
@@ -2174,17 +2116,10 @@ pub extern "C" fn delete_one_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().delete_one(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.delete_one(request).await
-        // });
-        // let result = client_clone.unwrap().delete_one(request).await;
-
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.delete_one(request).await;
         let response = match result {
             Ok(data) => {
                 let affectedrows = data;
@@ -2258,8 +2193,7 @@ pub extern "C" fn delete_many(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteManyRequest {
         collectionname: c_char_to_str(options.collectionname),
         query: c_char_to_str(options.query),
@@ -2287,13 +2221,10 @@ pub extern "C" fn delete_many(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    let result = runtime.block_on(async {
-        // let result = client_clone.unwrap().delete_many(request).await;
-        client.as_mut().unwrap().delete_many(request).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.delete_many(request))
     });
 
     let response = match result {
@@ -2351,8 +2282,7 @@ pub extern "C" fn delete_many_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteManyRequest {
         collectionname: c_char_to_str(options.collectionname),
         query: c_char_to_str(options.query),
@@ -2380,18 +2310,10 @@ pub extern "C" fn delete_many_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().delete_many(request).await;
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.delete_many(request).await
-        // });
-        // let result = client_clone.unwrap().delete_many(request).await;
-
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.delete_many(request).await;
         let response = match result {
             Ok(data) => {
                 let affectedrows = data;
@@ -2465,8 +2387,7 @@ pub extern "C" fn download(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let folder = c_char_to_str(options.folder);
     let filename = c_char_to_str(options.filename);
     let request = DownloadRequest {
@@ -2483,17 +2404,17 @@ pub extern "C" fn download(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-
-    let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on( client.download(request, Some(&folder), Some(&filename)))
         // let c = client.as_mut().unwrap();
         // c.download(request).await
-        client
-            .as_mut()
-            .unwrap()
-            .download(request, Some(&folder), Some(&filename))
-            .await
+        // client
+        //     .as_mut()
+        //     .unwrap()
+        //     .download(request, Some(&folder), Some(&filename))
+        //     .await
     });
 
     let response = match result {
@@ -2552,8 +2473,7 @@ pub extern "C" fn download_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let folder = c_char_to_str(options.folder);
     let filename = c_char_to_str(options.filename);
     let request = DownloadRequest {
@@ -2570,21 +2490,10 @@ pub extern "C" fn download_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-
-    runtime.spawn(async move {
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.download(request).await
-        // });
-        // let result = client_clone
-        //     .unwrap()
-        //     .download(request, Some(folder), Some(filename))
-        //     .await;
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let result = client
-            .as_mut()
-            .unwrap()
             .download(request, Some(&folder), Some(&filename))
             .await;
 
@@ -2662,8 +2571,7 @@ pub extern "C" fn upload(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let filepath = c_char_to_str(options.filepath);
     if filepath.is_empty() {
         let error_msg = CString::new("Filepath is required").unwrap().into_raw();
@@ -2702,14 +2610,14 @@ pub extern "C" fn upload(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    // let client_clone = client.clone();
-
+    let client = client.unwrap();
     debug!("upload: runtime.block_on");
-    let result = runtime.block_on(async {
+    let result = tokio::task::block_in_place(|| {
         // let c = client.as_mut().unwrap();
         // c.upload(request).await
-        client.as_mut().unwrap().upload(request, &filepath).await
+        // client.as_mut().unwrap().upload(request, &filepath).await
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.upload(request, &filepath))
     });
 
     let response = match result {
@@ -2767,8 +2675,7 @@ pub extern "C" fn upload_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let filepath = c_char_to_str(options.filepath);
     if filepath.is_empty() {
         let error_msg = CString::new("Filepath is required").unwrap().into_raw();
@@ -2807,18 +2714,12 @@ pub extern "C" fn upload_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-
     debug!("upload_async: runtime.spawn");
-    runtime.spawn(async move {
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.upload(request).await
-        // });
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         debug!("upload_async: call client.upload");
-        // let result = client_clone.unwrap().upload(request, &filepath).await;
-        let result = client.as_mut().unwrap().upload(request, &filepath).await;
+        let result = client.upload(request, &filepath).await;
 
         debug!("upload_async: call client.upload done");
         let response = match result {
@@ -2892,8 +2793,7 @@ pub extern "C" fn watch(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     // let events = &client_wrapper.events;
     let paths = c_char_to_str(options.paths);
     let paths = paths.split(",").map(|s| s.to_string()).collect();
@@ -2910,10 +2810,11 @@ pub extern "C" fn watch(
         };
         return Box::into_raw(Box::new(response));
     }
-    let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .watch(
                 request,
                 Box::new(move |event: WatchEvent| {
@@ -2939,7 +2840,7 @@ pub extern "C" fn watch(
                     }
                 }),
             )
-            .await
+        )
     });
 
     let response = match result {
@@ -3052,8 +2953,7 @@ pub extern "C" fn watch_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let paths = c_char_to_str(options.paths);
     let paths = paths.split(",").map(|s| s.to_string()).collect();
     let request = WatchRequest {
@@ -3069,14 +2969,13 @@ pub extern "C" fn watch_async(
         };
         return Box::into_raw(Box::new(response))
     }
-
-    // let client_clone = client.clone();
-
+    let client = client.unwrap();
     trace!("watch_async: runtime.spawn");
-
-    let result = runtime.block_on(async {
+    let result = tokio::task::block_in_place(|| {
         // let result = client_clone.unwrap().watch(request).await;
-        client.as_mut().unwrap().watch(request,
+        let handle = client.get_runtime_handle();
+            handle.block_on(
+        client.watch(request,
             Box::new(move |event: WatchEvent| {
                 debug!("call event_callback");
                 event_callback(Box::into_raw(Box::new(WatchEventWrapper {
@@ -3085,7 +2984,7 @@ pub extern "C" fn watch_async(
                     document: CString::new(event.document).unwrap().into_raw(),
                 })));
             })
-        ).await
+        ))
     });
 
     trace!("parse result");
@@ -3150,8 +3049,7 @@ pub extern "C" fn watch_async_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let paths = c_char_to_str(options.paths);
     let paths = paths.split(",").map(|s| s.to_string()).collect();
     let request = WatchRequest {
@@ -3167,25 +3065,17 @@ pub extern "C" fn watch_async_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    // let client_clone = client.clone();
-
     debug!("watch_async: runtime.spawn");
-    runtime.spawn(async move {
-        // let result = runtime.block_on(async {
-        //     let c = client.as_mut().unwrap();
-        //     c.watch(request).await
-        // });
-        // let result = client_clone.unwrap().watch(request).await;
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         debug!("watch_async: call client.watch");
         let result = client
-            .as_mut()
-            .unwrap()
             .watch(
                 request,
                 Box::new(move |_event: WatchEvent| {
                     debug!("watch_async: spawn new task, to call event_callback");
-                    //runtime.spawn(async move {
+                    //tokio::spawn(async move {
                         trace!("watch_async: call event_callback");
                         // let id = CString::new("id").unwrap().into_raw();
                         // let operation = CString::new("operation").unwrap().into_raw();
@@ -3304,8 +3194,7 @@ pub extern "C" fn unwatch(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let watchid = c_char_to_str(watchid);
     if watchid.is_empty() {
         let error_msg = CString::new("Watchid is required").unwrap().into_raw();
@@ -3323,11 +3212,11 @@ pub extern "C" fn unwatch(
         };
         return Box::into_raw(Box::new(response));
     }
-
+    let client = client.unwrap();
     trace!("watchid: {:?}", watchid);
-    let result = runtime.block_on(async {
-        let c = client.as_mut().unwrap();
-        c.unwatch(&watchid).await
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on( client.unwatch(&watchid))
     });
     trace!("completed, parsing result");
     match result {
@@ -3370,8 +3259,7 @@ pub extern "C" fn unwatch_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let watchid = c_char_to_str(watchid);
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
@@ -3381,9 +3269,10 @@ pub extern "C" fn unwatch_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    runtime.spawn(async move {
-        let result = client.as_mut().unwrap().unwatch(&watchid).await;
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.unwatch(&watchid).await;
         match result {
             Ok(_) => {
                 let response = UnWatchResponseWrapper {
@@ -3453,8 +3342,7 @@ pub extern "C" fn register_queue(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     // let events = &client_wrapper.events;
     let request = RegisterQueueRequest {
         queuename: c_char_to_str(options.queuename),
@@ -3468,10 +3356,11 @@ pub extern "C" fn register_queue(
         };
         return Box::into_raw(Box::new(response));
     }
-    let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .register_queue(
                 request,
                 Box::new(move |event: QueueEvent| {
@@ -3494,7 +3383,7 @@ pub extern "C" fn register_queue(
                     }
                 }),
             )
-            .await
+        )
     });
 
     let response = match result {
@@ -3561,8 +3450,7 @@ pub extern "C" fn register_queue_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = RegisterQueueRequest {
         queuename: c_char_to_str(options.queuename),
     };
@@ -3575,13 +3463,12 @@ pub extern "C" fn register_queue_async(
         };
         return Box::into_raw(Box::new(response))
     }
-
+    let client = client.unwrap();
     debug!("register_queue_async: runtime.spawn");
-
-    let result = runtime.block_on(async {
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .register_queue(
                 request,
                 Box::new(move |event: QueueEvent| {
@@ -3604,7 +3491,7 @@ pub extern "C" fn register_queue_async(
                     event_callback(Box::into_raw(event));
                 }),
             )
-            .await
+        )
     });
 
     debug!("register_queue_async: parse result");
@@ -3684,8 +3571,7 @@ pub extern "C" fn register_exchange (
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = RegisterExchangeRequest {
         exchangename: c_char_to_str(options.exchangename),
         algorithm: c_char_to_str(options.algorithm),
@@ -3701,11 +3587,11 @@ pub extern "C" fn register_exchange (
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .register_exchange(request,
                 Box::new(move |event: QueueEvent| {
                     trace!("exchange: event: {:?}", event);
@@ -3728,7 +3614,7 @@ pub extern "C" fn register_exchange (
                 }),
             
             )
-            .await
+        )
     });
 
     let response = match result {
@@ -3787,8 +3673,7 @@ pub extern "C" fn register_exchange_async(
             return Box::into_raw(Box::new(response))
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = RegisterExchangeRequest {
         exchangename: c_char_to_str(options.exchangename),
         algorithm: c_char_to_str(options.algorithm),
@@ -3804,13 +3689,12 @@ pub extern "C" fn register_exchange_async(
         };
         return Box::into_raw(Box::new(response))
     }
-
+    let client = client.unwrap();
     debug!("register_exchange_async: runtime.spawn");
-
-    let result = runtime.block_on(async {
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .register_exchange(request,
                 Box::new(move |event: QueueEvent| {
                     debug!("register_exchange_async: spawn new task, to call event_callback");
@@ -3833,7 +3717,7 @@ pub extern "C" fn register_exchange_async(
                 }),
 
             )
-            .await
+        )
     });
 
     debug!("register_exchange_async: parse result");
@@ -3985,8 +3869,7 @@ pub extern "C" fn queue_message(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = QueueMessageRequest {
         queuename: c_char_to_str(options.queuename),
         correlation_id: c_char_to_str(options.correlation_id),
@@ -4005,15 +3888,14 @@ pub extern "C" fn queue_message(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(
         client
-            .as_mut()
-            .unwrap()
             .queue_message(request)
-            .await
+            )
     });
-
     match result {
         Ok(_) => {
             let response = QueueMessageResponseWrapper {
@@ -4021,6 +3903,8 @@ pub extern "C" fn queue_message(
                 error: std::ptr::null(),
             };
             Box::into_raw(Box::new(response))
+            
+
         }
         Err(e) => {
             let error_msg = CString::new(format!("Queue message failed: {:?}", e))
@@ -4062,8 +3946,7 @@ pub extern "C" fn unregister_queue(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let queuename = c_char_to_str(queuename);
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
@@ -4073,10 +3956,10 @@ pub extern "C" fn unregister_queue(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
-        let c = client.as_mut().unwrap();
-        c.unregister_queue(&queuename).await
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on( client.unregister_queue(&queuename))
     });
     match result {
         Ok(_) => {
@@ -4347,8 +4230,7 @@ pub extern "C" fn push_workitem(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
     let mut files: Vec<WorkitemFile> = vec![];
@@ -4407,14 +4289,12 @@ pub extern "C" fn push_workitem(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
-        client
-            .
-            as_mut()
-            .unwrap()
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(client
             .push_workitem(request)
-            .await
+            )
     });
 
     match result {
@@ -4481,8 +4361,7 @@ pub extern "C" fn push_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
     let mut files: Vec<WorkitemFile> = vec![];
@@ -4542,11 +4421,10 @@ pub extern "C" fn push_workitem_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-    
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let result = client
-            .as_mut()
-            .unwrap()
             .push_workitem(request)
             .await;
         let response = match result {
@@ -4640,8 +4518,7 @@ pub extern "C" fn pop_workitem (
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = PopWorkitemRequest {
         wiq: c_char_to_str(options.wiq),
         wiqid: c_char_to_str(options.wiqid),
@@ -4661,12 +4538,12 @@ pub extern "C" fn pop_workitem (
     if downloadfolder.is_empty() {
         _downloadfolder = None;
     }
-    let result = runtime.block_on(async {
-        client
-            .as_mut()
-            .unwrap()
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(client
             .pop_workitem(request, _downloadfolder)
-            .await
+            )
     });
     debug!("pop_workitem completed, parse result");
 
@@ -4732,8 +4609,7 @@ pub extern "C" fn pop_workitem_async (
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = PopWorkitemRequest {
         wiq: c_char_to_str(options.wiq),
         wiqid: c_char_to_str(options.wiqid),
@@ -4749,15 +4625,15 @@ pub extern "C" fn pop_workitem_async (
         return callback(Box::into_raw(Box::new(response)));
     }
     let downloadfolder = c_char_to_str(downloadfolder);
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let mut _downloadfolder = Some(downloadfolder.as_str());
         if downloadfolder.is_empty() {
             _downloadfolder = None;
         }
     
         let result = client
-            .as_mut()
-            .unwrap()
             .pop_workitem(request, _downloadfolder)
             .await;
         let response = match result {
@@ -4847,8 +4723,7 @@ pub extern "C" fn update_workitem (
         }
     };
     trace!("grab references");
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
     let mut files: Vec<WorkitemFile> = vec![];
@@ -4896,13 +4771,12 @@ pub extern "C" fn update_workitem (
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
-        client
-            .as_mut()
-            .unwrap()
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(client
             .update_workitem(request)
-            .await
+            )
     });
 
     match result {
@@ -4970,8 +4844,7 @@ pub extern "C" fn update_workitem_async (
         }
     };
     trace!("grab references");
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let files_len = options.files_len;
     debug!("files_len: {:?}", files_len);
     let mut files: Vec<WorkitemFile> = vec![];
@@ -5021,11 +4894,10 @@ pub extern "C" fn update_workitem_async (
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let result = client
-            .as_mut()
-            .unwrap()
             .update_workitem(request)
             .await;
         let response = match result {
@@ -5109,8 +4981,7 @@ pub extern "C" fn delete_workitem(
             return Box::into_raw(Box::new(response));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteWorkitemRequest {
         id: c_char_to_str(options.id),
     };
@@ -5122,13 +4993,12 @@ pub extern "C" fn delete_workitem(
         };
         return Box::into_raw(Box::new(response));
     }
-
-    let result = runtime.block_on(async {
-        client
-            .as_mut()
-            .unwrap()
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(client
             .delete_workitem(request)
-            .await
+            )
     });
 
     let response = match result {
@@ -5182,8 +5052,7 @@ pub extern "C" fn delete_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
+    let client = client_wrapper.client.clone();
     let request = DeleteWorkitemRequest {
         id: c_char_to_str(options.id),
     };
@@ -5195,11 +5064,10 @@ pub extern "C" fn delete_workitem_async(
         };
         return callback(Box::into_raw(Box::new(response)));
     }
-    
-    runtime.spawn(async move {
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
         let result = client
-            .as_mut()
-            .unwrap()
             .delete_workitem(request)
             .await;
         let response = match result {
@@ -5275,7 +5143,6 @@ pub extern "C" fn on_client_event(
         }
     };
     let mut client = client_wrapper.client.clone();
-    let runtime = &client_wrapper.runtime;
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = ClientEventResponseWrapper {
@@ -5288,8 +5155,9 @@ pub extern "C" fn on_client_event(
     let client = client.as_mut().unwrap();
     let eventid = Client::get_uniqueid();
     let _eventid = eventid.clone();
-    runtime.block_on(async {
-        client
+    tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+            handle.block_on(client
             .on_event(
                 Box::new(move |event: ClientEvent| {
                     // convert event to json
@@ -5312,7 +5180,7 @@ pub extern "C" fn on_client_event(
                     }
                 }),
             )
-            .await
+        )
     });
 
     let mut events = CLIENT_EVENTS.lock().unwrap();

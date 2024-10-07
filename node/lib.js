@@ -62,6 +62,11 @@ const ClientWrapper = koffi.struct('ClientWrapper', {
     error: 'char*'
 });
 const ClientWrapperPtr = koffi.pointer(ClientWrapper);
+const ConnectResponseWrapper = koffi.struct('ConnectResponseWrapper', {
+    success: 'bool',
+    error: 'char*'
+});
+const ConnectResponseWrapperPtr = koffi.pointer(ConnectResponseWrapper);
 
 
 const ClientEventResponseWrapper = koffi.struct('ClientEventResponseWrapper', {
@@ -563,6 +568,7 @@ function loadLibrary() {
 
         lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
 
+        lib.create_client = lib.func('create_client', ClientWrapperPtr, []);
         lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
         lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
         lib.off_client_event = lib.func('off_client_event', OffClientEventResponseWrapperPtr, [CString]);
@@ -571,9 +577,9 @@ function loadLibrary() {
         lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
 
         lib.disable_tracing = lib.func('void disable_tracing()');
-        lib.connect = lib.func('client_connect', ClientWrapperPtr, ['str']);
-        lib.ConnectCallback = koffi.proto('void ConnectCallback(ClientWrapper*)');
-        lib.connect_async = lib.func('connect_async', 'void', ['str', koffi.pointer(lib.ConnectCallback)]);
+        lib.connect = lib.func('client_connect', ConnectResponseWrapperPtr, [ClientWrapperPtr, 'str']);
+        lib.ConnectCallback = koffi.proto('void ConnectCallback(ConnectResponseWrapper*)');
+        lib.connect_async = lib.func('connect_async', 'void', [ClientWrapperPtr, 'str', koffi.pointer(lib.ConnectCallback)]);
         lib.free_client = lib.func('void free_client(ClientWrapper*)');
         lib.signin = lib.func('signin', SigninResponseWrapperPtr, [ClientWrapperPtr, SigninRequestWrapperPtr]);
         lib.signinCallback = koffi.proto('void signinCallback(SigninResponseWrapper*)');
@@ -703,6 +709,14 @@ class ClientCreationError extends ClientError {
 class Client {
     constructor() {
         this.lib = loadLibrary();
+        this.connected = false;
+        const _clientWrapperPtr = this.lib.create_client();
+        if (_clientWrapperPtr === 0) {
+            this.trace('Received a null pointer from Rust function');
+            throw new Error('Received a null pointer from Rust function');
+        }
+        const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
+        this.client = _clientWrapperPtr;
     }
     tracing = false;
     informing = true;
@@ -741,17 +755,18 @@ class Client {
     async connect(url) {
         this.verbose('connect invoked', url);
         this.connected = false;
-        const _clientWrapperPtr = this.lib.connect(url);
-        if (_clientWrapperPtr === 0) {
+        const ResponsePtr = this.lib.connect(this.client, url);
+        if (ResponsePtr === 0) {
             this.trace('Received a null pointer from Rust function');
             throw new Error('Received a null pointer from Rust function');
         }
         this.trace('Callback invoked');
-        const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
-
+        const Response = koffi.decode(ResponsePtr,ConnectResponseWrapper);
+        if (!Response.success) {
+            reject(new ClientCreationError(Response.error));
+        }
         this.connected = true;
-        this.client = _clientWrapperPtr;
-        return clientWrapper;
+        return Response;
     }
 
     connect_async(url) {
@@ -759,26 +774,25 @@ class Client {
         this.connected = false;
         return new Promise((resolve, reject) => {
             try {
-                const cb = koffi.register((wrapper) => {
+                const cb = koffi.register((responsePtr) => {
                     this.trace('Callback invoked');
                     try {
-                        if (wrapper === 0) {
+                        if (responsePtr === 0) {
                             throw new Error('Received a null pointer from Rust function');
                         }
-                        const clientWrapper = koffi.decode(wrapper, ClientWrapper);
-                        this.client = wrapper;
-                        if (!clientWrapper.success) {
-                            reject(new ClientCreationError(clientWrapper.error));
+                        const Response = koffi.decode(responsePtr, ConnectResponseWrapper);
+                        if (!Response.success) {
+                            reject(new ClientCreationError(Response.error));
                         } else {
                             this.connected = true;
-                            resolve(clientWrapper);
+                            resolve(Response);
                         }
                     } catch (error) {
                         reject(new ClientCreationError(error.message));
                     } 
                 }, koffi.pointer(this.lib.ConnectCallback));
                 this.verbose('call connect_async');
-                this.lib.connect_async(url, cb);                
+                this.lib.connect_async(this.client, url, cb);                
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }
@@ -905,8 +919,9 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.results));
                 }
-                this.verbose('free_query_response');
+                this.verbose('free_query_response::begin');
                 this.lib.free_query_response(responsePtr);
+                this.verbose('free_query_response::end');
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.queryCallback));
@@ -2072,7 +2087,7 @@ class Client {
     }
 
     clientevents = {}
-    next_watch_interval = 200;
+    next_watch_interval = 1000;
     on_client_event(callback) {
         this.verbose('on_client_event invoked');
         this.trace('call on_client_event');

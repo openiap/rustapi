@@ -6,7 +6,7 @@ const fs = require('fs');
     }, 200);
     const client = new Client();
     try {
-        const test_async = false;
+        const test_async = true;
         const test_sync = true;
         const test_watch = true;
         const test_multiple_workitems = true;
@@ -20,6 +20,8 @@ const fs = require('fs');
         // client.enable_tracing("openiap=trace", "new");
         client.enable_tracing("openiap=info", "");
 
+
+
         let filepath = 'testfile.csv';
         if (!fs.existsSync(filepath)) {
             filepath = '../testfile.csv';
@@ -32,10 +34,10 @@ const fs = require('fs');
         } else {
             client.connect(url);
         }
-
         client.on_client_event((event) => {
             console.log("client event", event);
         });
+
 
         client.info("connect completed, now call signin() again")
         if(test_async) {
@@ -54,9 +56,9 @@ const fs = require('fs');
 
             if(test_sync) {
                 for (y = 0; y < 1; y++) {
-                    for (let i = 0; i < 11; i++) {
+                    for (let i = 0; i < 15; i++) {
                         const query_result = client.query({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 });
-                        console.log("Got", query_result.length, "results");
+                        console.log("query.sync.Got", query_result.length, "results");
                     }
                 }
             }
@@ -66,6 +68,7 @@ const fs = require('fs');
                     for(let i = 0; i < 15; i++) {
                         promises.push(client.query_async({ collectionname: 'entities', query: '{}', projection: '{"name":1}', orderby: '{}', queryas: '', explain: false, skip: 0, top: 0 }));
                     }
+                    console.log("query_async, wait for reply");
                     client.info(
                         (await Promise.all(promises)).map(result => result.length)
                     );

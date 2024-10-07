@@ -28,18 +28,14 @@ pub use prost_types::Timestamp;
 pub use protos::flow_service_client::FlowServiceClient;
 use sqids::Sqids;
 
-// use tokio_tungstenite::tungstenite::client;
 use tokio_tungstenite::{WebSocketStream};
 use tracing::{debug, error, info, trace};
-// use tokio_stream::{wrappers::ReceiverStream};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = StdError> = ::std::result::Result<T, E>;
-// use core::error;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-// use std::thread;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
@@ -68,7 +64,7 @@ pub struct Client {
     /// Ensure we use only call connect once, and then use re-connect instead.
     connect_called: Arc<std::sync::Mutex<bool>>,
     /// The tokio runtime.
-    runtime: Option<Arc<std::sync::Mutex<tokio::runtime::Runtime>>>,
+    runtime: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>>,
     /// The inner client object
     pub client: Arc<std::sync::Mutex<ClientEnum>>,
     /// The inner client.
@@ -93,12 +89,12 @@ pub struct Client {
     pub connected: Arc<std::sync::Mutex<bool>>,
     /// Are we signed in?
     pub signedin: Arc<std::sync::Mutex<bool>>,
+    /// Inceasing message count, used as unique id for messages.
+    pub msgcount: Arc<std::sync::Mutex<i32>>,
 }
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
-    /// Inceasing message count, used as unique id for messages.
-    pub msgcount: Arc<Mutex<i32>>,
     /// The signed in user.
     pub user: Option<User>,
     /// list of queries ( messages sent to server we are waiting on a response for )
@@ -212,9 +208,9 @@ impl Client {
         Self {
             client: Arc::new(std::sync::Mutex::new(ClientEnum::None)),
             connect_called: Arc::new(std::sync::Mutex::new(false)),
-            runtime: None,
+            runtime: Arc::new(std::sync::Mutex::new(None)),
+            msgcount: Arc::new(std::sync::Mutex::new(-1)),
             inner: Arc::new(Mutex::new(ClientInner {
-                msgcount: Arc::new(Mutex::new(0)),
                 user: None,
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -237,15 +233,12 @@ impl Client {
     }
     /// Connect the client to the OpenIAP server.
     #[tracing::instrument(skip_all)]
-    pub fn connect(&mut self, dst: &str) -> Result<(), OpenIAPError> {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+    pub fn connect(&self, dst: &str) -> Result<(), OpenIAPError> {
+        self.set_runtime(Some(tokio::runtime::Runtime::new().unwrap()));
         let res = tokio::task::block_in_place(|| {
-            rt.block_on(async {
-                println!("me connect_called before {:?}", self.connect_called);
-                self.connect_async(dst).await
-            })
+            let handle = self.get_runtime_handle();
+            handle.block_on(self.connect_async(dst))
         });
-        self.runtime = Some( Arc::new(std::sync::Mutex::new(rt)));
         return res;
     }
     /// Connect the client to the OpenIAP server.
@@ -278,7 +271,7 @@ impl Client {
         }
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let usegprc = url.scheme() == "grpc";
+        let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.");
         let mut issecure = url.scheme() == "https" || url.scheme() == "wss";
         if url.scheme() != "http"
             && url.scheme() != "https"
@@ -374,7 +367,6 @@ impl Client {
                 )));
             }
         }
-
         let mut enable_analytics = true;
         let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
         if config.is_some() {
@@ -415,7 +407,6 @@ impl Client {
             self.set_password(&password);
             self.set_config(config);
             self.set_url(&strurl);
-
             match self.setup_ws(&strurl).await {
                 Ok(_) => (),
                 Err(e) => {
@@ -425,7 +416,6 @@ impl Client {
                     )));
                 }
             }
-
             let client2 = self.clone();
             tokio::spawn(async move {
                 tokio_stream::wrappers::ReceiverStream::new(stream_rx)
@@ -467,7 +457,6 @@ impl Client {
                         )));
                     }
                 };
-
                 let channel = Channel::builder(uri)
                     .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots());
                 let channel = match channel {
@@ -501,7 +490,6 @@ impl Client {
         self.post_connected().await;
         Ok(())
     }
-
 
     /// Connect will initializes a new client and starts a connection to an OpenIAP server.\
     /// Use "" to autodetect the server from the environment variables (apiurl or grpcapiurl), or provide a URL.\
@@ -851,13 +839,9 @@ impl Client {
         }
         let client = self.get_client();
     
-        let me = Arc::new(Mutex::new(self.clone()));
-        let me = Arc::clone(&me);
-    
         match client {
             ClientEnum::WS(ref _client) => {
-                let me = me.lock().await;
-                match me.setup_ws(&me.get_url()).await {
+                match self.setup_ws(&self.get_url()).await {
                     Ok(_) => (),
                     Err(e) => {
                         return Err(OpenIAPError::ClientError(format!(
@@ -901,81 +885,85 @@ impl Client {
             let mut current = self.connected.lock().unwrap();
             trace!("Set connected: {} from {}", connected, *current);
             if connected == true && *current == false {
-                let me = self.clone();
-                tokio::spawn(async move {
-                    let client = me.clone();
-                    client.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
-                });
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let me = self.clone();
+                    handle.spawn(async move {
+                        me.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
+                    });
+                }
             }
             if connected == false && *current == true {
                 self.set_signedin(false);
-                let me = self.clone();
-                let message = match message {
-                    Some(message) => message.to_string(),
-                    None => "".to_string(),
-                };
-                tokio::spawn(async move {
-                    trace!("Disconnected: {}", message);
-                    let client = me.clone();
-                    client.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
-                });
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let me = self.clone();
+                    let message = match message {
+                        Some(message) => message.to_string(),
+                        None => "".to_string(),
+                    };
+                    handle.spawn(async move {
+                        trace!("Disconnected: {}", message);
+                        me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
+                    });
+                }
             }
             *current = connected;
         }
         if !connected {
-            let client = self.clone();
-            tokio::spawn(async move {
-                {
-                    let inner = client.inner.lock().await;
-                    let mut queries = inner.queries.lock().await;
-                    let ids = queries.keys().cloned().collect::<Vec<String>>();
-                    for id in ids {
-                        let err = ErrorResponse {
-                            code: 500,
-                            message: "Disconnected".to_string(),
-                            stack: "".to_string(),
-                        };
-                        let envelope = err.to_envelope();
-                        let tx = queries.remove(&id).unwrap();
-                        println!("**********************************************************");
-                        println!("kill query: {}", id);
-                        println!("**********************************************************");
-                        let _ = tx.send(envelope);
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let client = self.clone();
+                handle.spawn(async move {
+                    {
+                        let inner = client.inner.lock().await;
+                        let mut queries = inner.queries.lock().await;
+                        let ids = queries.keys().cloned().collect::<Vec<String>>();
+                        for id in ids {
+                            let err = ErrorResponse {
+                                code: 500,
+                                message: "Disconnected".to_string(),
+                                stack: "".to_string(),
+                            };
+                            let envelope = err.to_envelope();
+                            let tx = queries.remove(&id).unwrap();
+                            println!("**********************************************************");
+                            println!("kill query: {}", id);
+                            println!("**********************************************************");
+                            let _ = tx.send(envelope);
+                        }
+                        let mut streams = inner.streams.lock().await;
+                        let ids = streams.keys().cloned().collect::<Vec<String>>();
+                        for id in ids {
+                            let tx = streams.remove(&id).unwrap();
+                            println!("**********************************************************");
+                            println!("kill stream: {}", id);
+                            println!("**********************************************************");
+                            let _ = tx.send(Vec::new());
+                        }
+                        let mut queues = inner.queues.lock().await;
+                        let ids = queues.keys().cloned().collect::<Vec<String>>();
+                        for id in ids {
+                            let _ = queues.remove(&id).unwrap();
+                        }
+                        let mut watches = inner.watches.lock().await;
+                        let ids = watches.keys().cloned().collect::<Vec<String>>();
+                        for id in ids {
+                            let _ = watches.remove(&id).unwrap();
+                        }
                     }
-                    let mut streams = inner.streams.lock().await;
-                    let ids = streams.keys().cloned().collect::<Vec<String>>();
-                    for id in ids {
-                        let tx = streams.remove(&id).unwrap();
-                        println!("**********************************************************");
-                        println!("kill stream: {}", id);
-                        println!("**********************************************************");
-                        let _ = tx.send(Vec::new());
-                    }
-                    let mut queues = inner.queues.lock().await;
-                    let ids = queues.keys().cloned().collect::<Vec<String>>();
-                    for id in ids {
-                        let _ = queues.remove(&id).unwrap();
-                    }
-                    let mut watches = inner.watches.lock().await;
-                    let ids = watches.keys().cloned().collect::<Vec<String>>();
-                    for id in ids {
-                        let _ = watches.remove(&id).unwrap();
-                    }
-                }
-                if client.is_auto_reconnect() {
-                    info!("Reconnecting in 10 seconds");
-                    tokio::time::sleep(Duration::from_secs(10)).await;
                     if client.is_auto_reconnect() {
-                        // let mut client = client.clone();
-                        info!("Reconnecting . . .");
-                        client.reconnect().await.unwrap_or_else(|e| {
-                            error!("Failed to reconnect: {}", e);
-                        });
-                    } else {
-                        info!("Not reconnecting");
+                        info!("Reconnecting in 10 seconds");
+                        tokio::time::sleep(Duration::from_secs(10)).await;
+                        if client.is_auto_reconnect() {
+                            // let mut client = client.clone();
+                            info!("Reconnecting . . .");
+                            client.reconnect().await.unwrap_or_else(|e| {
+                                error!("Failed to reconnect: {}", e);
+                            });
+                        } else {
+                            info!("Not reconnecting");
+                        }
                     }
-                }
-            });
+                });
+            }
         }
     }
     /// Check if the client is connected
@@ -989,34 +977,55 @@ impl Client {
         trace!("Set signedin: {} from {}", signedin, *current);
 
         if signedin == true && *current == false {
-            let me = self.clone();
-            tokio::spawn(async move {
-                let client = me.clone();
-                client.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let me = self.clone();
+                handle.spawn(async move {
+                    me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
+                });
+            }
         }
         if signedin == false && *current == true {
-            let me = self.clone();
-            tokio::spawn(async move {
-                let client = me.clone();
-                client.event_sender.send(crate::ClientEvent::SignedOut).await.unwrap();
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let me = self.clone();
+                handle.spawn(async move {
+                    me.event_sender.send(crate::ClientEvent::SignedOut).await.unwrap();
+                });
+            }
         }
         *current = signedin;
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the signedin flag
     #[tracing::instrument(skip_all)]
     fn is_signedin(&self) -> bool {
         let signedin = self.signedin.lock().unwrap();
         *signedin
     }
+    /// Set the msgcount value
+    pub fn set_msgcount(&self, msgcount: i32) {
+        let mut current = self.msgcount.lock().unwrap();
+        trace!("Set msgcount: {} from {}", msgcount, *current);
+        *current = msgcount;
+    }
+    /// Increment the msgcount value
+    pub fn inc_msgcount(&self) -> i32 {
+        let mut current = self.msgcount.lock().unwrap();
+        *current += 1;
+        *current
+    }
+    /// Return value of the msgcount flag
+    #[tracing::instrument(skip_all)]
+    fn get_msgcount(&self) -> i32 {
+        let msgcount = self.msgcount.lock().unwrap();
+        *msgcount
+    }
+
     /// Set the connect_called flag to true or false
     pub fn set_connect_called(&self, connect_called: bool) {
         let mut current = self.connect_called.lock().unwrap();
         trace!("Set connect_called: {} from {}", connect_called, *current);
         *current = connect_called;
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the connect_called flag
     #[tracing::instrument(skip_all)]
     fn is_connect_called(&self) -> bool {
         let connect_called = self.connect_called.lock().unwrap();
@@ -1028,7 +1037,7 @@ impl Client {
         trace!("Set auto_reconnect: {} from {}", auto_reconnect, *current);
         *current = auto_reconnect;
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the auto_reconnect flag
     #[tracing::instrument(skip_all)]
     fn is_auto_reconnect(&self) -> bool {
         let auto_reconnect = self.auto_reconnect.lock().unwrap();
@@ -1040,7 +1049,7 @@ impl Client {
         trace!("Set url: {} from {}", url, *current);
         *current = url.to_string();
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the url string
     #[tracing::instrument(skip_all)]
     fn get_url(&self) -> String {
         let url = self.url.lock().unwrap();
@@ -1052,19 +1061,19 @@ impl Client {
         trace!("Set username: {} from {}", username, *current);
         *current = username.to_string();
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the username string
     #[tracing::instrument(skip_all)]
     fn get_username(&self) -> String {
         let username = self.username.lock().unwrap();
         username.to_string()
     }
-    /// Set the password flag to true or false
+    /// Set the password value
     pub fn set_password(&self, password: &str) {
         let mut current = self.password.lock().unwrap();
         trace!("Set password: {} from {}", password, *current);
         *current = password.to_string();
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the password string
     #[tracing::instrument(skip_all)]
     fn get_password(&self) -> String {
         let password = self.password.lock().unwrap();
@@ -1076,7 +1085,7 @@ impl Client {
         trace!("Set jwt: {} from {}", jwt, *current);
         *current = jwt.to_string();
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the jwt string
     #[tracing::instrument(skip_all)]
     fn get_jwt(&self) -> String {
         let jwt = self.jwt.lock().unwrap();
@@ -1087,7 +1096,7 @@ impl Client {
         let mut current = self.config.lock().unwrap();
         *current = config;
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the config 
     #[tracing::instrument(skip_all)]
     fn get_config(&self) -> Option<Config> {
         let config = self.config.lock().unwrap();
@@ -1098,13 +1107,43 @@ impl Client {
         let mut current = self.client.lock().unwrap();
         *current = client;
     }
-    /// Return true if we are connected and signed in to the OpenIAP service.
+    /// Return value of the client
     #[tracing::instrument(skip_all)]
     fn get_client(&self) -> ClientEnum {
         let client = self.client.lock().unwrap();
         client.clone()
     }
+    /// Set the runtime flag to true or false
+    pub fn set_runtime(&self, runtime: Option<tokio::runtime::Runtime>) {
+        let mut current = self.runtime.lock().unwrap();
+        *current = runtime;
+    }
+    /// Return value of the runtime
+    #[tracing::instrument(skip_all)]
+    // pub fn get_runtime(&self) -> Option<Arc<tokio::runtime::Runtime>> {
+    pub fn get_runtime(&self) -> &std::sync::Mutex<std::option::Option<tokio::runtime::Runtime>> {
+        self.runtime.as_ref()
+    }
+    /// Return value of the runtime handle
+    pub fn get_runtime_handle(&self) -> tokio::runtime::Handle {
+        {
+            let rt = self.runtime.lock().unwrap();
+            match rt.as_ref() {
+                Some(_rt) => (),
+                None => {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    self.set_runtime(Some(rt));
+                }
+            };
+        }
+        let runtime = self.runtime.lock().unwrap();
+        runtime.as_ref().unwrap().handle().clone()
+    }
 
+
+//     mismatched types
+//     expected enum `std::option::Option<Arc<tokio::runtime::Runtime>>`
+//   found reference `&std::sync::Mutex<std::option::Option<tokio::runtime::Runtime>>`
 
     /// Method to allow the user to subscribe with a callback function
     pub async fn on_event(&self, callback: Box<dyn Fn(ClientEvent) + Send + Sync>)
@@ -1213,36 +1252,21 @@ impl Client {
             let id = Client::get_uniqueid();
             envelope.id = id.clone();
         }
-
-        let cli = self.clone();
-        // trace!("Spawn thread to send {} message", command);
-        if envelope.rid.is_empty() {
-            debug!("Send #{} #{} {} message", envelope.seq, envelope.id, command);
+        trace!("Sending {} message, in the thread", command);
+        let res = self.out_envelope_sender.send(env).await;
+        if res.is_err() {
+            error!("{:?}", res);
+            let errmsg = res.unwrap_err().to_string();
+            self.set_connected(false, Some(&errmsg));
+            return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
         } else {
-            debug!("Send #{} #{} (reply to #{}) {} message", envelope.seq, envelope.id, envelope.rid, command);
+            return Ok(())
         }
-        // let handle = tokio::spawn( async move {
-            trace!("Sending {} message, in the thread", command);
-            let res = cli.out_envelope_sender.send(env).await;
-            if res.is_err() {
-                error!("{:?}", res);
-                let errmsg = res.unwrap_err().to_string();
-                cli.set_connected(false, Some(&errmsg));
-                return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
-            } else {
-                return Ok(())
-            }
-        // });
-        // handle.await.unwrap();
-        // let command = envelope.command.clone();
-        // trace!("After spawning of thread {} message", command);
-        // Ok(())
     }
     #[tracing::instrument(skip_all, target = "openiap::client")]
     async fn parse_incomming_envelope(&self, received: Envelope) {
         let command = received.command.clone();
         trace!("parse_incomming_envelope, command: {}", command);
-        // let id = received.command.clone();
         let inner = self.inner.lock().await;
         let rid = received.rid.clone();
         let mut queries = inner.queries.lock().await;

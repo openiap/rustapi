@@ -92,7 +92,13 @@ public class Client : IDisposable
         public bool success;
         public IntPtr error;
         public IntPtr client;
-        public IntPtr runtime;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ConnectResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -621,12 +627,15 @@ public class Client : IDisposable
         throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
     }
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr create_client();
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void enable_tracing(string rust_log, string tracing); 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void disable_tracing();
-    public delegate void ConnectCallback(IntPtr clientWrapperPtr);
+    public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr connect_async(string url, ConnectCallback callback);
+    public static extern IntPtr connect_async(IntPtr client, string url, ConnectCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
@@ -777,6 +786,15 @@ public class Client : IDisposable
             }
             return IntPtr.Zero;
         });
+        clientPtr = create_client();
+        var clientWrapper = Marshal.PtrToStructure<ClientWrapper>(clientPtr);
+        if (!clientWrapper.success)
+        {
+            var errorMsg = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
+            throw new ClientCreationError(errorMsg);
+        }
+        client = clientWrapper;
+        isconnected = true;
     }
     bool tracing { get; set; } = false;
     bool informing { get; set; } = false;
@@ -814,15 +832,15 @@ public class Client : IDisposable
             Console.WriteLine();
         }
     }
-    public async Task connect(string url = "")
+    public Task connect(string url = "")
     {
-        var tcs = new TaskCompletionSource<ClientWrapper>();
+        var tcs = new TaskCompletionSource<ConnectResponseWrapper>();
 
         void Callback(IntPtr clientWrapperPtr)
         {
             try
             {
-                var clientWrapper = Marshal.PtrToStructure<ClientWrapper>(clientWrapperPtr);
+                var clientWrapper = Marshal.PtrToStructure<ConnectResponseWrapper>(clientWrapperPtr);
                 if (!clientWrapper.success)
                 {
                     var errorMsg = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
@@ -830,8 +848,6 @@ public class Client : IDisposable
                 }
                 else
                 {
-                    clientPtr = clientWrapperPtr;
-                    client = clientWrapper;
                     isconnected = true;
                     tcs.SetResult(clientWrapper);
                 }
@@ -844,9 +860,9 @@ public class Client : IDisposable
 
         var callbackDelegate = new ConnectCallback(Callback);
 
-        connect_async(url, callbackDelegate);
+        connect_async(clientPtr, url, callbackDelegate);
 
-        client = await tcs.Task;
+        return tcs.Task;
     }
     public bool connected()
     {

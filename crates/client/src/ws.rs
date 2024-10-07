@@ -1,4 +1,4 @@
-use tracing::{error, trace};
+use tracing::{error, debug, trace};
 use futures_util::{StreamExt};
 use openiap_proto::protos::Envelope;
 use prost::Message as _;
@@ -6,7 +6,7 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use std::sync::{Arc};
 use tokio::sync::{Mutex};
 use futures::SinkExt;
-use std::ops::AddAssign;
+// use std::ops::AddAssign;
 
 use crate::Client;
 impl Client {
@@ -26,17 +26,17 @@ impl Client {
                 let envelope = envelope_receiver.recv().await;
                 let mut envelope = envelope.unwrap();
                 let command = envelope.command.clone();
-
                 {
-                    let inner = me.inner.lock().await;
-                    let mut seq = inner.msgcount.lock().await;
-                    envelope.seq = seq.clone();
+                    envelope.seq = me.inc_msgcount().clone();
                     if envelope.id.is_empty() {
-                        envelope.id = seq.to_string();
+                        envelope.id = envelope.seq.to_string();
                     }
-                    seq.add_assign(1);
                 }
-
+                if envelope.rid.is_empty() {
+                    debug!("Send #{} #{} {} message", envelope.seq, envelope.id, command);
+                } else {
+                    debug!("Send #{} #{} (reply to #{}) {} message", envelope.seq, envelope.id, envelope.rid, command);
+                }
                 // get envelope length, then add it as the first 4 bytes of the message
                 let envelope = envelope.encode_to_vec();
                 let size = envelope.len() as u32;

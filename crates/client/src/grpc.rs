@@ -1,5 +1,5 @@
-use std::ops::AddAssign;
-use tracing::{trace, error};
+// use std::ops::AddAssign;
+use tracing::{trace, error, debug};
 
 use openiap_proto::{errors::OpenIAPError};
 use tonic::Request;
@@ -40,9 +40,19 @@ impl Client {
             loop {
                 // interval.tick().await;
                 let envelope = envelope_receiver.recv().await;
-                let envelope = envelope.unwrap();
+                let mut envelope = envelope.unwrap();
+                envelope.seq = me.inc_msgcount().clone();
+                if envelope.id.is_empty() {
+                    envelope.id = envelope.seq.to_string();
+                }
                 let command = envelope.command.clone();
-                trace!("Begin sending a {} message to the server", command);
+                if envelope.rid.is_empty() {
+                    debug!("Send #{} #{} {} message", envelope.seq, envelope.id, command);
+                } else {
+                    debug!("Send #{} #{} (reply to #{}) {} message", envelope.seq, envelope.id, envelope.rid, command);
+                }
+
+                // trace!("Begin sending a {} message to the server", command);
                 match _new_stream_tx.send(envelope).await {
                     Ok(_) => {
                         trace!("Successfully sent a {} message to the server", command);
@@ -57,26 +67,24 @@ impl Client {
         });
 
 
-        let envelope_receiver = self.out_envelope_receiver.clone();
-        let me = self.clone();
-        tokio::spawn( async move {
-            // let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
-            loop {
-                // interval.tick().await;
-                let envelope = envelope_receiver.recv().await;
-                let mut envelope = envelope.unwrap();
-                // let command = envelope.command.clone();
-                {
-                    let inner = me.inner.lock().await;
-                    let mut seq = inner.msgcount.lock().await;
-                    envelope.seq = seq.clone();
-                    if envelope.id.is_empty() {
-                        envelope.id = seq.to_string();
-                    }
-                    seq.add_assign(1);
-                }
-            }
-        });
+        // let envelope_receiver = self.out_envelope_receiver.clone();
+        // let me = self.clone();
+        // tokio::spawn( async move {
+        //     // let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        //     loop {
+        //         // interval.tick().await;
+        //         let envelope = envelope_receiver.recv().await;
+        //         println!("Received envelope {:?}", envelope);
+        //         let mut envelope = envelope.unwrap();
+        //         // let command = envelope.command.clone();
+        //         {
+        //             envelope.seq = me.inc_msgcount().clone();
+        //             if envelope.id.is_empty() {
+        //                 envelope.id = envelope.seq.to_string();
+        //             }
+        //         }
+        //     }
+        // });
         let mut resp_stream = response.into_inner();
         let me = self.clone();
         tokio::spawn(async move {

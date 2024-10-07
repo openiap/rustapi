@@ -10,6 +10,7 @@ if __name__ == "__main__":
     try:
         # client.enable_tracing("openiap=trace", "new")
         client.enable_tracing("openiap=info", "")
+        client.info("Connecting to OpenIAP")
         client.connect()
         signin_result = client.signin()
         print(signin_result)

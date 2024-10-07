@@ -13,10 +13,14 @@ CALLBACK = CFUNCTYPE(None, c_char_p)
 class ClientWrapper(Structure):
     _fields_ = [("success", c_bool),
                 ("error", c_char_p),
-                ("client", c_void_p),
-                ("runtime", c_void_p)]
+                ("client", c_void_p)]
 
-ConnectCallback = CFUNCTYPE(None, POINTER(ClientWrapper))
+# Define the ConnectResponseWrapper struct
+class ConnectResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
+
+ConnectCallback = CFUNCTYPE(None, POINTER(ConnectResponseWrapper))
 
 # Define the SigninRequestWrapper struct
 class SigninRequestWrapper(Structure):
@@ -453,8 +457,18 @@ class Client:
         self.tracing = False
         self.informing = False
         self.verbosing = False
-        # self.client = self._create_client(url)
         self.callbacks = []  # Keep a reference to the callbacks
+
+        self.lib.create_client.argtypes = []
+        self.lib.create_client.restype = POINTER(ClientWrapper)
+
+        client_ptr = self.lib.create_client()
+        response = client_ptr.contents
+        if not response.success:
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            raise ClientError(f"Create client failed: {error_message}")
+        self.client = client_ptr
+
     def free(self):
         if(self.client != None):
             self.trace("Freeing client")
@@ -549,7 +563,6 @@ class Client:
 
         def callback(client_ptr):
             try:
-                self.client = client_ptr;
                 client = client_ptr.contents
                 self.trace("Callback invoked")
                 if not client.success:
@@ -563,7 +576,7 @@ class Client:
         cb = ConnectCallback(callback)
 
         self.trace("Calling connect_async")
-        self.lib.connect_async(url.encode('utf-8'), cb)
+        self.lib.connect_async(self.client, url.encode('utf-8'), cb)
         self.trace("connect_async called")
 
         # Wait for the callback to be invoked
