@@ -77,10 +77,10 @@ impl Client {
         let on_disconnect_receiver = self.on_disconnect_receiver.clone();
         tokio::spawn(async move {
             on_disconnect_receiver.recv().await.unwrap();
-            println!("Killing the sender and reader for gRPC");
+            trace!("Killing the sender and reader for gRPC");
             sender.abort();
             reader.abort();
-            println!("Killed the sender and reader for gRPC");
+            trace!("Killed the sender and reader for gRPC");
         });
         self.set_connected(true, None);
         Ok(())

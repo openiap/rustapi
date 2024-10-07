@@ -33,7 +33,6 @@ impl Client {
         // Spawn sending task
         let sender = tokio::spawn(async move {
             while let Ok(envelope) = envelope_receiver.recv().await {
-                println!("Received envelope");
                 if me.is_connected() == false {
                     error!("Failed to send message to websocket: not connected");
                     return;
@@ -115,10 +114,10 @@ impl Client {
         let on_disconnect_receiver = self.on_disconnect_receiver.clone();
         tokio::spawn(async move {
             on_disconnect_receiver.recv().await.unwrap();
-            println!("Killing the sender and reader for websocket");
+            trace!("Killing the sender and reader for websocket");
             sender.abort();
             reader.abort();
-            println!("Killed the sender and reader for websocket");
+            trace!("Killed the sender and reader for websocket");
         });
         self.set_connected(true, None);
         Ok(())
