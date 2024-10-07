@@ -12,12 +12,25 @@ if __name__ == "__main__":
         client.enable_tracing("openiap=info", "")
         client.info("Connecting to OpenIAP")
         client.connect()
+
+        eventcounter = [0]  
+        def onclientevent(result, counter):
+            eventcounter[0] += 1
+            event = result["event"]
+            reason = result["reason"]
+            print(f"Client event #{counter} Received {result} event: {reason}")
+
+        eventid = client.on_client_event(callback=onclientevent)
+        print("Client event, registered with id: ", eventid)
         signin_result = client.signin()
         print(signin_result)
 
         # # for x in range(1, 10):
         # #     client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
 
+
+        print("Turning off client event, id: ", eventid)
+        client.off_client_event(eventid)
 
         files = []
         if(os.path.exists("testfile.csv")):

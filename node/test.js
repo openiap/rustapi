@@ -12,6 +12,7 @@ const fs = require('fs');
         const test_multiple_workitems = true;
         const test_message_queue = true;
         const test_exchange = true;
+        const test_off_client_event = false;
 
         // const url = 'http://localhost:50051';
         // const url = 'https://grpc.app.openiap.io/';
@@ -34,7 +35,7 @@ const fs = require('fs');
         } else {
             client.connect(url);
         }
-        client.on_client_event((event) => {
+        let eventid = client.on_client_event((event) => {
             console.log("client event", event);
         });
 
@@ -53,6 +54,11 @@ const fs = require('fs');
         // client.info(signin_result);
         if (signin_result.success) {
             client.info("signed in", signin_result.success);
+
+
+            if(test_off_client_event) {
+                client.off_client_event(eventid);
+            }
 
             if(test_sync) {
                 for (y = 0; y < 1; y++) {

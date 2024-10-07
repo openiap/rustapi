@@ -15,6 +15,15 @@ public class WatchEvent
     public string operation { get; set; }
     public string document { get; set; }
 }
+public class ClientEvent
+{
+    public ClientEvent() {
+        evt = "";
+        reason = "";
+    }
+    public string evt { get; set; }
+    public string reason { get; set; }
+}
 public class QueueEvent {
     public QueueEvent() {
         queuename = "";
@@ -99,6 +108,30 @@ public class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ClientEventResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr eventid;
+        public IntPtr error;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct OffClientEventResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ClientEventWrapper
+    {
+        public IntPtr evt;
+        public IntPtr reason;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -633,6 +666,25 @@ public class Client : IDisposable
     public static extern void enable_tracing(string rust_log, string tracing); 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void disable_tracing();
+    
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void ClientEventCallback(IntPtr eventStr);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr on_client_event_async(IntPtr client, ClientEventCallback event_callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_event_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_client_event(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "off_client_event")]
+    public static extern IntPtr int_off_client_event(string eventid);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr free_off_event_response(IntPtr response);
+
+    
+
+
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr connect_async(IntPtr client, string url, ConnectCallback callback);
@@ -725,6 +777,9 @@ public class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_watch_event(IntPtr response);
+    
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr unwatch(IntPtr client, string watchid);
@@ -1704,6 +1759,62 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
+    public string on_client_event(Action<ClientEvent> eventHandler)
+    {
+        string eventid = "";
+        try
+        {
+
+            var callback = new ClientEventCallback((IntPtr clientEventWrapper) =>
+            {
+                var eventObj = Marshal.PtrToStructure<ClientEventWrapper>(clientEventWrapper);
+                var clientEvent = new ClientEvent
+                {
+                    evt = Marshal.PtrToStringAnsi(eventObj.evt) ?? string.Empty,
+                    reason = Marshal.PtrToStringAnsi(eventObj.reason) ?? string.Empty
+                };
+                free_client_event(clientEventWrapper);
+                eventHandler(clientEvent);
+            });
+
+            var reqptr = on_client_event_async(clientPtr, callback);
+            ClientEventResponseWrapper response = Marshal.PtrToStructure<ClientEventResponseWrapper>(reqptr);
+            string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+            eventid = Marshal.PtrToStringAnsi(response.eventid) ?? string.Empty;
+            bool success = response.success;
+            free_event_response(reqptr);
+            if (!success)
+            {
+                throw new ClientError(error);
+            }
+        }
+        finally
+        {
+        }
+        return eventid;
+    }
+    public void off_client_event(string eventid)
+    {
+        IntPtr eventidPtr = Marshal.StringToHGlobalAnsi(eventid);
+        try
+        {
+            var response = int_off_client_event(eventid);
+            var responseWrapper = Marshal.PtrToStructure<OffClientEventResponseWrapper>(response);
+            string error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? string.Empty;
+            bool success = responseWrapper.success;
+            free_off_event_response(response);
+            if (!success)
+            {
+                throw new ClientError(error);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(eventidPtr);
+        }
+        
+    }
+
     public Task<string> watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1727,6 +1838,7 @@ public class Client : IDisposable
                     operation = Marshal.PtrToStringAnsi(eventObj.operation) ?? string.Empty,
                     document = Marshal.PtrToStringAnsi(eventObj.document) ?? string.Empty
                 };
+                free_watch_event(WatchEventWrapper);
                 eventHandler(watchEvent);
             });
 

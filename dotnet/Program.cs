@@ -41,6 +41,7 @@ class Program
             // client.enabletracing("openiap=trace", "new");
             // client.enabletracing("openiap=debug", "new");
             client.enabletracing("info", "");
+
             await client.connect();
             if(!client.connected() ) {
                 Console.WriteLine("Client connection error: " + client.connectionerror());
@@ -48,10 +49,17 @@ class Program
             }
             Console.WriteLine("Client connection success: " + client.connected());
 
+            var eventid = client.on_client_event((eventObj) => {
+                Console.WriteLine("Client event " + eventObj.evt + ": " + eventObj.reason);
+            });
+            Console.WriteLine("Client event id: " + eventid);
 
             var (jwt, error, success) = await client.Signin();
             Console.WriteLine("Signin JWT: " + jwt);
 
+
+            Console.WriteLine("Remove Client event: " + eventid);
+            client.off_client_event(eventid);
 
             var files = new string[] { "testfile.csv" };
             if(!System.IO.File.Exists("testfile.csv")) {

@@ -924,18 +924,18 @@ impl Client {
                             };
                             let envelope = err.to_envelope();
                             let tx = queries.remove(&id).unwrap();
-                            println!("**********************************************************");
-                            println!("kill query: {}", id);
-                            println!("**********************************************************");
+                            // println!("**********************************************************");
+                            // println!("kill query: {}", id);
+                            // println!("**********************************************************");
                             let _ = tx.send(envelope);
                         }
                         let mut streams = inner.streams.lock().await;
                         let ids = streams.keys().cloned().collect::<Vec<String>>();
                         for id in ids {
                             let tx = streams.remove(&id).unwrap();
-                            println!("**********************************************************");
-                            println!("kill stream: {}", id);
-                            println!("**********************************************************");
+                            // println!("**********************************************************");
+                            // println!("kill stream: {}", id);
+                            // println!("**********************************************************");
                             let _ = tx.send(Vec::new());
                         }
                         let mut queues = inner.queues.lock().await;

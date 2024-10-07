@@ -14,6 +14,23 @@ class ClientWrapper(Structure):
     _fields_ = [("success", c_bool),
                 ("error", c_char_p),
                 ("client", c_void_p)]
+    
+# Define the ClientEventWrapper struct
+class ClientEventWrapper(Structure):
+    _fields_ = [("event", c_char_p),
+                ("reason", c_char_p)]
+
+class ClientEventResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("eventid", c_char_p),
+                ("error", c_char_p)]
+
+ClientEventCallback = CFUNCTYPE(None, POINTER(ClientEventWrapper))
+
+class OffClientEventResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p)]
+
 
 # Define the ConnectResponseWrapper struct
 class ConnectResponseWrapper(Structure):
@@ -543,6 +560,68 @@ class Client:
         if "trace" in rust_log:
             self.tracing = True
     
+    def on_client_event(self, callback = None):
+        self.trace("Inside on_client_event")
+        result = {"success": None, "eventid": None, "error": None}
+        if not callable(callback):
+            raise ValueError("Callback must be a callable function")
+
+        self.counter = 0
+        def client_event_callback(eventref):
+            self.trace("Client Event callback invoked")
+            event = eventref.contents
+            str_event = ""
+            str_reason = ""
+            if event.event != None:
+                str_event = event.event.decode('utf-8')
+            if event.reason != None:
+                str_reason = event.reason.decode('utf-8')
+            result = {
+                "event": str_event,
+                "reason": str_reason
+            }
+            self.trace("Internal callback invoked", result)
+            self.lib.free_client_event(eventref)
+            self.counter += 1
+            try:
+                callback(result, self.counter)
+            except Exception as e:
+                self.trace("Error in callback", e)
+        c_callback = ClientEventCallback(client_event_callback)
+        self.callbacks.append(c_callback)
+
+        self.lib.on_client_event_async.argtypes = [POINTER(ClientWrapper), ClientEventCallback]
+        self.lib.on_client_event_async.restype = POINTER(ClientEventResponseWrapper);
+
+        self.trace("Calling on_client_event_async")
+        reqref = self.lib.on_client_event_async(self.client, c_callback)
+        self.trace("on_client_event_async called")
+        response = reqref.contents
+        eventid = ""
+
+        if not response.success:
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            self.lib.free_event_response(reqref)
+            raise ClientError(f"Failed to register client event: {error_message}")
+        eventid = response.eventid.decode('utf-8')
+        self.lib.free_event_response(reqref)
+
+        return eventid
+    def off_client_event(self, eventid):
+        self.trace("Inside off_client_event")
+        self.lib.off_client_event.argtypes = [c_char_p]
+        self.lib.off_client_event.restype = POINTER(OffClientEventResponseWrapper);
+
+        self.trace("Calling off_client_event")
+        reqref = self.lib.off_client_event(eventid.encode('utf-8'))
+        self.trace("off_client_event called")
+        response = reqref.contents
+
+        if not response.success:
+            error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+            self.lib.free_off_event_response(reqref)
+            raise ClientError(f"Failed to unregister client event: {error_message}")
+        self.lib.free_off_event_response(reqref)
     def disable_tracing(self):
         self.trace("Calling disable_tracing")
         self.lib.disable_tracing()
@@ -1278,8 +1357,10 @@ class Client:
             }
             self.trace("Internal callback invoked", result)
             self.counter += 1
-            callback(result, self.counter)
-
+            try:
+                callback(result, self.counter)
+            except Exception as e:
+                self.trace("Error in callback", e)
         def response_callback(response_ptr):
             try:
                 self.trace("Watch callback invoked")
@@ -1337,7 +1418,10 @@ class Client:
             }
             self.trace("Internal callback invoked", result)
             self.counter += 1
-            callback(result, self.counter)
+            try:
+                callback(result, self.counter)
+            except Exception as e:
+                self.trace("Error in callback", e)
 
         c_callback = QueueEventCallback(queue_event_callback)
         self.callbacks.append(c_callback)
@@ -1389,7 +1473,10 @@ class Client:
             }
             self.trace("Internal callback invoked", result)
             self.counter += 1
-            callback(result, self.counter)
+            try:
+                callback(result, self.counter)
+            except Exception as e:
+                self.trace("Error in callback", e)
 
         c_callback = QueueEventCallback(queue_event_callback)
         self.callbacks.append(c_callback)

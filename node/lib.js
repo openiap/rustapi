@@ -2142,7 +2142,7 @@ class Client {
     }
     off_client_event(eventid) {
         this.verbose('off_client_event invoked');
-        const response = this.lib.off_client_event(this.client, eventid);
+        const response = this.lib.off_client_event(eventid);
         this.trace('decode response');
         const result = koffi.decode(response, OffClientEventResponseWrapper);
         this.trace('free_off_event_response');
