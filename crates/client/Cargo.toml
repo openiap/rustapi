@@ -2,11 +2,11 @@
 name = "openiap-client"
 description = "openiap client library"
 license = "MPL-2.0"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 
 [dependencies]
-openiap-proto = { path = "../proto", version = "0.0.4" }
+openiap-proto = { path = "../proto", version = "0.0.5" }
 tonic = { version = "0.12.0", features = ["tls-roots"] } # "transport", "gzip", "tls", "tls-webpki-roots"
 futures = "0.3"
 futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
@@ -36,6 +36,7 @@ hostname = "^0.4"
 
 bytes = { version = "1.7.2" }
 async-channel = { version = "2.3.1" }
-tokio-tungstenite = { version = "0.24.0", features = [ "native-tls" ] }
+tokio-tungstenite = { version = "0.24.0", features = [ "rustls-tls-native-roots" ] }
+# tokio-tungstenite = { version = "0.24.0", features = [ "native-tls" ] }
 sqids = "0.4.1"
 # async-tungstenite = { version = "0.28.0", features = [ "async-native-tls" ] }
