@@ -239,13 +239,97 @@ impl Client {
     /// Connect the client to the OpenIAP server.
     #[tracing::instrument(skip_all)]
     pub fn connect(&self, dst: &str) -> Result<(), OpenIAPError> {
-        self.set_runtime(Some(tokio::runtime::Runtime::new().unwrap()));
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                return Err(OpenIAPError::ClientError(format!(
+                    "Failed to create tokio runtime: {}",
+                    e
+                )));
+            }
+        };
+        self.set_runtime(Some(rt));
         let res = tokio::task::block_in_place(|| {
             let handle = self.get_runtime_handle();
             handle.block_on(self.connect_async(dst))
         });
         return res;
     }
+
+    /// Load the configuration from the server.
+    pub async fn load_config(strurl: &str, url: &url::Url) -> Option<Config> {
+        let config: Option<Config>;
+        let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
+        let configurl: String;
+        if issecure {
+            configurl = format!(
+                "{}://{}/config",
+                "https",
+                url.host_str()
+                    .unwrap_or("localhost.openiap.io")
+                    .replace("grpc.", "")
+            );
+        } else {
+            configurl = format!(
+                "{}://{}/config",
+                "http",
+                url.host_str()
+                    .unwrap_or("localhost.openiap.io")
+                    .replace("grpc.", "")
+            );
+        }
+
+        let configurl = url::Url::parse(configurl.as_str())
+            .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e))).expect("wefew");
+        let o = minreq::get(configurl).send();
+        match o {
+            Ok(_) => {
+                let response = match o {
+                    Ok(response) => response,
+                    Err(e) => {
+                        error!("Failed to get config: {}", e);
+                        return None;
+                    }
+                };
+                if response.status_code == 200 {
+                    let body = response.as_str().unwrap();
+                    config = Some(match serde_json::from_str(body) {
+                        Ok(config) => config,
+                        Err(e) => {
+                            error!("Failed to parse config: {}", e);
+                            return None;
+                        }
+                    });
+                } else {
+                    config = None;
+                }
+            }
+            Err(e) => {
+                error!("Failed to get config: {}", e);
+                return None;
+            }
+        }
+        let mut enable_analytics = true;
+        let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
+        if config.is_some() {
+            let config = config.as_ref().unwrap();
+            if !config.otel_metric_url.is_empty() {
+                otel_metric_url = config.otel_metric_url.clone();
+            }
+            enable_analytics = config.enable_analytics;
+        }
+        if enable_analytics {
+            match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Failed to initialize telemetry: {}", e);
+                    return None;
+                }
+            }
+        }
+        config
+    }
+
     /// Connect the client to the OpenIAP server.
     #[tracing::instrument(skip_all)]
     pub async fn connect_async(&self, dst: &str) -> Result<(), OpenIAPError> {
@@ -277,7 +361,6 @@ impl Client {
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.");
-        let mut issecure = url.scheme() == "https" || url.scheme() == "wss";
         if url.scheme() != "http"
             && url.scheme() != "https"
             && url.scheme() != "grpc"
@@ -288,7 +371,6 @@ impl Client {
         }
         if url.scheme() == "grpc" {
             if url.port() == Some(443) {
-                issecure = true;
                 strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
                 strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
@@ -330,68 +412,7 @@ impl Client {
             );
         }
         info!("Connecting to {}", strurl);
-
-        let config: Option<Config>;
-
-        let configurl: String;
-        if issecure {
-            configurl = format!(
-                "{}://{}/config",
-                "https",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
-            );
-        } else {
-            configurl = format!(
-                "{}://{}/config",
-                "http",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
-            );
-        }
-
-        let configurl = url::Url::parse(configurl.as_str())
-            .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let o = minreq::get(configurl).send();
-        match o {
-            Ok(_) => {
-                let response = o.unwrap();
-                if response.status_code == 200 {
-                    let body = response.as_str().unwrap();
-                    config = Some(serde_json::from_str(body).unwrap());
-                } else {
-                    config = None;
-                }
-            }
-            Err(e) => {
-                return Err(OpenIAPError::ClientError(format!(
-                    "Failed to get config: {}",
-                    e
-                )));
-            }
-        }
-        let mut enable_analytics = true;
-        let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
-        if config.is_some() {
-            let config = config.as_ref().unwrap();
-            if !config.otel_metric_url.is_empty() {
-                otel_metric_url = config.otel_metric_url.clone();
-            }
-            enable_analytics = config.enable_analytics;
-        }
-        if enable_analytics {
-            match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
-                Ok(_) => (),
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to initialize telemetry: {}",
-                        e
-                    )));
-                }
-            }
-        }
+        let config = Client::load_config(strurl.as_str(), &url).await;
         if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
 
@@ -550,7 +571,6 @@ impl Client {
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
         let usegprc = url.scheme() == "grpc";
-        let mut issecure = url.scheme() == "https" || url.scheme() == "wss";
         if url.scheme() != "http"
             && url.scheme() != "https"
             && url.scheme() != "grpc"
@@ -561,7 +581,6 @@ impl Client {
         }
         if url.scheme() == "grpc" {
             if url.port() == Some(443) {
-                issecure = true;
                 strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
                 strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
@@ -604,68 +623,7 @@ impl Client {
         }
         info!("Connecting to {}", strurl);
 
-        let config: Option<Config>;
-
-        let configurl: String;
-        if issecure {
-            configurl = format!(
-                "{}://{}/config",
-                "https",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
-            );
-        } else {
-            configurl = format!(
-                "{}://{}/config",
-                "http",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
-            );
-        }
-
-        let configurl = url::Url::parse(configurl.as_str())
-            .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let o = minreq::get(configurl).send();
-        match o {
-            Ok(_) => {
-                let response = o.unwrap();
-                if response.status_code == 200 {
-                    let body = response.as_str().unwrap();
-                    config = Some(serde_json::from_str(body).unwrap());
-                } else {
-                    config = None;
-                }
-            }
-            Err(e) => {
-                return Err(OpenIAPError::ClientError(format!(
-                    "Failed to get config: {}",
-                    e
-                )));
-            }
-        }
-
-        let mut enable_analytics = true;
-        let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
-        if config.is_some() {
-            let config = config.as_ref().unwrap();
-            if !config.otel_metric_url.is_empty() {
-                otel_metric_url = config.otel_metric_url.clone();
-            }
-            enable_analytics = config.enable_analytics;
-        }
-        if enable_analytics {
-            match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
-                Ok(_) => (),
-                Err(e) => {
-                    return Err(OpenIAPError::ClientError(format!(
-                        "Failed to initialize telemetry: {}",
-                        e
-                    )));
-                }
-            }
-        }
+        let config = Client::load_config(strurl.as_str(), &url).await;
         let client = if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
 
