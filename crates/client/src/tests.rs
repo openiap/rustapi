@@ -18,10 +18,6 @@ mod tests {
     use openiap_proto::*;
 
     use super::*;
-    // const TEST_URL: &str = "http://localhost:50051";
-    // const TEST_URL: &str = "grpc://grpc.home.openiap.io:443";
-    // const TEST_URL: &str = "wss://home.openiap.io";
-    // const TEST_URL: &str = "wss://demo.openiap.io";
     const TEST_URL: &str = "";
     #[test]
     fn normal_type() {

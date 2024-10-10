@@ -14,8 +14,6 @@ const fs = require('fs');
         const test_exchange = true;
         const test_off_client_event = false;
 
-        // const url = 'http://localhost:50051';
-        // const url = 'https://grpc.app.openiap.io/';
         const url = '';
         // client.enable_tracing("openiap=debug", "close");
         // client.enable_tracing("openiap=trace", "new");

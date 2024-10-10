@@ -59,39 +59,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     // Number of CPUs:
     println!("Number of available threads: {}", sys.cpus().len());
 
-
-    // let pid = get_current_pid()?;
-    // let sys = System::new_all();
-    // println!("System name:             {:?}", sys.name());
-    // println!("System kernel version:   {:?}", sys.kernel_version());
-    // println!("System OS version:       {:?}", sys.os_version());
-    // println!("System host name:        {:?}", sys.host_name());
-    // let sys = Arc::new(Mutex::new(sys));
-    // std::thread::spawn(move || {
-    //     loop {
-    //         {
-    //             let mut file = std::fs::File::create("testfile.txt").unwrap();
-    //             let _ = file.write_all("Hello world".as_bytes());
-    //             file.sync_all().unwrap();
-    //         }
-    //         {
-    //             let mut file = std::fs::File::open("testfile.txt").unwrap();
-    //             let mut contents = String::new();
-    //             file.read_to_string(&mut contents).unwrap();
-    //         }
-
-    //         std::thread::sleep(std::time::Duration::from_secs(5));
-    //         let mut sys = sys.lock().unwrap();
-    //         sys.refresh_process(pid);
-    //         sys.refresh_all();
-    //         if let Some(process) = sys.process(pid) {
-    //             let disk_io = process.disk_usage();
-    //             println!("read: {:?} write: {:?} total read: {:?} total write: {:?}", disk_io.read_bytes, disk_io.written_bytes, disk_io.total_read_bytes, disk_io.total_written_bytes);
-    //         }
-    //     }
-    // });
-
-    // let num_calcs = 1000000;
     let num_calcs = 100000;
 
     let available_cores: u64 = available_parallelism().unwrap().get() as u64; // get info how many threads we can use and use half of them
@@ -108,22 +75,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             _ => println!("Received unknown event"),
         }
     })).await;
-    // let res = b.connect_async("").await;
-    // let res = b.connect("");
-    // println!("b.connect_called: {:?}", b.connect_called);
-
-    // // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
-    // match res {
-    //     Ok(b) => b,
-    //     Err(e) => {
-    //         println!("Failed to connect to server: {:?}", e);
-    //         return Ok(());
-    //     }        
-    // };
     let res = b.connect_async("").await;
     // let res = b.connect("");
-
-    // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
+    // let res = Client::new_connect("").await;
     match res {
         Ok(b) => b,
         Err(e) => {
@@ -131,12 +85,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }        
     };
-
+    // Test disconnect/connect
     // b.disconnect();
-
     // let res = b.connect_async("").await;
-
-    // // let res = Client::new_connect("wss://home.openiap.io/ws/v2").await;
     // match res {
     //     Ok(b) => b,
     //     Err(e) => {

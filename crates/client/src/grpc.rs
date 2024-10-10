@@ -40,7 +40,14 @@ impl Client {
         let sender = tokio::spawn( async move {
             loop {
                 let envelope = envelope_receiver.recv().await;
-                let mut envelope = envelope.unwrap();
+                let mut envelope = match envelope {
+                    Ok(envelope) => envelope,
+                    Err(e) => {
+                        error!("Failed to receive message from envelope receiver: {:?}", e);
+                        me.set_connected(false, Some(&e.to_string()));
+                        return;
+                    }
+                };
                 envelope.seq = me.inc_msgcount().clone();
                 if envelope.id.is_empty() {
                     envelope.id = envelope.seq.to_string();
@@ -76,7 +83,12 @@ impl Client {
         });
         let on_disconnect_receiver = self.on_disconnect_receiver.clone();
         tokio::spawn(async move {
-            on_disconnect_receiver.recv().await.unwrap();
+            match on_disconnect_receiver.recv().await {
+                Ok(_) => {},
+                Err(e) => {
+                    error!("Failed to receive on_disconnect signal: {:?}", e);
+                }
+            };
             trace!("Killing the sender and reader for gRPC");
             sender.abort();
             reader.abort();

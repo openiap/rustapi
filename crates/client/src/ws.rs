@@ -54,7 +54,14 @@ impl Client {
                 // Encode envelope and prepend length in little-endian
                 let mut message = BytesMut::with_capacity(4 + envelope.encoded_len());
                 message.put_u32_le(envelope.encoded_len() as u32);
-                envelope.encode(&mut message).unwrap();
+                match envelope.encode(&mut message) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        error!("Failed to encode protobuf message: {:?}", e);
+                        me.set_connected(false, Some(&e.to_string()));
+                        return;
+                    }                    
+                };
 
                 // Send the message
                 if let Err(e) = write.send(Message::Binary(message.to_vec())).await {
@@ -113,7 +120,12 @@ impl Client {
         });
         let on_disconnect_receiver = self.on_disconnect_receiver.clone();
         tokio::spawn(async move {
-            on_disconnect_receiver.recv().await.unwrap();
+            match on_disconnect_receiver.recv().await {
+                Ok(_) => {},
+                Err(e) => {
+                    error!("Failed to receive on_disconnect signal: {:?}", e);
+                }
+            };
             trace!("Killing the sender and reader for websocket");
             sender.abort();
             reader.abort();

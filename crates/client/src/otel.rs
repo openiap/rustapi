@@ -80,7 +80,12 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
             process_network_io.as_any(),
         ],
         move |context| {
-            let mut sys = sys.lock().unwrap();
+            let mut sys = match sys.lock() {
+                Ok(sys) => sys,
+                Err(_e) => {
+                    return ();
+                }                
+            };
             sys.refresh_process(pid);
             sys.refresh_networks_list();
             if let Some(process) = sys.process(pid) {

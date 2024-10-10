@@ -178,4 +178,7 @@ if __name__ == "__main__":
 
     except ClientError as e:
         print(f"An error occurred: {e}")
+    print("*********************************")
+    print("done, free client")
+    print("*********************************")
     client.free()

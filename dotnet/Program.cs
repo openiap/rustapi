@@ -198,6 +198,9 @@ class Program
             var distinct_response = await client.Distinct("entities", "_type");
             Console.WriteLine("Dotnet: distinct success as " + string.Join(",", distinct_response));
 
+            Console.WriteLine("*********************************");
+            Console.WriteLine("done, free client");
+            Console.WriteLine("*********************************");
             client.Dispose();
         }
         catch (Client.ClientError e)
