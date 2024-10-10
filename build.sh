@@ -18,9 +18,11 @@ cross build --target i686-pc-windows-gnu -v --release && cp target/i686-pc-windo
 echo "Building node"
 rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node && npm pack)
 echo "Building dotnet"
-rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release)
+rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
+# dotnet nuget push packages/openiap.0.0.5.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
+
 echo "Building python"
-rm -rf python/lib build dist lib && mkdir python/lib && cp target/lib/* python/lib && (cd python && python setup.py sdist)
+rm -rf python/lib build dist lib && mkdir python/lib && cp target/lib/* python/lib && (cd python && python setup.py sdist) # python3 -m twine upload dist/*
 
 
 # cargo publish -p openiap-proto --allow-dirty

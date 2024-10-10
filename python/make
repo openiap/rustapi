@@ -1,4 +1,4 @@
 rm -rf build dist openiap/lib && mkdir openiap/lib && cp ../target/debug/libopeniap_clib.so ./openiap/lib && python -m build --wheel
-pip uninstall openiap -y && pip install dist/openiap-0.1.1-py3-none-any.whl && python test.py
+pip uninstall openiap -y && pip install dist/openiap_edge-0.0.5-py3-none-any.whl && python test.py
 # python -m build --wheel # Binary Distribution Wheel
 # python -m build --sdist # source distribution
