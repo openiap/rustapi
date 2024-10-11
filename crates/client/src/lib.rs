@@ -261,21 +261,27 @@ impl Client {
         let config: Option<Config>;
         let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
         let configurl: String;
+        let mut port = url.port().unwrap_or(80);
+        if port == 50051 {
+            port = 3000;
+        }
         if issecure {
             configurl = format!(
-                "{}://{}/config",
+                "{}://{}:{}/config",
                 "https",
                 url.host_str()
                     .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
+                    .replace("grpc.", ""),
+                port
             );
         } else {
             configurl = format!(
-                "{}://{}/config",
+                "{}://{}:{}/config",
                 "http",
                 url.host_str()
                     .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", "")
+                    .replace("grpc.", ""),
+                port
             );
         }
 
@@ -360,7 +366,7 @@ impl Client {
         }
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.");
+        let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.") || url.port() == Some(50051);
         if url.scheme() != "http"
             && url.scheme() != "https"
             && url.scheme() != "grpc"
@@ -372,8 +378,8 @@ impl Client {
         if url.scheme() == "grpc" {
             if url.port() == Some(443) {
                 strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
-            } else {
-                strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
+            } else { 
+                strurl = format!("http://{}:{}", url.host_str().unwrap_or("app.openiap.io"), url.port().unwrap_or(80));
             }
         }
         let mut url = url::Url::parse(strurl.as_str())
@@ -570,7 +576,7 @@ impl Client {
         }
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let usegprc = url.scheme() == "grpc";
+        let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.") || url.port() == Some(50051);
         if url.scheme() != "http"
             && url.scheme() != "https"
             && url.scheme() != "grpc"
@@ -583,7 +589,7 @@ impl Client {
             if url.port() == Some(443) {
                 strurl = format!("https://{}", url.host_str().unwrap_or("app.openiap.io"));
             } else {
-                strurl = format!("http://{}", url.host_str().unwrap_or("app.openiap.io"));
+                strurl = format!("http://{}:{}", url.host_str().unwrap_or("app.openiap.io"), url.port().unwrap_or(80));
             }
         }
         let mut url = url::Url::parse(strurl.as_str())
