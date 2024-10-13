@@ -1246,7 +1246,7 @@ impl Client {
             self.pong(&received.id).await;
             // self.event_sender.send(crate::ClientEvent::Ping).await.unwrap();
         } else if command == "refreshtoken" {
-            // TODO: store jwt at some point in the future
+            // TODO: Do we store the new jwt at some point in the future
         } else if command == "beginstream"
             || command == "stream"
             || command == "endstream"
