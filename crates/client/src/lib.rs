@@ -1228,10 +1228,18 @@ impl Client {
         let watches = inner.watches.lock().await;
         let queues = inner.queues.lock().await;
     
-        if rid.is_empty() {
-            debug!("Received #{} #{} {} message", received.seq, received.id, command);
-        }else {
-            debug!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
+        if command != "ping" && command != "pong" && command != "refreshtoken" {
+            if rid.is_empty() {
+                debug!("Received #{} #{} {} message", received.seq, received.id, command);
+            } else {
+                debug!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
+            }
+        } else {
+            if rid.is_empty() {
+                trace!("Received #{} #{} {} message", received.seq, received.id, command);
+            } else {
+                trace!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
+            }
         }
         
         if command == "ping" {
