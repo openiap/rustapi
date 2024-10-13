@@ -21,8 +21,6 @@ function encode_files(req) {
             req.files[i] = {
                 filename: req.files[i],
                 id: "",
-                // compressed: false,
-                // file: [null]
             }
         }
         req.files[i] = encodeStruct(req.files[i], WorkitemFileWrapper);
@@ -30,16 +28,9 @@ function encode_files(req) {
     if(req.files.length == 0 || req.files.at(-1) != null) {
         req.files.push(null); // terminate array
     }
-    // if(isworkitem) {
-    //     req.files = encodeStruct(req.files, 'WorkitemFileWrapper ***');
-    // }
     req.files_len = req.files.length - 1;
 }
 function decode_files(res) {
-    // for(let i = 0; i < res.files_len; i++) {
-    //     res.files[i] = koffi.decode(res.files[i], WorkitemFileWrapper);
-    // }
-
     let _files = [];
     if(res.files_len > 0) {
         var files = koffi.decode(res.files, 'WorkitemFileWrapper ***', res.files_len);
@@ -285,12 +276,7 @@ const WorkitemFileWrapper = koffi.struct('WorkitemFileWrapper', {
     filename: CString,
     id: CString,
     compressed: bool,
-    // Uint8Array
     file: 'uint8_t *',
-    // file: 'uint8_t *', 
-    // file: koffi.array(koffi.types.uint8_t, koffi.sizeof(koffi.types.uintptr_t))
-    // file: 'uint8 ***',
-    // file: ArrayType(ref.types.uint8) // This represents Vec<u8> in Rust
 });
 
 const WorkitemWrapper = koffi.struct('WorkitemWrapper', {
@@ -652,8 +638,6 @@ function loadLibrary() {
         lib.watch = lib.func('watch', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr]);
         lib.next_watch_event = lib.func('next_watch_event', WatchEventWrapperPtr, [CString]);
         lib.WatchEventCallback = koffi.proto('void WatchEventCallback(WatchEventWrapper*)');
-        // lib.WatchEventCallback = koffi.proto('void WatchEventCallback()');
-        // lib.WatchEventCallback = koffi.proto('void WatchEventCallback(char*)');
         lib.watchCallback = koffi.proto('void watchCallback(WatchResponseWrapper*)');
         lib.watch_async = lib.func('watch_async', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.WatchEventCallback)]);
         lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
@@ -688,8 +672,6 @@ class ClientError extends Error {
         this.name = "ClientError";
     }
 }
-
-var ref;
 
 class LibraryLoadError extends ClientError {
     constructor(message) {
@@ -1835,8 +1817,6 @@ class Client {
             workitem.lastrun = 0;
         }
         encode_files(workitem);
-        // workitem.files = [null];
-        // workitem.files_len = 0;
         this.verbose('encode workitem');
         req.workitem = encodeStruct(workitem, WorkitemWrapper);
         this.verbose('encode request');
@@ -1925,8 +1905,6 @@ class Client {
                 workitem.lastrun = 0;
             }
             encode_files(workitem);
-            // workitem.files = [null];
-            // workitem.files_len = 0;
             this.verbose('encode workitem');
             req.workitem = encodeStruct(workitem, WorkitemWrapper);
             this.verbose('encode request');
@@ -2104,7 +2082,6 @@ class Client {
         let event_counter = 0;
         this.info('on_client_event eventid', eventid);
         this.clientevents[eventid] = setInterval(() => {
-            // this.info('on_client_event setInterval');
             if (this.connected == false) {
                 this.trace('No longer connected, so clearInterval for eventid', eventid);
                 clearInterval(this.clientevents[eventid]);
@@ -2157,10 +2134,6 @@ class Client {
             delete this.clientevents[eventid];
         }        
     }
-    // lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
-    // lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
-    // lib.free_event_response = lib.func('free_event_response', 'void', [ClientEventResponseWrapperPtr]);
-    // lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
 
 
 
