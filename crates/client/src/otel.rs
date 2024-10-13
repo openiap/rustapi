@@ -60,7 +60,7 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
     let ofid = ofid.to_string();
     let common_attributes = if let Some(_process) = sys.process(pid) {
         [
-            HOSTNAME.string(hostname::get().unwrap().into_string().unwrap()),
+            HOSTNAME.string(hostname::get().unwrap_or_default().into_string().unwrap()),
             OFID.string(ofid),
         ]
     } else {
@@ -110,8 +110,8 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
                     &[common_attributes.as_slice(), &[DIRECTION.string("received")]].concat(),
                 );
                 let cpu_utilization: f64 = (cpu_usage / core_count as f64).into();
-                let pmemory: i64 = process.memory().try_into().unwrap();
-                let vmemory: i64 = process.virtual_memory().try_into().unwrap();
+                let pmemory: i64 = process.memory().try_into().unwrap_or_default();
+                let vmemory: i64 = process.virtual_memory().try_into().unwrap_or_default();
                 context.observe_i64(
                     &process_memory_usage,
                     pmemory,
@@ -130,7 +130,7 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
                     &common_attributes,
                 );
                 let elapsed_seconds: u64 = process.run_time();
-                let elapsed_mili: i64 = (elapsed_seconds * 1000).try_into().unwrap();
+                let elapsed_mili: i64 = (elapsed_seconds * 1000).try_into().unwrap_or_default();
                 context.observe_i64(
                     &process_elapsed_time,
                     elapsed_mili,
@@ -139,17 +139,17 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
 
                 context.observe_i64(
                     &process_disk_io,
-                    disk_io.read_bytes.try_into().unwrap(),
+                    disk_io.read_bytes.try_into().unwrap_or_default(),
                     &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
                 );
                 context.observe_i64(
                     &process_disk_io,
-                    disk_io.written_bytes.try_into().unwrap(),
+                    disk_io.written_bytes.try_into().unwrap_or_default(),
                     &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
                 );
                 // trace!(
                 //     "hostname: {:?}, mem: {:?} v mem: {:?} cpu usage: {:?}  cpu util: {:?} elapsed: {:?} rx: {:?} tx: {:?}",
-                //     hostname::get().unwrap().into_string().unwrap(),
+                //     hostname::get().unwrap_or_default().into_string().unwrap_or_default(),
                 //     pmemory, vmemory, cpu_usage, cpu_utilization, elapsed_seconds, received, transmitted
                 // );
             }
@@ -205,7 +205,12 @@ pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::er
     }
 
     let mut hasher = md5::Context::new();
-    hasher.write_all(apihostname.as_bytes()).unwrap();
+    match hasher.write_all(apihostname.as_bytes()) {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(Box::new(OpenIAPError::ClientError(format!("Failed to write to hasher: {}", e))));
+        }
+    }
     let ofid = format!("{:x}", hasher.compute());
 
     if enable_analytics {
