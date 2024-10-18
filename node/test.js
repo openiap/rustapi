@@ -1,3 +1,4 @@
+const { config } = require('koffi');
 const { Client, ClientError } = require('./lib');
 const fs = require('fs');
 (async () => {
@@ -52,6 +53,119 @@ const fs = require('fs');
         // client.info(signin_result);
         if (signin_result.success) {
             client.info("signed in", signin_result.success);
+
+            if(test_sync) {
+                let collections = client.list_collections();
+                // client.info("collections", collections);
+                let nodejs_testcol_exists = false;
+                let nodejs_testtimeseriescol_exists = false;
+                for(let i = 0; i < collections.length; i++) {
+                    let col = collections[i];
+                    client.info(col.type, col.name);
+                    if (col.name == 'nodejs_testcol') {
+                        nodejs_testcol_exists = true;
+                    }
+                    if (col.name == 'nodejs_testtimeseriescol') {
+                        nodejs_testtimeseriescol_exists = true;
+                    }
+                }
+                if (nodejs_testcol_exists == false) {
+                    client.create_collection({ collectionname: 'nodejs_testcol' });
+                }
+                client.insert_one({ collectionname: 'nodejs_testcol', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+                if (nodejs_testtimeseriescol_exists == false) {
+                    client.create_collection({ collectionname: 'nodejs_testtimeseriescol', timeseries: { time_field: 'time', meta_field: 'value', granularity: 'minutes' } });
+                }
+                client.insert_one({ collectionname: 'nodejs_testtimeseriescol', document: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
+   
+            }
+
+            if(test_async) {
+                let collections = await client.list_collections_async();
+                // client.info("collections", collections);
+                let nodejsa_testcol_exists = false;
+                let nodejsa_testtimeseriescol_exists = false;
+                for(let i = 0; i < collections.length; i++) {
+                    let col = collections[i];
+                    client.info(col.type, col.name);
+                    if (col.name == 'nodejsa_testcol') {
+                        nodejsa_testcol_exists = true;
+                    }
+                    if (col.name == 'nodejsa_testtimeseriescol') {
+                        nodejsa_testtimeseriescol_exists = true;
+                    }
+                }
+                if (nodejsa_testcol_exists == false) {
+                    await client.create_collection_async({ collectionname: 'nodejsa_testcol' });
+                }
+                await client.insert_one_async ({ collectionname: 'nodejsa_testcol', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+                if (nodejsa_testtimeseriescol_exists == false) {
+                    await client.create_collection_async({ collectionname: 'nodejsa_testtimeseriescol', timeseries: { time_field: 'time', meta_field: 'value', granularity: 'minutes' } });
+                }
+                await client.insert_one_async({ collectionname: 'nodejsa_testtimeseriescol', document: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
+
+            } 
+
+            if (test_sync) {
+                let indexes = client.get_indexes('nodejs_testcol');
+                let name_1_exists = false;
+                for(let i = 0; i < indexes.length; i++) {
+                    client.info("index", indexes[i].name);
+                    if (indexes[i].name == 'name_1') {
+                        name_1_exists = true;
+                    }
+                }
+
+                if (name_1_exists == false) {
+                    client.create_index({ collectionname: 'nodejs_testcol', index: '{"name":1}', unique: true });
+                    indexes = client.get_indexes('nodejs_testcol');
+                    for(let i = 0; i < indexes.length; i++) {
+                        client.info("index", indexes[i].name);
+                    }
+                }
+
+                client.drop_index('nodejs_testcol', 'name_1');
+                indexes = client.get_indexes('nodejs_testcol');
+                for(let i = 0; i < indexes.length; i++) {
+                    client.info("index", indexes[i].name);
+                }
+
+                client.info("Clean up");
+                client.drop_collection('nodejs_testcol');
+                client.drop_collection('nodejs_testtimeseriescol');
+            }
+
+
+            if(test_async) {
+                let indexes = await client.get_indexes_async('nodejsa_testcol');
+                let name_1_exists = false;
+                for(let i = 0; i < indexes.length; i++) {
+                    client.info("index", indexes[i].name);
+                    if (indexes[i].name == 'name_1') {
+                        name_1_exists = true;
+                    }
+                }
+
+                if (name_1_exists == false) {
+                    await client.create_index_async({ collectionname: 'nodejsa_testcol', index: '{"name":1}', unique: true });
+                    indexes = client.get_indexes('nodejsa_testcol');
+                    for(let i = 0; i < indexes.length; i++) {
+                        client.info("index", indexes[i].name);
+                    }
+                }
+
+                await client.drop_index_async('nodejsa_testcol', 'name_1');
+                indexes = await client.get_indexes_async('nodejsa_testcol');
+                for(let i = 0; i < indexes.length; i++) {
+                    client.info("index", indexes[i].name);
+                }
+
+
+                client.info("Clean up");
+                await client.drop_collection_async('nodejsa_testcol');
+                await client.drop_collection_async('nodejsa_testtimeseriescol');
+
+            }
 
 
             if(test_off_client_event) {

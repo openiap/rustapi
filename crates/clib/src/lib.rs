@@ -6,7 +6,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, ClientEvent, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
@@ -15,7 +15,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
 // use tokio::runtime::Runtime;
-use tracing::{debug, info, trace, error};
+use tracing::{debug, info, trace};
 
 mod safe_wrappers;
 use safe_wrappers::{c_char_to_str, safe_wrapper};
@@ -270,56 +270,19 @@ pub struct AggregateRequestWrapper {
     explain: bool,
 }
 
-use tracing_subscriber::{filter::EnvFilter, fmt, prelude::*};
-
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char) {
     let rust_log = c_char_to_str(rust_log);
     let rust_log = rust_log.to_string();
-    let mut filter = EnvFilter::from_default_env();
-    if !rust_log.is_empty() {
-        filter = EnvFilter::new(rust_log.clone());
-    }
-
-    let mut subscriber = fmt::layer();
     let tracing = c_char_to_str(tracing);
     let tracing = tracing.to_string();
-    if !tracing.is_empty() {
-        subscriber = match tracing.to_lowercase().as_str() {
-            "new" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NEW),
-            "enter" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ENTER),
-            "exit" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT),
-            "close" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE),
-            "none" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NONE),
-            "active" => {
-                subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ACTIVE)
-            }
-            "full" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL),
-            _ => subscriber,
-        }
-    }
-    let subscriber = subscriber
-        // .event_format(fmt::format::format().compact() )
-        .and_then(filter)
-        .with_subscriber(tracing_subscriber::registry());
-
-    match tracing::subscriber::set_global_default(subscriber) {
-        Ok(()) => {
-            debug!("Tracing enabled");
-        }
-        Err(e) => {
-            error!("Tracing failed: {:?}", e);
-        }
-    }
-    info!("enable_tracing rust_log: {:?}, tracing: {:?}", rust_log, tracing);
+    openiap_client::enable_tracing(&rust_log, &tracing);
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn disable_tracing() {
-    // tracing::dispatcher::get_default(|dispatch| {
-    //     dispatch.unsubscribe()
-    // });
+    openiap_client::disable_tracing();
 }
 
 
@@ -687,6 +650,909 @@ pub extern "C" fn signin_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_signin_response(response: *mut SigninResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct ListCollectionsResponseWrapper {
+    success: bool,
+    results: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn list_collections(
+    client: *mut ClientWrapper,
+    includehist: bool,
+) -> *mut ListCollectionsResponseWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = ListCollectionsResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = ListCollectionsResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.list_collections(includehist))
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let results = CString::new(data).unwrap().into_raw();
+            ListCollectionsResponseWrapper {
+                success: true,
+                results,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("List collections failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            ListCollectionsResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type ListCollectionsCallback = extern "C" fn(wrapper: *mut ListCollectionsResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn list_collections_async(
+    client: *mut ClientWrapper,
+    includehist: bool,
+    callback: ListCollectionsCallback,
+) {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = ListCollectionsResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = ListCollectionsResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.list_collections(includehist).await;
+
+        let response = match result {
+            Ok(data) => {
+                let results = CString::new(data).unwrap().into_raw();
+                ListCollectionsResponseWrapper {
+                    success: true,
+                    results,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("List collections failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                ListCollectionsResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_list_collections_response(response: *mut ListCollectionsResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct ColCollationWrapper {
+    locale: *const c_char,
+    case_level: bool,
+    case_first: *const c_char,
+    strength: i32,
+    numeric_ordering: bool,
+    alternate: *const c_char,
+    max_variable: *const c_char,
+    backwards: bool,
+}
+#[repr(C)]
+pub struct ColTimeseriesWrapper {
+    time_field: *const c_char,
+    meta_field: *const c_char,
+    granularity: *const c_char,
+}
+#[repr(C)]
+pub struct CreateCollectionRequestWrapper {
+    collectionname: *const c_char,
+    collation: *mut ColCollationWrapper,
+    timeseries: *mut ColTimeseriesWrapper,
+    expire_after_seconds: i32,
+    change_stream_pre_and_post_images: bool,
+    capped: bool,
+    max: i32,
+    size: i32,    
+}
+#[repr(C)]
+pub struct CreateCollectionResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn create_collection(
+    client: *mut ClientWrapper,
+    options: *mut CreateCollectionRequestWrapper,
+) -> *mut CreateCollectionResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CreateCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CreateCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = CreateCollectionRequest {
+        collectionname: c_char_to_str(options.collectionname),
+        collation: match safe_wrapper(options.collation) {
+            Some(collation) => {
+                Some(openiap_client::protos::ColCollation {
+                    locale: c_char_to_str(collation.locale),
+                    case_level: collation.case_level,
+                    case_first: c_char_to_str(collation.case_first),
+                    strength: collation.strength,
+                    numeric_ordering: collation.numeric_ordering,
+                    alternate: c_char_to_str(collation.alternate),
+                    max_variable: c_char_to_str(collation.max_variable),
+                    backwards: collation.backwards,
+                })
+            }
+            None => None,
+        },
+        timeseries: match safe_wrapper(options.timeseries) {
+            Some(timeseries) => {
+                Some(openiap_client::protos::ColTimeseries {
+                    time_field: c_char_to_str(timeseries.time_field),
+                    meta_field: c_char_to_str(timeseries.meta_field),
+                    granularity: c_char_to_str(timeseries.granularity),
+                })
+            }
+            None => None,
+        },
+        expire_after_seconds: options.expire_after_seconds,
+        change_stream_pre_and_post_images: options.change_stream_pre_and_post_images,
+        capped: options.capped,
+        max: options.max,
+        size: options.size,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CreateCollectionResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.create_collection(request))
+    });
+
+    let response = match result {
+        Ok(_) => {
+            CreateCollectionResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Create collection failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            CreateCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            }
+        }
+    };
+    Box::into_raw(Box::new(response))
+}
+type CreateCollectionCallback = extern "C" fn(wrapper: *mut CreateCollectionResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn create_collection_async(
+    client: *mut ClientWrapper,
+    options: *mut CreateCollectionRequestWrapper,
+    callback: CreateCollectionCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CreateCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CreateCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = CreateCollectionRequest {
+        collectionname: c_char_to_str(options.collectionname),
+        collation: match safe_wrapper(options.collation) {
+            Some(collation) => {
+                Some(openiap_client::protos::ColCollation {
+                    locale: c_char_to_str(collation.locale),
+                    case_level: collation.case_level,
+                    case_first: c_char_to_str(collation.case_first),
+                    strength: collation.strength,
+                    numeric_ordering: collation.numeric_ordering,
+                    alternate: c_char_to_str(collation.alternate),
+                    max_variable: c_char_to_str(collation.max_variable),
+                    backwards: collation.backwards,
+                })
+            }
+            None => None,
+        },
+        timeseries: match safe_wrapper(options.timeseries) {
+            Some(timeseries) => {
+                Some(openiap_client::protos::ColTimeseries {
+                    time_field: c_char_to_str(timeseries.time_field),
+                    meta_field: c_char_to_str(timeseries.meta_field),
+                    granularity: c_char_to_str(timeseries.granularity),
+                })
+            }
+            None => None,
+        },
+        expire_after_seconds: options.expire_after_seconds,
+        change_stream_pre_and_post_images: options.change_stream_pre_and_post_images,
+        capped: options.capped,
+        max: options.max,
+        size: options.size,
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CreateCollectionResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.create_collection(request).await;
+
+        let response = match result {
+            Ok(_) => {
+                CreateCollectionResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Create collection failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                CreateCollectionResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_create_collection_response(response: *mut CreateCollectionResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct DropCollectionResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn drop_collection(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+) -> *mut DropCollectionResponseWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DropCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = DropCollectionRequest {
+        collectionname: c_char_to_str(collectionname),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DropCollectionResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.drop_collection(request))
+    });
+
+    let response = match result {
+        Ok(_) => {
+            DropCollectionResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Drop collection failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            DropCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type DropCollectionCallback = extern "C" fn(wrapper: *mut DropCollectionResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn drop_collection_async(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+    callback: DropCollectionCallback,
+) {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DropCollectionResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = DropCollectionRequest {
+        collectionname: c_char_to_str(collectionname),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DropCollectionResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.drop_collection(request).await;
+
+        let response = match result {
+            Ok(_) => {
+                DropCollectionResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Drop collection failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                DropCollectionResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_drop_collection_response(response: *mut DropCollectionResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct GetIndexesResponseWrapper {
+    success: bool,
+    results: *const c_char,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn get_indexes(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+) -> *mut GetIndexesResponseWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = GetIndexesResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = GetIndexesRequest {
+        collectionname: c_char_to_str(collectionname),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = GetIndexesResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.get_indexes(request))
+    });
+
+    let response = match result {
+        Ok(data) => {
+            let results = CString::new(data).unwrap().into_raw();
+            GetIndexesResponseWrapper {
+                success: true,
+                results,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Get indexes failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            GetIndexesResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type GetIndexesCallback = extern "C" fn(wrapper: *mut GetIndexesResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn get_indexes_async(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+    callback: GetIndexesCallback,
+)  {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = GetIndexesResponseWrapper {
+                success: false,
+                results: std::ptr::null(),
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = GetIndexesRequest {
+        collectionname: c_char_to_str(collectionname),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = GetIndexesResponseWrapper {
+            success: false,
+            results: std::ptr::null(),
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.get_indexes(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let results = CString::new(data).unwrap().into_raw();
+                GetIndexesResponseWrapper {
+                    success: true,
+                    results,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Get indexes failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                GetIndexesResponseWrapper {
+                    success: false,
+                    results: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_get_indexes_response(response: *mut GetIndexesResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct CreateIndexRequestWrapper {
+    collectionname: *const c_char,
+    index: *const c_char,
+    options: *const c_char,
+    name: *const c_char,
+}
+#[repr(C)]
+pub struct CreateIndexResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn create_index(
+    client: *mut ClientWrapper,
+    options: *mut CreateIndexRequestWrapper,
+) -> *mut CreateIndexResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CreateIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CreateIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = CreateIndexRequest {
+        collectionname: c_char_to_str(options.collectionname),
+        index: c_char_to_str(options.index),
+        options: c_char_to_str(options.options),
+        name: c_char_to_str(options.name),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CreateIndexResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.create_index(request))
+    });
+
+    let response = match result {
+        Ok(_) => {
+            CreateIndexResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Create index failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            CreateIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type CreateIndexCallback = extern "C" fn(wrapper: *mut CreateIndexResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn create_index_async(
+    client: *mut ClientWrapper,
+    options: *mut CreateIndexRequestWrapper,
+    callback: CreateIndexCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CreateIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CreateIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = CreateIndexRequest {
+        collectionname: c_char_to_str(options.collectionname),
+        index: c_char_to_str(options.index),
+        options: c_char_to_str(options.options),
+        name: c_char_to_str(options.name),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CreateIndexResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.create_index(request).await;
+
+        let response = match result {
+            Ok(_) => {
+                CreateIndexResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Create index failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                CreateIndexResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_create_index_response(response: *mut CreateIndexResponseWrapper) {
+    free(response);
+}
+
+#[repr(C)]
+pub struct DropIndexResponseWrapper {
+    success: bool,
+    error: *const c_char,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn drop_index(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+    name: *const c_char,
+) -> *mut DropIndexResponseWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DropIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = DropIndexRequest {
+        collectionname: c_char_to_str(collectionname),
+        name: c_char_to_str(name),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DropIndexResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.drop_index(request))
+    });
+
+    let response = match result {
+        Ok(_) => {
+            DropIndexResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Drop index failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            DropIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            }
+        }
+    };
+
+    Box::into_raw(Box::new(response))
+}
+type DropIndexCallback = extern "C" fn(wrapper: *mut DropIndexResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn drop_index_async(
+    client: *mut ClientWrapper,
+    collectionname: *const c_char,
+    name: *const c_char,
+    callback: DropIndexCallback,
+) {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DropIndexResponseWrapper {
+                success: false,
+                error: error_msg,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client = client_wrapper.client.clone();
+    let request = DropIndexRequest {
+        collectionname: c_char_to_str(collectionname),
+        name: c_char_to_str(name),
+    };
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DropIndexResponseWrapper {
+            success: false,
+            error: error_msg,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    handle.spawn(async move {
+        let result = client.drop_index(request).await;
+
+        let response = match result {
+            Ok(_) => {
+                DropIndexResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Drop index failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                DropIndexResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                }
+            }
+        };
+
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_drop_index_response(response: *mut DropIndexResponseWrapper) {
     free(response);
 }
 

@@ -32,6 +32,17 @@ if __name__ == "__main__":
         print("Turning off client event, id: ", eventid)
         client.off_client_event(eventid)
 
+
+        collections = client.list_collections()
+        print(collections)
+
+        client.create_collection("python_testcol")
+        insert_one_result = client.insert_one(collectionname="python_testcol", item="{\"name\": \"test from python\", \"_type\": \"test\"}")
+
+        client.create_collection("python_testcol", timeseries=(
+
+        client.drop_collection("python_testcol")
+
         files = []
         if(os.path.exists("testfile.csv")):
             files.append("testfile.csv")

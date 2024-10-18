@@ -56,6 +56,29 @@ class SigninResponseWrapper(Structure):
                 ("jwt", c_char_p),
                 ("error", c_char_p)]
 SigninCallback = CFUNCTYPE(None, POINTER(SigninResponseWrapper))
+
+class ColCollationWrapper(Structure):
+    _fields_ = [("locale", c_char_p),
+                ("case_level", c_bool),
+                ("case_first", c_char_p),
+                ("strength", c_int),
+                ("numeric_ordering", c_bool),
+                ("alternate", c_char_p),
+                ("max_variable", c_char_p),
+                ("backwards", c_bool)]
+class ColTimeseriesWrapper(Structure):
+    _fields_ = [("time_field", c_char_p),
+                ("meta_field", c_char_p),
+                ("granularity", c_char_p)]
+class CreateCollectionRequestWrapper(Structure):
+    _fields_ = [("collectionname", c_char_p),
+                ("collation", POINTER(ColCollationWrapper)),
+                ("timeseries", POINTER(ColTimeseriesWrapper)),
+                ("expire_after_seconds", c_int),
+                ("change_stream_pre_and_post_images", c_bool),
+                ("capped", c_bool),
+                ("max", c_int),
+                ("size", c_int)]
     
 class QueryRequestWrapper(Structure):
     _fields_ = [("collectionname", c_char_p),
@@ -713,6 +736,111 @@ class Client:
         if result["error"]:
             raise result["error"]
         return {"success": result["success"], "jwt": result["jwt"]}
+    
+    def list_collections(self, includehist=False):
+        self.trace("Inside list_collections")
+        event = threading.Event()
+        result = {"success": None, "collections": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("List collections callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"List collections failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["collections"] = ctypes.cast(response.results, c_char_p).value.decode('utf-8')
+                self.lib.free_list_collections_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        self.trace("Calling list_collections_async")
+        self.lib.list_collections_async(self.client, includehist, cb)
+        self.trace("list_collections_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["collections"]
+    def create_collection(self, collectionname="", collation=None, timeseries=None, expire_after_seconds=0, change_stream_pre_and_post_images=False, capped=False, max=0, size=0):
+        self.trace("Inside create_collection")
+        event = threading.Event()
+        result = {"success": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("Create collection callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Create collection failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                self.lib.free_create_collection_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        req = CreateCollectionRequestWrapper(
+            collectionname=collectionname.encode('utf-8'),
+            collation=collation,
+            timeseries=timeseries,
+            expire_after_seconds=expire_after_seconds,
+            change_stream_pre_and_post_images=change_stream_pre_and_post_images,
+            capped=capped,
+            max=max,
+            size=size
+        )
+
+        self.trace("Calling create_collection_async")
+        self.lib.create_collection_async(self.client, byref(req), cb)
+        self.trace("create_collection_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
+    
+    def drop_collection(self, collectionname=""):
+        self.trace("Inside drop_collection")
+        event = threading.Event()
+        result = {"success": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("Drop collection callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Drop collection failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                self.lib.free_drop_collection_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        self.trace("Calling drop_collection_async")
+        self.lib.drop_collection_async(self.client, collectionname.encode('utf-8'), cb)
+        self.trace("drop_collection_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
+
 
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):
         self.trace("Inside query")

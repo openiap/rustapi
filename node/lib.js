@@ -95,6 +95,79 @@ const SigninResponseWrapper = koffi.struct('SigninResponseWrapper', {
 });
 const SigninResponseWrapperPtr = koffi.pointer(SigninResponseWrapper);
 
+const ListCollectionsResponseWrapper = koffi.struct('ListCollectionsResponseWrapper', {
+    success: bool,
+    collections: CString,
+    error: CString
+});
+const ListCollectionsResponseWrapperPtr = koffi.pointer(ListCollectionsResponseWrapper);
+
+const ColCollationWrapper = koffi.struct('ColCollationWrapper', {
+    locale: CString,
+    case_level: bool,
+    case_first: CString,
+    strength: int,
+    numeric_ordering: bool,
+    alternate: CString,
+    max_variable: CString,
+    backwards: bool,
+});
+const ColCollationWrapperPtr = koffi.pointer(ColCollationWrapper);
+const ColTimeseriesWrapper = koffi.struct('ColTimeseriesWrapper', {
+    time_field: CString,
+    meta_field: CString,
+    granularity: CString
+});
+const ColTimeseriesWrapperPtr = koffi.pointer(ColTimeseriesWrapper);
+const CreateCollectionRequestWrapper = koffi.struct('CreateCollectionRequestWrapper', {
+    collectionname: CString,
+    collation: ColCollationWrapperPtr,
+    timeseries: ColTimeseriesWrapperPtr,
+    expire_after_seconds: int,
+    change_stream_pre_and_post_images: bool,
+    capped: bool,
+    max: int,
+    size: int,
+});
+const CreateCollectionRequestWrapperPtr = koffi.pointer(CreateCollectionRequestWrapper);
+const CreateCollectionResponseWrapper = koffi.struct('CreateCollectionResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const CreateCollectionResponseWrapperPtr = koffi.pointer(CreateCollectionResponseWrapper);
+
+const DropCollectionResponseWrapper = koffi.struct('DropCollectionResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const DropCollectionResponseWrapperPtr = koffi.pointer(DropCollectionResponseWrapper);
+
+const GetIndexesResponseWrapper = koffi.struct('GetIndexesResponseWrapper', {
+    success: bool,
+    indexes: CString,
+    error: CString
+});
+const GetIndexesResponseWrapperPtr = koffi.pointer(GetIndexesResponseWrapper);
+
+const CreateIndexRequestWrapper = koffi.struct('CreateIndexRequestWrapper', {
+    collectionname: CString,
+    index: CString,
+    options: CString,
+    name: CString,
+});
+const CreateIndexRequestWrapperPtr = koffi.pointer(CreateIndexRequestWrapper);
+const CreateIndexResponseWrapper = koffi.struct('CreateIndexResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const CreateIndexResponseWrapperPtr = koffi.pointer(CreateIndexResponseWrapper);
+
+const DropIndexResponseWrapper = koffi.struct('DropIndexResponseWrapper', {
+    success: bool,
+    error: CString
+});
+const DropIndexResponseWrapperPtr = koffi.pointer(DropIndexResponseWrapper);
+
 const QueryRequestWrapper = koffi.struct('QueryRequestWrapper', {
     collectionname: CString,
     query: CString,
@@ -571,6 +644,38 @@ function loadLibrary() {
         lib.signinCallback = koffi.proto('void signinCallback(SigninResponseWrapper*)');
         lib.signin_async = lib.func('signin_async', 'void', [ClientWrapperPtr, SigninRequestWrapperPtr, koffi.pointer(lib.signinCallback)]);
         lib.free_signin_response = lib.func('free_signin_response', 'void', [SigninResponseWrapperPtr]);
+
+        lib.list_collections = lib.func('list_collections', ListCollectionsResponseWrapperPtr, [ClientWrapperPtr, 'bool']);
+        lib.listCollectionsCallback = koffi.proto('void ListCollectionsCallback(ListCollectionsResponseWrapper*)');
+        lib.list_collections_async = lib.func('list_collections_async', 'void', [ClientWrapperPtr, 'bool', koffi.pointer(lib.listCollectionsCallback)]);
+        lib.free_list_collections_response = lib.func('free_list_collections_response', 'void', [ListCollectionsResponseWrapperPtr]);
+
+        lib.create_collection = lib.func('create_collection', CreateCollectionResponseWrapperPtr, [ClientWrapperPtr, CreateCollectionRequestWrapperPtr]);
+        lib.create_collectionCallback = koffi.proto('void create_collectionCallback(CreateCollectionResponseWrapper*)');
+        lib.create_collection_async = lib.func('create_collection_async', 'void', [ClientWrapperPtr, CreateCollectionRequestWrapperPtr, koffi.pointer(lib.create_collectionCallback)]);
+        lib.free_create_collection_response = lib.func('free_create_collection_response', 'void', [CreateCollectionResponseWrapperPtr]);
+
+        lib.drop_collection = lib.func('drop_collection', DropCollectionResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.dropCollectionCallback = koffi.proto('void dropCollectionCallback(DropCollectionResponseWrapper*)');
+        lib.drop_collection_async = lib.func('drop_collection_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.dropCollectionCallback)]);
+        lib.free_drop_collection_response = lib.func('free_drop_collection_response', 'void', [DropCollectionResponseWrapperPtr]);
+
+        lib.get_indexes = lib.func('get_indexes', GetIndexesResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.get_indexesCallback = koffi.proto('void get_indexesCallback(GetIndexesResponseWrapper*)');
+        lib.get_indexes_async = lib.func('get_indexes_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.get_indexesCallback)]);
+        lib.free_get_indexes_response = lib.func('free_get_indexes_response', 'void', [GetIndexesResponseWrapperPtr]);
+
+        lib.create_index = lib.func('create_index', CreateIndexResponseWrapperPtr, [ClientWrapperPtr, CreateIndexRequestWrapperPtr]);
+        lib.create_indexCallback = koffi.proto('void create_indexCallback(CreateIndexResponseWrapper*)');
+        lib.create_index_async = lib.func('create_index_async', 'void', [ClientWrapperPtr, CreateIndexRequestWrapperPtr, koffi.pointer(lib.create_indexCallback)]);
+        lib.free_create_index_response = lib.func('free_create_index_response', 'void', [CreateIndexResponseWrapperPtr]);
+
+        lib.drop_index = lib.func('drop_index', DropIndexResponseWrapperPtr, [ClientWrapperPtr, CString, CString]);
+        lib.drop_indexCallback = koffi.proto('void drop_indexCallback(DropIndexResponseWrapper*)');
+        lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, koffi.pointer(lib.drop_indexCallback)]);
+        lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
+        
+
         lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
         lib.queryCallback = koffi.proto('void queryCallback(QueryResponseWrapper*)');
         lib.query_async = lib.func('query_async', 'void', [ClientWrapperPtr, QueryRequestWrapperPtr, koffi.pointer(lib.queryCallback)]);
@@ -745,7 +850,7 @@ class Client {
         this.trace('Callback invoked');
         const Response = koffi.decode(ResponsePtr,ConnectResponseWrapper);
         if (!Response.success) {
-            reject(new ClientCreationError(Response.error));
+            throw new ClientCreationError(Response.error);
         }
         this.connected = true;
         return Response;
@@ -849,6 +954,260 @@ class Client {
                     reject(new ClientError('Signin failed'));
                 }
             });
+        });
+    }
+
+    list_collections(includehist = false) { 
+        this.verbose('list_collections invoked');
+        const responsePtr = this.lib.list_collections(this.client, includehist);
+        const response = koffi.decode(responsePtr, ListCollectionsResponseWrapper);
+        this.lib.free_list_collections_response(responsePtr);
+        if (!response.success) {
+            const errorMsg = response.error;
+            throw new ClientError(errorMsg);
+        }
+        return JSON.parse(response.collections);
+    }
+    list_collections_async(includehist = false) { 
+        this.verbose('list_collections invoked');
+        return new Promise((resolve, reject) => {
+            const callback = (responsePtr) => {
+                this.verbose('list_collections_async callback');
+                const response = koffi.decode(responsePtr, ListCollectionsResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(JSON.parse(response.collections));
+                }
+                this.verbose('free_list_collections_response');
+                this.lib.free_list_collections_response(responsePtr);
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.listCollectionsCallback));
+            this.trace('call list collections async');
+            this.lib.list_collections_async(this.client, includehist, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('List collections failed'));
+                }
+            });
+        });
+    }
+
+    // collectionname: CString,
+    // collation: ColCollationWrapperPtr,
+    // timeseries: ColTimeseriesWrapperPtr,
+    // expire_after_seconds: int,
+    // change_stream_pre_and_post_images: bool,
+    // capped: bool,
+    // max: int,
+    // size: int,
+
+    // "seconds" | "minutes" | "hours"
+    create_collection({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
+        this.verbose('create_collection invoked');
+        let collationPtr = null;
+        if(collation != null) {
+            collationPtr = encodeStruct(collation, ColCollationWrapper);            
+        }
+        let timeseriesPtr = null;
+        if(timeseries != null) {
+            timeseriesPtr = encodeStruct(timeseries, ColTimeseriesWrapper);
+        }
+        const req = {
+            collectionname: collectionname,
+            collation: collationPtr,
+            timeseries: timeseriesPtr,
+            expire_after_seconds: expire_after_seconds,
+            change_stream_pre_and_post_images: change_stream_pre_and_post_images,
+            capped: capped,
+            max: max,
+            size: size
+        };
+        const reqptr = encodeStruct(req, CreateCollectionRequestWrapper);
+        this.verbose('call create_collection');
+        const response = this.lib.create_collection(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, CreateCollectionResponseWrapper);
+        this.verbose('free_create_collection_response');
+        this.lib.free_create_collection_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.success;
+    }
+    create_collection_async({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
+        this.verbose('create_collection invoked');
+        return new Promise((resolve, reject) => {
+            let collationPtr = null;
+            if(collation != null) {
+                collationPtr = encodeStruct(collation, ColCollationWrapper);            
+            }
+            let timeseriesPtr = null;
+            if(timeseries != null) {
+                timeseriesPtr = encodeStruct(timeseries, ColTimeseriesWrapper);
+            }
+            const req = {
+                collectionname: collectionname,
+                collation: collationPtr,
+                timeseries: timeseriesPtr,
+                expire_after_seconds: expire_after_seconds,
+                change_stream_pre_and_post_images: change_stream_pre_and_post_images,
+                capped: capped,
+                max: max,
+                size: size
+            };
+            const reqptr = encodeStruct(req, CreateCollectionRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('create_collection_async callback');
+                const response = koffi.decode(responsePtr, CreateCollectionResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.success);
+                }
+                this.verbose('free_create_collection_response');
+                this.lib.free_create_collection_response(responsePtr);
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.create_collectionCallback));
+            this.verbose('call create_collection_async');
+            this.lib.create_collection_async(this.client, reqptr, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('Create collection failed'));
+                }
+            });
+        });
+    }
+
+    drop_collection(collectionname) {
+        this.verbose('drop_collection invoked');
+        const response = this.lib.drop_collection(this.client, collectionname);
+        const result = koffi.decode(response, DropCollectionResponseWrapper);
+        this.lib.free_drop_collection_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+    }
+    drop_collection_async(collectionname) {
+        this.verbose('drop_collection invoked');
+        return new Promise((resolve, reject) => {
+            const response = this.lib.drop_collection(this.client, collectionname);
+            const result = koffi.decode(response, DropCollectionResponseWrapper);
+            this.lib.free_drop_collection_response(response);
+            if (!result.success) {
+                const errorMsg = result.error;
+                reject(new ClientError(errorMsg));
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    get_indexes(collectionname) {
+        this.verbose('get_indexes invoked');
+        const response = this.lib.get_indexes(this.client, collectionname);
+        const result = koffi.decode(response, GetIndexesResponseWrapper);
+        this.lib.free_get_indexes_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return JSON.parse(result.indexes);
+    }
+    get_indexes_async(collectionname) {
+        this.verbose('get_indexes invoked');
+        return new Promise((resolve, reject) => {
+            const response = this.lib.get_indexes(this.client, collectionname);
+            const result = koffi.decode(response, GetIndexesResponseWrapper);
+            this.lib.free_get_indexes_response(response);
+            if (!result.success) {
+                const errorMsg = result.error;
+                reject(new ClientError(errorMsg));
+            } else {
+                resolve(JSON.parse(result.indexes));
+            }
+        });
+    }
+
+    create_index({ collectionname, index, options, name }) {
+        this.verbose('create_index invoked');
+        const req = {
+            collectionname: collectionname,
+            index: index,
+            options: options,
+            name: name
+        };
+        const reqptr = encodeStruct(req, CreateIndexRequestWrapper);
+        this.verbose('call create_index');
+        const response = this.lib.create_index(this.client, reqptr);
+        this.verbose('decode response');
+        const result = koffi.decode(response, CreateIndexResponseWrapper);
+        this.verbose('free_create_index_response');
+        this.lib.free_create_index_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        return result.success;        
+    }
+    create_index_async({ collectionname, index, options, name }) {
+        this.verbose('create_index invoked');
+        return new Promise((resolve, reject) => {
+            const req = {
+                collectionname: collectionname,
+                index: index,
+                options: options,
+                name: name
+            };
+            const reqptr = encodeStruct(req, CreateIndexRequestWrapper);
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('create_index_async callback');
+                const response = koffi.decode(responsePtr, CreateIndexResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    resolve(response.success);
+                }
+                this.verbose('free_create_index_response');
+                this.lib.free_create_index_response(responsePtr);
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.create_indexCallback));
+            this.verbose('call create_index_async');
+            this.lib.create_index_async(this.client, reqptr, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('Create index failed'));
+                }
+            });
+        });
+    }
+
+    drop_index(collectionname, indexname) {
+        this.verbose('drop_index invoked');
+        const response = this.lib.drop_index(this.client, collectionname, indexname);
+        const result = koffi.decode(response, DropIndexResponseWrapper);
+        this.lib.free_drop_index_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+    }
+    drop_index_async(collectionname, indexname) {
+        this.verbose('drop_index invoked');
+        return new Promise((resolve, reject) => {
+            const response = this.lib.drop_index(this.client, collectionname, indexname);
+            const result = koffi.decode(response, DropIndexResponseWrapper);
+            this.lib.free_drop_index_response(response);
+            if (!result.success) {
+                const errorMsg = result.error;
+                reject(new ClientError(errorMsg));
+            } else {
+                resolve();
+            }
         });
     }
 
