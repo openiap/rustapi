@@ -5,7 +5,7 @@ use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
-use openiap_client::{self, enable_tracing, Client, InsertManyRequest, RegisterExchangeRequest, RegisterQueueRequest};
+use openiap_client::{self, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -119,6 +119,36 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("uw: Unwatch");
             println!("r: Register queue");
             println!("m: Queue message");
+        }
+        if  input.eq_ignore_ascii_case("st") || input.eq_ignore_ascii_case("stupid") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                loop  {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
+                        Ok(response) => {
+                            match response.workitem {
+                                Some(mut workitem) => {
+                                    println!("popped workitem {:?} {:?}", workitem.id, workitem.name);
+                                    workitem.state = "successful".to_string();
+                                    _ = client.update_workitem(UpdateWorkitemRequest {
+                                        workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
+                                    }).await;
+                                }
+                                None => {
+                                    let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+                                    //println!("{}", a);
+                                    println!("No workitem popped {:?}", a);
+
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("Failed to pop workitem: {:?}", e);
+                        }
+                    }
+                };
+            });
         }
         if input.eq_ignore_ascii_case("c") || input.eq_ignore_ascii_case("cpu") {
             println!("Calculating factorial of 20 {} times", num_calcs);
