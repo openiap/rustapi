@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, info};
+use tracing::{debug,info};
 #[cfg(not(test))]
 use tracing::{error};
 
@@ -82,6 +82,8 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
     Ok(compressed_data)
 }
 
+// use tracing_subscriber::registry::LookupSpan;
+
 /// Enable global tracing ( cannot be updated once set )\
 /// - rust_log is a [tracing_subscriber::EnvFilter] string ( use empty string to use environment variable RUST_LOG )\
 /// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active or full.\
@@ -92,6 +94,7 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
 /// enable_tracing("openiap=debug", "new");
 /// ```
 pub fn enable_tracing(rust_log: &str, tracing: &str) {
+    // console_subscriber::init();
     let rust_log = rust_log.to_string();
     let mut filter = tracing_subscriber::EnvFilter::from_default_env();
     if !rust_log.is_empty() {
@@ -114,11 +117,22 @@ pub fn enable_tracing(rust_log: &str, tracing: &str) {
             _ => subscriber,
         }
     }
+
+
+    // use tracing_subscriber::prelude::*;
+    // let console_layer =
+    // console_subscriber::ConsoleLayer::builder()
+    // .spawn();
+    // tracing_subscriber::registry()
+    // .with(console_layer)
+    // .with(subscriber)
+    // .init();
+
+
     let subscriber = tracing_subscriber::Layer::with_subscriber(
         tracing_subscriber::Layer::and_then(subscriber, filter),
         tracing_subscriber::registry(),
     );
-
     match tracing::subscriber::set_global_default(subscriber) {
         Ok(()) => {
             debug!("Tracing enabled");
@@ -134,4 +148,11 @@ pub fn enable_tracing(rust_log: &str, tracing: &str) {
         "enable_tracing rust_log: {:?}, tracing: {:?}",
         rust_log, tracing
     );
+}
+/// Rust will not allow us to update or remove the tracing, but once that might get possible this function will be used to disable tracing.
+#[tracing::instrument(skip_all)]
+pub fn disable_tracing() {
+    // tracing::dispatcher::get_default(|dispatch| {
+    //     dispatch.unsubscribe()
+    // });
 }

@@ -49,7 +49,7 @@ mod tests;
 mod ws;
 mod grpc;
 mod util;
-pub use crate::util::enable_tracing;
+pub use crate::util::{enable_tracing, disable_tracing};
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;

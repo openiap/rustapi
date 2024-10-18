@@ -40,3 +40,5 @@ tokio-tungstenite = { version = "0.24.0", features = [ "rustls-tls-native-roots"
 # tokio-tungstenite = { version = "0.24.0", features = [ "native-tls" ] }
 sqids = "0.4.1"
 # async-tungstenite = { version = "0.28.0", features = [ "async-native-tls" ] }
+
+# console-subscriber = "0.4.0"
