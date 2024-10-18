@@ -41,6 +41,24 @@ impl PushWorkitemsRequest {
     }
 }
 impl PopWorkitemRequest {
+    /// Creates a new `PopWorkitemRequest` with the given `wiq`.
+    pub fn bywiq(wiq: &str) -> Self {
+        Self {
+            wiq: wiq.to_string(),
+            compressed: false,
+            includefiles: false,
+            wiqid: "".to_string(),
+        }
+    }
+    /// Creates a new `PopWorkitemRequest` with the given `wiqid`.
+    pub fn bywiqid(wiqid: &str) -> Self {
+        Self {
+            wiqid: wiqid.to_string(),
+            compressed: false,
+            includefiles: false,
+            wiq: "".to_string(),
+        }
+    }
     /// Creates a new `PopWorkitemRequest` with the given `workitem`.
     pub fn to_envelope(&self) -> Envelope {
         let any_message = prost_types::Any {
