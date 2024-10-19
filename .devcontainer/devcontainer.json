@@ -15,5 +15,5 @@
             ]
         }
     },
-    "postCreateCommand": "cargo install tokio-console && sudo apt-get update && sudo apt-get install --assume-yes protobuf-compiler curl"
+    "postCreateCommand": "rustup toolchain add stable --profile minimal && cargo install tokio-console && sudo apt-get update && sudo apt-get install --assume-yes protobuf-compiler curl"
 }
