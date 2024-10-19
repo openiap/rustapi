@@ -6041,10 +6041,11 @@ pub extern "C" fn on_client_event_async(
                         }
                     };
                     let event = match event {
+                        ClientEvent::Connecting => ClientEventWrapper { event: CString::new("Connecting").unwrap().into_raw(),reason: std::ptr::null() },
                         ClientEvent::Connected => ClientEventWrapper { event: CString::new("Connected").unwrap().into_raw(),reason: std::ptr::null() },
                         ClientEvent::Disconnected(reason) => ClientEventWrapper { event: CString::new("Disconnected").unwrap().into_raw(),reason: CString::new(reason).unwrap().into_raw() },
                         ClientEvent::SignedIn => ClientEventWrapper { event: CString::new("SignedIn").unwrap().into_raw(),reason: std::ptr::null() },
-                        ClientEvent::SignedOut => ClientEventWrapper { event: CString::new("SignedOut").unwrap().into_raw(),reason: std::ptr::null() },
+                        // ClientEvent::SignedOut => ClientEventWrapper { event: CString::new("SignedOut").unwrap().into_raw(),reason: std::ptr::null() },
                     };
                     let event = Box::into_raw(Box::new(event));
 
@@ -6092,10 +6093,11 @@ pub extern "C" fn next_client_event (
                 Some(event) => {
                     debug!("got client event");
                     let event = match event {
+                        ClientEvent::Connecting => ClientEventWrapper { event: CString::new("Connecting").unwrap().into_raw(),reason: std::ptr::null() },
                         ClientEvent::Connected => ClientEventWrapper { event: CString::new("Connected").unwrap().into_raw(),reason: std::ptr::null() },
                         ClientEvent::Disconnected(reason) => ClientEventWrapper { event: CString::new("Disconnected").unwrap().into_raw(),reason: CString::new(reason).unwrap().into_raw() },
                         ClientEvent::SignedIn => ClientEventWrapper { event: CString::new("SignedIn").unwrap().into_raw(),reason: std::ptr::null() },
-                        ClientEvent::SignedOut => ClientEventWrapper { event: CString::new("SignedOut").unwrap().into_raw(),reason: std::ptr::null() },
+                        // ClientEvent::SignedOut => ClientEventWrapper { event: CString::new("SignedOut").unwrap().into_raw(),reason: std::ptr::null() },
                     };
                     Box::into_raw(Box::new(event))
                 }

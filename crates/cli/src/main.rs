@@ -5,6 +5,7 @@ use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
+#[allow(unused_imports)]
 use openiap_client::{self, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
 
 use openiap_client::protos::{
@@ -66,18 +67,18 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let num_iters = 5000;
 
     let b = Client::new();
-    // enable_tracing("openiap=debug", "");
-    enable_tracing("openiap=info", "");
+    // enable_tracing("openiap=debug", "new");
+    // enable_tracing("openiap=info", "");
     b.on_event(Box::new(|_event| {
         match _event {
+            openiap_client::ClientEvent::Connecting => println!("CLI: Client connecting!"),
             openiap_client::ClientEvent::Connected => println!("CLI: Client connected!"),
             openiap_client::ClientEvent::Disconnected(e) => println!("CLI: Client disconnected! {:?}", e),
             openiap_client::ClientEvent::SignedIn => println!("CLI: Client signed in!"),
-            openiap_client::ClientEvent::SignedOut => println!("CLI: Client signed out!"),
+            // openiap_client::ClientEvent::SignedOut => println!("CLI: Client signed out!"),
         }
     })).await;
     let res = b.connect_async("").await;
-    println!("Connected to server? 2");
     // let res = b.connect("");
     // let res = Client::new_connect("").await;
     match res {
@@ -88,7 +89,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }        
     };
-    println!("Connected to server? 1");
     // Test disconnect/connect
     // b.disconnect();
     // let res = b.connect_async("").await;

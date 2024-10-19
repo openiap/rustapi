@@ -542,7 +542,7 @@ mod tests {
     #[tokio::test()]
     async fn test_bad_login() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
-        println!("Client connected: {:?}", client.is_connected());
+        println!("Client connected: {:?}", client.get_state());
         let response = client
             .signin(SigninRequest::with_userpass("testuser", "badpassword"))
             .await;
@@ -1404,7 +1404,7 @@ mod tests {
     async fn test_add_update_delete_workitem_queue() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
-        let signedin = client.is_signedin();
+        let signedin = client.get_state();
         let user = client.user().await.unwrap();
         println!("signed in {:?} as: {:?}", signedin, user);
 

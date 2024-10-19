@@ -88,10 +88,8 @@ pub struct Client {
     event_receiver: async_channel::Receiver<ClientEvent>,
     out_envelope_sender: async_channel::Sender<Envelope>,
     out_envelope_receiver: async_channel::Receiver<Envelope>,
-    /// Is client connected?
-    pub connected: Arc<std::sync::Mutex<bool>>,
-    /// Are we signed in?
-    pub signedin: Arc<std::sync::Mutex<bool>>,
+    /// The client connection state.
+    pub state: Arc<std::sync::Mutex<ClientState>>,
     /// Inceasing message count, used as unique id for messages.
     pub msgcount: Arc<std::sync::Mutex<i32>>,
     /// Reconnect interval in milliseconds, this will slowly increase if we keep getting disconnected.
@@ -129,13 +127,15 @@ pub enum ClientEnum {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientEvent {
     /// The client has connected
+    Connecting,
+    /// The client has connected
     Connected,
     /// The client has disconnected
     Disconnected(String),
     /// The client has signed in
     SignedIn,
-    /// The client has signed out
-    SignedOut,
+    // The client has signed out
+    // SignedOut,
     // The client has received a message
     // Message(Envelope),
     // The client has received a ping event from the server
@@ -146,6 +146,18 @@ pub enum ClientEvent {
     // Watch(WatchEvent),
     // The client has received a queue event
     // Queue(QueueEvent),
+}
+/// Client event enum, used to determine which event has occurred.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClientState {
+    /// The client is disconnected
+    Disconnected,
+    /// The client connecting
+    Connecting,
+    /// The client is connected
+    Connected,
+    /// The client is signed in and connected
+    Signedin
 }
 /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -235,8 +247,7 @@ impl Client {
             event_receiver: cer,
             out_envelope_sender: out_es,
             out_envelope_receiver: out_er,
-            connected: Arc::new(std::sync::Mutex::new(false)),
-            signedin: Arc::new(std::sync::Mutex::new(false)),
+            state: Arc::new(std::sync::Mutex::new(ClientState::Disconnected)),
         }
     }
     /// Connect the client to the OpenIAP server.
@@ -522,8 +533,7 @@ impl Client {
             self.set_url(&strurl);
             self.setup_grpc_stream().await?;
         };
-        self.post_connected().await;
-        Ok(())
+        self.post_connected().await
     }
 
     /// Connect will initializes a new client and starts a connection to an OpenIAP server.\
@@ -653,7 +663,7 @@ impl Client {
             client.set_connect_called(true);
             client.set_username(&username);
             client.set_password(&password);
-            client.set_connected(true, None);
+            client.set_connected(ClientState::Connected, None);
             client.set_config(config);
             match client.setup_ws(&strurl).await {
                 Ok(_) => (),
@@ -739,16 +749,16 @@ impl Client {
             client.set_connect_called(true);
             client.set_username(&username);
             client.set_password(&password);
-            client.set_connected(true, None);
+            client.set_connected(ClientState::Connected, None);
             client.set_config(config);
             client.setup_grpc_stream().await?;
             client
         };
-        client.post_connected().await;
+        client.post_connected().await?;
         Ok(client)
     }
     /// Handle auto-signin after a connection has been established.
-    pub async fn post_connected(&self) {
+    pub async fn post_connected(&self) -> Result<(), OpenIAPError> {
         if self.get_username().is_empty() && self.get_password().is_empty() {
             self.set_username(&std::env::var("OPENIAP_USERNAME").unwrap_or_default());
             self.set_password(&std::env::var("OPENIAP_PASSWORD").unwrap_or_default());
@@ -760,10 +770,13 @@ impl Client {
             match loginresponse {
                 Ok(response) => {
                     self.reset_reconnect_ms();
+                    self.set_connected(ClientState::Connected, None);
                     info!("Signed in as {}", response.user.as_ref().unwrap().username);
+                    Ok(())
                 }
                 Err(_e) => {
-                    // error!("Failed to sign in: {}", e);
+                    self.set_connected(ClientState::Disconnected, Some(&_e.to_string()));
+                    Err(_e)
                 }
             }
         } else {
@@ -780,26 +793,43 @@ impl Client {
                         Some(user) => {
                             self.reset_reconnect_ms();
                             info!("Signed in as {}", user.username);
+                            self.set_connected(ClientState::Connected, None);
+                            Ok(())
                         }
                         None => {
                             self.reset_reconnect_ms();
-                            debug!("Signed in as guest");
+                            info!("Signed in as guest");
+                            self.set_connected(ClientState::Connected, None);
+                            Ok(())
+                            // Err(OpenIAPError::ClientError("Signin returned no user object".to_string()))
                         }
                     },
                     Err(_e) => {
-                        // error!("Failed to sign in: {}", e);
+                        self.set_connected(ClientState::Disconnected, Some(&_e.to_string()));
+                        Err(_e)
                     }
                 }
             } else {
                 self.reset_reconnect_ms();
-                debug!("Connect, No credentials provided so is running as guest");
+                match self.get_element().await {
+                    Ok(_) => {
+                        debug!("Connected, No credentials provided so is running as guest");
+                        self.set_connected(ClientState::Connected, None);
+                        Ok(())
+                    },
+                    Err(e) => {
+                        self.set_connected(ClientState::Disconnected, Some(&e.to_string()));
+                        Err(e)
+                    }
+                }
             }
         }
     }
     /// Reconnect will attempt to reconnect to the OpenIAP server.
     #[tracing::instrument(skip_all)]
     pub async fn reconnect(&self) -> Result<(), OpenIAPError> {
-        if self.is_connected() {
+        let state = self.get_state();
+        if state == ClientState::Connected || state == ClientState::Signedin {
             return Ok(());
         }
         if !self.is_auto_reconnect() {
@@ -812,14 +842,14 @@ impl Client {
                 info!("Reconnecting to {} ({} ms)", self.get_url(), (self.get_reconnect_ms() - 500));
                 self.setup_ws(&self.get_url()).await?;
                 debug!("Completed reconnecting to websocket");
-                self.post_connected().await;
+                self.post_connected().await
             }
             ClientEnum::Grpc(ref _client) => {
                 info!("Reconnecting to {} ({} ms)", self.get_url(), (self.get_reconnect_ms() - 500));
                 match self.setup_grpc_stream().await {
                     Ok(_) => {
                         debug!("Completed reconnecting to gRPC");
-                        self.post_connected().await;
+                        self.post_connected().await
                     },
                     Err(e) => {
                         return Err(OpenIAPError::ClientError(format!(
@@ -832,20 +862,38 @@ impl Client {
             ClientEnum::None => {
                 return Err(OpenIAPError::ClientError("Invalid client".to_string()));
             }
-        }    
-        Ok(())
+        }
     }
     /// Disconnect the client from the OpenIAP server.
     pub fn disconnect(&self) {
         self.set_auto_reconnect(false);
-        self.set_connected(false, Some("Disconnected"));
+        self.set_connected(ClientState::Disconnected, Some("Disconnected"));
     }
     /// Set the connected flag to true or false
-    pub fn set_connected(&self, connected: bool, message: Option<&str>) {
+    pub fn set_connected(&self, state: ClientState, message: Option<&str>) {
         {
-            let mut current = self.connected.lock().unwrap();
-            trace!("Set connected: {} from {}", connected, *current);
-            if connected == true && *current == false {
+            let current = self.get_state();
+            trace!("Set connected: {:?} from {:?}", state, current);
+            if state == ClientState::Connected && current == ClientState::Signedin {
+                self.set_state(ClientState::Signedin);
+            } else {
+                self.set_state(state.clone());
+            }            
+            if state == ClientState::Connecting && !current.eq(&state) {
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    let me = self.clone();
+                    match tokio::task::Builder::new().name("setconnected-notify-connecting").spawn(async move {
+                        me.event_sender.send(crate::ClientEvent::Connecting).await.unwrap();
+                    }) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to spawn setconnected-notify-connecting task: {:?}", e);
+                        }
+                    }
+                }
+
+            }
+            if (state == ClientState::Connected|| state == ClientState::Signedin) && (current == ClientState::Disconnected || current == ClientState::Connecting) { 
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let me = self.clone();
                     match tokio::task::Builder::new().name("setconnected-notify-connected").spawn(async move {
@@ -858,28 +906,42 @@ impl Client {
                     }
                 }
             }
-            if connected == false && *current == true {
+            if state == ClientState::Signedin && current != ClientState::Signedin {
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    let me = self.clone();
+                    match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
+                        me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
+                    }) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
+                        }
+                    };
+                }
+            }
+            if state == ClientState::Disconnected && !current.eq(&state) {
                 if message.is_some() {
                     info!("Disconnected: {}", message.unwrap());
                 } else {
                     info!("Disconnected");
                 }
-                self.set_signedin(false);
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let me = self.clone();
                     let message = match message {
                         Some(message) => message.to_string(),
                         None => "".to_string(),
                     };
-                    match tokio::task::Builder::new().name("setconnected-notify-disconnected").spawn(async move {
-                        trace!("Disconnected: {}", message);
-                        me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
-                    }) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            error!("Failed to spawn setconnected-notify-disconnected task: {:?}", e);
+                    //if current != ClientState::Connecting {
+                        match tokio::task::Builder::new().name("setconnected-notify-disconnected").spawn(async move {
+                            trace!("Disconnected: {}", message);
+                            me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
+                        }) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                error!("Failed to spawn setconnected-notify-disconnected task: {:?}", e);
+                            }
                         }
-                    }
+                    //}
                 }
 
                 self.kill_handles();
@@ -946,52 +1008,17 @@ impl Client {
                 }
     
             }
-            *current = connected;
         }
     }
-    /// Check if the client is connected
-    pub fn is_connected(&self) -> bool {
-        let conn = self.connected.lock().unwrap();
-        *conn
+    /// Get client state
+    pub fn get_state(&self) -> ClientState {
+        let conn = self.state.lock().unwrap();
+        conn.clone()
     }
-    /// Set the signedin flag to true or false
-    pub fn set_signedin(&self, signedin: bool) {
-        let mut current = self.signedin.lock().unwrap();
-        trace!("Set signedin: {} from {}", signedin, *current);
-
-        if signedin == true && *current == false {
-            if let Ok(_handle) = tokio::runtime::Handle::try_current() {
-                let me = self.clone();
-                match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
-                    me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
-                }) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
-                    }
-                };
-            }
-        }
-        if signedin == false && *current == true {
-            if let Ok(_handle) = tokio::runtime::Handle::try_current() {
-                let me = self.clone();
-                match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
-                    me.event_sender.send(crate::ClientEvent::SignedOut).await.unwrap();
-                }) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
-                    }
-                };
-            }
-        }
-        *current = signedin;
-    }
-    /// Return value of the signedin flag
-    #[tracing::instrument(skip_all)]
-    fn is_signedin(&self) -> bool {
-        let signedin = self.signedin.lock().unwrap();
-        *signedin
+    /// Set client state
+    pub fn set_state(&self, state: ClientState) {
+        let mut conn = self.state.lock().unwrap();
+        *conn = state;
     }
     /// Set the msgcount value
     pub fn set_msgcount(&self, msgcount: i32) {
@@ -1040,12 +1067,12 @@ impl Client {
             }
         }
         handles.clear();
-        if let Ok(_handle) = tokio::runtime::Handle::try_current() {
-            let runtime = self.get_runtime();
-            if let Some(rt) = runtime.lock().unwrap().take() {
-                rt.shutdown_background();
-            }
-        }
+        // if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+        //     let runtime = self.get_runtime();
+        //     if let Some(rt) = runtime.lock().unwrap().take() {
+        //         rt.shutdown_background();
+        //     }
+        // }
     }
 
 
@@ -1232,9 +1259,9 @@ impl Client {
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, String), OpenIAPError> {
         {
-            if !self.is_connected() {
-                return Err(OpenIAPError::ClientError("Not connected".to_string()));
-            }
+            // if !self.is_connected() && msg.command != "signin" && msg.command != "getelement" {
+            //     return Err(OpenIAPError::ClientError("send_noawait::Not connected".to_string()));
+            // }
         }
         let (response_tx, response_rx) = oneshot::channel();
         let id = Client::get_uniqueid();
@@ -1262,9 +1289,9 @@ impl Client {
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, mpsc::Receiver<Vec<u8>>), OpenIAPError> {
         {
-            if !self.is_connected() {
-                return Err(OpenIAPError::ClientError("Not connected".to_string()));
-            }
+            // if !self.is_connected() {
+            //     return Err(OpenIAPError::ClientError("sendwithstream::Not connected".to_string()));
+            // }
         }
         let (response_tx, response_rx) = oneshot::channel();
         let (stream_tx, stream_rx) = mpsc::channel(1024 * 1024);
@@ -1295,7 +1322,7 @@ impl Client {
         if res.is_err() {
             error!("{:?}", res);
             let errmsg = res.unwrap_err().to_string();
-            self.set_connected(false, Some(&errmsg));
+            self.set_connected(ClientState::Disconnected, Some(&errmsg));
             return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", errmsg)))
         } else {
             return Ok(())
@@ -1385,18 +1412,44 @@ impl Client {
         let inner = self.inner.lock().await;
         inner.user.clone()
     }
-    /// Internal function, used to send a ping to the OpenIAP server.
+    /// Internal function, used to send a fake getelement to the OpenIAP server.
     #[tracing::instrument(skip_all)]
-    async fn ping(&self) {
+    async fn get_element(&self) -> Result<(), OpenIAPError> {
         let id = Client::get_uniqueid();
         let envelope = Envelope {
             id: id.clone(),
-            command: "ping".into(),
+            command: "getelement".into(),
+            ..Default::default()
+        };
+        let result = match self.send(envelope).await {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(e);
+            },
+        };
+        if result.command == "pong" || result.command == "getelement" {
+            Ok(())
+        } else if result.command == "error" {
+            let e: ErrorResponse = prost::Message::decode(result.data.unwrap().value.as_ref()).unwrap();
+            Err(OpenIAPError::ServerError(e.message))
+        } else {
+            Err(OpenIAPError::ClientError("Failed to receive getelement".to_string()))
+        }
+    }
+    /// Internal function, used to send a ping to the OpenIAP server.
+    #[tracing::instrument(skip_all)]
+    async fn ping(&self) -> Result<(), OpenIAPError> {
+        let id = Client::get_uniqueid();
+        let envelope = Envelope {
+            id: id.clone(),
+            command: "getelement".into(),
             ..Default::default()
         };
         match self.send_envelope(envelope).await {
-            Ok(_) => (),
-            Err(e) => error!("Failed to send ping: {}", e),
+            Ok(_res) => Ok(()),
+            Err(e) => {
+                return Err(e);
+            },
         }
     }
     /// Internal function, used to send a pong response to the OpenIAP server.
@@ -1466,7 +1519,7 @@ impl Client {
                     prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 if !config.validateonly {
-                    self.set_signedin(true);
+                    self.set_connected(ClientState::Signedin, None);
                     inner.user = Some(response.user.as_ref().unwrap().clone());
                 }
                 Ok(response)

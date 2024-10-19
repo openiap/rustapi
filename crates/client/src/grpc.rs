@@ -5,7 +5,7 @@ use openiap_proto::{errors::OpenIAPError};
 use tonic::Request;
 use tokio_stream::{wrappers::ReceiverStream};
 use futures::{StreamExt };
-use crate::{Client, ClientEnum};
+use crate::{Client, ClientEnum, ClientState};
 use tokio::sync::{mpsc};
 use tokio::time::{timeout, Duration};
 use tonic::transport::Channel;
@@ -32,6 +32,7 @@ impl Client {
     /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
     #[tracing::instrument(skip_all)]
     pub async fn setup_grpc_stream(&self) -> Result<(), OpenIAPError> {
+        self.set_connected(ClientState::Connecting, None);
         let mut client = match self.get_client() {
             ClientEnum::Grpc(ref client) => client.clone(),
             _ => {
@@ -63,7 +64,7 @@ impl Client {
                     Ok(envelope) => envelope,
                     Err(e) => {
                         error!("Failed to receive message from envelope receiver: {:?}", e);
-                        me.set_connected(false, Some(&e.to_string()));
+                        me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                         return;
                     }
                 };
@@ -85,7 +86,7 @@ impl Client {
                     },
                     Err(e) => {
                         error!("Failed to send message to gRPC stream: {:?}", e);
-                        me.set_connected(false, Some(&e.to_string()));
+                        me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                         return;
                     }
                 };
@@ -107,13 +108,13 @@ impl Client {
                                     }
                                     Err(e) => {
                                         // error!("Received error from stream: {:?}", e);
-                                        me.set_connected(false, Some(&e.to_string()));
+                                        me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                                         break;
                                     }                                        
                                 }
                             }
                             None => {
-                                me.set_connected(false, Some("Server closed the connection"));
+                                me.set_connected(ClientState::Disconnected, Some("Server closed the connection"));
                                 break;
                             }                                
                         }
@@ -125,7 +126,6 @@ impl Client {
             }
         }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope receiver task: {:?}", e)))?;
         self.push_handle(reader);
-        self.set_connected(true, None);
         Ok(())
     }
 }

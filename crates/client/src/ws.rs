@@ -8,17 +8,18 @@ use tokio::sync::{Mutex};
 use futures::SinkExt;
 use bytes::{BytesMut, BufMut}; // Correct import for BufMut
 
-use crate::Client;
+use crate::{Client, ClientState};
 
 impl Client {
     /// Setup a websocket connection to the server
     // pub async fn setup_ws(&self, strurl: &str) -> Result<(), Box<dyn std::error::Error>> {
     pub async fn setup_ws(&self, strurl: &str) -> Result<(), OpenIAPError> {
+        self.set_connected(ClientState::Connecting, None);
         let ws_stream = match connect_async(strurl).await {
             Ok((ws_stream, _)) => ws_stream,
             Err(e) => {
                 error!("Failed to connect to websocket: {:?}", e);
-                self.set_connected(false, Some(&e.to_string()));
+                self.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                 return Err(OpenIAPError::ClientError(e.to_string()));
             }            
         };
@@ -32,10 +33,6 @@ impl Client {
         
         let sender = tokio::task::Builder::new().name("WS envelope sender").spawn(async move {
             while let Ok(envelope) = envelope_receiver.recv().await {
-                if me.is_connected() == false {
-                    error!("Failed to send message to websocket: not connected");
-                    return;
-                }
                 let mut envelope = envelope;
                 let command = envelope.command.clone();
                 
@@ -57,7 +54,7 @@ impl Client {
                     Ok(_) => {},
                     Err(e) => {
                         error!("Failed to encode protobuf message: {:?}", e);
-                        me.set_connected(false, Some(&e.to_string()));
+                        me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                         return;
                     }                    
                 };
@@ -65,7 +62,7 @@ impl Client {
                 // Send the message
                 if let Err(e) = write.send(Message::Binary(message.to_vec())).await {
                     error!("Failed to send {} message to websocket: {:?}", command, e);
-                    me.set_connected(false, Some(&e.to_string()));
+                    me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                     return;
                 }
             }
@@ -79,15 +76,11 @@ impl Client {
         let reader = tokio::task::Builder::new().name("WS envelope receiver").spawn(async move {
             let buffer = Arc::clone(&buffer);
             while let Some(message) = read.next().await {
-                if me.is_connected() == false {
-                    error!("Failed to send message to websocket: not connected");
-                    return;
-                }
                 let data = match message {
                     Ok(msg) => msg.into_data(),
                     Err(e) => {
                         error!("Failed to receive message from websocket: {:?}", e);
-                        me.set_connected(false, Some(&e.to_string()));
+                        me.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                         return;
                     }
                 };
@@ -117,7 +110,6 @@ impl Client {
             }
         }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope receiver task: {:?}", e)))?;
         self.push_handle(reader);
-        self.set_connected(true, None);
         Ok(())
     }
 }
