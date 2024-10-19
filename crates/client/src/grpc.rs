@@ -7,7 +7,26 @@ use tokio_stream::{wrappers::ReceiverStream};
 use futures::{StreamExt };
 use crate::{Client, ClientEnum};
 use tokio::sync::{mpsc};
+use tokio::time::{timeout, Duration};
+use tonic::transport::Channel;
+pub use openiap_proto::*;
+pub use protos::flow_service_client::FlowServiceClient;
 impl Client {
+    /// Connect to the server using gRPC protocol.
+    pub async fn connect_grpc(url: String) -> Result<FlowServiceClient<Channel>, Box<dyn std::error::Error>> {
+        // let response = FlowServiceClient::connect(strurl.clone()).await;
+        // let channel = Channel::from_shared(url)?
+        //     .keep_alive_timeout(Duration::from_secs(10))
+        //     .keep_alive_while_idle(true)
+        //     // .timeout(Duration::from_secs(60 * 24 * 60))
+        //     .http2_keep_alive_interval(Duration::from_secs(10))
+        //     .connect_timeout(Duration::from_secs(60))
+        //     .connect()
+        //     .await?;
+        // let client = FlowServiceClient::new(channel);
+        let client = FlowServiceClient::connect(url).await?;
+        Ok(client)
+    }
     /// internal function, used to setup gRPC stream used for communication with the server.
     /// This function is called by [connect] and should not be called directly.
     /// It will "pre" process stream, watch and queue events, and call future promises, when a response is received.
@@ -37,7 +56,7 @@ impl Client {
 
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
-        let sender = tokio::spawn( async move {
+        let sender = tokio::task::Builder::new().name("GRPC envelope sender").spawn(async move {
             loop {
                 let envelope = envelope_receiver.recv().await;
                 let mut envelope = match envelope {
@@ -71,29 +90,41 @@ impl Client {
                     }
                 };
             }
-        });
+        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope sender task: {:?}", e)))?;
+        self.push_handle(sender);
         let mut resp_stream = response.into_inner();
         let me = self.clone();
-        let reader = tokio::spawn(async move {
-            while let Some(received) = resp_stream.next().await {
-                if let Ok(received) = received {
-                    me.parse_incomming_envelope(received).await;
+        let reader = tokio::task::Builder::new().name("GRPC envelope receiver").spawn(async move {
+            loop {
+                let read = timeout(Duration::from_secs(5), resp_stream.next()).await;
+                match read {
+                    Ok(data) => {
+                        match  data {
+                            Some(received) => {
+                                match received {
+                                    Ok(received) => {
+                                        me.parse_incomming_envelope(received).await;
+                                    }
+                                    Err(e) => {
+                                        // error!("Received error from stream: {:?}", e);
+                                        me.set_connected(false, Some(&e.to_string()));
+                                        break;
+                                    }                                        
+                                }
+                            }
+                            None => {
+                                me.set_connected(false, Some("Server closed the connection"));
+                                break;
+                            }                                
+                        }
+                    }
+                    Err(_e) => {
+                        // timeout elapsed
+                    }                        
                 }
             }
-        });
-        let on_disconnect_receiver = self.on_disconnect_receiver.clone();
-        tokio::spawn(async move {
-            match on_disconnect_receiver.recv().await {
-                Ok(_) => {},
-                Err(e) => {
-                    error!("Failed to receive on_disconnect signal: {:?}", e);
-                }
-            };
-            trace!("Killing the sender and reader for gRPC");
-            sender.abort();
-            reader.abort();
-            trace!("Killed the sender and reader for gRPC");
-        });
+        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope receiver task: {:?}", e)))?;
+        self.push_handle(reader);
         self.set_connected(true, None);
         Ok(())
     }

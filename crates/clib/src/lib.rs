@@ -1690,20 +1690,12 @@ pub extern "C" fn aggregate_async(
         return callback(Box::into_raw(Box::new(response)));
     }
 
-    // let client_clone = client.clone();
-    // let runtime_clone = std::sync::Arc::clone(&runtime);
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     debug!("Rust: runtime.spawn");
     handle.spawn(async move {
         debug!("Rust: client.aggregate");
         let result = client.aggregate(request).await;
-        // let result = tokio::task::block_in_place(|| {
-        //     let c = client.as_mut().unwrap();
-        //     c.aggregate(request).await
-        // });
-        // let result = client_clone.unwrap().aggregate(request).await;
-
         let response = match result {
             Ok(data) => {
                 let results = CString::new(data.results).unwrap().into_raw();
@@ -1876,12 +1868,6 @@ pub extern "C" fn count_async(
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
         let result = client.count(request).await;
-        // let result = tokio::task::block_in_place(|| {
-        //     let c = client.as_mut().unwrap();
-        //     c.count(request).await
-        // });
-        // let result = client_clone.unwrap().count(request).await;
-
         let response = match result {
             Ok(data) => {
                 let result = data.result;
@@ -2285,12 +2271,6 @@ pub extern "C" fn insert_one_async(
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
         let result = client.insert_one(request).await;
-        // let result = tokio::task::block_in_place(|| {
-        //     let c = client.as_mut().unwrap();
-        //     c.insert_one(request).await
-        // });
-        // let result = client_clone.unwrap().insert_one(request).await;
-
         let response = match result {
             Ok(data) => {
                 let result = CString::new(data.result).unwrap().into_raw();
@@ -3941,67 +3921,17 @@ pub extern "C" fn watch_async_async(
                 request,
                 Box::new(move |_event: WatchEvent| {
                     debug!("watch_async: spawn new task, to call event_callback");
-                    //tokio::spawn(async move {
-                        trace!("watch_async: call event_callback");
-                        // let id = CString::new("id").unwrap().into_raw();
-                        // let operation = CString::new("operation").unwrap().into_raw();
-                        // let document = CString::new("document").unwrap().into_raw();
+                    trace!("watch_async: call event_callback");
                     let id = CString::new(_event.id).unwrap().into_raw();
                     let operation = CString::new(_event.operation).unwrap().into_raw();
                     let document = CString::new(_event.document).unwrap().into_raw();
                     let event = Box::into_raw(Box::new(WatchEventWrapper {
-                            id,
-                            operation,
-                            document
-                        }));
+                        id,
+                        operation,
+                        document
+                    }));
 
-                        event_callback(event);
-
-                        // let error_msg = CString::new(format!("Watch failed"))
-                        // .unwrap()
-                        // .into_raw();
-                        // let response = WatchResponseWrapper {
-                        //     success: false,
-                        //     watchid: std::ptr::null(),
-                        //     error: error_msg,
-                        // };
-                        // callback(Box::into_raw(Box::new(response)));
-                        // trace!("watch_async: call event_callback called. ");
-    
-                    //});
-                    // debug!("watch_async: spawn new task, to call event_callback");
-                    // tokio::task::spawn(async move {
-                    //     // let id = CString::new(event.id).unwrap().into_raw();
-                    //     // let operation = CString::new(event.operation).unwrap().into_raw();
-                    //     // let document = CString::new(event.document).unwrap().into_raw();
-
-                    //     // let error_msg = CString::new("Invalid options").unwrap().into_raw();
-                    //     // let response = QueryResponseWrapper {
-                    //     //     success: false,
-                    //     //     results: std::ptr::null(),
-                    //     //     error: error_msg,
-                    //     // };
-                    //     // return Box::into_raw(Box::new(response));
-            
-                        
-                    //     // let id = CString::new(id).unwrap().into_raw();
-                    //     // let operation = CString::new(operation).unwrap().into_raw();
-                    //     // let document = CString::new(document).unwrap().into_raw();
-                    //     // let event = Box::new(WatchEventWrapper {
-                    //     //     id,
-                    //     //     operation,
-                    //     //     document
-                    //     // });
-                    //     trace!("watch_async: call event_callback");
-                    //     // trace!("{:?}", event);
-                    //     // event_callback(Box::into_raw(event));
-                    //     event_callback();
-                    //     // event_callback(document);
-                    //     // let id = CString::new("findme").unwrap().into_raw();
-                    //     // event_callback(id);
-                    // });
-                    
-                    // trace!("watch_async: event_callback done");
+                    event_callback(event);
                 }),
             )
             .await;

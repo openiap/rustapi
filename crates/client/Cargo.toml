@@ -13,7 +13,8 @@ futures-util = { version = "0.3.28", default-features = false, features = ["sink
 futures-channel = "0.3.28"
 prost = "0.13.1"
 prost-types = "0.13.1"
-tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
+# tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "tracing"] }
 tokio-stream = "0.1.15"
 tracing = { version = "0.1.40", features = ["log", "attributes"] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "json"] }
@@ -41,4 +42,4 @@ tokio-tungstenite = { version = "0.24.0", features = [ "rustls-tls-native-roots"
 sqids = "0.4.1"
 # async-tungstenite = { version = "0.28.0", features = [ "async-native-tls" ] }
 
-# console-subscriber = "0.4.0"
+console-subscriber = "0.4.0"

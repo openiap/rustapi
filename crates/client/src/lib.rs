@@ -28,6 +28,7 @@ pub use prost_types::Timestamp;
 pub use protos::flow_service_client::FlowServiceClient;
 use sqids::Sqids;
 
+use tokio::task::JoinHandle;
 use tokio_tungstenite::{WebSocketStream};
 use tracing::{debug, error, info, trace};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -65,8 +66,8 @@ pub struct Client {
     connect_called: Arc<std::sync::Mutex<bool>>,
     /// The tokio runtime.
     runtime: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>>,
-    on_disconnect_sender: async_channel::Sender<()>,
-    on_disconnect_receiver: async_channel::Receiver<()>,
+
+    task_handles: Arc<std::sync::Mutex<Vec<JoinHandle<()>>>>,
     /// The inner client object
     pub client: Arc<std::sync::Mutex<ClientEnum>>,
     /// The inner client.
@@ -93,6 +94,8 @@ pub struct Client {
     pub signedin: Arc<std::sync::Mutex<bool>>,
     /// Inceasing message count, used as unique id for messages.
     pub msgcount: Arc<std::sync::Mutex<i32>>,
+    /// Reconnect interval in milliseconds, this will slowly increase if we keep getting disconnected.
+    pub reconnect_ms: Arc<std::sync::Mutex<i32>>,
 }
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
@@ -207,14 +210,14 @@ impl Client {
     pub fn new() -> Self {
         let (ces, cer) = unbounded::<ClientEvent>();
         let (out_es, out_er) = unbounded::<Envelope>();
-        let (dis_es, dis_er) = unbounded::<()>();
         Self {
-            on_disconnect_sender: dis_es,
-            on_disconnect_receiver: dis_er,
+            task_handles: Arc::new(std::sync::Mutex::new(Vec::new())),
+
             client: Arc::new(std::sync::Mutex::new(ClientEnum::None)),
             connect_called: Arc::new(std::sync::Mutex::new(false)),
             runtime: Arc::new(std::sync::Mutex::new(None)),
             msgcount: Arc::new(std::sync::Mutex::new(-1)),
+            reconnect_ms: Arc::new(std::sync::Mutex::new(1000)),
             inner: Arc::new(Mutex::new(ClientInner {
                 user: None,
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -449,7 +452,7 @@ impl Client {
                 }
             }
             let client2 = self.clone();
-            tokio::spawn(async move {
+            tokio::task::Builder::new().name("Old Websocket receiver").spawn(async move {
                 tokio_stream::wrappers::ReceiverStream::new(stream_rx)
                     .for_each(|envelope: Envelope| async {
                         let command = envelope.command.clone();
@@ -459,10 +462,10 @@ impl Client {
                         client2.parse_incomming_envelope(envelope).await;
                     })
                     .await;
-            });
+            }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn Old Websocket receiver task: {:?}", e)))?;
         } else {
             if url.scheme() == "http" {
-                let response = FlowServiceClient::connect(strurl.clone()).await;
+                let response = Client::connect_grpc(strurl.clone()).await;
                 match response {
                     Ok(client) => {
                         self.set_client(ClientEnum::Grpc(client));
@@ -663,7 +666,7 @@ impl Client {
             }
 
             let client2 = client.clone();
-            tokio::spawn(async move {
+            tokio::task::Builder::new().name("Old gRPC receiver").spawn(async move {
                 tokio_stream::wrappers::ReceiverStream::new(stream_rx)
                     .for_each(|envelope: Envelope| async {
                         let command = envelope.command.clone();
@@ -673,12 +676,12 @@ impl Client {
                         client2.parse_incomming_envelope(envelope).await;
                     })
                     .await;
-            });
+            }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn Old gRPC receiver task: {:?}", e)))?;
 
             client
         } else {
             let innerclient = if url.scheme() == "http" {
-                let response = FlowServiceClient::connect(strurl.clone()).await;
+                let response = Client::connect_grpc(strurl.clone()).await;
                 match response {
                     Ok(client) => {
                         ClientEnum::Grpc(client)
@@ -756,14 +759,11 @@ impl Client {
             let loginresponse = self.signin(signin).await;
             match loginresponse {
                 Ok(response) => {
-                    debug!("Signed in as {}", response.user.as_ref().unwrap().username);
+                    self.reset_reconnect_ms();
+                    info!("Signed in as {}", response.user.as_ref().unwrap().username);
                 }
-                Err(e) => {
-                    error!("Failed to sign in: {}", e);
-                    // return Err(OpenIAPError::ClientError(format!(
-                    //     "Failed to sign in: {}",
-                    //     e
-                    // )));
+                Err(_e) => {
+                    // error!("Failed to sign in: {}", e);
                 }
             }
         } else {
@@ -778,21 +778,20 @@ impl Client {
                 match loginresponse {
                     Ok(response) => match response.user {
                         Some(user) => {
-                            debug!("Signed in as {}", user.username);
+                            self.reset_reconnect_ms();
+                            info!("Signed in as {}", user.username);
                         }
                         None => {
+                            self.reset_reconnect_ms();
                             debug!("Signed in as guest");
                         }
                     },
-                    Err(e) => {
-                        error!("Failed to sign in: {}", e);
-                        // return Err(OpenIAPError::ClientError(format!(
-                        //     "Failed to sign in: {}",
-                        //     e
-                        // )));
+                    Err(_e) => {
+                        // error!("Failed to sign in: {}", e);
                     }
                 }
             } else {
+                self.reset_reconnect_ms();
                 debug!("Connect, No credentials provided so is running as guest");
             }
         }
@@ -810,16 +809,25 @@ impl Client {
     
         match client {
             ClientEnum::WS(ref _client) => {
-                info!("Reconnecting to websocket");
+                info!("Reconnecting to {} ({} ms)", self.get_url(), (self.get_reconnect_ms() - 500));
                 self.setup_ws(&self.get_url()).await?;
-                info!("Completed reconnecting to websocket");
+                debug!("Completed reconnecting to websocket");
                 self.post_connected().await;
             }
             ClientEnum::Grpc(ref _client) => {
-                info!("Reconnecting to gRPC");
-                self.setup_grpc_stream().await?;
-                info!("Completed reconnecting to gRPC");
-                self.post_connected().await;
+                info!("Reconnecting to {} ({} ms)", self.get_url(), (self.get_reconnect_ms() - 500));
+                match self.setup_grpc_stream().await {
+                    Ok(_) => {
+                        debug!("Completed reconnecting to gRPC");
+                        self.post_connected().await;
+                    },
+                    Err(e) => {
+                        return Err(OpenIAPError::ClientError(format!(
+                            "Failed to setup gRPC stream: {}",
+                            e
+                        )));
+                    }
+                }
             }
             ClientEnum::None => {
                 return Err(OpenIAPError::ClientError("Invalid client".to_string()));
@@ -838,86 +846,107 @@ impl Client {
             let mut current = self.connected.lock().unwrap();
             trace!("Set connected: {} from {}", connected, *current);
             if connected == true && *current == false {
-                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let me = self.clone();
-                    handle.spawn(async move {
+                    match tokio::task::Builder::new().name("setconnected-notify-connected").spawn(async move {
                         me.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
-                    });
+                    }) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to spawn setconnected-notify-connected task: {:?}", e);
+                        }
+                    }
                 }
             }
             if connected == false && *current == true {
+                if message.is_some() {
+                    info!("Disconnected: {}", message.unwrap());
+                } else {
+                    info!("Disconnected");
+                }
                 self.set_signedin(false);
-                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let me = self.clone();
                     let message = match message {
                         Some(message) => message.to_string(),
                         None => "".to_string(),
                     };
-                    handle.spawn(async move {
+                    match tokio::task::Builder::new().name("setconnected-notify-disconnected").spawn(async move {
                         trace!("Disconnected: {}", message);
-                        me.on_disconnect_sender.send(()).await.unwrap();
                         me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
-                    });
+                    }) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to spawn setconnected-notify-disconnected task: {:?}", e);
+                        }
+                    }
                 }
+
+                self.kill_handles();
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    let client = self.clone();
+                    match tokio::task::Builder::new().name("kill_handles").spawn(async move {
+                        {
+                            let inner = client.inner.lock().await;
+                            let mut queries = inner.queries.lock().await;
+                            let ids = queries.keys().cloned().collect::<Vec<String>>();
+                            debug!("********************************************** Cleaning up");
+                            for id in ids {
+                                let err = ErrorResponse {
+                                    code: 500,
+                                    message: "Disconnected".to_string(),
+                                    stack: "".to_string(),
+                                };
+                                let envelope = err.to_envelope();
+                                let tx = queries.remove(&id).unwrap();
+                                debug!("kill query: {}", id);
+                                let _ = tx.send(envelope);
+                            }
+                            let mut streams = inner.streams.lock().await;
+                            let ids = streams.keys().cloned().collect::<Vec<String>>();
+                            for id in ids {
+                                let tx = streams.remove(&id).unwrap();
+                                debug!("kill stream: {}", id);
+                                let _ = tx.send(Vec::new());
+                            }
+                            let mut queues = inner.queues.lock().await;
+                            let ids = queues.keys().cloned().collect::<Vec<String>>();
+                            for id in ids {
+                                let _ = queues.remove(&id).unwrap();
+                            }
+                            let mut watches = inner.watches.lock().await;
+                            let ids = watches.keys().cloned().collect::<Vec<String>>();
+                            for id in ids {
+                                let _ = watches.remove(&id).unwrap();
+                            }
+                            debug!("**********************************************************");
+                        }
+                        if client.is_auto_reconnect() {
+                            trace!("Reconnecting in {} seconds", client.get_reconnect_ms() / 1000);
+                            tokio::time::sleep(Duration::from_millis(client.get_reconnect_ms() as u64)).await;
+                            if client.is_auto_reconnect() {
+                                client.inc_reconnect_ms();
+                                // let mut client = client.clone();
+                                trace!("Reconnecting . . .");
+                                client.reconnect().await.unwrap_or_else(|e| {
+                                    error!("Failed to reconnect: {}", e);
+                                });
+                            } else {
+                                debug!("Not reconnecting");
+                            }
+                        } else {
+                            debug!("Reconnecting disabled, stop now");
+                        }
+                    }) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to spawn kill_handles task: {:?}", e);
+                        }
+                    }
+                }
+    
             }
             *current = connected;
-        }
-        if !connected {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let client = self.clone();
-                handle.spawn(async move {
-                    {
-                        let inner = client.inner.lock().await;
-                        let mut queries = inner.queries.lock().await;
-                        let ids = queries.keys().cloned().collect::<Vec<String>>();
-                        for id in ids {
-                            let err = ErrorResponse {
-                                code: 500,
-                                message: "Disconnected".to_string(),
-                                stack: "".to_string(),
-                            };
-                            let envelope = err.to_envelope();
-                            let tx = queries.remove(&id).unwrap();
-                            // println!("**********************************************************");
-                            // println!("kill query: {}", id);
-                            // println!("**********************************************************");
-                            let _ = tx.send(envelope);
-                        }
-                        let mut streams = inner.streams.lock().await;
-                        let ids = streams.keys().cloned().collect::<Vec<String>>();
-                        for id in ids {
-                            let tx = streams.remove(&id).unwrap();
-                            // println!("**********************************************************");
-                            // println!("kill stream: {}", id);
-                            // println!("**********************************************************");
-                            let _ = tx.send(Vec::new());
-                        }
-                        let mut queues = inner.queues.lock().await;
-                        let ids = queues.keys().cloned().collect::<Vec<String>>();
-                        for id in ids {
-                            let _ = queues.remove(&id).unwrap();
-                        }
-                        let mut watches = inner.watches.lock().await;
-                        let ids = watches.keys().cloned().collect::<Vec<String>>();
-                        for id in ids {
-                            let _ = watches.remove(&id).unwrap();
-                        }
-                    }
-                    if client.is_auto_reconnect() {
-                        info!("Reconnecting in 10 seconds");
-                        tokio::time::sleep(Duration::from_secs(10)).await;
-                        if client.is_auto_reconnect() {
-                            // let mut client = client.clone();
-                            info!("Reconnecting . . .");
-                            client.reconnect().await.unwrap_or_else(|e| {
-                                error!("Failed to reconnect: {}", e);
-                            });
-                        } else {
-                            info!("Not reconnecting");
-                        }
-                    }
-                });
-            }
         }
     }
     /// Check if the client is connected
@@ -931,19 +960,29 @@ impl Client {
         trace!("Set signedin: {} from {}", signedin, *current);
 
         if signedin == true && *current == false {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                 let me = self.clone();
-                handle.spawn(async move {
+                match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
                     me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
-                });
+                }) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
+                    }
+                };
             }
         }
         if signedin == false && *current == true {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                 let me = self.clone();
-                handle.spawn(async move {
+                match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
                     me.event_sender.send(crate::ClientEvent::SignedOut).await.unwrap();
-                });
+                }) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
+                    }
+                };
             }
         }
         *current = signedin;
@@ -966,6 +1005,50 @@ impl Client {
         *current += 1;
         *current
     }
+    /// Return value of reconnect_ms
+    pub fn get_reconnect_ms(&self) -> i32 {
+        let reconnect_ms = self.reconnect_ms.lock().unwrap();
+        *reconnect_ms
+    }
+    /// Increment the reconnect_ms value
+    pub fn reset_reconnect_ms(&self) {
+        let mut current = self.reconnect_ms.lock().unwrap();
+        *current = 500;
+    }
+    /// Increment the reconnect_ms value
+    pub fn inc_reconnect_ms(&self) -> i32 {
+        let mut current = self.reconnect_ms.lock().unwrap();
+        if *current < 30000 {
+            *current += 500;
+        }
+        *current
+    }
+    
+    /// Push tokio task handle to the task_handles vector
+    pub fn push_handle(&self, handle: tokio::task::JoinHandle<()>) {
+        let mut handles = self.task_handles.lock().unwrap();
+        handles.push(handle);
+    }
+    /// Kill all tokio task handles in the task_handles vector
+    pub fn kill_handles(&self) {
+        let mut handles = self.task_handles.lock().unwrap();
+        for handle in handles.iter() {
+            let id = handle.id();
+            debug!("Killing handle {}", id);
+            if !handle.is_finished() {
+                handle.abort();
+            }
+        }
+        handles.clear();
+        if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+            let runtime = self.get_runtime();
+            if let Some(rt) = runtime.lock().unwrap().take() {
+                rt.shutdown_background();
+            }
+        }
+    }
+
+
     /// Return value of the msgcount flag
     #[tracing::instrument(skip_all)]
     fn get_msgcount(&self) -> i32 {
@@ -1109,11 +1192,12 @@ impl Client {
         // call the callback function every time there is an event in the client.event_receiver
         let event_receiver = self.event_receiver.clone();
         let callback = callback;
-        tokio::spawn(async move {
+        let _handle =  tokio::task::Builder::new().name("Notify event").spawn(async move {
             while let Ok(event) = event_receiver.recv().await {
                 callback(event);
             }
-        });
+        }).unwrap();
+        // self.push_handle(_handle);
     }
     /// Internal function, used to generate a unique id for each message sent to the server.
     #[tracing::instrument(skip_all)]

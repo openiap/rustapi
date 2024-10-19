@@ -30,8 +30,7 @@ impl Client {
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
         
-        // Spawn sending task
-        let sender = tokio::spawn(async move {
+        let sender = tokio::task::Builder::new().name("WS envelope sender").spawn(async move {
             while let Ok(envelope) = envelope_receiver.recv().await {
                 if me.is_connected() == false {
                     error!("Failed to send message to websocket: not connected");
@@ -70,67 +69,54 @@ impl Client {
                     return;
                 }
             }
-        });
+        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope sender task: {:?}", e)))?;
+        self.push_handle(sender);
 
         let buffer = Arc::new(Mutex::new(BytesMut::with_capacity(4096))); // Pre-allocate buffer size
         let me = self.clone();
 
         // Reading task with backpressure handling
-        let reader = tokio::spawn({
+        let reader = tokio::task::Builder::new().name("WS envelope receiver").spawn(async move {
             let buffer = Arc::clone(&buffer);
-            async move {
-                while let Some(message) = read.next().await {
-                    if me.is_connected() == false {
-                        error!("Failed to send message to websocket: not connected");
+            while let Some(message) = read.next().await {
+                if me.is_connected() == false {
+                    error!("Failed to send message to websocket: not connected");
+                    return;
+                }
+                let data = match message {
+                    Ok(msg) => msg.into_data(),
+                    Err(e) => {
+                        error!("Failed to receive message from websocket: {:?}", e);
+                        me.set_connected(false, Some(&e.to_string()));
                         return;
                     }
-                    let data = match message {
-                        Ok(msg) => msg.into_data(),
+                };
+
+                let mut buffer = buffer.lock().await;
+                buffer.extend_from_slice(&data);
+
+                while buffer.len() >= 4 {
+                    let size = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) as usize;
+
+                    if buffer.len() < 4 + size {
+                        break; // Wait for more data
+                    }
+
+                    let payload = buffer.split_to(4 + size);
+                    let payload = &payload[4..]; // Skip the size bytes
+
+                    match Envelope::decode(payload) {
+                        Ok(received) => {
+                            me.parse_incomming_envelope(received).await;
+                        },
                         Err(e) => {
-                            error!("Failed to receive message from websocket: {:?}", e);
-                            me.set_connected(false, Some(&e.to_string()));
-                            return;
-                        }
-                    };
-
-                    let mut buffer = buffer.lock().await;
-                    buffer.extend_from_slice(&data);
-
-                    while buffer.len() >= 4 {
-                        let size = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) as usize;
-
-                        if buffer.len() < 4 + size {
-                            break; // Wait for more data
-                        }
-
-                        let payload = buffer.split_to(4 + size);
-                        let payload = &payload[4..]; // Skip the size bytes
-
-                        match Envelope::decode(payload) {
-                            Ok(received) => {
-                                me.parse_incomming_envelope(received).await;
-                            },
-                            Err(e) => {
-                                error!("Failed to decode protobuf message: {:?}", e);
-                            }
+                            error!("Failed to decode protobuf message: {:?}", e);
                         }
                     }
                 }
             }
-        });
-        let on_disconnect_receiver = self.on_disconnect_receiver.clone();
-        tokio::spawn(async move {
-            match on_disconnect_receiver.recv().await {
-                Ok(_) => {},
-                Err(e) => {
-                    error!("Failed to receive on_disconnect signal: {:?}", e);
-                }
-            };
-            trace!("Killing the sender and reader for websocket");
-            sender.abort();
-            reader.abort();
-            trace!("Killed the sender and reader for websocket");
-        });
+        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope receiver task: {:?}", e)))?;
+        self.push_handle(reader);
         self.set_connected(true, None);
         Ok(())
     }

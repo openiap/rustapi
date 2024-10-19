@@ -129,6 +129,7 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
                     cpu_utilization,
                     &common_attributes,
                 );
+                // debug!("cpu usage: {:?}  cpu util: {:?}", cpu_usage, cpu_utilization);
                 let elapsed_seconds: u64 = process.run_time();
                 let elapsed_mili: i64 = (elapsed_seconds * 1000).try_into().unwrap_or_default();
                 context.observe_i64(

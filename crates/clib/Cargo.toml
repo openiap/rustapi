@@ -10,7 +10,8 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 openiap-client = { path = "../client", version = "0.0.6" }
-tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
+# tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
+tokio = { version = "1.40.0", features = ["rt-multi-thread"] }
 tracing = { version = "0.1", features = ["log", "attributes"] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "json"] }
 lazy_static = "1.5.0"
