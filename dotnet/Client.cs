@@ -604,7 +604,7 @@ public class Client : IDisposable
                 }
                 else
                 {
-                    libfile = "openiap-windows-x86.dll";
+                    libfile = "openiap-windows-i686.dll";
                 }
                 break;
             case PlatformID.MacOSX:

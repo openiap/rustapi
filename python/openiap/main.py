@@ -522,7 +522,7 @@ class Client:
             if architecture == 'x86_64':
                 lib_file = 'openiap-windows-x64.dll'
             elif architecture == 'AMD64':
-                lib_file = 'openiap-windows-x86.dll'
+                lib_file = 'openiap-windows-i686.dll'
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'darwin':

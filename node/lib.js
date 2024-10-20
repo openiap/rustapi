@@ -560,7 +560,7 @@ function loadLibrary() {
                 case 'x64':
                     libPath = path.join(libDir, 'openiap-windows-x64.dll'); break;
                 case 'x86':
-                    libPath = path.join(libDir, 'openiap-windows-x86.dll'); break;
+                    libPath = path.join(libDir, 'openiap-windows-i686.dll'); break;
                 case 'arm64':
                     libPath = path.join(libDir, 'openiap-windows-arm64.dll'); break;
                 default:
