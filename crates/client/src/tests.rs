@@ -10,6 +10,7 @@ mod tests {
     use errors::OpenIAPError;
     use futures::stream::FuturesUnordered;
     use protos::*;
+    // use tokio_tungstenite::tungstenite::handshake::client;
     use std::{env, future::Future, pin::Pin};
     use std::sync::Arc;
     use tokio::sync::{oneshot};
@@ -39,7 +40,8 @@ mod tests {
     #[tokio::test()]
     async fn test_get_document_version() {
         // cargo test test_get_document_version -- --nocapture
-        let client = Client::new_connect(TEST_URL).await.unwrap();
+        let client = Client::new();
+        client.connect_async(TEST_URL).await.unwrap();
 
         let item = "{\"name\": \"test from rust\", \"_type\": \"test\"}";
         let query = InsertOneRequest {

@@ -57,7 +57,8 @@ impl Client {
 
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
-        let sender = tokio::task::Builder::new().name("GRPC envelope sender").spawn(async move {
+        // let sender = tokio::task::Builder::new().name("GRPC envelope sender").spawn(async move {
+        let sender = tokio::task::spawn(async move {
             loop {
                 let envelope = envelope_receiver.recv().await;
                 let mut envelope = match envelope {
@@ -91,11 +92,12 @@ impl Client {
                     }
                 };
             }
-        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope sender task: {:?}", e)))?;
+        }); // .map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope sender task: {:?}", e)))?;
         self.push_handle(sender);
         let mut resp_stream = response.into_inner();
         let me = self.clone();
-        let reader = tokio::task::Builder::new().name("GRPC envelope receiver").spawn(async move {
+        // let reader = tokio::task::Builder::new().name("GRPC envelope receiver").spawn(async move {
+        let reader = tokio::task::spawn(async move {
             loop {
                 let read = timeout(Duration::from_secs(5), resp_stream.next()).await;
                 match read {
@@ -124,7 +126,7 @@ impl Client {
                     }                        
                 }
             }
-        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope receiver task: {:?}", e)))?;
+        }); // .map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn GRPC envelope receiver task: {:?}", e)))?;
         self.push_handle(reader);
         Ok(())
     }

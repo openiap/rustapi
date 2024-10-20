@@ -127,7 +127,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if  input.eq_ignore_ascii_case("st") {
             let client = b.clone();
             let _handle = 
-                tokio::task::Builder::new().name("NonStop").spawn(async move {
+                // tokio::task::Builder::new().name("NonStop").spawn(async move {
+                tokio::task::spawn(async move {
                 loop  {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
@@ -162,8 +163,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 };
-            })?;
-            // b.push_handle(_handle);
+            });
         }
         if input.eq_ignore_ascii_case("c") || input.eq_ignore_ascii_case("cpu") {
             println!("Calculating factorial of 20 {} times", num_calcs);
@@ -182,7 +182,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         }
         if input.eq_ignore_ascii_case("q") {
             let client = b.clone();
-            tokio::task::Builder::new().name("projected query").spawn(async move {
+            // tokio::task::Builder::new().name("projected query").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .query(QueryRequest::with_projection(
                         "entities",
@@ -194,11 +195,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(response) => println!("{:?}", response.results),
                     Err(e) => println!("Failed to query: {:?}", e),
                 };
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("qq") {
             let client = b.clone();
-            tokio::task::Builder::new().name("query").spawn(async move {
+            // tokio::task::Builder::new().name("query").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .query(QueryRequest::with_query("entities", "{}"))
                     .await;
@@ -206,11 +208,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(response) => println!("{:?}", response.results),
                     Err(e) => println!("Failed to query: {:?}", e),
                 };
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("di") {
             let client = b.clone();
-            tokio::task::Builder::new().name("distinct").spawn(async move {
+            // tokio::task::Builder::new().name("distinct").spawn(async move {
+                tokio::task::spawn(async move {
                 let query = DistinctRequest {
                     collectionname: "entities".to_string(),
                     field: "_type".to_string(),
@@ -221,11 +224,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(response) => println!("{:?}", response.results),
                     Err(e) => println!("Failed to query: {:?}", e),
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("s") || input.eq_ignore_ascii_case("s1") {
             let client = b.clone();
-            tokio::task::Builder::new().name("guest signin").spawn(async move {
+            // tokio::task::Builder::new().name("guest signin").spawn(async move {
+                tokio::task::spawn(async move {
                 let s = client
                     .signin(SigninRequest::with_userpass("guest", "password"))
                     .await;
@@ -237,11 +241,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         s.unwrap().user.as_ref().unwrap().username
                     );
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("s2") || input.eq_ignore_ascii_case("ss") {
             let client = b.clone();
-            tokio::task::Builder::new().name("testuser signin").spawn(async move {
+            // tokio::task::Builder::new().name("testuser signin").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .signin(SigninRequest::with_userpass("testuser", "badpassword"))
                     .await;
@@ -253,11 +258,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         s.unwrap().user.as_ref().unwrap().username
                     );
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("i") {
             let client = b.clone();
-            tokio::task::Builder::new().name("insertone").spawn(async move {
+            //tokio::task::Builder::new().name("insertone").spawn(async move {
+            tokio::task::spawn(async move {
                 let request = InsertOneRequest {
                     collectionname: "entities".to_string(),
                     item: "{\"name\":\"Allan\", \"_type\":\"Allan\"}".to_string(),
@@ -269,11 +275,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("inserted as {}", s.unwrap().result);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("im") {
             let client = b.clone();
-            tokio::task::Builder::new().name("insertmany").spawn(async move {
+            // tokio::task::Builder::new().name("insertmany").spawn(async move {
+            tokio::task::spawn(async move {
                 let request = InsertManyRequest {
                     collectionname: "entities".to_string(),
                     items: "[{\"name\":\"Allan\", \"_type\":\"Allan\"}, {\"name\":\"Allan2\", \"_type\":\"Allan\"}]".to_string(),
@@ -285,11 +292,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("inserted as {}", s.unwrap().results);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("d") {
             let client = b.clone();
-            tokio::task::Builder::new().name("download").spawn(async move {
+            // tokio::task::Builder::new().name("download").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
                     .await;
@@ -298,11 +306,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("downloaded as {}", s.unwrap().filename);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("u") || input.eq_ignore_ascii_case("u1") {
             let client = b.clone();
-            tokio::task::Builder::new().name("upload").spawn(async move {
+            // tokio::task::Builder::new().name("upload").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .upload(UploadRequest::filename("train.csv"), "train.csv")
                     .await;
@@ -311,11 +320,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("uploaded as {}", s.unwrap().filename);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("uu") || input.eq_ignore_ascii_case("u2") {
             let client = b.clone();
-            tokio::task::Builder::new().name("upload2").spawn(async move {
+            // tokio::task::Builder::new().name("upload2").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .upload(
                         UploadRequest::filename("assistant-linux-x86_64.AppImage"),
@@ -327,11 +337,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("uploaded as {}", s.unwrap().filename);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("uuu") || input.eq_ignore_ascii_case("u3") {
             let client = b.clone();
-            tokio::task::Builder::new().name("uppload3").spawn(async move {
+            // tokio::task::Builder::new().name("uppload3").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .upload(
                         UploadRequest::filename("virtio-win-0.1.225.iso"),
@@ -343,13 +354,13 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("uploaded as {}", s.unwrap().filename);
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("w") {
             let client = b.clone();
             let watchid_clone = Arc::clone(&watchid);
-
-            tokio::task::Builder::new().name("watch").spawn(async move {
+            // tokio::task::Builder::new().name("watch").spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .watch(
                         WatchRequest::new("", vec!["".to_string()]),
@@ -372,7 +383,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         
                     }
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("uw") {
             let watchid = watchid.lock();
@@ -383,14 +394,15 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         let client = b.clone();
                         let uw = w.to_string();
-                        tokio::task::Builder::new().name("unwatch").spawn(async move {
+                        // tokio::task::Builder::new().name("unwatch").spawn(async move {
+                        tokio::task::spawn(async move {
                             let s = client.unwatch(&uw).await;
                             if let Err(e) = s {
                                 println!("Failed to watch: {:?}", e);
                             } else {
                                 println!("Removed watch for id {}", uw);
                             }
-                        })?;
+                        });
                     }
                 }
                 Err(e) => {
@@ -400,7 +412,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         }
         if input.eq_ignore_ascii_case("r") {
             let client = b.clone();
-            tokio::task::Builder::new().name("registerqueue").spawn(async move {
+            // tokio::task::Builder::new().name("registerqueue").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
@@ -416,11 +429,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(response) => println!("Registered queue as {:?}", response),
                     Err(e) => println!("Failed to register queue: {:?}", e),
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("m") {
             let client = b.clone();
-            tokio::task::Builder::new().name("queue message").spawn(async move {
+            // tokio::task::Builder::new().name("queue message").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .queue_message(openiap_client::QueueMessageRequest::byqueuename(
                         "test2queue",
@@ -435,11 +449,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     ),
                     Err(e) => println!("Failed to queue message: {:?}", e),
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("m20") {
             let client = b.clone();
-            tokio::task::Builder::new().name("queue 20 messages").spawn(async move {
+            // tokio::task::Builder::new().name("queue 20 messages").spawn(async move {
+            tokio::task::spawn(async move {
                 let mut count = 0;
                 loop {
                     count = count.add(1);
@@ -461,11 +476,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         break;
                     }
                 } 
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("re") {
             let client = b.clone();
-            tokio::task::Builder::new().name("register exchance").spawn(async move {
+            // tokio::task::Builder::new().name("register exchance").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .register_exchange(
                         RegisterExchangeRequest::byexchangename("test2exchange"),
@@ -481,11 +497,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(response) => println!("Registered exchange as {:?}", response),
                     Err(e) => println!("Failed to register exchange: {:?}", e),
                 }
-            })?;
+            });
         }
         if input.eq_ignore_ascii_case("me") {
             let client = b.clone();
-            tokio::task::Builder::new().name("queue message to exchance").spawn(async move {
+            //tokio::task::Builder::new().name("queue message to exchance").spawn(async move {
+            tokio::task::spawn(async move {
                 let q = client
                     .queue_message(openiap_client::QueueMessageRequest::byexchangename(
                         "test2exchange",
@@ -500,7 +517,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     ),
                     Err(e) => println!("Failed to queue message: {:?}", e),
                 }
-            })?;
+            });
         }
 
 

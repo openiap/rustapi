@@ -31,7 +31,8 @@ impl Client {
         let envelope_receiver = self.out_envelope_receiver.clone();
         let me = self.clone();
         
-        let sender = tokio::task::Builder::new().name("WS envelope sender").spawn(async move {
+        // let sender = tokio::task::Builder::new().name("WS envelope sender").spawn(async move {
+        let sender =  tokio::task::spawn(async move {
             while let Ok(envelope) = envelope_receiver.recv().await {
                 let mut envelope = envelope;
                 let command = envelope.command.clone();
@@ -66,14 +67,15 @@ impl Client {
                     return;
                 }
             }
-        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope sender task: {:?}", e)))?;
+        }); // .map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope sender task: {:?}", e)))?;
         self.push_handle(sender);
 
         let buffer = Arc::new(Mutex::new(BytesMut::with_capacity(4096))); // Pre-allocate buffer size
         let me = self.clone();
 
         // Reading task with backpressure handling
-        let reader = tokio::task::Builder::new().name("WS envelope receiver").spawn(async move {
+        let reader = tokio::task::spawn(async move {
+        // let reader = tokio::task::Builder::new().name("WS envelope receiver").spawn(async move {
             let buffer = Arc::clone(&buffer);
             while let Some(message) = read.next().await {
                 let data = match message {
@@ -108,7 +110,7 @@ impl Client {
                     }
                 }
             }
-        }).map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope receiver task: {:?}", e)))?;
+        }); // .map_err(|e| OpenIAPError::ClientError(format!("Failed to spawn WS envelope receiver task: {:?}", e)))?;
         self.push_handle(reader);
         Ok(())
     }
