@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
 #[allow(unused_imports)]
-use openiap_client::{self, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
+use openiap_client::{self, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -68,7 +68,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
 
     let b = Client::new();
     // enable_tracing("openiap=debug", "new");
-    // enable_tracing("openiap=info", "");
+    enable_tracing("openiap=info", "");
     b.on_event(Box::new(|_event| {
         match _event {
             openiap_client::ClientEvent::Connecting => println!("CLI: Client connecting!"),
@@ -124,6 +124,21 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("r: Register queue");
             println!("m: Queue message");
         }
+        if  input.eq_ignore_ascii_case("0") {
+            disable_tracing();
+        }
+        if  input.eq_ignore_ascii_case("1") {
+            enable_tracing("openiap=info", "");
+        }
+        if  input.eq_ignore_ascii_case("2") {
+            enable_tracing("openiap=debug", "new");
+        }
+        if  input.eq_ignore_ascii_case("3") {
+            enable_tracing("openiap=trace", "new");
+        }
+        if  input.eq_ignore_ascii_case("4") {
+            enable_tracing("trace", "new");
+        }
         if  input.eq_ignore_ascii_case("st") {
             let client = b.clone();
             let _handle = 
@@ -164,6 +179,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
             });
+        }
+        if input.eq_ignore_ascii_case("dis") {
+            b.disconnect();
         }
         if input.eq_ignore_ascii_case("c") || input.eq_ignore_ascii_case("cpu") {
             println!("Calculating factorial of 20 {} times", num_calcs);

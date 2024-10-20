@@ -3,9 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug,info};
-#[cfg(not(test))]
-use tracing::{error};
+use tracing::{error, debug,info};
 
 pub fn generate_unique_filename(base: &str) -> PathBuf {
     let start = SystemTime::now();
@@ -82,77 +80,73 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
     Ok(compressed_data)
 }
 
-// use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::{fmt, layer::SubscriberExt, reload, EnvFilter, Registry};
+use once_cell::sync::Lazy;
+use std::sync::Arc;
 
-/// Enable global tracing ( cannot be updated once set )\
-/// - rust_log is a [tracing_subscriber::EnvFilter] string ( use empty string to use environment variable RUST_LOG )\
-/// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active or full.\
-/// \
-/// To enable tracing, and only track debug messsages and all new function calls for this create, use\
-/// ```
-/// use openiap_client::enable_tracing;
-/// enable_tracing("openiap=debug", "new");
-/// ```
-pub fn enable_tracing(rust_log: &str, tracing: &str) {
-    // console_subscriber::init();
-    let rust_log = rust_log.to_string();
-    let mut filter = tracing_subscriber::EnvFilter::from_default_env();
-    if !rust_log.is_empty() {
-        filter = tracing_subscriber::EnvFilter::new(rust_log.clone());
+
+// Static global to hold a reload handle for updating the filter dynamically.
+// reload::Handle expects both a Layer (EnvFilter) and a Subscriber (Registry).
+static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = Lazy::new(|| {
+    let filter = EnvFilter::from_default_env();
+    let (layer, handle) = reload::Layer::new(filter);
+
+    let subscriber = Registry::default().with(layer).with(fmt::layer());
+
+    // Set the global default tracing subscriber
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global default subscriber");
+
+    Arc::new(handle)
+});
+
+// Unified function for initializing or updating the tracing filter and span events
+pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
+    // Configure the filter (log level)
+    if let Ok(new_filter) = EnvFilter::try_new(rust_log) {
+        // Update the existing filter using the reload handle
+        if let Err(e) = FILTER_RELOAD_HANDLE.modify(|current_filter| *current_filter = new_filter) {
+            error!("Failed to update tracing filter: {:?}", e);
+        } else {
+            debug!("Tracing filter updated with rust_log: {}", rust_log);
+        }
+    } else {
+        error!("Invalid filter syntax: {}", rust_log);
     }
 
-    let mut subscriber = tracing_subscriber::fmt::layer();
+    // Configure the span event tracking based on user input (tracing level)
     let tracing = tracing.to_string();
-    if !tracing.is_empty() {
-        subscriber = match tracing.to_lowercase().as_str() {
-            "new" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NEW),
-            "enter" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ENTER),
-            "exit" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::EXIT),
-            "close" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE),
-            "none" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::NONE),
-            "active" => {
-                subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::ACTIVE)
-            }
-            "full" => subscriber.with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL),
-            _ => subscriber,
-        }
+    let subscriber = fmt::layer();
+    let updated_subscriber = match tracing.to_lowercase().as_str() {
+        "new" => subscriber.with_span_events(fmt::format::FmtSpan::NEW),
+        "enter" => subscriber.with_span_events(fmt::format::FmtSpan::ENTER),
+        "exit" => subscriber.with_span_events(fmt::format::FmtSpan::EXIT),
+        "close" => subscriber.with_span_events(fmt::format::FmtSpan::CLOSE),
+        "none" => subscriber.with_span_events(fmt::format::FmtSpan::NONE),
+        "active" => subscriber.with_span_events(fmt::format::FmtSpan::ACTIVE),
+        "full" => subscriber.with_span_events(fmt::format::FmtSpan::FULL),
+        _ => subscriber,
+    };
+
+    // Add the layer to the existing registry
+    let registry = Registry::default().with(updated_subscriber);
+
+    if let Err(e) = tracing::subscriber::set_global_default(registry) {
+        debug!("Global subscriber is already set, skipping reinitialization: {:?}", e);
+    } else {
+        info!("Tracing setup/updated with rust_log: {:?}, tracing: {:?}", rust_log, tracing);
     }
-
-
-    // use tracing_subscriber::prelude::*;
-    // let console_layer =
-    // console_subscriber::ConsoleLayer::builder()
-    // .spawn();
-    // tracing_subscriber::registry()
-    // .with(console_layer)
-    // .with(subscriber)
-    // .init();
-
-
-    let subscriber = tracing_subscriber::Layer::with_subscriber(
-        tracing_subscriber::Layer::and_then(subscriber, filter),
-        tracing_subscriber::registry(),
-    );
-    match tracing::subscriber::set_global_default(subscriber) {
-        Ok(()) => {
-            debug!("Tracing enabled");
-        }
-        Err(_e) => {
-            #[cfg(not(test))]
-            {
-                error!("Tracing failed: {:?}", _e);
-            }
-        }
-    }
-    info!(
-        "enable_tracing rust_log: {:?}, tracing: {:?}",
-        rust_log, tracing
-    );
 }
-/// Rust will not allow us to update or remove the tracing, but once that might get possible this function will be used to disable tracing.
-#[tracing::instrument(skip_all)]
+
+/// Enable global tracing, allowing dynamic configuration of tracing settings.
+/// - rust_log is a [tracing_subscriber::EnvFilter] string (use empty string to use environment variable RUST_LOG).
+/// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active, or full.
+pub fn enable_tracing(rust_log: &str, tracing: &str) {
+    setup_or_update_tracing(rust_log, tracing);
+}
+
+/// Disable tracing by setting a "none" filter.
 pub fn disable_tracing() {
-    // tracing::dispatcher::get_default(|dispatch| {
-    //     dispatch.unsubscribe()
-    // });
+    setup_or_update_tracing("none", "none");
+    info!("Tracing has been disabled.");
 }
