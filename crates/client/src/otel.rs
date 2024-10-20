@@ -1,6 +1,5 @@
-use crate::otel;
+use crate::{otel, ClientStatistics};
 use openiap_proto::errors::OpenIAPError;
-use sysinfo::{get_current_pid, System, NetworkExt, ProcessExt, SystemExt};
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
 use opentelemetry::global::{set_error_handler, Error as OtelError};
@@ -15,31 +14,35 @@ const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
 const PROCESS_DISK_IO: &str = "process.disk.io";
 const PROCESS_ELAPSED_TIME: &str = "process.elapsed.time";
 const PROCESS_NETWORK_IO: &str = "process.network.io";
+const CLIENT_COMMANDS : &str = "client.commands";
+const CLIENT_CONNECTIONS : &str = "client.connections";
+const CLIENT_CONNECTION_ATTEMPTS : &str = "client.connection_attempts";
+const CLIENT_PACKAGE_TX : &str = "client.package_tx";
+const CLIENT_PACKAGE_RX : &str = "client.package_rx";
+const COMMAND: Key = Key::from_static_str("command");
 const DIRECTION: Key = Key::from_static_str("direction");
 const HOSTNAME: Key = Key::from_static_str("hostname");
 const OFID: Key = Key::from_static_str("ofid");
 
+use perf_monitor::cpu::{processor_numbers, ProcessStat};
+use perf_monitor::io::get_process_io_stats;
+use memory_stats::memory_stats;
+
 /// Register metrics for the process with the given OpenTelemetry meter.
 #[tracing::instrument(skip_all, target = "otel::register_metrics")]
-pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
-    let pid = get_current_pid()?;
+pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), String> {
+    let process_stat = ProcessStat::cur().map_err(|e| format!("Could not retrieve process stat: {}", e))?;
+    let core_count = processor_numbers().map_err(|e| format!("Could not get core numbers: {}", e))?;
+    let process_stat = Arc::new(Mutex::new( process_stat ));
+    let start_time = SystemTime::now();
 
-    let mut sys = System::new_all();
-    let core_count = match sys.physical_core_count() {
-        Some(core_count) => core_count,
-        None => Err("Could not get physical core count")?,
-    };
-    let process_cpu_utilization = meter
+    let process_cpu_usage = meter
         .f64_observable_gauge(PROCESS_CPU_USAGE)
         .with_description("The percentage of CPU in use.")
         .init();
     let process_elapsed_time = meter
         .i64_observable_gauge(PROCESS_ELAPSED_TIME)
-        .with_description("The amount of time the process has been running.")
-        .init();
-    let process_cpu_usage = meter
-        .f64_observable_gauge(PROCESS_CPU_UTILIZATION)
-        .with_description("The amount of CPU in use.")
+        .with_description("The uptime of the process in milliseconds.")
         .init();
     let process_memory_usage = meter
         .i64_observable_gauge(PROCESS_MEMORY_USAGE)
@@ -53,109 +56,317 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
         .i64_observable_gauge(PROCESS_DISK_IO)
         .with_description("Disk bytes transferred.")
         .init();
-    let process_network_io = meter
-        .u64_observable_gauge(PROCESS_NETWORK_IO)
-        .with_description("Network bytes transferred.")
-        .init();
-    let ofid = ofid.to_string();
-    let common_attributes = if let Some(_process) = sys.process(pid) {
-        [
-            HOSTNAME.string(hostname::get().unwrap_or_default().into_string().unwrap()),
-            OFID.string(ofid),
-        ]
-    } else {
-        unimplemented!()
-    };
-    sys.refresh_networks_list();
-    let sys = Arc::new(Mutex::new(sys));
 
+    let client_commands = meter
+        .u64_observable_counter(CLIENT_COMMANDS)
+        .with_description("Client Commands")
+        .init();
+    let client_connections = meter
+        .u64_observable_counter(CLIENT_CONNECTIONS)
+        .with_description("Client Connections")
+        .init();
+    let client_connection_attempts = meter
+        .u64_observable_counter(CLIENT_CONNECTION_ATTEMPTS)
+        .with_description("Client Connection Attempts")
+        .init();
+    let client_package_tx = meter
+        .u64_observable_counter(CLIENT_PACKAGE_TX)
+        .with_description("Client Package TX")
+        .init();
+    let client_package_rx = meter
+        .u64_observable_counter(CLIENT_PACKAGE_RX)
+        .with_description("Client Package RX")
+        .init();
+
+
+
+
+    let ofid = ofid.to_string();
+    let common_attributes = [
+        HOSTNAME.string(hostname::get().unwrap_or_default().into_string().unwrap()),
+        OFID.string(ofid),
+    ];
+
+    let sys = Arc::new(Mutex::new(()));
+    let previous_values = Arc::new(Mutex::new((0u64, 0u64, 0f64, Instant::now())));
+
+
+    let stats_clone = Arc::clone(stats);
     let result = meter.register_callback(
         &[
-            process_cpu_utilization.as_any(),
-            process_elapsed_time.as_any(),
             process_cpu_usage.as_any(),
+            process_elapsed_time.as_any(),
             process_memory_usage.as_any(),
             process_memory_virtual.as_any(),
             process_disk_io.as_any(),
-            process_network_io.as_any(),
+            client_commands.as_any(),
+            client_connections.as_any(),
+            client_connection_attempts.as_any(),
+            client_package_tx.as_any(),
+            client_package_rx.as_any(),
         ],
         move |context| {
-            let mut sys = match sys.lock() {
-                Ok(sys) => sys,
-                Err(_e) => {
-                    return ();
-                }                
-            };
-            sys.refresh_process(pid);
-            sys.refresh_networks_list();
-            if let Some(process) = sys.process(pid) {
-                let cpu_usage: f64 = process.cpu_usage().into();
-                let disk_io = process.disk_usage();
-                let networks = sys.networks();
-                let mut received: u64 = 0;
-                let mut transmitted: u64 = 0;
-                for (_interface_name, network) in networks.into_iter() {
-                    let network_io = network;
-                    received += network_io.received();
-                    transmitted += network_io.transmitted();
-                }
-                context.observe_u64(
-                    &process_network_io,
-                    transmitted,
-                    &[common_attributes.as_slice(), &[DIRECTION.string("transmitted")]].concat(),
-                );
-                context.observe_u64(
-                    &process_network_io,
-                    received,
-                    &[common_attributes.as_slice(), &[DIRECTION.string("received")]].concat(),
-                );
-                let cpu_utilization: f64 = (cpu_usage / core_count as f64).into();
-                let pmemory: i64 = process.memory().try_into().unwrap_or_default();
-                let vmemory: i64 = process.virtual_memory().try_into().unwrap_or_default();
-                context.observe_i64(
-                    &process_memory_usage,
-                    pmemory,
-                    &common_attributes,
-                );
-                context.observe_i64(
-                    &process_memory_virtual,
-                    vmemory,
-                    &common_attributes,
-                );
+            let _sys = sys.lock().unwrap();
+            let mut prev = previous_values.lock().unwrap();
 
-                context.observe_f64(&process_cpu_usage, cpu_usage, &common_attributes);
-                context.observe_f64(
-                    &process_cpu_utilization,
-                    cpu_utilization,
-                    &common_attributes,
-                );
-                // debug!("cpu usage: {:?}  cpu util: {:?}", cpu_usage, cpu_utilization);
-                let elapsed_seconds: u64 = process.run_time();
-                let elapsed_mili: i64 = (elapsed_seconds * 1000).try_into().unwrap_or_default();
-                context.observe_i64(
-                    &process_elapsed_time,
-                    elapsed_mili,
-                    &common_attributes,
-                );
 
-                context.observe_i64(
-                    &process_disk_io,
-                    disk_io.read_bytes.try_into().unwrap_or_default(),
-                    &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
-                );
-                context.observe_i64(
-                    &process_disk_io,
-                    disk_io.written_bytes.try_into().unwrap_or_default(),
-                    &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
-                );
-                // trace!(
-                //     "hostname: {:?}, mem: {:?} v mem: {:?} cpu usage: {:?}  cpu util: {:?} elapsed: {:?} rx: {:?} tx: {:?}",
-                //     hostname::get().unwrap_or_default().into_string().unwrap_or_default(),
-                //     pmemory, vmemory, cpu_usage, cpu_utilization, elapsed_seconds, received, transmitted
-                // );
+
+            let cpu_usage = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 / core_count as f64;
+            let io_stat = get_process_io_stats().unwrap_or_default();
+
+            let read_bytes_diff = io_stat.read_bytes.saturating_sub(prev.0);
+            let write_bytes_diff = io_stat.write_bytes.saturating_sub(prev.1);
+
+            let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as i64;
+
+            context.observe_f64(&process_cpu_usage, cpu_usage, &common_attributes);
+            let mut physical_mem: i64 = 0;
+            let mut virtual_mem: i64 = 0;
+            if let Some(usage) = memory_stats() {
+                physical_mem = usage.physical_mem as i64;
+                virtual_mem = usage.virtual_mem as i64;
             }
+            context.observe_i64(&process_memory_usage, physical_mem, &common_attributes);
+            context.observe_i64(&process_memory_virtual, virtual_mem, &common_attributes);
+            context.observe_i64(&process_elapsed_time, elapsed_time, &common_attributes);
+            context.observe_i64(
+                &process_disk_io,
+                read_bytes_diff as i64,
+                &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
+            );
+            context.observe_i64(
+                &process_disk_io,
+                write_bytes_diff as i64,
+                &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
+            );
+
+
+            {
+                let stats = stats_clone.lock().unwrap();
+                // connection_attempts: u64,
+                // connections: u64,
+                // package_tx: u64,
+                // package_rx: u64,
+                // signin: u64,
+                // download: u64,
+                // getdocumentversion: u64,
+                // customcommand: u64,
+                // listcollections: u64,
+                // createcollection: u64,
+                // dropcollection: u64,
+                // ensurecustomer: u64,
+                // invokeopenrpa: u64,
+                // registerqueue: u64,
+                // registerexchange: u64,
+                // unregisterqueue: u64,
+                // watch: u64,
+                // unwatch: u64,
+                // queuemessage: u64,
+                // pushworkitem: u64,
+                // pushworkitems: u64,
+                // popworkitem: u64,
+                // updateworkitem: u64,
+                // deleteworkitem: u64,
+                // addworkitemqueue: u64,
+                // updateworkitemqueue: u64,
+                // deleteworkitemqueue: u64,
+                // getindexes: u64,
+                // createindex: u64,
+                // dropindex: u64,
+                // upload: u64,
+                // query: u64,
+                // count: u64,
+                // distinct: u64,
+                // aggregate: u64,
+                // insertone: u64,
+                // insertmany: u64,
+                // insertorupdateone: u64,
+                // insertorupdatemany: u64,
+                // updateone: u64,
+                // updatedocument: u64,
+                // deleteone: u64,
+                // deletemany: u64,
+
+                if stats.connection_attempts > 0 {
+                    context.observe_u64(&client_connection_attempts, stats.connection_attempts, &common_attributes);
+                }
+                if stats.connections > 0 {
+                    context.observe_u64(&client_connections, stats.connections, &common_attributes);
+                }
+                if stats.package_tx > 0 {
+                    context.observe_u64(&client_package_tx, stats.package_tx, &common_attributes);
+                }
+                if stats.package_rx > 0 {
+                    context.observe_u64(&client_package_rx, stats.package_rx, &common_attributes);
+                }
+                
+                if stats.signin > 0 {
+                    context.observe_u64(&client_commands, stats.signin, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("signin")]].concat());
+                }
+                if stats.download > 0 {
+                    context.observe_u64(&client_commands, stats.download, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("download")]].concat());
+                }
+                if stats.getdocumentversion > 0 {
+                    context.observe_u64(&client_commands, stats.getdocumentversion, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("getdocumentversion")]].concat());
+                }
+                if stats.customcommand > 0 {
+                    context.observe_u64(&client_commands, stats.customcommand, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("customcommand")]].concat());
+                }
+                if stats.listcollections > 0 {
+                    context.observe_u64(&client_commands, stats.listcollections, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("listcollections")]].concat());
+                }
+                if stats.createcollection > 0 {
+                    context.observe_u64(&client_commands, stats.createcollection, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("createcollection")]].concat());
+                }
+                if stats.dropcollection > 0 {
+                    context.observe_u64(&client_commands, stats.dropcollection, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("dropcollection")]].concat());
+                }
+                if stats.ensurecustomer > 0 {
+                    context.observe_u64(&client_commands, stats.ensurecustomer, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("ensurecustomer")]].concat());
+                }
+                if stats.invokeopenrpa > 0 {
+                    context.observe_u64(&client_commands, stats.invokeopenrpa, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("invokeopenrpa")]].concat());
+                }
+                if stats.registerqueue > 0 {
+                    context.observe_u64(&client_commands, stats.registerqueue, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("registerqueue")]].concat());
+                }
+                if stats.registerexchange > 0 {
+                    context.observe_u64(&client_commands, stats.registerexchange, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("registerexchange")]].concat());
+                }
+                if stats.unregisterqueue > 0 {
+                    context.observe_u64(&client_commands, stats.unregisterqueue, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("unregisterqueue")]].concat());
+                }
+                if stats.watch > 0 {
+                    context.observe_u64(&client_commands, stats.watch, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("watch")]].concat());
+                }
+                if stats.unwatch > 0 {
+                    context.observe_u64(&client_commands, stats.unwatch, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("unwatch")]].concat());
+                }
+                if stats.queuemessage > 0 {
+                    context.observe_u64(&client_commands, stats.queuemessage, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("queuemessage")]].concat());
+                }
+                if stats.pushworkitem > 0 {
+                    context.observe_u64(&client_commands, stats.pushworkitem, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("pushworkitem")]].concat());
+                }
+                if stats.pushworkitems > 0 {
+                    context.observe_u64(&client_commands, stats.pushworkitems, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("pushworkitems")]].concat());
+                }
+                if stats.popworkitem > 0 {
+                    context.observe_u64(&client_commands, stats.popworkitem, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("popworkitem")]].concat());
+                }
+                if stats.updateworkitem > 0 {
+                    context.observe_u64(&client_commands, stats.updateworkitem, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("updateworkitem")]].concat());
+                }
+                if stats.deleteworkitem > 0 {
+                    context.observe_u64(&client_commands, stats.deleteworkitem, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("deleteworkitem")]].concat());
+                }
+                if stats.addworkitemqueue > 0 {
+                    context.observe_u64(&client_commands, stats.addworkitemqueue, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("addworkitemqueue")]].concat());
+                }
+                if stats.updateworkitemqueue > 0 {
+                    context.observe_u64(&client_commands, stats.updateworkitemqueue, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("updateworkitemqueue")]].concat());
+                }
+                if stats.deleteworkitemqueue > 0 {
+                    context.observe_u64(&client_commands, stats.deleteworkitemqueue, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("deleteworkitemqueue")]].concat());
+                }
+                if stats.getindexes > 0 {
+                    context.observe_u64(&client_commands, stats.getindexes, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("getindexes")]].concat());
+                }
+                if stats.createindex > 0 {
+                    context.observe_u64(&client_commands, stats.createindex, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("createindex")]].concat());
+                }
+                if stats.dropindex > 0 {
+                    context.observe_u64(&client_commands, stats.dropindex, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("dropindex")]].concat());
+                }
+                if stats.upload > 0 {
+                    context.observe_u64(&client_commands, stats.upload, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("upload")]].concat());
+                }
+                if stats.query > 0 {
+                    context.observe_u64(&client_commands, stats.query, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("query")]].concat());
+                }
+                if stats.count > 0 {
+                    context.observe_u64(&client_commands, stats.count, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("count")]].concat());
+                }
+                if stats.distinct > 0 {
+                    context.observe_u64(&client_commands, stats.distinct, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("distinct")]].concat());
+                }
+                if stats.aggregate > 0 {
+                    context.observe_u64(&client_commands, stats.aggregate, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("aggregate")]].concat());
+                }
+                if stats.insertone > 0 {
+                    context.observe_u64(&client_commands, stats.insertone, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("insertone")]].concat());
+                }
+                if stats.insertmany > 0 {
+                    context.observe_u64(&client_commands, stats.insertmany, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("insertmany")]].concat());
+                }
+                if stats.insertorupdateone > 0 {
+                    context.observe_u64(&client_commands, stats.insertorupdateone, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("insertorupdateone")]].concat());
+                }
+                if stats.insertorupdatemany > 0 {
+                    context.observe_u64(&client_commands, stats.insertorupdatemany, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("insertorupdatemany")]].concat());
+                }
+                if stats.updateone > 0 {
+                    context.observe_u64(&client_commands, stats.updateone, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("updateone")]].concat());
+                }
+                if stats.updatedocument > 0 {
+                    context.observe_u64(&client_commands, stats.updatedocument, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("updatedocument")]].concat());
+                }
+                if stats.deleteone > 0 {
+                    context.observe_u64(&client_commands, stats.deleteone, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("deleteone")]].concat());
+                }
+                if stats.deletemany > 0 {
+                    context.observe_u64(&client_commands, stats.deletemany, 
+                        &[common_attributes.as_slice(), &[COMMAND.string("deletemany")]].concat());
+                }
+            }
+
+
+            // Update previous values
+            *prev = (io_stat.read_bytes, io_stat.write_bytes, cpu_usage, Instant::now());
+
+            // println!("UPTIME: {}, CPU: {}, MEM: {}, VIRT: {}, READ: {}, WRITE: {}", elapsed_time,
+            // cpu_usage, physical_mem, virtual_mem, read_bytes_diff, write_bytes_diff);
         },
     );
+
     match result {
         Ok(_) => {
             let _ = set_error_handler(Box::new(|_error: OtelError| {
@@ -163,16 +374,19 @@ pub fn register_metrics(meter: Meter, ofid: &str) -> Result<(), String> {
             }));
             Ok(())
         },
-        Err(e) => {
-            return Err(format!("Could not register callback: {}", e));
-        }
+        Err(e) => Err(format!("Could not register callback: {}", e)),
     }
 }
+
+
+
+
+
 
 use opentelemetry::{KeyValue};
 use opentelemetry_otlp::{WithExportConfig};
 use opentelemetry_sdk::{Resource};
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 use opentelemetry_otlp::{new_exporter, new_pipeline};
 use opentelemetry_sdk::{runtime::Tokio};
 use opentelemetry::metrics::MeterProvider;
@@ -191,7 +405,7 @@ lazy_static! {
 }
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
-pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+pub fn init_telemetry(agent: &str, strurl: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     if strurl.is_empty() {
         return Err(Box::new(OpenIAPError::ClientError("No URL provided".to_string())));
     }
@@ -225,13 +439,13 @@ pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::er
             let provider = new_pipeline()
             .metrics(Tokio)
             .with_exporter(exporter1)
-            .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
+            .with_resource(Resource::new(vec![KeyValue::new("service.name", agent.to_string() )]))
             .with_period(Duration::from_secs(period))
             .build().unwrap();
             let meter1 = provider.meter("process-meter1");
             // let meter: opentelemetry::metrics::Meter = meterprovider1.meter("process-meter1");
             // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
-            match otel::register_metrics(meter1, &ofid) {
+            match otel::register_metrics(meter1, &ofid, stats) {
                 Ok(_) => (),
                 Err(e) => {
                     debug!("Failed to initialize process observer: {}", e);
@@ -252,13 +466,13 @@ pub fn init_telemetry(strurl: &str, otlpurl: &str) -> Result<(), Box<dyn std::er
             let provider = new_pipeline()
                 .metrics(Tokio)
                 .with_exporter(exporter2)
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust")]))
+                .with_resource(Resource::new(vec![KeyValue::new("service.name", agent.to_string() )]))
                 .with_period(Duration::from_secs(period))
                 .build().unwrap();
 
             let meter2 = provider.meter("process-meter2");
             // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
-            match otel::register_metrics(meter2, &ofid) {
+            match otel::register_metrics(meter2, &ofid, stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize process observer: {}", e);

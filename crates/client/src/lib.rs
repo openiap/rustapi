@@ -67,6 +67,9 @@ pub struct Client {
     /// The tokio runtime.
     runtime: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>>,
 
+    /// Keep track of usage of the client
+    stats: Arc<std::sync::Mutex<ClientStatistics>>,
+
     task_handles: Arc<std::sync::Mutex<Vec<JoinHandle<()>>>>,
     /// The inner client object
     pub client: Arc<std::sync::Mutex<ClientEnum>>,
@@ -84,6 +87,7 @@ pub struct Client {
     pub password: Arc<std::sync::Mutex<String>>,
     /// JWT token used to connect to server
     pub jwt: Arc<std::sync::Mutex<String>>,
+    agent: Arc<std::sync::Mutex<String>>,
     event_sender: async_channel::Sender<ClientEvent>,
     event_receiver: async_channel::Receiver<ClientEvent>,
     out_envelope_sender: async_channel::Sender<Envelope>,
@@ -94,6 +98,53 @@ pub struct Client {
     pub msgcount: Arc<std::sync::Mutex<i32>>,
     /// Reconnect interval in milliseconds, this will slowly increase if we keep getting disconnected.
     pub reconnect_ms: Arc<std::sync::Mutex<i32>>,
+}
+/// The `ClientStatistics` struct provides the statistics for usage of the client
+#[derive(Clone, Default)]
+pub struct ClientStatistics {
+    connection_attempts: u64,
+    connections: u64,
+    package_tx: u64,
+    package_rx: u64,
+    signin: u64,
+    download: u64,
+    getdocumentversion: u64,
+    customcommand: u64,
+    listcollections: u64,
+    createcollection: u64,
+    dropcollection: u64,
+    ensurecustomer: u64,
+    invokeopenrpa: u64,
+    registerqueue: u64,
+    registerexchange: u64,
+    unregisterqueue: u64,
+    watch: u64,
+    unwatch: u64,
+    queuemessage: u64,
+    pushworkitem: u64,
+    pushworkitems: u64,
+    popworkitem: u64,
+    updateworkitem: u64,
+    deleteworkitem: u64,
+    addworkitemqueue: u64,
+    updateworkitemqueue: u64,
+    deleteworkitemqueue: u64,
+    getindexes: u64,
+    createindex: u64,
+    dropindex: u64,
+    upload: u64,
+    query: u64,
+    count: u64,
+    distinct: u64,
+    aggregate: u64,
+    insertone: u64,
+    insertmany: u64,
+    insertorupdateone: u64,
+    insertorupdatemany: u64,
+    updateone: u64,
+    updatedocument: u64,
+    deleteone: u64,
+    deletemany: u64,
 }
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
@@ -224,6 +275,7 @@ impl Client {
         let (out_es, out_er) = unbounded::<Envelope>();
         Self {
             task_handles: Arc::new(std::sync::Mutex::new(Vec::new())),
+            stats: Arc::new(std::sync::Mutex::new(ClientStatistics::default())),
 
             client: Arc::new(std::sync::Mutex::new(ClientEnum::None)),
             connect_called: Arc::new(std::sync::Mutex::new(false)),
@@ -243,6 +295,7 @@ impl Client {
             username: Arc::new(std::sync::Mutex::new("".to_string())),
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
+            agent: Arc::new(std::sync::Mutex::new("rust".to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -271,7 +324,7 @@ impl Client {
     }
 
     /// Load the configuration from the server.
-    pub async fn load_config(strurl: &str, url: &url::Url) -> Option<Config> {
+    pub async fn load_config(&self, strurl: &str, url: &url::Url) -> Option<Config> {
         let config: Option<Config>;
         let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
         let configurl: String;
@@ -339,7 +392,8 @@ impl Client {
             enable_analytics = config.enable_analytics;
         }
         if enable_analytics {
-            match otel::init_telemetry(&strurl, otel_metric_url.as_str()) {
+            let agent = self.get_agent();
+            match otel::init_telemetry(&agent, &strurl, otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -432,7 +486,7 @@ impl Client {
             );
         }
         info!("Connecting to {}", strurl);
-        let config = Client::load_config(strurl.as_str(), &url).await;
+        let config = self.load_config(strurl.as_str(), &url).await;
         if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
 
@@ -703,6 +757,7 @@ impl Client {
             }            
             if state == ClientState::Connecting && !current.eq(&state) {
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    self.stats.lock().unwrap().connection_attempts += 1;
                     let me = self.clone();
                     tokio::task::spawn(async move {
                         me.event_sender.send(crate::ClientEvent::Connecting).await.unwrap();
@@ -720,6 +775,7 @@ impl Client {
             }
             if (state == ClientState::Connected|| state == ClientState::Signedin) && (current == ClientState::Disconnected || current == ClientState::Connecting) { 
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    self.stats.lock().unwrap().connections += 1;
                     let me = self.clone();
                     tokio::task::spawn(async move {
                         me.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
@@ -992,6 +1048,19 @@ impl Client {
         let jwt = self.jwt.lock().unwrap();
         jwt.to_string()
     }
+    /// Set the agent flag to true or false
+    pub fn set_agent(&self, agent: &str) {
+        let mut current = self.agent.lock().unwrap();
+        trace!("Set agent: {} from {}", agent, *current);
+        *current = agent.to_string();
+    }
+    /// Return value of the agent string
+    #[tracing::instrument(skip_all)]
+    fn get_agent(&self) -> String {
+        let agent = self.agent.lock().unwrap();
+        agent.to_string()
+    }
+    
     /// Set the config flag to true or false
     pub fn set_config(&self, config: Option<Config>) {
         let mut current = self.config.lock().unwrap();
@@ -1149,8 +1218,61 @@ impl Client {
     }
     #[tracing::instrument(skip_all, target = "openiap::client")]
     async fn send_envelope(&self, mut envelope: Envelope) -> Result<(), OpenIAPError> {
+        if (self.get_state() != ClientState::Connected && self.get_state() != ClientState::Signedin ) 
+            && envelope.command != "signin" && envelope.command != "getelement" && envelope.command != "pong" {
+            return Err(OpenIAPError::ClientError(format!("Not connected ( {:?} )", self.get_state())));
+        }
         let env = envelope.clone();
         let command = envelope.command.clone();
+        self.stats.lock().unwrap().package_tx += 1;
+        match command.as_str() {
+            "signin" => { self.stats.lock().unwrap().signin += 1;},
+            "upload" => { self.stats.lock().unwrap().upload += 1;},
+            "download" => { self.stats.lock().unwrap().download += 1;},
+            "getdocumentversion" => { self.stats.lock().unwrap().getdocumentversion += 1;},
+            "customcommand" => { self.stats.lock().unwrap().customcommand += 1;},
+            "listcollections" => { self.stats.lock().unwrap().listcollections += 1;},
+            "createcollection" => { self.stats.lock().unwrap().createcollection += 1;},
+            "dropcollection" => { self.stats.lock().unwrap().dropcollection += 1;},
+            "ensurecustomer" => { self.stats.lock().unwrap().ensurecustomer += 1;},
+            "invokeopenrpa" => { self.stats.lock().unwrap().invokeopenrpa += 1;},
+
+            "registerqueue" => { self.stats.lock().unwrap().registerqueue += 1;},
+            "registerexchange" => { self.stats.lock().unwrap().registerexchange += 1;},
+            "unregisterqueue" => { self.stats.lock().unwrap().unregisterqueue += 1;},
+            "watch" => { self.stats.lock().unwrap().watch += 1;},
+            "unwatch" => { self.stats.lock().unwrap().unwatch += 1;},
+            "queuemessage" => { self.stats.lock().unwrap().queuemessage += 1;},
+
+            "pushworkitem" => { self.stats.lock().unwrap().pushworkitem += 1;},
+            "pushworkitems" => { self.stats.lock().unwrap().pushworkitems += 1;},
+            "popworkitem" => { self.stats.lock().unwrap().popworkitem += 1;},
+            "updateworkitem" => { self.stats.lock().unwrap().updateworkitem += 1;},
+            "deleteworkitem" => { self.stats.lock().unwrap().deleteworkitem += 1;},
+            "addworkitemqueue" => { self.stats.lock().unwrap().addworkitemqueue += 1;},
+            "updateworkitemqueue" => { self.stats.lock().unwrap().updateworkitemqueue += 1;},
+            "deleteworkitemqueue" => { self.stats.lock().unwrap().deleteworkitemqueue += 1;},
+
+            "getindexes" => { self.stats.lock().unwrap().getindexes += 1;},
+            "createindex" => { self.stats.lock().unwrap().createindex += 1;},
+            "dropindex" => { self.stats.lock().unwrap().dropindex += 1;},
+            "query" => { self.stats.lock().unwrap().query += 1;},
+            "count" => { self.stats.lock().unwrap().count += 1;},
+            "distinct" => { self.stats.lock().unwrap().distinct += 1;},
+            "aggregate" => { self.stats.lock().unwrap().aggregate += 1;},
+            "insertone" => { self.stats.lock().unwrap().insertone += 1;},
+            "insertmany" => { self.stats.lock().unwrap().insertmany += 1;},
+            "updateone" => { self.stats.lock().unwrap().updateone += 1;},
+            "insertorupdateone" => { self.stats.lock().unwrap().insertorupdateone += 1;},
+            "insertorupdatemany" => { self.stats.lock().unwrap().insertorupdatemany += 1;},
+            "updatedocument" => { self.stats.lock().unwrap().updatedocument += 1;},
+            "deleteone" => { self.stats.lock().unwrap().deleteone += 1;},
+            "deletemany" => { self.stats.lock().unwrap().deletemany += 1;},
+            _ => {}
+        };
+
+        
+
         if envelope.id.is_empty() {
             let id = Client::get_uniqueid();
             envelope.id = id.clone();
@@ -1168,6 +1290,7 @@ impl Client {
     }
     #[tracing::instrument(skip_all, target = "openiap::client")]
     async fn parse_incomming_envelope(&self, received: Envelope) {
+        self.stats.lock().unwrap().package_rx += 1;
         let command = received.command.clone();
         trace!("parse_incomming_envelope, command: {}", command);
         let inner = self.inner.lock().await;
@@ -1335,7 +1458,7 @@ impl Client {
             config.version = version.to_string();
         }
         if config.agent.is_empty() {
-            config.agent = "rust".to_string();
+            config.agent = self.get_agent();
         }
 
         debug!("Attempting sign-in using {:?}", config);

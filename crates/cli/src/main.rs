@@ -12,9 +12,6 @@ use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
     WatchEvent, WatchRequest,
 };
-use sysinfo::System;
-use sysinfo::SystemExt;
-
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -47,19 +44,9 @@ fn add_one_loop(&n_loops: &u64) {
         let _ = factorial(20);
     }
 }
-
+// use memory_stats::memory_stats;
 /// Main function
 async fn doit() -> Result<(), Box<dyn std::error::Error>> {
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    // Display system information:
-    println!("System name:             {:?}", sys.name());
-    println!("System kernel version:   {:?}", sys.kernel_version());
-    println!("System OS version:       {:?}", sys.os_version());
-    println!("System host name:        {:?}", sys.host_name());
-    // Number of CPUs:
-    println!("Number of available threads: {}", sys.cpus().len());
-
     let num_calcs = 100000;
 
     let available_cores: u64 = available_parallelism().unwrap().get() as u64; // get info how many threads we can use and use half of them
@@ -184,19 +171,21 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             b.disconnect();
         }
         if input.eq_ignore_ascii_case("c") || input.eq_ignore_ascii_case("cpu") {
-            println!("Calculating factorial of 20 {} times", num_calcs);
-            // std::thread::spawn(move || add_one_loop(&iter_per_core));
-            for _i in 0..num_iters {
-                // let mut results = Vec::new();
-                let mut threads = Vec::new();
-                for _i in 0..available_cores {
-                    threads.push(std::thread::spawn(move || add_one_loop(&iter_per_core)));
+            tokio::task::spawn(async move {
+                println!("Calculating factorial of 20 {} times", num_calcs);
+                // std::thread::spawn(move || add_one_loop(&iter_per_core));
+                for _i in 0..num_iters {
+                    // let mut results = Vec::new();
+                    let mut threads = Vec::new();
+                    for _i in 0..available_cores {
+                        threads.push(std::thread::spawn(move || add_one_loop(&iter_per_core)));
+                    }
+                    // for thread in threads {
+                    //     results.extend(thread.join());
+                    // }
+                    
                 }
-                // for thread in threads {
-                //     results.extend(thread.join());
-                // }
-                
-            }
+            });
         }
         if input.eq_ignore_ascii_case("q") {
             let client = b.clone();
