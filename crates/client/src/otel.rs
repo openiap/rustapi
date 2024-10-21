@@ -12,6 +12,7 @@ const PROCESS_MEMORY_USAGE: &str = "process.memory.usage";
 const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
 const PROCESS_DISK_IO: &str = "process.disk.io";
 const PROCESS_ELAPSED_TIME: &str = "process.elapsed.time";
+#[allow(dead_code)]
 const PROCESS_NETWORK_IO: &str = "process.network.io";
 const CLIENT_COMMANDS : &str = "client.commands";
 const CLIENT_CONNECTIONS : &str = "client.connections";

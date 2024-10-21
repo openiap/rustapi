@@ -333,30 +333,29 @@ impl Client {
     pub async fn load_config(&self, strurl: &str, url: &url::Url) -> Option<Config> {
         let config: Option<Config>;
         let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
-        let configurl: String;
         let mut port = url.port().unwrap_or(80);
         if port == 50051 {
             port = 3000;
         }
-        if issecure {
-            configurl = format!(
+        let configurl = if issecure {
+            format!(
                 "{}://{}:{}/config",
                 "https",
                 url.host_str()
                     .unwrap_or("localhost.openiap.io")
                     .replace("grpc.", ""),
                 port
-            );
+            )
         } else {
-            configurl = format!(
+            format!(
                 "{}://{}:{}/config",
                 "http",
                 url.host_str()
                     .unwrap_or("localhost.openiap.io")
                     .replace("grpc.", ""),
                 port
-            );
-        }
+            )
+        };
 
         let configurl = url::Url::parse(configurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e))).expect("wefew");
@@ -470,19 +469,11 @@ impl Client {
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
 
         if url.port().is_none() {
-            if url.scheme() == "https" {
-                strurl = format!(
-                    "{}://{}",
-                    url.scheme(),
-                    url.host_str().unwrap_or("app.openiap.io")
-                );
-            } else {
-                strurl = format!(
-                    "{}://{}",
-                    url.scheme(),
-                    url.host_str().unwrap_or("app.openiap.io")
-                );
-            }
+            strurl = format!(
+                "{}://{}",
+                url.scheme(),
+                url.host_str().unwrap_or("app.openiap.io")
+            );
         } else {
             strurl = format!(
                 "{}://{}:{}",
@@ -866,7 +857,7 @@ impl Client {
                             for id in ids {
                                 let tx = streams.remove(&id).unwrap();
                                 debug!("kill stream: {}", id);
-                                let _ = tx.send(Vec::new());
+                                let _ = tx.send(Vec::new()).await;
                             }
                             let mut queues = inner.queues.lock().await;
                             let ids = queues.keys().cloned().collect::<Vec<String>>();

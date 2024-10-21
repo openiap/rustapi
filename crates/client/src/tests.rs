@@ -55,8 +55,7 @@ mod tests {
             Ok(r) => r,
             Err(e) => {
                 println!("Error: {:?}", e);
-                assert!(false, "insert_one failed with {:?}", e);
-                return;
+                panic!("insert_one failed with {:?}", e);
             }
         };
         let _obj: serde_json::Value = serde_json::from_str(&response.result).unwrap();
@@ -73,8 +72,7 @@ mod tests {
             Ok(r) => r,
             Err(e) => {
                 println!("Error: {:?}", e);
-                assert!(false, "update_one failed with {:?}", e);
-                return;
+                panic!("update_one failed with {:?}", e);
             }
         };
 
@@ -89,8 +87,7 @@ mod tests {
             Ok(r) => r,
             Err(e) => {
                 println!("Error: {:?}", e);
-                assert!(false, "get_document_version failed with {:?}", e);
-                return;
+                panic!("get_document_version failed with {:?}", e);
             }
         };
         let _obj = serde_json::from_str(&response);
@@ -550,7 +547,7 @@ mod tests {
         match response {
             Ok(response) => {
                 println!("{:?}", response);
-                assert!(false, "login with bad password, did not fail");
+                panic!("login with bad password, did not fail");
             }
             Err(e) => {
                 println!("{:?}", e);
@@ -574,7 +571,7 @@ mod tests {
                 println!("{:?}", response);
             }
             Err(e) => {
-                assert!(false, "Upload of testfile.csv failed with {:?}", e);
+                panic!("Upload of testfile.csv failed with {:?}", e);
             }
         }
     }
@@ -594,7 +591,7 @@ mod tests {
         match response {
             Ok(response) => {
                 println!("{:?}", response);
-                assert!(false, "Upload of testfile.csv did not fail as guest");
+                panic!("Upload of testfile.csv did not fail as guest");
             }
             Err(e) => {
                 println!("{:?}", e);
@@ -1271,8 +1268,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                assert!(false, "Query failed with {:?}", e);
-                return;
+                panic!("Query failed with {:?}", e);
             }
         };
         let _obj: serde_json::Value = serde_json::from_str(&response).unwrap();
@@ -1389,14 +1385,12 @@ mod tests {
                 match response.customer {
                     Some(customer) => customer,
                     None => {
-                        assert!(false, "EnsureCustomer failed with no customer");
-                        return;
+                        panic!("EnsureCustomer failed with no customer");
                     }
                 }
             }
             Err(e) => {
-                assert!(false, "EnsureCustomer failed with {:?}", e);
-                return;
+                panic!("EnsureCustomer failed with {:?}", e);
             }
         };
         println!("Customer: {:?}", customer);
@@ -1435,8 +1429,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                assert!(false, "Query failed with {:?}", e);
-                return;
+                panic!("Query failed with {:?}", e);
             }
         }
         let response = client
@@ -1466,8 +1459,7 @@ mod tests {
                             response
                         }
                         Err(e) => {
-                            assert!(false, "AddWorkItemQueue failed with {:?}", e);
-                            return;
+                            panic!("AddWorkItemQueue failed with {:?}", e);
                         }
                     }
                 } else {
@@ -1492,8 +1484,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                assert!(false, "Query failed with {:?}", e);
-                return;
+                panic!("Query failed with {:?}", e);
             }
         };
         println!("workitemqueue id: {:?} name: {:?}", wiq.id, wiq.name);
@@ -1557,7 +1548,7 @@ mod tests {
                 println!("{:?}", response);
             }
             Err(e) => {
-                assert!(false, "UnregisterQueue failed with {:?}", e);
+                panic!("UnregisterQueue failed with {:?}", e);
             }
         }
     }
@@ -1589,7 +1580,6 @@ mod tests {
                 name: "Rust initialed workflow".to_string(),
                 targetid: "5ce9422d320b9c09742c3ced".to_string(), // 6242d68a73057b27d277be88
                 resultqueue: workflow_consumer.clone(),
-                ..Default::default()
             })
             .await;
         assert!(
@@ -1608,7 +1598,7 @@ mod tests {
                 println!("{:?}", response);
             }
             Err(e) => {
-                assert!(false, "UnregisterQueue failed with {:?}", e);
+                panic!("UnregisterQueue failed with {:?}", e);
             }
         }
     }
