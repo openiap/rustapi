@@ -24,19 +24,19 @@ cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openia
 
 echo "Building node"
 rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node && npm pack)
-# (cd node && npm publish)
+(cd node && npm publish)
 echo "Building dotnet"
 rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-# (cd dotnet && dotnet nuget push packages/openiap.0.0.7.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY)
+(cd dotnet && dotnet nuget push packages/openiap.0.0.7.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY)
 
 echo "Building python"
 rm -rf python/openiap/lib  build dist lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib && (cd python && python setup.py sdist) 
-# (cd python && python3 -m twine upload dist/*)
+(cd python && python3 -m twine upload dist/*)
 
-# cargo publish -p openiap-proto --allow-dirty
-# cargo publish -p openiap-client --allow-dirty
-# cargo publish -p openiap --allow-dirty
-# cargo publish -p openiap-clib --allow-dirty
+cargo publish -p openiap-proto --allow-dirty
+cargo publish -p openiap-client --allow-dirty
+cargo publish -p openiap --allow-dirty
+cargo publish -p openiap-clib --allow-dirty
 # 
 echo "done"
 # cross build --target aarch64-pc-windows-msvc --release && cp target/aarch64-pc-windows-msvc/release/openiap.dll target/lib/openiap-windows-arm64.dll

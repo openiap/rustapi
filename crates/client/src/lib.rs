@@ -322,11 +322,10 @@ impl Client {
             }
         };
         self.set_runtime(Some(rt));
-        let res = tokio::task::block_in_place(|| {
+        tokio::task::block_in_place(|| {
             let handle = self.get_runtime_handle();
             handle.block_on(self.connect_async(dst))
-        });
-        return res;
+        })
     }
 
     /// Load the configuration from the server.
@@ -627,7 +626,7 @@ impl Client {
             // enable_tracing("openiap=debug", "");
         }
         let client  = Client::new();
-        client.connect(dst)?;
+        client.connect_async(dst).await?;
         Ok(client)
     }
     /// Handle auto-signin after a connection has been established.
@@ -1538,7 +1537,7 @@ impl Client {
     /// }
     /// ```
     /// You can create a normal collection with a TTL index on the _created field, using the following example:
-    /// ```ignore
+    /// ```
     /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
@@ -1555,7 +1554,7 @@ impl Client {
     /// ```
     /// You can create a time series collection using the following example:
     /// granularity can be one of: seconds, minutes, hours
-    /// ```ignore
+    /// ```
     /// use openiap_client::{Client, CreateCollectionRequest, DropCollectionRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {
@@ -1692,7 +1691,7 @@ impl Client {
     /// }
     /// ```
     /// Example of creating an unique index on the address field in the rustindextestcollection collection, and then dropping it again:
-    /// ```ignore
+    /// ```
     /// use openiap_client::{Client, DropIndexRequest, CreateIndexRequest, OpenIAPError};
     /// #[tokio::main]
     /// async fn main() -> Result<(), OpenIAPError> {

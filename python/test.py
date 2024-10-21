@@ -39,7 +39,7 @@ if __name__ == "__main__":
         client.create_collection("python_testcol")
         insert_one_result = client.insert_one(collectionname="python_testcol", item="{\"name\": \"test from python\", \"_type\": \"test\"}")
 
-        client.create_collection("python_testcol", timeseries=(
+        # client.create_collection("python_testcol", timeseries=(
 
         client.drop_collection("python_testcol")
 
