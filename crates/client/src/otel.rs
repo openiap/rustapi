@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
-const PROCESS_CPU_UTILIZATION: &str = "process.cpu.utilization";
 const PROCESS_MEMORY_USAGE: &str = "process.memory.usage";
 const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
 const PROCESS_DISK_IO: &str = "process.disk.io";
@@ -143,50 +142,6 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
 
             {
                 let stats = stats_clone.lock().unwrap();
-                // connection_attempts: u64,
-                // connections: u64,
-                // package_tx: u64,
-                // package_rx: u64,
-                // signin: u64,
-                // download: u64,
-                // getdocumentversion: u64,
-                // customcommand: u64,
-                // listcollections: u64,
-                // createcollection: u64,
-                // dropcollection: u64,
-                // ensurecustomer: u64,
-                // invokeopenrpa: u64,
-                // registerqueue: u64,
-                // registerexchange: u64,
-                // unregisterqueue: u64,
-                // watch: u64,
-                // unwatch: u64,
-                // queuemessage: u64,
-                // pushworkitem: u64,
-                // pushworkitems: u64,
-                // popworkitem: u64,
-                // updateworkitem: u64,
-                // deleteworkitem: u64,
-                // addworkitemqueue: u64,
-                // updateworkitemqueue: u64,
-                // deleteworkitemqueue: u64,
-                // getindexes: u64,
-                // createindex: u64,
-                // dropindex: u64,
-                // upload: u64,
-                // query: u64,
-                // count: u64,
-                // distinct: u64,
-                // aggregate: u64,
-                // insertone: u64,
-                // insertmany: u64,
-                // insertorupdateone: u64,
-                // insertorupdatemany: u64,
-                // updateone: u64,
-                // updatedocument: u64,
-                // deleteone: u64,
-                // deletemany: u64,
-
                 if stats.connection_attempts > 0 {
                     context.observe_u64(&client_connection_attempts, stats.connection_attempts, &common_attributes);
                 }
