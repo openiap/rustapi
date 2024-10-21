@@ -329,9 +329,9 @@ impl EnsureCustomerRequest {
     /// Creates a new `EnsureCustomerRequest` with the given `customerid`.
     pub fn new(customer: Option<Customer>, ensureas: &str, stripe: Option<StripeCustomer>) -> Self {
         Self {
-            customer: customer,
+            customer,
             ensureas: ensureas.to_string(),
-            stripe: stripe
+            stripe
         }
     }
     /// Converts the `EnsureCustomerRequest` to an `Envelope`.

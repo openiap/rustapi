@@ -366,7 +366,7 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
     let client_result: Result<(), openiap_client::OpenIAPError> = client.connect(&server_address);
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let wrapper = if let Ok(_) = client_result {
+        let wrapper = if client_result.is_ok() {
             Box::into_raw(Box::new(ConnectResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
@@ -4951,10 +4951,10 @@ pub fn wrap_workitem(workitem: Workitem ) -> WorkitemWrapper {
         name,
         payload,
         priority: workitem.priority,
-        nextrun: nextrun,
-        lastrun: lastrun,
+        nextrun,
+        lastrun,
         files: _files,
-        files_len: files_len,
+        files_len,
         state,
         wiq,
         wiqid,
@@ -6137,13 +6137,9 @@ pub extern "C" fn off_client_event(
     
     let mut e = CLIENT_EVENTS.lock().unwrap();
     let queue = e.get_mut(&eventid);
-    match queue {
-        Some(q) => {
-            q.clear();
-            e.remove(&eventid);
-        }
-        None => {
-        }
+    if let Some(q) = queue {
+        q.clear();
+        e.remove(&eventid);
     };
     Box::into_raw(Box::new(OffClientEventResponseWrapper {
         success: true,

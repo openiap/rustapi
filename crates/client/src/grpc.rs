@@ -69,7 +69,7 @@ impl Client {
                         return;
                     }
                 };
-                envelope.seq = me.inc_msgcount().clone();
+                envelope.seq = me.inc_msgcount();
                 if envelope.id.is_empty() {
                     envelope.id = envelope.seq.to_string();
                 }

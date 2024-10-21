@@ -268,6 +268,12 @@ impl std::fmt::Debug for ClientInner {
             .finish()
     }
 }
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Client {
     /// Create a new client.
     pub fn new() -> Self {
@@ -393,7 +399,7 @@ impl Client {
         }
         if enable_analytics {
             let agent = self.get_agent();
-            match otel::init_telemetry(&agent, &strurl, otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent, strurl, otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -1306,12 +1312,10 @@ impl Client {
             } else {
                 debug!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
             }
+        } else if rid.is_empty() {
+            trace!("Received #{} #{} {} message", received.seq, received.id, command);
         } else {
-            if rid.is_empty() {
-                trace!("Received #{} #{} {} message", received.seq, received.id, command);
-            } else {
-                trace!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
-            }
+            trace!("Received #{} #{} (reply to #{}) {} message", received.seq, received.id, rid, command);
         }
         
         if command == "ping" {
@@ -1895,7 +1899,7 @@ impl Client {
 
                 let items: serde_json::Value = serde_json::from_str(&response.results).unwrap();
                 let items: &Vec<serde_json::Value> = items.as_array().unwrap();
-                if items.len() == 0 {
+                if items.is_empty() {
                     return None;
                 }
                 let item = items[0].clone();
@@ -3665,9 +3669,9 @@ impl Client {
                 let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
                 let command: String = obj["command"].as_str().unwrap().to_string();
                 let mut data = "".to_string();
-                if !obj["data"].as_str().is_none() {
+                if obj["data"].as_str().is_some() {
                     data = obj["data"].as_str().unwrap().to_string();
-                } else if !obj["data"].as_object().is_none() {
+                } else if obj["data"].as_object().is_some() {
                     data = obj["data"].to_string();
                 }
                 if !command.eq("invokecompleted") {

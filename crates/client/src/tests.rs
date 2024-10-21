@@ -609,7 +609,7 @@ mod tests {
             .await;
         println!("Download response: {:?}", response);
         assert!(
-            !response.is_err(),
+            response.is_ok(),
             "Download of file failed with {:?}",
             response.err().unwrap()
         );
@@ -821,7 +821,7 @@ mod tests {
         workitem.name = "updated test rust workitem".to_string();
         workitem.payload = "{\"test\": \"updated message\"}".to_string();
         workitem.state = "successful".to_string();
-        assert!(workitem.files.len() > 0, "workitem has no files");
+        assert!(!workitem.files.is_empty(), "workitem has no files");
 
         // delete file from workitem by setting id to empty string
         workitem.files[0].id = "".to_string();
@@ -857,7 +857,7 @@ mod tests {
 
         let response = client
             .delete_workitem(DeleteWorkitemRequest {
-                id: id,
+                id,
                 ..Default::default()
             })
             .await;
@@ -924,7 +924,7 @@ mod tests {
         workitem.name = "updated test rust workitem".to_string();
         workitem.payload = "{\"test\": \"updated message\"}".to_string();
         workitem.state = "successful".to_string();
-        assert!(workitem.files.len() > 0, "workitem has no files");
+        assert!(!workitem.files.is_empty(), "workitem has no files");
 
         // delete file from workitem by setting id to empty string
         workitem.files[0].id = "".to_string();
@@ -960,7 +960,7 @@ mod tests {
 
         let response = client
             .delete_workitem(DeleteWorkitemRequest {
-                id: id,
+                id,
                 ..Default::default()
             })
             .await;
@@ -1249,7 +1249,7 @@ mod tests {
             Ok(response) => {
                 let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
                 let items = _obj.as_array().unwrap();
-                if items.len() == 0 {
+                if items.is_empty() {
                     let agent_json = "{\"name\": \"rusttestagent\", \"_type\": \"agent\", \"image\": \"openiap/nodeagent\", \"slug\": \"rusttestagent\", \"docker\": true }".to_string();
                     let query = InsertOneRequest {
                         collectionname: "agents".to_string(),
@@ -1288,7 +1288,7 @@ mod tests {
         );
         let pods: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
         let pods = pods.as_array().unwrap();
-        if pods.len() > 0 {
+        if !pods.is_empty() {
             for pod in pods {
                 let metadata = pod["metadata"].as_object().unwrap();
                 let name = metadata["name"].as_str().unwrap();
@@ -1316,7 +1316,7 @@ mod tests {
                 );
                 let pods: serde_json::Value = serde_json::from_str(&response.unwrap()).unwrap();
                 let pods = pods.as_array().unwrap();
-                if pods.len() > 0 {
+                if !pods.is_empty() {
                     for pod in pods {
                         let metadata = pod["metadata"].as_object().unwrap();
                         let name = metadata["name"].as_str().unwrap();
@@ -1385,14 +1385,14 @@ mod tests {
         let response = client.ensure_customer(request).await;
         let customer = match response {
             Ok(response) => {
-                let customer = match response.customer {
+                
+                match response.customer {
                     Some(customer) => customer,
                     None => {
                         assert!(false, "EnsureCustomer failed with no customer");
                         return;
                     }
-                };
-                customer
+                }
             }
             Err(e) => {
                 assert!(false, "EnsureCustomer failed with {:?}", e);
@@ -1420,7 +1420,7 @@ mod tests {
             Ok(response) => {
                 let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
                 let items = _obj.as_array().unwrap();
-                if items.len() > 0 {
+                if !items.is_empty() {
                     let _obj = items[0].clone();
                     let wiqid = _obj["_id"].as_str().unwrap();
                     println!("workitemqueue id: {:?} already exists as updated rusttestqueue2, so delete it", wiqid);
@@ -1450,7 +1450,7 @@ mod tests {
             Ok(response) => {
                 let _obj: serde_json::Value = serde_json::from_str(&response.results).unwrap();
                 let items = _obj.as_array().unwrap();
-                if items.len() == 0 {
+                if items.is_empty() {
                     let queue = WorkItemQueue {
                         name: "rusttestqueue2".to_string(),
                         ..Default::default()
