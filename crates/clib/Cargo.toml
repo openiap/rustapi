@@ -2,14 +2,14 @@
 name = "openiap-clib"
 description = "openiap client c library for SDK wrappers"
 license = "MPL-2.0"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-openiap-client = { path = "../client", version = "0.0.7" }
+openiap-client = { path = "../client", version = "0.0.8" }
 # tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
 tokio = { version = "1.40.0", features = ["rt-multi-thread"] }
 tracing = { version = "0.1", features = ["log", "attributes"] }

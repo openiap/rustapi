@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
+const PROCESS_CPU_UTILIZATION: &str = "process.cpu.utilization";
 const PROCESS_MEMORY_USAGE: &str = "process.memory.usage";
 const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
 const PROCESS_DISK_IO: &str = "process.disk.io";
@@ -38,6 +39,10 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
 
     let process_cpu_usage = meter
         .f64_observable_gauge(PROCESS_CPU_USAGE)
+        .with_description("The percentage of CPU in use.")
+        .init();
+    let process_cpu_utilization = meter
+        .f64_observable_gauge(PROCESS_CPU_UTILIZATION)
         .with_description("The percentage of CPU in use.")
         .init();
     let process_elapsed_time = meter
@@ -95,6 +100,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
     let result = meter.register_callback(
         &[
             process_cpu_usage.as_any(),
+            process_cpu_utilization.as_any(),
             process_elapsed_time.as_any(),
             process_memory_usage.as_any(),
             process_memory_virtual.as_any(),
@@ -111,21 +117,24 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
 
 
 
-            let cpu_usage = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 / core_count as f64;
             let io_stat = get_process_io_stats().unwrap_or_default();
 
             let read_bytes_diff = io_stat.read_bytes.saturating_sub(prev.0);
             let write_bytes_diff = io_stat.write_bytes.saturating_sub(prev.1);
 
             let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as i64;
+            let cpu_usage = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
+            let cpu_utilization = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 / core_count as f64;
 
             context.observe_f64(&process_cpu_usage, cpu_usage, &common_attributes);
+            context.observe_f64(&process_cpu_utilization, cpu_utilization, &common_attributes);
             let mut physical_mem: i64 = 0;
             let mut virtual_mem: i64 = 0;
             if let Some(usage) = memory_stats() {
                 physical_mem = usage.physical_mem as i64;
                 virtual_mem = usage.virtual_mem as i64;
             }
+
             context.observe_i64(&process_memory_usage, physical_mem, &common_attributes);
             context.observe_i64(&process_memory_virtual, virtual_mem, &common_attributes);
             context.observe_i64(&process_elapsed_time, elapsed_time, &common_attributes);
