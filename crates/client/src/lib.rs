@@ -87,7 +87,8 @@ pub struct Client {
     pub password: Arc<std::sync::Mutex<String>>,
     /// JWT token used to connect to server
     pub jwt: Arc<std::sync::Mutex<String>>,
-    agent: Arc<std::sync::Mutex<String>>,
+    agent_name: Arc<std::sync::Mutex<String>>,
+    agent_version: Arc<std::sync::Mutex<String>>,
     event_sender: async_channel::Sender<ClientEvent>,
     event_receiver: async_channel::Receiver<ClientEvent>,
     out_envelope_sender: async_channel::Sender<Envelope>,
@@ -301,7 +302,8 @@ impl Client {
             username: Arc::new(std::sync::Mutex::new("".to_string())),
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
-            agent: Arc::new(std::sync::Mutex::new("rust".to_string())),
+            agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new("0.0.10".to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -396,8 +398,9 @@ impl Client {
             enable_analytics = config.enable_analytics;
         }
         if enable_analytics {
-            let agent = self.get_agent();
-            match otel::init_telemetry(&agent, strurl, otel_metric_url.as_str(), &self.stats) {
+            let agent_name = self.get_agent_name();
+            let agent_version = self.get_agent_version();
+            match otel::init_telemetry(&agent_name, &agent_version, "0.0.10", strurl, otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -973,6 +976,7 @@ impl Client {
     }
 
     /// Set the connect_called flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_connect_called(&self, connect_called: bool) {
         let mut current = self.connect_called.lock().unwrap();
         trace!("Set connect_called: {} from {}", connect_called, *current);
@@ -985,6 +989,7 @@ impl Client {
         *connect_called
     }
     /// Set the auto_reconnect flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_auto_reconnect(&self, auto_reconnect: bool) {
         let mut current = self.auto_reconnect.lock().unwrap();
         trace!("Set auto_reconnect: {} from {}", auto_reconnect, *current);
@@ -997,6 +1002,7 @@ impl Client {
         *auto_reconnect
     }
     /// Set the url flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_url(&self, url: &str) {
         let mut current = self.url.lock().unwrap();
         trace!("Set url: {} from {}", url, *current);
@@ -1009,6 +1015,7 @@ impl Client {
         url.to_string()
     }
     /// Set the username flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_username(&self, username: &str) {
         let mut current = self.username.lock().unwrap();
         trace!("Set username: {} from {}", username, *current);
@@ -1021,6 +1028,7 @@ impl Client {
         username.to_string()
     }
     /// Set the password value
+    #[tracing::instrument(skip_all)]
     pub fn set_password(&self, password: &str) {
         let mut current = self.password.lock().unwrap();
         trace!("Set password: {} from {}", password, *current);
@@ -1033,6 +1041,7 @@ impl Client {
         password.to_string()
     }
     /// Set the jwt flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_jwt(&self, jwt: &str) {
         let mut current = self.jwt.lock().unwrap();
         trace!("Set jwt: {} from {}", jwt, *current);
@@ -1045,30 +1054,46 @@ impl Client {
         jwt.to_string()
     }
     /// Set the agent flag to true or false
-    pub fn set_agent(&self, agent: &str) {
-        let mut current = self.agent.lock().unwrap();
+    #[tracing::instrument(skip_all)]
+    pub fn set_agent_name(&self, agent: &str) {
+        let mut current = self.agent_name.lock().unwrap();
         trace!("Set agent: {} from {}", agent, *current);
         *current = agent.to_string();
     }
     /// Return value of the agent string
     #[tracing::instrument(skip_all)]
-    fn get_agent(&self) -> String {
-        let agent = self.agent.lock().unwrap();
+    pub fn get_agent_name(&self) -> String {
+        let agent = self.agent_name.lock().unwrap();
         agent.to_string()
+    }
+    /// Set the agent version number
+    #[tracing::instrument(skip_all)]
+    pub fn set_agent_version(&self, version: &str) {
+        let mut current = self.agent_version.lock().unwrap();
+        trace!("Set agent version: {} from {}", version, *current);
+        *current = version.to_string();
+    }
+    /// Return value of the agent version string
+    #[tracing::instrument(skip_all)]
+    pub fn get_agent_version(&self) -> String {
+        let agent_version = self.agent_version.lock().unwrap();
+        agent_version.to_string()
     }
     
     /// Set the config flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_config(&self, config: Option<Config>) {
         let mut current = self.config.lock().unwrap();
         *current = config;
     }
     /// Return value of the config 
     #[tracing::instrument(skip_all)]
-    fn get_config(&self) -> Option<Config> {
+    pub fn get_config(&self) -> Option<Config> {
         let config = self.config.lock().unwrap();
         config.clone()
     }
     /// Set the client flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_client(&self, client: ClientEnum) {
         let mut current = self.client.lock().unwrap();
         *current = client;
@@ -1080,6 +1105,7 @@ impl Client {
         client.clone()
     }
     /// Set the runtime flag to true or false
+    #[tracing::instrument(skip_all)]
     pub fn set_runtime(&self, runtime: Option<tokio::runtime::Runtime>) {
         let mut current = self.runtime.lock().unwrap();
         *current = runtime;
@@ -1091,6 +1117,7 @@ impl Client {
         self.runtime.as_ref()
     }
     /// Return value of the runtime handle
+    #[tracing::instrument(skip_all)]
     pub fn get_runtime_handle(&self) -> tokio::runtime::Handle {
         {
             let rt = self.runtime.lock().unwrap();
@@ -1112,6 +1139,7 @@ impl Client {
 //   found reference `&std::sync::Mutex<std::option::Option<tokio::runtime::Runtime>>`
 
     /// Method to allow the user to subscribe with a callback function
+    #[tracing::instrument(skip_all)]
     pub async fn on_event(&self, callback: Box<dyn Fn(ClientEvent) + Send + Sync>)
     {
         // F: Fn(ClientEvent) + Send + Sync + 'static,
@@ -1452,7 +1480,7 @@ impl Client {
             config.version = version.to_string();
         }
         if config.agent.is_empty() {
-            config.agent = self.get_agent();
+            config.agent = self.get_agent_name();
         }
 
         debug!("Attempting sign-in using {:?}", config);

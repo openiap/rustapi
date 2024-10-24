@@ -347,6 +347,30 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
     result
 }
 
+#[no_mangle]
+pub extern "C" fn client_set_agent_name(client_wrap: *mut ClientWrapper, agent_name: *const c_char) {
+    let agent_name = c_char_to_str(agent_name);
+    debug!("set_agent_name = {:?}", agent_name);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.set_agent_name(&agent_name);
+}
+#[no_mangle]
+pub extern "C" fn client_set_agent_version(client_wrap: *mut ClientWrapper, agent_version: *const c_char) {
+    let agent_version = c_char_to_str(agent_version);
+    debug!("set_agent_version = {:?}", agent_version);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.set_agent_version(&agent_version);
+}
 type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]

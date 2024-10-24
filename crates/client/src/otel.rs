@@ -370,7 +370,7 @@ lazy_static! {
 }
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
-pub fn init_telemetry(agent: &str, strurl: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, strurl: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     if strurl.is_empty() {
         return Err(Box::new(OpenIAPError::ClientError("No URL provided".to_string())));
     }
@@ -404,7 +404,10 @@ pub fn init_telemetry(agent: &str, strurl: &str, otlpurl: &str, stats: &Arc<std:
             let provider = new_pipeline()
             .metrics(Tokio)
             .with_exporter(exporter1)
-            .with_resource(Resource::new(vec![KeyValue::new("service.name", agent.to_string() )]))
+            .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
+                KeyValue::new("service.version", version.to_string() ), 
+                KeyValue::new("agent.name", agent_name.to_string() ),
+                KeyValue::new("agent.version", agent_version.to_string() )]))
             .with_period(Duration::from_secs(period))
             .build().unwrap();
             let meter1 = provider.meter("process-meter1");
@@ -431,7 +434,10 @@ pub fn init_telemetry(agent: &str, strurl: &str, otlpurl: &str, stats: &Arc<std:
             let provider = new_pipeline()
                 .metrics(Tokio)
                 .with_exporter(exporter2)
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", agent.to_string() )]))
+                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
+                    KeyValue::new("service.version", version.to_string() ), 
+                    KeyValue::new("agent.name", agent_name.to_string() ),
+                    KeyValue::new("agent.version", agent_version.to_string() )]))
                 .with_period(Duration::from_secs(period))
                 .build().unwrap();
 

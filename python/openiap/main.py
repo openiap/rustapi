@@ -508,6 +508,7 @@ class Client:
             error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
             raise ClientError(f"Create client failed: {error_message}")
         self.client = client_ptr
+        self.lib.client_set_agent_name(self.client, "python".encode('utf-8'))
 
     def free(self):
         if(self.client != None):

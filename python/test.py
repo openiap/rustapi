@@ -187,6 +187,9 @@ if __name__ == "__main__":
         unregister_queue =  client.unregister_queue(register_exchange_result)
         print(unregister_queue)
 
+        # while True:
+        #     time.sleep(1)
+            
     except ClientError as e:
         print(f"An error occurred: {e}")
     print("*********************************")

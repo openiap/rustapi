@@ -635,6 +635,9 @@ function loadLibrary() {
         lib.free_event_response = lib.func('free_event_response', 'void', [ClientEventResponseWrapperPtr]);
         lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
 
+        lib.set_agent_name = lib.func('client_set_agent_name', 'void', [ClientWrapperPtr, 'str']);
+        lib.set_agent_version = lib.func('client_set_agent_version', 'void', [ClientWrapperPtr, 'str']);
+
         lib.disable_tracing = lib.func('void disable_tracing()');
         lib.connect = lib.func('client_connect', ConnectResponseWrapperPtr, [ClientWrapperPtr, 'str']);
         lib.ConnectCallback = koffi.proto('void ConnectCallback(ConnectResponseWrapper*)');
@@ -804,6 +807,7 @@ class Client {
         }
         const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
         this.client = _clientWrapperPtr;
+        this.lib.set_agent_name(_clientWrapperPtr, 'node');
     }
     tracing = false;
     informing = true;
@@ -838,6 +842,14 @@ class Client {
     }
     trace(...args) {
         if(this.tracing == true) console.log('Node.js:', ...args);
+    }
+    set_agent_name(name) {
+        this.verbose('set_agent_name invoked', name);
+        this.lib.set_agent_name(this.client, name);
+    }
+    set_agent_version(version) {
+        this.verbose('set_agent_version invoked', version);
+        this.lib.set_agent_version(this.client, version);
     }
     async connect(url) {
         this.verbose('connect invoked', url);

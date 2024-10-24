@@ -682,7 +682,9 @@ public class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr free_off_event_response(IntPtr response);
 
-    
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void client_set_agent_name(IntPtr client, string agentname);
+
 
 
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
@@ -849,6 +851,7 @@ public class Client : IDisposable
             throw new ClientCreationError(errorMsg);
         }
         client = clientWrapper;
+        client_set_agent_name(clientPtr, "dotnet");
         isconnected = true;
     }
     bool tracing { get; set; } = false;

@@ -413,8 +413,12 @@ const fs = require('fs');
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
                 console.log("exchange event loop done");
-                client.unregister_queue(queuename);            
+                client.unregister_queue(queuename);
             }
+
+            // while(true) {
+            //     await new Promise(resolve => setTimeout(resolve, 1000));
+            // }
         } else {
             client.info("signed failed", signin_result.error);
         }
