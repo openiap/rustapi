@@ -15,6 +15,16 @@ use openiap_client::protos::{
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+// #[cfg(not(target_env = "msvc"))]
+// use tikv_jemallocator::Jemalloc;
+// #[cfg(not(target_env = "msvc"))]
+// use tikv_jemalloc_ctl::{profiling, stats};
+
+// #[cfg(not(target_env = "msvc"))]
+// #[global_allocator]
+// static GLOBAL: Jemalloc = Jemalloc;
+
+
 /// Reads a line from the keyboard input.
 pub async fn keyboard_input() -> String {
     println!("Enter your message: ");
@@ -87,7 +97,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     //     }        
     // };
 
-
     let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");
     println!("? for help");
@@ -111,6 +120,18 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("r: Register queue");
             println!("m: Queue message");
         }
+        // if input.eq_ignore_ascii_case("mon") {
+        //     let prof = profiling::prof::read().unwrap();
+        //     println!("is memory profiling enabled: {}", prof);
+        //     let prof_leak = profiling::prof_leak::read().unwrap();
+        //     println!("is leak reporting enabled: {}", prof_leak);
+        //     let prof = stats::active::read().unwrap();
+        //     println!("is active: {}", prof);
+        //     let prof = profiling::prof_final::read().unwrap();
+        //     println!("is final: {}", prof);
+        //     let prof_final = profiling::prof_final::read().unwrap();
+        //     println!("dump final memory usage to file: {}", prof_final);           
+        // }
         if  input.eq_ignore_ascii_case("0") {
             disable_tracing();
         }

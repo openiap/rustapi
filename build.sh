@@ -13,7 +13,7 @@ cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openi
 # cross build --target x86_64-unknown-freebsd --release && cp target/x86_64-unknown-freebsd/release/libopeniap_clib.so target/lib/libopeniap-freebsd-x64.so
 
 cross build --target aarch64-apple-darwin --release && cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
-cp target/aarch64-apple-darwin/release/openiap.macos target/cli/macos-arm64-openiap.macos
+cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap
 cross build --target x86_64-apple-darwin --release && cp target/x86_64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-x64.dylib
 cp target/x86_64-apple-darwin/release/openiap target/cli/macos-x64-openiap
 
@@ -27,7 +27,7 @@ rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node 
 # (cd node && npm publish)
 echo "Building dotnet"
 rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-# (cd dotnet && dotnet nuget push packages/openiap.0.0.8.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY)
+# (cd dotnet && dotnet nuget push packages/openiap.0.0.9.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY)
 
 echo "Building python"
 rm -rf python/openiap/lib  build dist lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib && (cd python && python setup.py sdist) 
