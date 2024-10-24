@@ -27,7 +27,8 @@ rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node 
 (cd node && npm publish)
 echo "Building dotnet"
 rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-(cd dotnet && dotnet nuget push bin/Release/net6.0/openiap.0.0.9.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY)
+dotnet nuget push dotnet/bin/Release/openiap.0.0.9.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
+                  
 
 echo "Building python"
 rm -rf python/openiap/lib  build dist lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib && (cd python && python setup.py sdist) 
