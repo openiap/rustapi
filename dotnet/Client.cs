@@ -92,7 +92,7 @@ public class Workitem {
     public string errorsource;
     public string errortype;
 }
-public class Client : IDisposable
+public partial class Client : IDisposable
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientWrapper
@@ -991,13 +991,15 @@ public class Client : IDisposable
         catch (Exception ex)
         {
             tcs.SetException(ex);
+        }
+        finally
+        {
             Marshal.FreeHGlobal(usernamePtr);
             Marshal.FreeHGlobal(passwordPtr);
             Marshal.FreeHGlobal(jwtPtr);
             Marshal.FreeHGlobal(agentPtr);
             Marshal.FreeHGlobal(versionPtr);
         }
-
         return tcs.Task;
     }
 
@@ -1908,6 +1910,7 @@ public class Client : IDisposable
     }
     public Task<string> RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
     {
+        if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
         var tcs = new TaskCompletionSource<string>();
         IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
 
@@ -1977,10 +1980,9 @@ public class Client : IDisposable
         }
         return tcs.Task;
     }
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-    public Task<string> RegisterExchange(string exchangename, string algorithm = "", string routingkey = "", bool addqueue = true, Action<QueueEvent> eventHandler = null)
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
+    public Task<string> RegisterExchange(string exchangename, string algorithm = "", string routingkey = "", bool addqueue = true, Action<QueueEvent>? eventHandler = null)
     {
+        if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
         var tcs = new TaskCompletionSource<string>();
         IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
         IntPtr algorithmPtr = Marshal.StringToHGlobalAnsi(algorithm);
@@ -2254,9 +2256,7 @@ public class Client : IDisposable
                     }
                     else
                     {
-#pragma warning disable CS8604 // Possible null reference argument.
-                        tcs.SetResult(workitem);
-#pragma warning restore CS8604 // Possible null reference argument.
+                        if (workitem != null) { tcs.SetResult(workitem); }
                     }
                 }
                 catch (Exception ex)
@@ -2300,8 +2300,8 @@ public class Client : IDisposable
         }
         return await tcs.Task;
     }
-    public async Task<Workitem> PopWorkitem(string wiq = "", string wiqid = "", string downloadfolder = ".") {
-        var tcs = new TaskCompletionSource<Workitem>();
+    public async Task<Workitem?> PopWorkitem(string wiq = "", string wiqid = "", string downloadfolder = ".") {
+        var tcs = new TaskCompletionSource<Workitem?>();
         IntPtr wiqPtr = Marshal.StringToHGlobalAnsi(wiq);
         IntPtr wiqidPtr = Marshal.StringToHGlobalAnsi(wiqid);
 
@@ -2330,9 +2330,7 @@ public class Client : IDisposable
                     var workitem = default(Workitem);
                     if(success) {
                         if(response.workitem == IntPtr.Zero) {
-                        #pragma warning disable CS8604 // Possible null reference argument.
-                        tcs.SetResult(workitem);
-                        #pragma warning restore CS8604 // Possible null reference argument.
+                            tcs.SetResult(workitem);
                             return;
                         }
                         var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
@@ -2384,9 +2382,7 @@ public class Client : IDisposable
                     }
                     else
                     {
-#pragma warning disable CS8604 // Possible null reference argument.
                         tcs.SetResult(workitem);
-#pragma warning restore CS8604 // Possible null reference argument.
                     }
                 }
                 catch (Exception ex)
@@ -2405,13 +2401,9 @@ public class Client : IDisposable
             Marshal.FreeHGlobal(wiqidPtr);
         }
         return await tcs.Task;
-        
     }
-            public bool ignoremaxretries;
-        public IntPtr files;
-
-    public async Task<Workitem> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
-        var tcs = new TaskCompletionSource<Workitem>();
+    public async Task<Workitem?> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
+        var tcs = new TaskCompletionSource<Workitem?>();
 
         if (files == null) files = new string[] { };
         var _files_coll = new Collection<WorkitemFileWrapper>();
@@ -2543,9 +2535,7 @@ public class Client : IDisposable
                     }
                     else
                     {
-#pragma warning disable CS8604 // Possible null reference argument.
                         tcs.SetResult(workitem);
-#pragma warning restore CS8604 // Possible null reference argument.
                     }
 
 
@@ -2575,14 +2565,12 @@ public class Client : IDisposable
 
                     // Free the array of pointers
                     Marshal.FreeHGlobal(filesPtr);
+                    handle.Free();
 
                 }
             
             }
-        
-
             var callbackDelegate = new UpdateWorkitemCallback(Callback);
-
             update_workitem_async(clientPtr, ref request, callbackDelegate);
         }
         finally
@@ -2630,9 +2618,7 @@ public class Client : IDisposable
                     tcs.SetException(ex);
                 }
             }
-
             var callbackDelegate = new DeleteWorkitemCallback(Callback);
-
             delete_workitem_async(clientPtr, ref request, callbackDelegate);
         }
         finally
@@ -2640,15 +2626,25 @@ public class Client : IDisposable
         }
         await tcs.Task;
     }
-    private async Task _Dispose()
+    public void Dispose()
     {
-        isconnected = false;
-        verbose("Dispose client");
-        await Task.Delay(500);
-        free_client(clientPtr);
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
-    public void Dispose() {
-        _Dispose().Wait();
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+        }
+        if (clientPtr != IntPtr.Zero)
+        {
+            free_client(clientPtr);
+            clientPtr = IntPtr.Zero;
+        }
+    }
+    ~Client()
+    {
+        Dispose(false);
     }
 }
 
