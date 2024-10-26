@@ -1467,11 +1467,11 @@ class Client {
             });
         });
     }
-    insert_one({ collectionname, document, w = 1, j = false }) {
+    insert_one({ collectionname, item, w = 1, j = false }) {
         this.verbose('insert_one invoked');
         const req = {
             collectionname: collectionname,
-            item: document,
+            item: item,
             w: w,
             j: j
         };
@@ -1488,12 +1488,12 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_one_async({ collectionname, document, w = 1, j = false }) {
+    insert_one_async({ collectionname, item, w = 1, j = false }) {
         this.verbose('insert_one async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                item: document,
+                item: item,
                 w: w,
                 j: j
             };
@@ -1520,11 +1520,11 @@ class Client {
             });
         });
     };
-    insert_many({ collectionname, documents, w = 1, j = false, skipresults = false }) {
+    insert_many({ collectionname, items, w = 1, j = false, skipresults = false }) {
         this.verbose('insert_many invoked');
         const req = {
             collectionname: collectionname,
-            items: documents,
+            items: items,
             w: w,
             j: j,
             skipresults: skipresults
@@ -1542,12 +1542,12 @@ class Client {
         }
         return JSON.parse(result.result);
     }
-    insert_many_async({ collectionname, documents, w = 1, j = false, skipresults = false }) {
+    insert_many_async({ collectionname, items, w = 1, j = false, skipresults = false }) {
         this.verbose('insert_many invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                items: documents,
+                items: items,
                 w: w,
                 j: j,
                 skipresults: skipresults
