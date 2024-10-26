@@ -22,21 +22,5 @@ cp target/x86_64-pc-windows-gnu/release/openiap.exe target/cli/windows-x64-openi
 cross build --target i686-pc-windows-gnu -v --release && cp target/i686-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-i686.dll
 cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openiap.exe
 
-echo "Building node"
-rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node && npm pack)
-# (cd node && npm publish)
-echo "Building dotnet"
-rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-# dotnet nuget push dotnet/bin/Release/openiap.0.0.10.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
-
-echo "Building python"
-rm -rf python/openiap/lib  build dist lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib && (cd python && python setup.py sdist) 
-# (cd python && python3 -m twine upload dist/*)
-
-# cargo publish -p openiap-proto --allow-dirty
-# cargo publish -p openiap-client --allow-dirty
-# cargo publish -p openiap --allow-dirty
-# cargo publish -p openiap-clib --allow-dirty
-# 
 echo "done"
 # cross build --target aarch64-pc-windows-msvc --release && cp target/aarch64-pc-windows-msvc/release/openiap.dll target/lib/openiap-windows-arm64.dll

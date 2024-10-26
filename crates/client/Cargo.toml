@@ -2,11 +2,11 @@
 name = "openiap-client"
 description = "openiap client library"
 license = "MPL-2.0"
-version = "0.0.10"
+version = "0.0.11"
 edition = "2021"
 
 [dependencies]
-openiap-proto = { path = "../proto", version = "0.0.10" }
+openiap-proto = { path = "../proto", version = "*" }
 tonic = { version = "0.12.0", features = ["tls-roots"] } # "transport", "gzip", "tls", "tls-webpki-roots"
 futures = "0.3"
 futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
@@ -29,7 +29,6 @@ opentelemetry = { version = "0.24.0"  }
 opentelemetry_sdk = { version = "0.24.1", features = [ "rt-tokio", "async-std" ] }
 opentelemetry-otlp = { version = "0.17.0", features = [ "metrics", "grpc-tonic", "tls-webpki-roots" ] }
 # async-trait = "0.1.56"
-# memory-stats = { version = "1.0.0", features = [ "always_use_statm" ] }
 md5 = "0.7.0"
 indexmap = "1.8"
 hostname = "^0.4"
@@ -46,5 +45,8 @@ once_cell = "1.20.2"
 
 
 perf_monitor = "0.2.1"
-memory-stats = "1.2.0"
 # perf_monitor = { version = "0.2.1", features = [ "allocation_counter" ] }
+memory-stats = "1.2.0"
+# memory-stats = { version = "1.0.0", features = [ "always_use_statm" ] }
+systemstat = { version = "0.2.3" }
+# sysinfo = { version = "0.32.0" }

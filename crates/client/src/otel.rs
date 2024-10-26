@@ -6,6 +6,7 @@ use opentelemetry::global::{set_error_handler, Error as OtelError};
 use tracing::{trace, debug, error};
 use std::sync::{Arc, Mutex};
 use std::io::Write;
+use systemstat::{System, Platform};
 
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
 const PROCESS_CPU_UTILIZATION: &str = "process.cpu.utilization";
@@ -13,7 +14,6 @@ const PROCESS_MEMORY_USAGE: &str = "process.memory.usage";
 const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
 const PROCESS_DISK_IO: &str = "process.disk.io";
 const PROCESS_ELAPSED_TIME: &str = "process.elapsed.time";
-#[allow(dead_code)]
 const PROCESS_NETWORK_IO: &str = "process.network.io";
 const CLIENT_COMMANDS : &str = "client.commands";
 const CLIENT_CONNECTIONS : &str = "client.connections";
@@ -46,19 +46,23 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
         .with_description("The percentage of CPU in use.")
         .init();
     let process_elapsed_time = meter
-        .i64_observable_gauge(PROCESS_ELAPSED_TIME)
+        .u64_observable_gauge(PROCESS_ELAPSED_TIME)
         .with_description("The uptime of the process in milliseconds.")
         .init();
     let process_memory_usage = meter
-        .i64_observable_gauge(PROCESS_MEMORY_USAGE)
+        .u64_observable_gauge(PROCESS_MEMORY_USAGE)
         .with_description("The amount of physical memory in use.")
         .init();
     let process_memory_virtual = meter
-        .i64_observable_gauge(PROCESS_MEMORY_VIRTUAL)
+        .u64_observable_gauge(PROCESS_MEMORY_VIRTUAL)
         .with_description("The amount of committed virtual memory.")
         .init();
+    let process_network_io = meter
+        .u64_observable_gauge(PROCESS_NETWORK_IO)
+        .with_description("Network bytes transferred.")
+        .init();
     let process_disk_io = meter
-        .i64_observable_gauge(PROCESS_DISK_IO)
+        .u64_observable_gauge(PROCESS_DISK_IO)
         .with_description("Disk bytes transferred.")
         .init();
 
@@ -92,11 +96,17 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
         OFID.string(ofid),
     ];
 
-    let sys = Arc::new(Mutex::new(()));
-    let previous_values = Arc::new(Mutex::new((0u64, 0u64, 0f64, Instant::now())));
+    let previous_values = Arc::new(Mutex::new((0u64, 0u64, 0f64, Instant::now(), 0u64, 0u64)));
 
+
+    let os = std::env::consts::OS;
 
     let stats_clone = Arc::clone(stats);
+    let sys = Arc::new(Mutex::new( System::new() ));
+
+
+    
+    
     let result = meter.register_callback(
         &[
             process_cpu_usage.as_any(),
@@ -104,6 +114,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             process_elapsed_time.as_any(),
             process_memory_usage.as_any(),
             process_memory_virtual.as_any(),
+            process_network_io.as_any(),
             process_disk_io.as_any(),
             client_commands.as_any(),
             client_connections.as_any(),
@@ -112,9 +123,38 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             client_package_rx.as_any(),
         ],
         move |context| {
-            let _sys = sys.lock().unwrap();
             let mut prev = previous_values.lock().unwrap();
+            let sys = sys.lock().unwrap();
 
+            let mut net_rx: u64 = 0;
+            let mut net_tx: u64 = 0;
+            if os == "linux" {
+                match sys.networks() {
+                    Ok(netifs) => {
+                        for netif in netifs.values() {
+                            let s = sys.network_stats(&netif.name);
+                            match s {
+                                Ok(stats) => {
+                                    net_rx += stats.rx_bytes.as_u64();
+                                    net_tx += stats.tx_bytes.as_u64();
+                                }
+                                Err(_x) => (),
+                            }
+                        }
+                    }
+                    Err(_x) => ()
+                }
+    
+                let net_rx_diff = net_rx.saturating_sub(prev.4);
+                let net_tx_diff = net_tx.saturating_sub(prev.5);
+    
+                if net_rx_diff > 0 {
+                    context.observe_u64(&process_network_io, net_rx_diff, &[common_attributes.as_slice(), &[DIRECTION.string("receive")]].concat());
+                }
+                if net_tx_diff > 0 {
+                    context.observe_u64(&process_network_io, net_tx_diff, &[common_attributes.as_slice(), &[DIRECTION.string("transmit")]].concat());
+                }
+            }
 
 
             let io_stat = get_process_io_stats().unwrap_or_default();
@@ -122,32 +162,41 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             let read_bytes_diff = io_stat.read_bytes.saturating_sub(prev.0);
             let write_bytes_diff = io_stat.write_bytes.saturating_sub(prev.1);
 
-            let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as i64;
-            let cpu_usage = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
-            let cpu_utilization = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 / core_count as f64;
+            let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as u64;
+            let cpu = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
+            let cpu_usage = cpu;
+            let cpu_utilization = cpu / core_count as f64;
 
             context.observe_f64(&process_cpu_usage, cpu_usage, &common_attributes);
             context.observe_f64(&process_cpu_utilization, cpu_utilization, &common_attributes);
-            let mut physical_mem: i64 = 0;
-            let mut virtual_mem: i64 = 0;
+            let mut physical_mem: u64 = 0;
+            let mut virtual_mem: u64 = 0;
             if let Some(usage) = memory_stats() {
-                physical_mem = usage.physical_mem as i64;
-                virtual_mem = usage.virtual_mem as i64;
+                physical_mem = usage.physical_mem as u64;
+                virtual_mem = usage.virtual_mem as u64;
             }
 
-            context.observe_i64(&process_memory_usage, physical_mem, &common_attributes);
-            context.observe_i64(&process_memory_virtual, virtual_mem, &common_attributes);
-            context.observe_i64(&process_elapsed_time, elapsed_time, &common_attributes);
-            context.observe_i64(
-                &process_disk_io,
-                read_bytes_diff as i64,
-                &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
-            );
-            context.observe_i64(
-                &process_disk_io,
-                write_bytes_diff as i64,
-                &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
-            );
+            if physical_mem > 0 {
+                context.observe_u64(&process_memory_usage, physical_mem, &common_attributes);
+            }
+            if virtual_mem > 0 {
+                context.observe_u64(&process_memory_virtual, virtual_mem, &common_attributes);
+            }
+            context.observe_u64(&process_elapsed_time, elapsed_time, &common_attributes);
+            if read_bytes_diff > 0 {
+                context.observe_u64(
+                    &process_disk_io,
+                    read_bytes_diff as u64,
+                    &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
+                );
+            }
+            if write_bytes_diff > 0 {
+                context.observe_u64(
+                    &process_disk_io,
+                    write_bytes_diff as u64,
+                    &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
+                );
+            }
 
 
             {
@@ -325,7 +374,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
 
 
             // Update previous values
-            *prev = (io_stat.read_bytes, io_stat.write_bytes, cpu_usage, Instant::now());
+            *prev = (io_stat.read_bytes, io_stat.write_bytes, cpu_usage, Instant::now(), net_rx, net_tx);
 
             // println!("UPTIME: {}, CPU: {}, MEM: {}, VIRT: {}, READ: {}, WRITE: {}", elapsed_time,
             // cpu_usage, physical_mem, virtual_mem, read_bytes_diff, write_bytes_diff);

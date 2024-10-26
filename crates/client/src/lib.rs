@@ -303,7 +303,7 @@ impl Client {
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
-            agent_version: Arc::new(std::sync::Mutex::new("0.0.10".to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new("0.0.11".to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -400,7 +400,7 @@ impl Client {
         if enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, "0.0.10", strurl, otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, "0.0.11", strurl, otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
