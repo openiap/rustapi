@@ -9,7 +9,7 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-openiap-client = { path = "../client", version = "*" }
+openiap-client = { path = "../client", version = "0.0" }
 # tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
 tokio = { version = "1.40.0", features = ["rt-multi-thread"] }
 tracing = { version = "0.1", features = ["log", "attributes"] }

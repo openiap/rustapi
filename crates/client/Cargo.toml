@@ -6,7 +6,7 @@ version = "0.0.11"
 edition = "2021"
 
 [dependencies]
-openiap-proto = { path = "../proto", version = "*" }
+openiap-proto = { path = "../proto", version = "0.0" }
 tonic = { version = "0.12.0", features = ["tls-roots"] } # "transport", "gzip", "tls", "tls-webpki-roots"
 futures = "0.3"
 futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
