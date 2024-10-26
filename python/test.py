@@ -29,8 +29,8 @@ if __name__ == "__main__":
         # #     client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
 
 
-        print("Turning off client event, id: ", eventid)
-        client.off_client_event(eventid)
+        # print("Turning off client event, id: ", eventid)
+        # client.off_client_event(eventid)
 
 
         collections = client.list_collections()
