@@ -100,6 +100,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");
     println!("? for help");
+    let mut sthandle: Option<tokio::task::JoinHandle<()>> = None;
     while !input.eq_ignore_ascii_case("quit") {
         if input.eq_ignore_ascii_case("?") {
             println!("? for help");
@@ -149,44 +150,50 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         }
         if  input.eq_ignore_ascii_case("st") {
             let client = b.clone();
-            let _handle = 
-                // tokio::task::Builder::new().name("NonStop").spawn(async move {
-                tokio::task::spawn(async move {
-                loop  {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
-                        Ok(response) => {
-                            match response.workitem {
-                                Some(mut workitem) => {
-                                    let name = workitem.name.clone();
-                                    let id = workitem.id.clone();
-                                    println!("popped workitem {:?} {:?}", id, name);
-                                    workitem.state = "successful".to_string();
-                                    match client.update_workitem(UpdateWorkitemRequest {
-                                        workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
-                                    }).await {
-                                        Ok(_response) => {
-                                            println!("Updated workitem {:?} {:?}", id, name);
-                                        }
-                                        Err(e) => {
-                                            println!("Failed to update workitem: {:?}", e);
-                                        }
-                                    };
-                                }
-                                None => {
-                                    let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-                                    //println!("{}", a);
-                                    println!("No workitem popped {:?}", a);
+            if sthandle.is_some() {
+                println!("Stopping nonstop");
+                sthandle.unwrap().abort();
+                sthandle = None;
+            } else {
+                sthandle = Some(
+                    // tokio::task::Builder::new().name("NonStop").spawn(async move {
+                    tokio::task::spawn(async move {
+                    loop  {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
+                            Ok(response) => {
+                                match response.workitem {
+                                    Some(mut workitem) => {
+                                        let name = workitem.name.clone();
+                                        let id = workitem.id.clone();
+                                        println!("popped workitem {:?} {:?}", id, name);
+                                        workitem.state = "successful".to_string();
+                                        match client.update_workitem(UpdateWorkitemRequest {
+                                            workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
+                                        }).await {
+                                            Ok(_response) => {
+                                                println!("Updated workitem {:?} {:?}", id, name);
+                                            }
+                                            Err(e) => {
+                                                println!("Failed to update workitem: {:?}", e);
+                                            }
+                                        };
+                                    }
+                                    None => {
+                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+                                        //println!("{}", a);
+                                        println!("No workitem popped {:?}", a);
 
+                                    }
                                 }
                             }
+                            Err(e) => {
+                                println!("Failed to pop workitem: {:?}", e);
+                            }
                         }
-                        Err(e) => {
-                            println!("Failed to pop workitem: {:?}", e);
-                        }
-                    }
-                };
-            });
+                    };
+                }));
+            }
         }
         if input.eq_ignore_ascii_case("dis") {
             b.disconnect();
