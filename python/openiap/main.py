@@ -688,7 +688,12 @@ class Client:
         if result["error"]:
             raise result["error"]
         return result["client"]
-    
+    def disconnect(self):
+        self.trace("Inside disconnect")
+
+        self.trace("Calling disconnect")
+        self.lib.client_disconnect(self.client)
+        self.trace("disconnect_async called")
     def signin(self, username="", password=""):
         self.trace("Inside signin")
         event = threading.Event()
@@ -1053,8 +1058,12 @@ class Client:
         
         def callback(response_ptr):
             try:
-                response = response_ptr.contents
                 self.trace("InsertMany callback invoked")
+                if response_ptr is None:
+                    result["error"] = ClientError("InsertMany failed: response_ptr is None")
+                    return
+                self.trace("InsertMany get response.contents")
+                response = response_ptr.contents
                 if not response.success:
                     error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
                     result["error"] = ClientError(f"InsertMany failed: {error_message}")

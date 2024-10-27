@@ -648,6 +648,8 @@ function loadLibrary() {
         lib.signin_async = lib.func('signin_async', 'void', [ClientWrapperPtr, SigninRequestWrapperPtr, koffi.pointer(lib.signinCallback)]);
         lib.free_signin_response = lib.func('free_signin_response', 'void', [SigninResponseWrapperPtr]);
 
+        lib.disconnect = lib.func('client_disconnect', 'void', [ClientWrapperPtr]);
+
         lib.list_collections = lib.func('list_collections', ListCollectionsResponseWrapperPtr, [ClientWrapperPtr, 'bool']);
         lib.listCollectionsCallback = koffi.proto('void ListCollectionsCallback(ListCollectionsResponseWrapper*)');
         lib.list_collections_async = lib.func('list_collections_async', 'void', [ClientWrapperPtr, 'bool', koffi.pointer(lib.listCollectionsCallback)]);
@@ -898,6 +900,12 @@ class Client {
         });
     }
 
+    disconnect() {
+        this.verbose('disconnect invoked');
+        this.lib.disconnect(this.client);
+        this.connected = false;
+    }
+
     signin({ username = '', password = '', jwt = '', agent = '', version = '', longtoken = false, validateonly = false, ping = false } = {}) {
         this.verbose('signin invoked');
         const req = {
@@ -1004,16 +1012,6 @@ class Client {
             });
         });
     }
-
-    // collectionname: CString,
-    // collation: ColCollationWrapperPtr,
-    // timeseries: ColTimeseriesWrapperPtr,
-    // expire_after_seconds: int,
-    // change_stream_pre_and_post_images: bool,
-    // capped: bool,
-    // max: int,
-    // size: int,
-
     // "seconds" | "minutes" | "hours"
     create_collection({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
         this.verbose('create_collection invoked');
@@ -1408,16 +1406,18 @@ class Client {
         this.verbose('call distinct');
         const responsePtr = this.lib.distinct(this.client, reqptr);
         this.trace('decode response');
-        const response = koffi.decode(responsePtr, DistinctResponseWrapper);
         let results = [];
-        this.trace('decode response results');
-        let strings = koffi.decode(response.results, 'void *', -1);
-        for(let i = 0; i < response.results_len; i++) {
-            this.trace('decode response results #', i);
-            let ptr = strings[i];
-            let value = koffi.decode(ptr, 'char', -1);
-            results.push(value.toString());
-        };
+        const response = koffi.decode(responsePtr, DistinctResponseWrapper);
+        if(response.success) {
+            this.trace('decode response results');
+            let strings = koffi.decode(response.results, 'void *', -1);
+            for(let i = 0; i < response.results_len; i++) {
+                this.trace('decode response results #', i);
+                let ptr = strings[i];
+                let value = koffi.decode(ptr, 'char', -1);
+                results.push(value.toString());
+            };
+        }
         this.verbose('free_distinct_response');
         this.lib.free_distinct_response(responsePtr);
         if (!response.success) {
@@ -1442,12 +1442,14 @@ class Client {
                 this.verbose('distinct_async callback');
                 const response = koffi.decode(responsePtr, DistinctResponseWrapper);
                 let results = [];
-                let strings = koffi.decode(response.results, 'void *', -1);
-                for(let i = 0; i < response.results_len; i++) {
-                    let ptr = strings[i];
-                    let value = koffi.decode(ptr, 'char', -1);
-                    results.push(value.toString());
-                };
+                if (response.success) {
+                    let strings = koffi.decode(response.results, 'void *', -1);
+                    for(let i = 0; i < response.results_len; i++) {
+                        let ptr = strings[i];
+                        let value = koffi.decode(ptr, 'char', -1);
+                        results.push(value.toString());
+                    };
+                }
                 if (!response.success) {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));

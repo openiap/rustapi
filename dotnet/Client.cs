@@ -701,6 +701,9 @@ public partial class Client : IDisposable
     public static extern void free_signin_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_disconnect(IntPtr client);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void query_async(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -921,6 +924,14 @@ public partial class Client : IDisposable
         connect_async(clientPtr, url, callbackDelegate);
 
         return tcs.Task;
+    }
+    public void disconnect()
+    {
+        if (clientPtr != IntPtr.Zero)
+        {
+            client_disconnect(clientPtr);
+            isconnected = false;
+        }
     }
     public bool connected()
     {

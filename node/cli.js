@@ -63,6 +63,9 @@ async function doit() {
 
     console.log('? for help');
     let input = await keyboardInput();
+    // client.enable_tracing("openiap=trace", "new");
+    client.enable_tracing("openiap=debug", "new");
+    // client.enable_tracing("openiap=info", "");
 
     try {
         while (input.toLowerCase() !== 'quit') {
@@ -86,7 +89,9 @@ async function doit() {
                         await Promise.all(threads);
                     }
                     break;
-    
+                case 'dis':
+                    client.disconnect();
+                    break;
                 case 'q':
                     try {
                         const response = await client.query_async({

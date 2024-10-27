@@ -415,7 +415,17 @@ pub extern "C" fn free_connect_response(response: *mut ConnectResponseWrapper) {
     free(response);
 }
 
-
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn client_disconnect(client_wrap: *mut ClientWrapper) {
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.disconnect();
+}
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_client(response: *mut ClientWrapper) {

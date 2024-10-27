@@ -45,7 +45,8 @@ def start_cpu_load(num_iters, available_cores, iter_per_core):
 async def main():
     client = Client()
     client.enable_tracing("openiap=info", "")
-    # client.enable_tracing("openiap=trace", "")
+    client.enable_tracing("openiap=debug", "new")
+    client.enable_tracing("openiap=trace", "")
     print("Connecting to OpenIAP...")
 
     try:
@@ -56,6 +57,7 @@ async def main():
 
     print("? for help")
     sthandle = None
+    watch_id = ""
 
     while True:
         input_command = await keyboard_input()
@@ -80,6 +82,12 @@ async def main():
             r: Register queue
             m: Queue message
             """)
+        elif input_command == "dis":
+            try:
+                query_result = client.disconnect()
+                print(query_result)
+            except ClientError as e:
+                print(f"Failed to query: {e}")
         elif input_command == "q":
             try:
                 query_result = client.query(collectionname="entities", query="{}", projection="{\"name\":1}")
@@ -154,13 +162,16 @@ async def main():
                 print(f"Failed to register queue: {e}")
         elif input_command == "w":
             try:
-                watch_result = client.watch(collectionname="entities", callback=on_watch)
-                print(f"Watch created with id {watch_result}")
+                watch_id = client.watch(collectionname="entities", callback=on_watch)
+                print(f"Watch created with id {watch_id}")
             except ClientError as e:
                 print(f"Failed to watch: {e}")
         elif input_command == "uw":
             try:
-                unwatch_result = client.unwatch(watch_result)
+                if watch_id == "":
+                    print("No watch to unwatch")
+                    continue
+                unwatch_result = client.unwatch(watch_id)
                 print(f"Unwatched successfully: {unwatch_result}")
             except ClientError as e:
                 print(f"Failed to unwatch: {e}")

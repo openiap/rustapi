@@ -32,6 +32,7 @@ class Program
         // Initialize the client
         Client client = new Client();
         client.enabletracing("info", "");
+        client.enabletracing("openiap=debug", "new");
         await client.connect();
         if (!client.connected())
         {
@@ -47,7 +48,7 @@ class Program
         while (input.ToLower() != "quit")
         {
             Console.Write("Enter command: ");
-            input = Console.ReadLine().ToLower();
+            input = (Console.ReadLine()?.ToLower() ?? "").Trim();
 
             switch (input)
             {
@@ -60,93 +61,163 @@ class Program
                     Console.WriteLine("w - Watch for changes");
                     Console.WriteLine("uw - Unwatch");
                     break;
-
+                case "dis":
+                    try {
+                        var t = System.Threading.Tasks.Task.Run(() => {
+                            client.disconnect();
+                        });
+                        // client.disconnect();
+                    }
+                    catch (Exception e)
+                    {
+                        client.info("Error disconnecting: " + e.Message);
+                    }
+                    break;
                 case "s":
-                    var (jwt, error, success) = await client.Signin();
-                    client.info("Signin JWT: " + jwt);
+                    try {
+                        var (jwt, error, success) = await client.Signin();
+                        client.info("Signin JWT: " + jwt);
+                    } catch (Exception e) {
+                        client.info("Error signing in: " + e.Message);
+                    }
                     break;
 
                 case "q":
-                    string results = await client.Query("entities", "{}", "{\"name\": 1}");
-                    client.info("Query results: " + results);
+                    try {
+                        string results = await client.Query("entities", "{}", "{\"name\": 1}");
+                        client.info("Query results: " + results);
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error querying: " + e.Message);
+                    }
                     break;
 
                 case "i":
-                    var workitem = new Workitem { name = "test from dotnet", payload = "{\"name\": \"test from dotnet\"}" };
-                    var insertResult = await client.InsertOne("entities", JsonSerializer.Serialize(workitem));
-                    client.info("Insert result: " + insertResult);
+                    try {
+                        var workitem = new Workitem { name = "test from dotnet", payload = "{\"name\": \"test from dotnet\"}" };
+                        var insertResult = await client.InsertOne("entities", JsonSerializer.Serialize(workitem));
+                        client.info("Insert result: " + insertResult);
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error inserting: " + e.Message);
+                    }
                     break;
 
                 case "im":
-                    var items = new[] {
-                        new { name = "Allan", _type = "test" },
-                        new { name = "Allan2", _type = "test" }
-                    };
-                    var insertManyResult = await client.InsertMany("entities", JsonSerializer.Serialize(items));
-                    if (insertManyResult == null)
-                    {
-                        client.info("Failed to insert many.");
+                    try {
+                        var items = new[] {
+                            new { name = "Allan", _type = "test" },
+                            new { name = "Allan2", _type = "test" }
+                        };
+                        var insertManyResult = await client.InsertMany("entities", JsonSerializer.Serialize(items));
+                        if (insertManyResult == null)
+                        {
+                            client.info("Failed to insert many.");
+                        }
+                        else
+                        {
+                            client.info("Inserted items: " + insertManyResult);
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        client.info("Inserted items: " + insertManyResult);
+                        client.info("Error inserting many: " + e.Message);
                     }
                     break;
-
                 case "d":
-                    var deleteResult = await client.download("fs.files", "65a3aaf66d52b8c15131aebd");
-                    if (deleteResult == null)
-                    {
-                        client.info("Failed to download.");
+                    try {
+                        var deleteResult = await client.download("fs.files", "65a3aaf66d52b8c15131aebd");
+                        if (deleteResult == null)
+                        {
+                            client.info("Failed to download.");
+                        }
+                        else
+                        {
+                            client.info("Downloaded as: " + deleteResult);
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        client.info("Downloaded as: " + deleteResult);
+                        client.info("Download error: " + e.Message);
                     }
                     break;
-
                 case "u":
-                    Console.Write("Enter file path to upload: ");
-                    var uploadResult = await client.upload("train.csv", "train.csv");
-                    if (uploadResult == null)
-                    {
-                        client.info("Failed to upload.");
+                    try {
+                        var uploadResult = await client.upload("train.csv", "train.csv");
+                        if (uploadResult == null)
+                        {
+                            client.info("Failed to upload.");
+                        }
+                        else
+                        {
+                            client.info("Uploaded as: " + uploadResult);
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        client.info("Uploaded as: " + uploadResult);
+                        client.info("Error disconnecting: " + e.Message);
                     }
                     break;
-
                 case "w":
-                    watchId = await client.watch( "entities", "[]", e => {
-                        client.info("Watch event: " + e.operation + " " + e.id, e.document);
-                    });
-                    client.info("Watch registered with id: " + watchId);
-                    break;
-
-                case "uw":
-                    if (string.IsNullOrEmpty(watchId))
-                    {
-                        client.info("No watch ID to remove.");
-                        break;
+                    try {
+                        watchId = await client.watch( "entities", "[]", e => {
+                            client.info("Watch event: " + e.operation + " " + e.id, e.document);
+                        });
+                        client.info("Watch registered with id: " + watchId);
                     }
-                    client.off_client_event(watchId);
-                    client.info("Removed watch ID: " + watchId);
+                    catch (Exception e)
+                    {
+                        client.info("Watch error: " + e.Message);
+                    }
+                    break;
+                case "uw":
+                    try {
+                        if (string.IsNullOrEmpty(watchId))
+                        {
+                            client.info("No watch ID to remove.");
+                            break;
+                        }
+                        client.off_client_event(watchId);
+                        client.info("Removed watch ID: " + watchId);
+                    }
+                    catch (Exception e)
+                    {
+                        client.info("Watch error: " + e.Message);                        
+                    }
                     break;
                 case "r":
-                    var queueId = await client.RegisterQueue("test2queue", e => {
-                        client.info("Queue event received from " + e.queuename + " with data: " + e.data);
-                    });
-                    client.info("Queue registered with id: " + queueId);
+                    try {
+                        var queueId = await client.RegisterQueue("test2queue", e => {
+                            client.info("Queue event received from " + e.queuename + " with data: " + e.data);
+                        });
+                        client.info("Queue registered with id: " + queueId);
+                    }
+                    catch (Exception e)
+                    {
+                        client.info("Error disconnecting: " + e.Message);                        
+                    }
                     break;
                 case "m":
-                    var message = "{\"message\": \"Hello from dotnet\"}";
-                    await client.QueueMessage(message, "test2queue", striptoken: true);
+                    try {
+                        var message = "{\"message\": \"Hello from dotnet\"}";
+                        await client.QueueMessage(message, "test2queue", striptoken: true);
+                    }
+                    catch (Exception e)
+                    {
+                        client.info("Error disconnecting: " + e.Message);
+                    }
                     break;
                 case "quit":
-                    client.Dispose();
-                    Console.WriteLine("Client disposed. Exiting...");
+                    try {
+                        client.Dispose();
+                        Console.WriteLine("Client disposed. Exiting...");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error disposing client: " + e.Message);
+                    }
                     break;
 
                 default:
