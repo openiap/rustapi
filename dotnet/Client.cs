@@ -1644,7 +1644,7 @@ public partial class Client : IDisposable
         return tcs.Task;
     }
     
-    public Task<string> download(string collectionname, string id, string folder, string filename)
+    public Task<string> download(string collectionname, string id, string folder = "", string filename = "")
     {
         var tcs = new TaskCompletionSource<string>();
 
@@ -1698,7 +1698,7 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public Task<string> upload(string filepath, string filename, string mimetype, string metadata, string collectionname)
+    public Task<string> upload(string filepath, string filename = "", string mimetype = "", string metadata = "", string collectionname = "")
     {
         var tcs = new TaskCompletionSource<string>();
 
@@ -2076,7 +2076,7 @@ public partial class Client : IDisposable
             Marshal.FreeHGlobal(queuenamePtr);
         }        
     }
-    public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "") {
+    public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0) {
         var tcs = new TaskCompletionSource<string>();
         IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
         IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
@@ -2094,7 +2094,9 @@ public partial class Client : IDisposable
                 exchangename = exchangenamePtr,
                 replyto = replytoPtr,
                 routingkey = routingkeyPtr,
-                correlation_id = correlation_idPtr
+                correlation_id = correlation_idPtr,
+                striptoken = striptoken,
+                expiration = expiration
             };
 
             void Callback(IntPtr responsePtr)

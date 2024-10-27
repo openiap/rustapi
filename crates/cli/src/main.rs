@@ -301,7 +301,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let request = InsertOneRequest {
                     collectionname: "entities".to_string(),
-                    item: "{\"name\":\"Allan\", \"_type\":\"Allan\"}".to_string(),
+                    item: "{\"name\":\"Allan\", \"_type\":\"test\"}".to_string(),
                     ..Default::default()
                 };
                 let s = client.insert_one(request).await;
@@ -318,7 +318,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let request = InsertManyRequest {
                     collectionname: "entities".to_string(),
-                    items: "[{\"name\":\"Allan\", \"_type\":\"Allan\"}, {\"name\":\"Allan2\", \"_type\":\"Allan\"}]".to_string(),
+                    items: "[{\"name\":\"Allan\", \"_type\":\"test\"}, {\"name\":\"Allan2\", \"_type\":\"test\"}]".to_string(),
                     ..Default::default()
                 };
                 let s = client.insert_many(request).await;

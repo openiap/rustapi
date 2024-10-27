@@ -604,7 +604,7 @@ class Client:
                 "event": str_event,
                 "reason": str_reason
             }
-            self.trace("Internal callback invoked", result)
+            self.trace("on_client_event: Internal callback invoked", result)
             self.lib.free_client_event(eventref)
             self.counter += 1
             try:
@@ -1484,7 +1484,7 @@ class Client:
                 "operation": event.operation.decode('utf-8'),
                 "document": event.document.decode('utf-8')
             }
-            self.trace("Internal callback invoked", result)
+            self.trace("watch: Internal callback invoked", result)
             self.counter += 1
             try:
                 callback(result, self.counter)
@@ -1545,7 +1545,7 @@ class Client:
                 "exchangename": event.exchangename.decode('utf-8'),
                 "data": event.data.decode('utf-8')
             }
-            self.trace("Internal callback invoked", result)
+            self.trace("register_queue: Internal callback invoked", result)
             self.counter += 1
             try:
                 callback(result, self.counter)
@@ -1600,7 +1600,7 @@ class Client:
                 "exchangename": event.exchangename.decode('utf-8'),
                 "data": event.data.decode('utf-8')
             }
-            self.trace("Internal callback invoked", result)
+            self.trace("register_exchange: Internal callback invoked", result)
             self.counter += 1
             try:
                 callback(result, self.counter)

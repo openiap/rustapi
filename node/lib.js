@@ -2661,13 +2661,30 @@ class Client {
                     const result = koffi.decode(responsePtr, QueueEventWrapper);
                     if (result.queuename != null && result.queuename != "") {
                         hadone = true;
+                        let data = result.data;
+                        let jwt = undefined;
+                        let user = undefined;
+                        if(data != null && data != "") {
+                            try {
+                                data = JSON.parse(data);
+                            } catch (error) {
+                            }
+                        }
+                        if(data.__jwt != null) {
+                            jwt = data.__jwt;
+                            delete data.__jwt;
+                        }
+                        if(data.__user != null) {
+                            user = data.__user;
+                            delete data.__user;
+                        }
                         let event = {
                             queuename: result.queuename,
                             correlation_id: result.correlation_id,
                             replyto: result.replyto,
                             routingkey: result.routingkey,
                             exchangename: result.exchangename,
-                            data: result.data,
+                            data: data,
                         }
                         this.trace('call next had result', event);
                         callback(event);
@@ -2761,7 +2778,7 @@ class Client {
             }
         }
     }
-    queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey }) {
+    queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey, striptoken, expiration }) {
         this.verbose('queue message invoked');
         if (queuename == null || queuename == "") {
             if(exchangename == null || exchangename == "") {
@@ -2773,13 +2790,17 @@ class Client {
         if (exchangename == null) exchangename = "";
         if (correlation_id == null) correlation_id = "";
         if (routingkey == null) routingkey = "";
+        if (striptoken == null) striptoken = false;
+        if (expiration == null) expiration = 0;
         const req = {
             queuename: queuename,
             data: data,
             replyto: replyto,
             exchangename: exchangename,
             correlation_id: correlation_id,
-            routingkey: routingkey
+            routingkey: routingkey,
+            striptoken: striptoken,
+            expiration: expiration
         };
         const reqptr = encodeStruct(req, QueueMessageRequestWrapper);
         this.trace('call queue_message');
