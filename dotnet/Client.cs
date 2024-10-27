@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 public class WatchEvent
 {
     public WatchEvent() {
@@ -158,6 +159,18 @@ public partial class Client : IDisposable
         public IntPtr jwt;
         public IntPtr error;
     }
+
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ListCollectionsResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public IntPtr error;
+    }
+    public delegate void ListCollectionsCallback(IntPtr responsePtr);
+
     public delegate void SigninCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
     public struct QueryRequestWrapper
@@ -684,9 +697,6 @@ public partial class Client : IDisposable
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void client_set_agent_name(IntPtr client, string agentname);
-
-
-
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr connect_async(IntPtr client, string url, ConnectCallback callback);
@@ -701,7 +711,12 @@ public partial class Client : IDisposable
     public static extern void free_signin_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr client_disconnect(IntPtr client);
+    public static extern void client_disconnect(IntPtr client);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr list_collections_async(IntPtr client, bool includehist, ListCollectionsCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_list_collections_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void query_async(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
@@ -947,6 +962,63 @@ public partial class Client : IDisposable
         return res;
     }
 
+   public Task<T> ListCollections<T>(bool includehist = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+        ListCollectionsCallback callback = new ListCollectionsCallback((IntPtr responsePtr) =>
+        {
+            try
+            {
+                if (responsePtr == IntPtr.Zero)
+                {
+                    tcs.SetException(new ClientError("Callback got null response"));
+                    return;
+                }
+
+                var response = Marshal.PtrToStructure<ListCollectionsResponseWrapper>(responsePtr);
+                free_list_collections_response(responsePtr);
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    tcs.SetException(new ClientError(error));
+                }
+                else
+                {
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    tcs.SetResult(results);
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        });
+        // Invoke the native async function
+        list_collections_async(clientPtr, includehist, callback);
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            jsonString => jsonString, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    // If the user wants the raw JSON, just return it
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    // Deserialize the JSON string into the specified type T
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
+    }
+
+
+
+
     public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
         var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
@@ -1014,10 +1086,11 @@ public partial class Client : IDisposable
         return tcs.Task;
     }
 
-    public Task<string> Query(string collectionname, string query, string projection = "", string orderby = "", string queryas = "", bool explain = false, int skip = 0, int top = 100)
+    public Task<T> Query<T>(string collectionname, string query, string projection = "", string orderby = "", string queryas = "", bool explain = false, int skip = 0, int top = 100)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
         IntPtr projectionPtr = Marshal.StringToHGlobalAnsi(projection);
@@ -1026,6 +1099,7 @@ public partial class Client : IDisposable
 
         try
         {
+            // Create the request wrapper
             QueryRequestWrapper request = new QueryRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1038,7 +1112,8 @@ public partial class Client : IDisposable
                 top = top
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            QueryCallback callback = new QueryCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1049,46 +1124,61 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
-                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_query_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
                         tcs.SetResult(results);
                     }
-                    // tcs.SetResult((results, error, success));
                 }
                 catch (Exception ex)
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new QueryCallback(Callback);
-
-            query_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            query_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(queryPtr);
             Marshal.FreeHGlobal(projectionPtr);
             Marshal.FreeHGlobal(orderbyPtr);
             Marshal.FreeHGlobal(queryasPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
 
-    public Task<string> Aggregate(string collectionname, string aggregates, string queryas = "", string hint = "", bool explain = false)
+    public Task<T> Aggregate<T>(string collectionname, string aggregates, string queryas = "", string hint = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr aggregatesPtr = Marshal.StringToHGlobalAnsi(aggregates);
         IntPtr queryasPtr = Marshal.StringToHGlobalAnsi(queryas);
@@ -1096,6 +1186,7 @@ public partial class Client : IDisposable
 
         try
         {
+            // Create the request wrapper
             AggregateRequestWrapper request = new AggregateRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1105,7 +1196,8 @@ public partial class Client : IDisposable
                 explain = explain
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            AggregateCallback callback = new AggregateCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1116,17 +1208,16 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<AggregateResponseWrapper>(responsePtr);
-                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_aggregate_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
                         tcs.SetResult(results);
                     }
                 }
@@ -1134,20 +1225,36 @@ public partial class Client : IDisposable
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new AggregateCallback(Callback);
-
-            aggregate_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            aggregate_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(aggregatesPtr);
             Marshal.FreeHGlobal(queryasPtr);
             Marshal.FreeHGlobal(hintPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
     public Task<int> Count(string collectionname, string query = "", string queryas = "", bool explain = false)
     {
@@ -1287,15 +1394,17 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public Task<string> InsertOne(string collectionname, string item, int w = 1, bool j = false)
+    public Task<T> InsertOne<T>(string collectionname, string item, int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
 
         try
         {
+            // Create the request wrapper
             InsertOneRequestWrapper request = new InsertOneRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1304,7 +1413,8 @@ public partial class Client : IDisposable
                 j = j
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            InsertOneCallback callback = new InsertOneCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1315,17 +1425,16 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<InsertOneResponseWrapper>(responsePtr);
-                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_insert_one_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
                         tcs.SetResult(result);
                     }
                 }
@@ -1333,28 +1442,47 @@ public partial class Client : IDisposable
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new InsertOneCallback(Callback);
-
-            insert_one_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            insert_one_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(itemPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
-    public Task<string> InsertMany(string collectionname, string items, int w = 1, bool j = false, bool skipresults = false)
+
+    public Task<T> InsertMany<T>(string collectionname, string items, int w = 1, bool j = false, bool skipresults = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr itemsPtr = Marshal.StringToHGlobalAnsi(items);
 
         try
         {
+            // Create the request wrapper
             InsertManyRequestWrapper request = new InsertManyRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1364,7 +1492,8 @@ public partial class Client : IDisposable
                 skipresults = skipresults
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            InsertManyCallback callback = new InsertManyCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1375,17 +1504,16 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
-                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_insert_many_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
                         tcs.SetResult(result);
                     }
                 }
@@ -1393,28 +1521,47 @@ public partial class Client : IDisposable
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new InsertManyCallback(Callback);
-
-            insert_many_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            insert_many_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(itemsPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
-    public Task<string> UpdateOne(string collectionname, string item, int w = 1, bool j = false)
+
+    public Task<T> UpdateOne<T>(string collectionname, string item, int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
 
         try
         {
+            // Create the request wrapper
             UpdateOneRequestWrapper request = new UpdateOneRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1423,7 +1570,8 @@ public partial class Client : IDisposable
                 j = j
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            UpdateOneCallback callback = new UpdateOneCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1434,17 +1582,16 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<UpdateOneResponseWrapper>(responsePtr);
-                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_update_one_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
                         tcs.SetResult(result);
                     }
                 }
@@ -1452,29 +1599,48 @@ public partial class Client : IDisposable
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new UpdateOneCallback(Callback);
-
-            update_one_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            update_one_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(itemPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
-    public Task<string> InsertOrUpdateOne(string collectionname, string item, string uniqeness = "_id", int w = 1, bool j = false)
+
+    public Task<T> InsertOrUpdateOne<T>(string collectionname, string item, string uniqeness = "_id", int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
 
+        // Allocate unmanaged memory for the strings
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr uniqenessPtr = Marshal.StringToHGlobalAnsi(uniqeness);
         IntPtr itemPtr = Marshal.StringToHGlobalAnsi(item);
 
         try
         {
+            // Create the request wrapper
             InsertOrUpdateOneRequestWrapper request = new InsertOrUpdateOneRequestWrapper
             {
                 collectionname = collectionnamePtr,
@@ -1484,7 +1650,8 @@ public partial class Client : IDisposable
                 j = j
             };
 
-            void Callback(IntPtr responsePtr)
+            // Define the callback logic that is unique to this function
+            InsertOrUpdateOneCallback callback = new InsertOrUpdateOneCallback((IntPtr responsePtr) =>
             {
                 try
                 {
@@ -1495,17 +1662,16 @@ public partial class Client : IDisposable
                     }
 
                     var response = Marshal.PtrToStructure<InsertOrUpdateOneResponseWrapper>(responsePtr);
-                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
                     free_insert_or_update_one_response(responsePtr);
 
-                    if (!success)
+                    if (!response.success)
                     {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
                         tcs.SetException(new ClientError(error));
                     }
                     else
                     {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
                         tcs.SetResult(result);
                     }
                 }
@@ -1513,19 +1679,35 @@ public partial class Client : IDisposable
                 {
                     tcs.SetException(ex);
                 }
-            }
+            });
 
-            var callbackDelegate = new InsertOrUpdateOneCallback(Callback);
-
-            insert_or_update_one_async(clientPtr, ref request, callbackDelegate);
+            // Invoke the native async function
+            insert_or_update_one_async(clientPtr, ref request, callback);
         }
         finally
         {
+            // Free unmanaged memory
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(uniqenessPtr);
             Marshal.FreeHGlobal(itemPtr);
         }
-        return tcs.Task;
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
     }
     public Task<int> DeleteOne(string collectionname, string id, bool recursive = false)
     {

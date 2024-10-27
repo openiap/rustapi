@@ -4,6 +4,21 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Dynamic;
 
+
+class Collection 
+{
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    public string name { get; set; }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+}
+class Base
+{
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    public string _id { get; set; }
+    public string _type { get; set; }
+    public string name { get; set; }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+}
 class Program
 {
     static async Task Main(string[] args)
@@ -84,8 +99,54 @@ class Program
 
                 case "q":
                     try {
-                        string results = await client.Query("entities", "{}", "{\"name\": 1}");
-                        client.info("Query results: " + results);
+                        // string results = await client.Query<string>("entities", "{}", "{\"name\": 1}");
+                        // client.info("Query results: " + results);
+                        var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
+                        client.info("Query returned " + results.Count + " results.");
+                        for (int i = 0; i < results.Count; i++)
+                        {
+                            client.info(results[i]._id, " ", results[i].name);
+                            if (i > 10) {
+                                break;
+                            }
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error querying: " + e.Message);
+                    }
+                    break;
+                case "a":
+                    try {
+                        var results = await client.Aggregate<List<Base>>("entities", "[{\"$match\": {\"_type\": \"test\"}}]");
+                        client.info("Aggregation returned " + results.Count + " results.");
+                        for (int i = 0; i < results.Count; i++)
+                        {
+                            client.info(results[i]._id, " ", results[i].name);
+                            if (i > 10) {
+                                break;
+                            }
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error querying: " + e.Message);
+                    }
+                    break;
+
+                case "l":
+                    try {
+                        // string results = await client.ListCollections<string>();
+                        // client.info("Query results: " + results);
+                        var results = await client.ListCollections<List<Collection>>();
+                        client.info("ListCollections returned " + results.Count + " results.");
+                        for (int i = 0; i < results.Count; i++)
+                        {
+                            client.info(results[i].name);
+                            if (i > 10) {
+                                break;
+                            }
+                        }
                     }
                     catch (System.Exception e)
                     {
@@ -95,13 +156,27 @@ class Program
 
                 case "i":
                     try {
-                        var workitem = new Workitem { name = "test from dotnet", payload = "{\"name\": \"test from dotnet\"}" };
-                        var insertResult = await client.InsertOne("entities", JsonSerializer.Serialize(workitem));
-                        client.info("Insert result: " + insertResult);
+                        var item = new { name = "test from dotnet", _type = "test" };
+                        var result = await client.InsertOne<Base>("entities", JsonSerializer.Serialize(item));
+                        client.info(result._id, " ", result.name);
                     }
                     catch (System.Exception e)
                     {
                         client.info("Error inserting: " + e.Message);
+                    }
+                    break;
+                case "u1":
+                    try {
+                        var item = new Base { name = "test from dotnet", _type = "test" };
+                        item = await client.InsertOne<Base>("entities", JsonSerializer.Serialize(item));
+                        client.info(item._id, " ", item.name);
+                        item.name = "updated from dotnet";
+                        var result = await client.UpdateOne<Base>("entities", JsonSerializer.Serialize(item));
+                        client.info(result._id, " ", result.name);
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error updating: " + e.Message);
                     }
                     break;
 
@@ -111,14 +186,19 @@ class Program
                             new { name = "Allan", _type = "test" },
                             new { name = "Allan2", _type = "test" }
                         };
-                        var insertManyResult = await client.InsertMany("entities", JsonSerializer.Serialize(items));
-                        if (insertManyResult == null)
+                        // var insertManyResult = await client.InsertMany("entities", JsonSerializer.Serialize(items));
+                        // if (insertManyResult == null)
+                        // {
+                        //     client.info("Failed to insert many.");
+                        // }
+                        // else
+                        // {
+                        //     client.info("Inserted items: " + insertManyResult);
+                        // }
+                        var results = await client.InsertMany<List<Base>>("entities", JsonSerializer.Serialize(items));
+                        for (int i = 0; i < results.Count; i++)
                         {
-                            client.info("Failed to insert many.");
-                        }
-                        else
-                        {
-                            client.info("Inserted items: " + insertManyResult);
+                            client.info(results[i]._id, " ", results[i].name);
                         }
                     }
                     catch (Exception e)
