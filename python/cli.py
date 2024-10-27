@@ -120,15 +120,15 @@ async def main():
                 print(f"Failed to sign in: {e}")
         elif input_command == "i":
             try:
-                insert_one_result = client.insert_one(collectionname="entities", item=json.dumps({"name": "Allan", "_type": "Allan"}))
+                insert_one_result = client.insert_one(collectionname="entities", item=json.dumps({"name": "Allan", "_type": "test"}))
                 print(f"Inserted as {insert_one_result}")
             except ClientError as e:
                 print(f"Failed to insert: {e}")
         elif input_command == "im":
             try:
                 items = [
-                    {"name": "Allan", "_type": "Allan"},
-                    {"name": "Allan2", "_type": "Allan"}
+                    {"name": "Allan", "_type": "test"},
+                    {"name": "Allan2", "_type": "test"}
                 ]
                 insert_many_result = client.insert_many(collectionname="entities", items=json.dumps(items))
                 print(f"Inserted as {insert_many_result}")
