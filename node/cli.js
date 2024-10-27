@@ -64,8 +64,8 @@ async function doit() {
     console.log('? for help');
     let input = await keyboardInput();
     // client.enable_tracing("openiap=trace", "new");
-    client.enable_tracing("openiap=debug", "new");
-    // client.enable_tracing("openiap=info", "");
+    // client.enable_tracing("openiap=debug", "new");
+    client.enable_tracing("openiap=info", "");
 
     try {
         while (input.toLowerCase() !== 'quit') {

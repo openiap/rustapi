@@ -13,6 +13,14 @@
             "console":"integratedTerminal"
         },
         {
+            "name":"Python: debug cli.py",
+            "type":"debugpy",
+            "request":"launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program":"${workspaceFolder}/python/cli.py",
+            "console":"integratedTerminal"
+        },
+        {
             "type": "node",
             "request": "launch",
             "name": "Node: debug test.js",
@@ -24,7 +32,19 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/node/test.js"
         },
-        
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Node: debug cli.js",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "args": ["--trace-warnings"],
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/node/cli.js"
+        },
+       
         {
             "name": "C#: debug Program",
             "type": "coreclr",
@@ -46,26 +66,6 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=openiap",
-                    "--package=openiap"
-                ],
-                "filter": {
-                    "name": "openiap",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Rust: debug test",
-            "envFile": "${workspaceFolder}/.env",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
                     "--bin=openiap",
                     "--package=openiap"
                 ],

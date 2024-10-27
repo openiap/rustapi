@@ -47,7 +47,7 @@ class Program
         // Initialize the client
         Client client = new Client();
         client.enabletracing("info", "");
-        client.enabletracing("openiap=debug", "new");
+        // client.enabletracing("openiap=debug", "new");
         await client.connect();
         if (!client.connected())
         {
@@ -151,6 +151,69 @@ class Program
                     catch (System.Exception e)
                     {
                         client.info("Error querying: " + e.Message);
+                    }
+                    break;
+                case "cc":
+                    try {
+                        await client.CreateCollection("testdotnetcollection");
+                        client.info("Create testdotnetcollection Collection success.");
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error creating collection: " + e.Message);
+                    }
+                    break;
+                case "cc2":
+                    try {
+                        await client.CreateCollection("testdotnettscollection", timeseries: 
+                        new Client.ColTimeseriesWrapper("ts", "", "minutes"));
+                        client.info("Create testdotnettscollection Collection success.");
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error creating collection: " + e.Message);
+                    }
+                    break;
+                case "cc3":
+                    try {
+                        await client.CreateCollection("testdotnetcollection");
+                        client.info("Create testdotnetcollection Collection success.");
+                        await client.CreateIndex("testdotnetcollection", "{\"name\": 1}");
+                        client.info("Create index on testdotnetcollection Collection success.");
+                        await client.InsertOne<Base>("testdotnetcollection", "{\"name\": \"test from dotnet\", \"_type\": \"test\"}");
+                        client.info("Insert test entity into testdotnetcollection Collection success.");
+                        var results = await client.GetIndexes<string>("testdotnetcollection");
+                        client.info("GetIndexes ", results);
+                        await client.DropIndex("testdotnetcollection", "name_1");
+                        client.info("Drop index on testdotnetcollection Collection success.");
+                        results = await client.GetIndexes<string>("testdotnetcollection");
+                        client.info("GetIndexes ", results);
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error creating collection: " + e.Message);
+                    }
+                    break;
+                case "dc":
+                    try {
+                        await client.DropCollection("testdotnetcollection");
+                        client.info("Drop testdotnetcollection Collection success.");
+                        await client.DropCollection("testdotnettscollection");
+                        client.info("Drop testdotnettscollection Collection success.");
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error dropping collection: " + e.Message);
+                    }
+                    break;
+                case "gi":
+                    try {
+                        var result = await client.GetIndexes<string>("entities");
+                        client.info("GetIndexes result: " + result);
+                    }
+                    catch (System.Exception e)
+                    {
+                        client.info("Error inserting: " + e.Message);
                     }
                     break;
 

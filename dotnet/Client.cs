@@ -171,6 +171,148 @@ public partial class Client : IDisposable
     }
     public delegate void ListCollectionsCallback(IntPtr responsePtr);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ColCollationWrapper : IDisposable
+    {
+        ColCollationWrapper (string locale, bool case_level, string case_first, int strength, bool numeric_ordering, string alternate, string max_variable, bool backwards)
+        {
+            this.locale = Marshal.StringToHGlobalAnsi(locale);
+            this.case_level = case_level;
+            this.case_first = Marshal.StringToHGlobalAnsi(case_first);
+            this.strength = strength;
+            this.numeric_ordering = numeric_ordering;
+            this.alternate = Marshal.StringToHGlobalAnsi(alternate);
+            this.max_variable = Marshal.StringToHGlobalAnsi(max_variable);
+            this.backwards = backwards;
+        }
+        public void Dispose()
+        {
+            Marshal.FreeHGlobal(locale);
+            Marshal.FreeHGlobal(case_first);
+            Marshal.FreeHGlobal(alternate);
+            Marshal.FreeHGlobal(max_variable);
+        }
+        public IntPtr locale;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool case_level;
+        public IntPtr case_first;
+        public int strength;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool numeric_ordering;
+        public IntPtr alternate;
+        public IntPtr max_variable;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool backwards;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ColTimeseriesWrapper : IDisposable
+    {
+        public ColTimeseriesWrapper(string time_field, string meta_field, string granularity)
+        {
+            this.time_field = Marshal.StringToHGlobalAnsi(time_field);
+            this.meta_field = Marshal.StringToHGlobalAnsi(meta_field);
+            this.granularity = Marshal.StringToHGlobalAnsi(granularity);
+        }
+        public IntPtr time_field;
+        public IntPtr meta_field;
+        public IntPtr granularity;
+
+        public void Dispose()
+        {
+            Marshal.FreeHGlobal(time_field);
+            Marshal.FreeHGlobal(meta_field);
+            Marshal.FreeHGlobal(granularity);
+        }
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CreateCollectionRequestWrapper : IDisposable
+    {
+        CreateCollectionRequestWrapper (string collectionname, ColCollationWrapper? collation = null, ColTimeseriesWrapper? timeseries = null, int expire_after_seconds = 0, bool change_stream_pre_and_post_images = false, bool capped = false, int max = 0, int size = 0)
+        {
+            this.collectionname = Marshal.StringToHGlobalAnsi(collectionname);
+            this.collation = collation != null ? Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ColCollationWrapper))) : IntPtr.Zero;
+            this.timeseries = timeseries != null ? Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ColTimeseriesWrapper))) : IntPtr.Zero;
+            this.expire_after_seconds = expire_after_seconds;
+            this.change_stream_pre_and_post_images = change_stream_pre_and_post_images;
+            this.capped = capped;
+            this.max = max;
+            this.size = size;
+        }
+        public void Dispose()
+        {
+            Marshal.FreeHGlobal(collectionname);
+            if (collation != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(collation);
+            }
+            if (timeseries != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(timeseries);
+            }
+        }
+        public IntPtr collectionname;
+        public IntPtr collation;
+        public IntPtr timeseries;
+        public int expire_after_seconds;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool change_stream_pre_and_post_images;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool capped;
+        public int max;
+        public int size;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CreateCollectionResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    public delegate void CreateCollectionCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DropCollectionResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    public delegate void DropCollectionCallback(IntPtr responsePtr);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GetIndexesResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public IntPtr error;
+    }
+    public delegate void GetIndexesCallback(IntPtr responsePtr);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CreateIndexRequestWrapper
+    {
+        public IntPtr collectionname;
+        public IntPtr index;
+        public IntPtr options;
+        public IntPtr name;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CreateIndexResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr error;
+    }
+    public delegate void CreateIndexCallback(IntPtr responsePtr);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DropIndexResponseWrapper
+    {
+        [MarshalAs(UnmanagedType.I1)]
+        public bool success;
+        public IntPtr results;
+        public IntPtr error;
+    }
+    public delegate void DropIndexCallback(IntPtr responsePtr);
     public delegate void SigninCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
     public struct QueryRequestWrapper
@@ -717,7 +859,28 @@ public partial class Client : IDisposable
     public static extern IntPtr list_collections_async(IntPtr client, bool includehist, ListCollectionsCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_list_collections_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void create_collection_async(IntPtr client, ref CreateCollectionRequestWrapper options, CreateCollectionCallback callback);
 
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_create_collection_response(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void drop_collection_async(IntPtr client, string collectionname, DropCollectionCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_drop_collection_response(IntPtr response);    
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void get_indexes_async(IntPtr client, string collectionname, GetIndexesCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_get_indexes_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void create_index_async(IntPtr client, ref CreateIndexRequestWrapper request, CreateIndexCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_create_index_response(IntPtr response);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void drop_index_async(IntPtr client, string collectionname,string idnexname, DropIndexCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void free_drop_index_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void query_async(IntPtr client, ref QueryRequestWrapper request, QueryCallback callback);
 
@@ -961,7 +1124,6 @@ public partial class Client : IDisposable
         }
         return res;
     }
-
    public Task<T> ListCollections<T>(bool includehist = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1015,10 +1177,289 @@ public partial class Client : IDisposable
             }
         );
     }
+    public Task CreateCollection(string collectionname, ColCollationWrapper? collation = null, ColTimeseriesWrapper? timeseries = null, int expireAfterSeconds = 0, bool changeStreamPreAndPostImages = false, bool capped = false, int max = 0, int size = 0)
+    {
+        var tcs = new TaskCompletionSource();
 
+        // Allocate unmanaged memory for the strings
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
 
+        CreateCollectionRequestWrapper request = new CreateCollectionRequestWrapper();
+        try
+        {
+            // Create the request wrapper
+            request = new CreateCollectionRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                collation = collation != null ? Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ColCollationWrapper))) : IntPtr.Zero,
+                timeseries = timeseries != null ? Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ColTimeseriesWrapper))) : IntPtr.Zero,
+                expire_after_seconds = expireAfterSeconds,
+                change_stream_pre_and_post_images = changeStreamPreAndPostImages,
+                capped = capped,
+                max = max,
+                size = size
+            };
 
+            // Copy collation and timeseries if provided
+            if (collation != null)
+            {
+                Marshal.StructureToPtr(collation, request.collation, false);
+            }
 
+            if (timeseries != null)
+            {
+                Marshal.StructureToPtr(timeseries, request.timeseries, false);
+            }
+
+            // Define the callback logic that is unique to this function
+            CreateCollectionCallback callback = new CreateCollectionCallback((IntPtr responsePtr) =>
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<CreateCollectionResponseWrapper>(responsePtr);
+                    free_create_collection_response(responsePtr);
+
+                    if (!response.success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+
+            // Invoke the native async function
+            create_collection_async(clientPtr, ref request, callback);
+        }
+        finally
+        {
+            // Free unmanaged memory
+            Marshal.FreeHGlobal(collectionnamePtr);
+            if (request.collation != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(request.collation);
+            }
+            if (request.timeseries != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(request.timeseries);
+            }
+        }
+        return tcs.Task;
+    }
+    public Task DropCollection(string collectionname)
+    {
+        var tcs = new TaskCompletionSource();
+
+        // Allocate unmanaged memory for the strings
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+
+        DropCollectionCallback callback = new DropCollectionCallback((IntPtr responsePtr) =>
+        {
+            try
+            {
+                if (responsePtr == IntPtr.Zero)
+                {
+                    tcs.SetException(new ClientError("Callback got null response"));
+                    return;
+                }
+
+                var response = Marshal.PtrToStructure<DropCollectionResponseWrapper>(responsePtr);
+                free_drop_collection_response(responsePtr);
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    tcs.SetException(new ClientError(error));
+                }
+                else
+                {
+                    tcs.SetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        });
+
+        drop_collection_async(clientPtr, collectionname, callback);
+
+        return tcs.Task;
+    }
+    public Task<T> GetIndexes<T>(string collectionname)
+    {
+        var tcs = new TaskCompletionSource<string>();
+
+        try
+        {
+            // Define the callback logic that is unique to this function
+            GetIndexesCallback callback = new GetIndexesCallback((IntPtr responsePtr) =>
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<GetIndexesResponseWrapper>(responsePtr);
+                    free_get_indexes_response(responsePtr);
+
+                    if (!response.success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                        tcs.SetResult(results);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+
+            // Invoke the native async function
+            get_indexes_async(clientPtr, collectionname, callback);
+        }
+        finally
+        {
+        }
+
+        // Use the helper to handle continuation
+        return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+            tcs.Task,
+            responseJson => responseJson, // Simply pass the JSON string as is
+            responseJson =>
+            {
+                if (typeof(T) == typeof(string))
+                {
+                    return (T)(object)responseJson;
+                }
+                else
+                {
+                    return JsonSerializer.Deserialize<T>(responseJson)!;
+                }
+            }
+        );
+    }
+    public Task CreateIndex(string collectionname, string index, string options = "", string name = "")
+    {
+        var tcs = new TaskCompletionSource();
+
+        // Allocate unmanaged memory for the strings
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        IntPtr indexPtr = Marshal.StringToHGlobalAnsi(index);
+        IntPtr optionsPtr = Marshal.StringToHGlobalAnsi(options);
+        IntPtr namePtr = Marshal.StringToHGlobalAnsi(name);
+
+        try
+        {
+            // Create the request wrapper
+            CreateIndexRequestWrapper request = new CreateIndexRequestWrapper
+            {
+                collectionname = collectionnamePtr,
+                index = indexPtr,
+                options = optionsPtr,
+                name = namePtr
+            };
+
+            // Define the callback logic that is unique to this function
+            CreateIndexCallback callback = new CreateIndexCallback((IntPtr responsePtr) =>
+            {
+                try
+                {
+                    if (responsePtr == IntPtr.Zero)
+                    {
+                        tcs.SetException(new ClientError("Callback got null response"));
+                        return;
+                    }
+
+                    var response = Marshal.PtrToStructure<CreateIndexResponseWrapper>(responsePtr);
+                    free_create_index_response(responsePtr);
+
+                    if (!response.success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                        tcs.SetException(new ClientError(error));
+                    }
+                    else
+                    {
+                        tcs.SetResult();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+
+            // Invoke the native async function
+            create_index_async(clientPtr, ref request, callback);
+        }
+        finally
+        {
+            // Free unmanaged memory
+            Marshal.FreeHGlobal(collectionnamePtr);
+            Marshal.FreeHGlobal(indexPtr);
+            Marshal.FreeHGlobal(optionsPtr);
+            Marshal.FreeHGlobal(namePtr);
+        }
+
+        return tcs.Task;
+    }
+    public Task DropIndex(string collectionname, string indexname) {
+        var tcs = new TaskCompletionSource();
+        DropIndexCallback callback = new DropIndexCallback((IntPtr responsePtr) =>
+        {
+            try
+            {
+                if (responsePtr == IntPtr.Zero)
+                {
+                    tcs.SetException(new ClientError("Callback got null response"));
+                    return;
+                }
+
+                var response = Marshal.PtrToStructure<DropIndexResponseWrapper>(responsePtr);
+                free_drop_index_response(responsePtr);
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    tcs.SetException(new ClientError(error));
+                }
+                else
+                {
+                    tcs.SetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        });
+
+        drop_index_async(clientPtr, collectionname, indexname, callback);
+
+        return tcs.Task;       
+    }
     public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
         var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
@@ -1085,7 +1526,6 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-
     public Task<T> Query<T>(string collectionname, string query, string projection = "", string orderby = "", string queryas = "", bool explain = false, int skip = 0, int top = 100)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1173,7 +1613,6 @@ public partial class Client : IDisposable
             }
         );
     }
-
     public Task<T> Aggregate<T>(string collectionname, string aggregates, string queryas = "", string hint = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string>();

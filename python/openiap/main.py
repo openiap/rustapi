@@ -846,6 +846,99 @@ class Client:
             raise result["error"]
         
         return result["success"]
+    
+    def get_indexes(self, collectionname=""):
+        self.trace("Inside get_indexes")
+        event = threading.Event()
+        result = {"success": None, "indexes": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("Get indexes callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Get indexes failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["indexes"] = ctypes.cast(response.results, c_char_p).value.decode('utf-8')
+                self.lib.free_get_indexes_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        self.trace("Calling get_indexes_async")
+        self.lib.get_indexes_async(self.client, collectionname.encode('utf-8'), cb)
+        self.trace("get_indexes_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["indexes"]
+    
+    def create_index(self, collectionname, index, options="", name=""):
+        self.trace("Inside create_index")
+        event = threading.Event()
+        result = {"success": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("Create index callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Create index failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                self.lib.free_create_index_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        self.trace("Calling create_index_async")
+        self.lib.create_index_async(self.client, collectionname.encode('utf-8'), index.encode('utf-8'), options.encode('utf-8'), name.encode('utf-8'), cb)
+        self.trace("create_index_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
+    def drop_index(self, collectionname="", indexname=""):
+        self.trace("Inside drop_index")
+        event = threading.Event()
+        result = {"success": None, "error": None}
+
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("Drop index callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"Drop index failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                self.lib.free_drop_index_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = QueryCallback(callback)
+
+        self.trace("Calling drop_index_async")
+        self.lib.drop_index_async(self.client, collectionname.encode('utf-8'), indexname.encode('utf-8'), cb)
+        self.trace("drop_index_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        return result["success"]
 
 
     def query(self, collectionname = "", query = "", projection = "", orderby = "", queryas = "", explain = False, skip = 0, top = 0):

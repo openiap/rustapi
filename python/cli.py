@@ -1,8 +1,11 @@
 import asyncio
+from ctypes import c_char_p
 import json
 from openiap import Client, ClientError
 import os
 import threading
+
+from openiap.main import ColTimeseriesWrapper
 
 # Function to read keyboard input asynchronously
 async def keyboard_input():
@@ -45,8 +48,8 @@ def start_cpu_load(num_iters, available_cores, iter_per_core):
 async def main():
     client = Client()
     client.enable_tracing("openiap=info", "")
-    client.enable_tracing("openiap=debug", "new")
-    client.enable_tracing("openiap=trace", "")
+    # client.enable_tracing("openiap=debug", "new")
+    # client.enable_tracing("openiap=trace", "")
     print("Connecting to OpenIAP...")
 
     try:
@@ -175,6 +178,25 @@ async def main():
                 print(f"Unwatched successfully: {unwatch_result}")
             except ClientError as e:
                 print(f"Failed to unwatch: {e}")
+        elif input_command == "c":
+            try:
+                client.create_collection("pythoncollection")
+                print(f"Collection pythoncollection created")
+            except ClientError as e:
+                print(f"Failed to create collection: {e}")
+        elif input_command == "c2":
+            try:
+                ts = ColTimeseriesWrapper(time_field=c_char_p("ts".encode('utf-8')))
+                client.create_collection("pythontscollection", timeseries=ts)
+                print(f"Collection pythontscollection created")
+            except ClientError as e:
+                print(f"Failed to unwatch: {e}")
+        elif input_command == "gi":
+            try:
+                result = client.get_indexes("entities")
+                print(f"indexes: {result}")
+            except ClientError as e:
+                print(f"Failed to get indexes: {e}")
         elif input_command == "c" or input_command == "cpu":
             num_calcs = 100000
             available_cores = os.cpu_count() // 2

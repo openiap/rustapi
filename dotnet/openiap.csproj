@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>openiap</PackageId>
     <id>openiap</id>
-    <version>0.0.12</version>
+    <version>0.0.13</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
     <owners>OpenIAP ApS</owners>
