@@ -329,7 +329,8 @@ pub extern "C" fn create_client() -> *mut ClientWrapper {
 #[repr(C)]
 pub struct ConnectResponseWrapper {
     success: bool,
-    error: *const c_char
+    error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address: *const c_char) -> *mut ConnectResponseWrapper {
@@ -354,6 +355,7 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
         let result = Box::into_raw(Box::new(ConnectResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: 0,
         }));
         info!("connect::complete error result address: {:?}", result);
         return result;
@@ -361,6 +363,7 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
     let result = Box::into_raw(Box::new(ConnectResponseWrapper {
         success: true,
         error: std::ptr::null(),
+        request_id: 0,
     }));
     info!("connect::complete result address: {:?}", result);
     result
@@ -393,7 +396,7 @@ pub extern "C" fn client_set_agent_version(client_wrap: *mut ClientWrapper, agen
 type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
-pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *const c_char, callback: ConnectCallback) {
+pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *const c_char, request_id: u64, callback: ConnectCallback) {
     debug!("connect_async");
     let server_address = c_char_to_str(server_address);
     debug!("server_address = {:?}", server_address);
@@ -413,6 +416,7 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
             Box::into_raw(Box::new(ConnectResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id,
             }))
         } else {
             let e = client_result.err().unwrap();
@@ -422,6 +426,7 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
             Box::into_raw(Box::new(ConnectResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id,
             }))
         };
         trace!("Client::Calling callback with result");

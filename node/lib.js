@@ -641,7 +641,7 @@ function loadLibrary() {
         lib.disable_tracing = lib.func('void disable_tracing()');
         lib.connect = lib.func('client_connect', ConnectResponseWrapperPtr, [ClientWrapperPtr, 'str']);
         lib.ConnectCallback = koffi.proto('void ConnectCallback(ConnectResponseWrapper*)');
-        lib.connect_async = lib.func('connect_async', 'void', [ClientWrapperPtr, 'str', koffi.pointer(lib.ConnectCallback)]);
+        lib.connect_async = lib.func('connect_async', 'void', [ClientWrapperPtr, 'str', 'int', koffi.pointer(lib.ConnectCallback)]);
         lib.free_client = lib.func('void free_client(ClientWrapper*)');
         lib.signin = lib.func('signin', SigninResponseWrapperPtr, [ClientWrapperPtr, SigninRequestWrapperPtr]);
         lib.signinCallback = koffi.proto('void signinCallback(SigninResponseWrapper*)');
@@ -893,7 +893,7 @@ class Client {
                     } 
                 }, koffi.pointer(this.lib.ConnectCallback));
                 this.verbose('call connect_async');
-                this.lib.connect_async(this.client, url, cb);                
+                this.lib.connect_async(this.client, url, 0, cb);                
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }

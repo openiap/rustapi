@@ -110,6 +110,7 @@ public partial class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -325,10 +326,9 @@ public partial class Client : IDisposable
         public IntPtr queryas;
         [MarshalAs(UnmanagedType.I1)]
         public bool explain;
-        [MarshalAs(UnmanagedType.I4)]
         public int skip;
-        [MarshalAs(UnmanagedType.I4)]
         public int top;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct QueryResponseWrapper
@@ -337,6 +337,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr results;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void QueryCallback(IntPtr responsePtr);
 
@@ -349,6 +350,7 @@ public partial class Client : IDisposable
         public IntPtr hint;
         [MarshalAs(UnmanagedType.I1)]
         public bool explain;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct AggregateResponseWrapper
@@ -357,6 +359,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr results;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void AggregateCallback(IntPtr responsePtr);
 
@@ -844,7 +847,7 @@ public partial class Client : IDisposable
     public static extern void client_set_agent_name(IntPtr client, string agentname);
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void connect_async(IntPtr client, string url, ConnectCallback callback);
+    public static extern void connect_async(IntPtr client, string url, int request_id, ConnectCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
@@ -1103,7 +1106,7 @@ public partial class Client : IDisposable
 
         var callbackDelegate = new ConnectCallback(Callback);
 
-        connect_async(clientPtr, url, callbackDelegate);
+        connect_async(clientPtr, url, 0, callbackDelegate);
 
         return tcs.Task;
     }

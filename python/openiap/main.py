@@ -679,7 +679,7 @@ class Client:
         cb = ConnectCallback(callback)
 
         self.trace("Calling connect_async")
-        self.lib.connect_async(self.client, url.encode('utf-8'), cb)
+        self.lib.connect_async(self.client, url.encode('utf-8'), 0, cb)
         self.trace("connect_async called")
 
         # Wait for the callback to be invoked
