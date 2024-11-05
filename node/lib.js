@@ -667,7 +667,7 @@ function loadLibrary() {
 
         lib.get_indexes = lib.func('get_indexes', GetIndexesResponseWrapperPtr, [ClientWrapperPtr, CString]);
         lib.get_indexesCallback = koffi.proto('void get_indexesCallback(GetIndexesResponseWrapper*)');
-        lib.get_indexes_async = lib.func('get_indexes_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.get_indexesCallback)]);
+        lib.get_indexes_async = lib.func('get_indexes_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.get_indexesCallback)]);
         lib.free_get_indexes_response = lib.func('free_get_indexes_response', 'void', [GetIndexesResponseWrapperPtr]);
 
         lib.create_index = lib.func('create_index', CreateIndexResponseWrapperPtr, [ClientWrapperPtr, CreateIndexRequestWrapperPtr]);

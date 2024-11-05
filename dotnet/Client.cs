@@ -879,7 +879,7 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_drop_collection_response(IntPtr response);    
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void get_indexes_async(IntPtr client, string collectionname, GetIndexesCallback callback);
+    public static extern void get_indexes_async(IntPtr client, string collectionname, int request_id, GetIndexesCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_get_indexes_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -1347,7 +1347,7 @@ public partial class Client : IDisposable
             });
 
             // Invoke the native async function
-            get_indexes_async(clientPtr, collectionname, callback);
+            get_indexes_async(clientPtr, collectionname, 0, callback);
         }
         finally
         {

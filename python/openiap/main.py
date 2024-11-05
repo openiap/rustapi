@@ -869,7 +869,7 @@ class Client:
         cb = QueryCallback(callback)
 
         self.trace("Calling get_indexes_async")
-        self.lib.get_indexes_async(self.client, collectionname.encode('utf-8'), cb)
+        self.lib.get_indexes_async(self.client, collectionname.encode('utf-8'), 0, cb)
         self.trace("get_indexes_async called")
 
         event.wait()
