@@ -288,14 +288,6 @@ pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
 
 }
 
-#[repr(C)]
-pub struct AggregateRequestWrapper {
-    collectionname: *const c_char,
-    aggregates: *const c_char,
-    queryas: *const c_char,
-    hint: *const c_char,
-    explain: bool,
-}
 
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1618,10 +1610,20 @@ pub extern "C" fn free_drop_index_response(response: *mut DropIndexResponseWrapp
 }
 
 #[repr(C)]
+pub struct AggregateRequestWrapper {
+    collectionname: *const c_char,
+    aggregates: *const c_char,
+    queryas: *const c_char,
+    hint: *const c_char,
+    explain: bool,
+    request_id: u64
+}
+#[repr(C)]
 pub struct AggregateResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1637,6 +1639,7 @@ pub extern "C" fn aggregate(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1649,6 +1652,7 @@ pub extern "C" fn aggregate(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1667,6 +1671,7 @@ pub extern "C" fn aggregate(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -1683,6 +1688,7 @@ pub extern "C" fn aggregate(
                 success: true,
                 results,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -1693,6 +1699,7 @@ pub extern "C" fn aggregate(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -1717,6 +1724,7 @@ pub extern "C" fn aggregate_async(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1729,6 +1737,7 @@ pub extern "C" fn aggregate_async(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1747,12 +1756,14 @@ pub extern "C" fn aggregate_async(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
 
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     debug!("Rust: runtime.spawn");
     handle.spawn(async move {
         debug!("Rust: client.aggregate");
@@ -1764,6 +1775,7 @@ pub extern "C" fn aggregate_async(
                     success: true,
                     results,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -1774,6 +1786,7 @@ pub extern "C" fn aggregate_async(
                     success: false,
                     results: std::ptr::null(),
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -1784,7 +1797,18 @@ pub extern "C" fn aggregate_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_aggregate_response(response: *mut AggregateResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).results.is_null() {
+            let _ = CString::from_raw((*response).results as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
