@@ -75,6 +75,7 @@ pub struct QueryRequestWrapper {
     explain: bool,
     skip: i32,
     top: i32,
+    request_id: u64,
 }
 /// QueryResponseWrapper is a wrapper for the QueryResponse struct.
 #[repr(C)]
@@ -82,6 +83,7 @@ pub struct QueryResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
+    request_id: u64,
 }
 // run query syncronously
 #[no_mangle]
@@ -98,6 +100,7 @@ pub extern "C" fn query(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -110,6 +113,7 @@ pub extern "C" fn query(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -130,6 +134,7 @@ pub extern "C" fn query(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -146,6 +151,7 @@ pub extern "C" fn query(
                 success: true,
                 results,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -156,6 +162,7 @@ pub extern "C" fn query(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     }))
@@ -179,6 +186,7 @@ pub extern "C" fn query_async(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -191,6 +199,7 @@ pub extern "C" fn query_async(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -222,6 +231,7 @@ pub extern "C" fn query_async(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -229,6 +239,7 @@ pub extern "C" fn query_async(
     debug!("Rust: runtime.spawn");
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         debug!("Rust: client.query");
         let result = client.query(request).await;
@@ -240,6 +251,7 @@ pub extern "C" fn query_async(
                     success: true,
                     results,
                     error: std::ptr::null(),
+                    request_id: request_id,
                 }
             }
             Err(e) => {
@@ -250,6 +262,7 @@ pub extern "C" fn query_async(
                     success: false,
                     results: std::ptr::null(),
                     error: error_msg,
+                    request_id: request_id,
                 }
             }
         };
@@ -260,7 +273,19 @@ pub extern "C" fn query_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).results.is_null() {
+            let _ = CString::from_raw((*response).results as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
+
 }
 
 #[repr(C)]
@@ -5522,20 +5547,14 @@ pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseW
     if response.is_null() {
         return;
     }
-
     unsafe {
-        // Free the error message if it exists
         if !(*response).error.is_null() {
-            let _ = CString::from_raw((*response).error as *mut c_char); // Take ownership to deallocate
+            let _ = CString::from_raw((*response).error as *mut c_char);
         }
-
-        // Free the workitem if it exists
         if !(*response).workitem.is_null() {
-            free_workitem((*response).workitem as *mut WorkitemWrapper); // Custom function to free WorkitemWrapper
+            free_workitem((*response).workitem as *mut WorkitemWrapper);
         }
-
-        // Finally, free the response struct itself
-        let _ = Box::from_raw(response); // Take ownership to deallocate
+        let _ = Box::from_raw(response);
     }
 }
 #[no_mangle]
@@ -5544,18 +5563,14 @@ pub extern "C" fn free_workitem_file(file: *mut WorkitemFileWrapper) {
     if file.is_null() {
         return;
     }
-
     unsafe {
-        // Free each CString or pointer field in WorkitemFileWrapper if they are not null
         if !(*file).filename.is_null() {
-            let _ = CString::from_raw((*file).filename as *mut c_char); // Take ownership to deallocate
+            let _ = CString::from_raw((*file).filename as *mut c_char);
         }
         if !(*file).id.is_null() {
-            let _ = CString::from_raw((*file).id as *mut c_char); // Take ownership to deallocate
+            let _ = CString::from_raw((*file).id as *mut c_char);
         }
-
-        // Finally, free the WorkitemFileWrapper struct itself
-        let _ = Box::from_raw(file); // Take ownership to deallocate
+        let _ = Box::from_raw(file);
     }
 }
 #[no_mangle]
@@ -5564,9 +5579,7 @@ pub extern "C" fn free_workitem(workitem: *mut WorkitemWrapper) {
     if workitem.is_null() {
         return;
     }
-
     unsafe {
-        // Free each CString or pointer field in WorkitemWrapper if they are not null
         if !(*workitem).id.is_null() {
             let _ = CString::from_raw((*workitem).id as *mut c_char);
         }
@@ -5621,8 +5634,6 @@ pub extern "C" fn free_workitem(workitem: *mut WorkitemWrapper) {
             // Free the array of pointers itself
             let _ = Box::from_raw((*workitem).files as *mut *const WorkitemFileWrapper);
         }
-
-        // Finally, free the `workitem` struct itself
         let _ = Box::from_raw(workitem); // Take ownership to deallocate
     }
 }
