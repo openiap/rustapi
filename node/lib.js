@@ -662,7 +662,7 @@ function loadLibrary() {
 
         lib.drop_collection = lib.func('drop_collection', DropCollectionResponseWrapperPtr, [ClientWrapperPtr, CString]);
         lib.dropCollectionCallback = koffi.proto('void dropCollectionCallback(DropCollectionResponseWrapper*)');
-        lib.drop_collection_async = lib.func('drop_collection_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.dropCollectionCallback)]);
+        lib.drop_collection_async = lib.func('drop_collection_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.dropCollectionCallback)]);
         lib.free_drop_collection_response = lib.func('free_drop_collection_response', 'void', [DropCollectionResponseWrapperPtr]);
 
         lib.get_indexes = lib.func('get_indexes', GetIndexesResponseWrapperPtr, [ClientWrapperPtr, CString]);

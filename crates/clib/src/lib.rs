@@ -1127,6 +1127,7 @@ pub extern "C" fn free_create_collection_response(response: *mut CreateCollectio
 pub struct DropCollectionResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1141,6 +1142,7 @@ pub extern "C" fn drop_collection(
             let response = DropCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1154,6 +1156,7 @@ pub extern "C" fn drop_collection(
         let response = DropCollectionResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: 0,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -1168,6 +1171,7 @@ pub extern "C" fn drop_collection(
             DropCollectionResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: 0,
             }
         }
         Err(e) => {
@@ -1177,6 +1181,7 @@ pub extern "C" fn drop_collection(
             DropCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             }
         }
     };
@@ -1189,6 +1194,7 @@ type DropCollectionCallback = extern "C" fn(wrapper: *mut DropCollectionResponse
 pub extern "C" fn drop_collection_async(
     client: *mut ClientWrapper,
     collectionname: *const c_char,
+    request_id: u64,
     callback: DropCollectionCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -1198,6 +1204,7 @@ pub extern "C" fn drop_collection_async(
             let response = DropCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1211,6 +1218,7 @@ pub extern "C" fn drop_collection_async(
         let response = DropCollectionResponseWrapper {
             success: false,
             error: error_msg,
+            request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -1224,6 +1232,7 @@ pub extern "C" fn drop_collection_async(
                 DropCollectionResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -1233,6 +1242,7 @@ pub extern "C" fn drop_collection_async(
                 DropCollectionResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -1243,7 +1253,15 @@ pub extern "C" fn drop_collection_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_drop_collection_response(response: *mut DropCollectionResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]

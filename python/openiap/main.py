@@ -837,7 +837,7 @@ class Client:
         cb = QueryCallback(callback)
 
         self.trace("Calling drop_collection_async")
-        self.lib.drop_collection_async(self.client, collectionname.encode('utf-8'), cb)
+        self.lib.drop_collection_async(self.client, collectionname.encode('utf-8'), 0, cb)
         self.trace("drop_collection_async called")
 
         event.wait()

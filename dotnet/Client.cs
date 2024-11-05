@@ -875,7 +875,7 @@ public partial class Client : IDisposable
     public static extern void free_create_collection_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void drop_collection_async(IntPtr client, string collectionname, DropCollectionCallback callback);
+    public static extern void drop_collection_async(IntPtr client, string collectionname, int request_id, DropCollectionCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_drop_collection_response(IntPtr response);    
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -1305,7 +1305,7 @@ public partial class Client : IDisposable
             }
         });
 
-        drop_collection_async(clientPtr, collectionname, callback);
+        drop_collection_async(clientPtr, collectionname, 0, callback);
 
         return tcs.Task;
     }
