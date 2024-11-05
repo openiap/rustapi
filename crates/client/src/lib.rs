@@ -45,6 +45,7 @@ use tokio::sync::{mpsc, oneshot};
 use std::env;
 use std::time::Duration;
 
+#[cfg(feature = "otel")]
 mod otel;
 mod tests;
 mod ws;
@@ -331,6 +332,7 @@ impl Client {
     }
 
     /// Load the configuration from the server.
+    #[allow(unused_variables)]
     pub async fn load_config(&self, strurl: &str, url: &url::Url) -> Option<Config> {
         let config: Option<Config>;
         let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
@@ -388,19 +390,20 @@ impl Client {
                 return None;
             }
         }
-        let mut enable_analytics = true;
-        let mut otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
+        let mut _enable_analytics = true;
+        let mut _otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
         if config.is_some() {
             let config = config.as_ref().unwrap();
             if !config.otel_metric_url.is_empty() {
-                otel_metric_url = config.otel_metric_url.clone();
+                _otel_metric_url = config.otel_metric_url.clone();
             }
-            enable_analytics = config.enable_analytics;
+            _enable_analytics = config.enable_analytics;
         }
-        if enable_analytics {
+        #[cfg(feature = "otel")]
+        if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, "0.0.13", strurl, otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, "0.0.13", strurl, _otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -1170,10 +1173,28 @@ impl Client {
     /// Internal function, Send a message to the OpenIAP server, and wait for a response.
     #[tracing::instrument(skip_all)]
     async fn send(&self, msg: Envelope) -> Result<Envelope, OpenIAPError> {
+        // let response = self.send_noawait(msg).await;
+        // match response {
+        //     Ok((response_rx, _)) => {
+        //         let response = response_rx.await;
+        //         match response {
+        //             Ok(response) => Ok(response),
+        //             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
+        //         }
+        //     }
+        //     Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
+        // }
         let response = self.send_noawait(msg).await;
         match response {
-            Ok((response_rx, _)) => {
+            Ok((response_rx, id)) => {
+                // Await the response
                 let response = response_rx.await;
+    
+                // Remove the entry from `inner.queries` after awaiting
+                let inner = self.inner.lock().await;
+                inner.queries.lock().await.remove(&id);
+    
+                // Handle the result of the await
                 match response {
                     Ok(response) => Ok(response),
                     Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
@@ -1189,28 +1210,42 @@ impl Client {
         &self,
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, String), OpenIAPError> {
-        {
-            // if !self.is_connected() && msg.command != "signin" && msg.command != "getelement" {
-            //     return Err(OpenIAPError::ClientError("send_noawait::Not connected".to_string()));
-            // }
-        }
+        // let (response_tx, response_rx) = oneshot::channel();
+        // let id = Client::get_uniqueid();
+        // msg.id = id.clone();
+        // {
+        //     trace!("get inner lock");
+        //     let inner = self.inner.lock().await;
+        //     {
+        //         trace!("get query lock");
+        //         inner.queries.lock().await.insert(id.clone(), response_tx);
+        //     }
+        //     let res = self.send_envelope(msg).await;
+        //     match res {
+        //         Ok(_) => (),
+        //         Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
+        //     }
+        // }
+        // Ok((response_rx, id))
         let (response_tx, response_rx) = oneshot::channel();
         let id = Client::get_uniqueid();
-        // debug!("Sending #{} {} message", id, msg.command);
         msg.id = id.clone();
+    
+        // Lock and insert the sender into `inner.queries`
         {
-            trace!("get inner lock");
             let inner = self.inner.lock().await;
-            {
-                trace!("get query lock");
-                inner.queries.lock().await.insert(id.clone(), response_tx);
-            }
-            let res = self.send_envelope(msg).await;
-            match res {
-                Ok(_) => (),
-                Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
-            }
+            inner.queries.lock().await.insert(id.clone(), response_tx);
         }
+    
+        // Send the message and check for errors
+        let res = self.send_envelope(msg).await;
+        if let Err(e) = res {
+            // Remove the entry from `inner.queries` if the send fails
+            let inner = self.inner.lock().await;
+            inner.queries.lock().await.remove(&id);
+            return Err(OpenIAPError::ClientError(e.to_string()));
+        }
+    
         Ok((response_rx, id))
     }
     /// Internal function, Setup a new stream, send a message to the OpenIAP server, and return a stream to send and receive data.
@@ -2511,46 +2546,121 @@ impl Client {
         config: UploadRequest,
         filepath: &str,
     ) -> Result<UploadResponse, OpenIAPError> {
+        // debug!("upload: Uploading file: {}", filepath);
+        // let mut file = File::open(filepath)
+        //     .map_err(|e| OpenIAPError::ClientError(format!("Failed to open file: {}", e)))?;
+        // let chunk_size = 1024 * 1024;
+        // let mut buffer = vec![0; chunk_size];
+
+        // let envelope = config.to_envelope();
+        // let (response_rx, rid) = self.send_noawait(envelope).await?;
+        // {
+        //     let envelope = BeginStream::from_rid(rid.clone());
+        //     debug!("Sending beginstream to #{}", rid);
+        //     self.send_envelope(envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+        //     let mut counter = 0;
+
+        //     loop {
+        //         let bytes_read = file.read(&mut buffer).map_err(|e| {
+        //             OpenIAPError::ClientError(format!("Failed to read from file: {}", e))
+        //         })?;
+        //         counter += 1;
+
+        //         if bytes_read == 0 {
+        //             break;
+        //         }
+
+        //         let chunk = buffer[..bytes_read].to_vec();
+        //         let envelope = Stream::from_rid(chunk, rid.clone());
+        //         debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
+        //         self.send_envelope(envelope).await.map_err(|e| {
+        //             OpenIAPError::ClientError(format!("Failed to send data: {}", e))
+        //         })?
+        //     }
+
+        //     let envelope = EndStream::from_rid(rid.clone());
+        //     debug!("Sending endstream to #{}", rid);
+        //     self.send_envelope(envelope).await
+        //         .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+        // }
+
+        // debug!("Wait for upload response for #{}", rid);
+        // match response_rx.await {
+        //     Ok(response) => {
+        //         if response.command == "error" {
+        //             let error_response: ErrorResponse = prost::Message::decode(
+        //                 response.data.unwrap().value.as_ref(),
+        //             )
+        //             .map_err(|e| {
+        //                 OpenIAPError::ClientError(format!("Failed to decode ErrorResponse: {}", e))
+        //             })?;
+        //             return Err(OpenIAPError::ServerError(error_response.message));
+        //         }
+        //         let upload_response: UploadResponse =
+        //             prost::Message::decode(response.data.unwrap().value.as_ref()).map_err(|e| {
+        //                 OpenIAPError::ClientError(format!("Failed to decode UploadResponse: {}", e))
+        //             })?;
+        //         Ok(upload_response)
+        //     }
+        //     Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
+        // }
         debug!("upload: Uploading file: {}", filepath);
         let mut file = File::open(filepath)
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to open file: {}", e)))?;
         let chunk_size = 1024 * 1024;
         let mut buffer = vec![0; chunk_size];
-
+    
+        // Send the initial upload request
         let envelope = config.to_envelope();
         let (response_rx, rid) = self.send_noawait(envelope).await?;
-        {
-            let envelope = BeginStream::from_rid(rid.clone());
-            debug!("Sending beginstream to #{}", rid);
-            self.send_envelope(envelope).await.map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
-            let mut counter = 0;
-
-            loop {
-                let bytes_read = file.read(&mut buffer).map_err(|e| {
-                    OpenIAPError::ClientError(format!("Failed to read from file: {}", e))
-                })?;
-                counter += 1;
-
-                if bytes_read == 0 {
-                    break;
-                }
-
-                let chunk = buffer[..bytes_read].to_vec();
-                let envelope = Stream::from_rid(chunk, rid.clone());
-                debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
-                self.send_envelope(envelope).await.map_err(|e| {
-                    OpenIAPError::ClientError(format!("Failed to send data: {}", e))
-                })?
-            }
-
-            let envelope = EndStream::from_rid(rid.clone());
-            debug!("Sending endstream to #{}", rid);
-            self.send_envelope(envelope).await
-                .map_err(|e| OpenIAPError::ClientError(format!("Failed to send data: {}", e)))?;
+        
+        // Send the BeginStream message
+        let envelope = BeginStream::from_rid(rid.clone());
+        debug!("Sending beginstream to #{}", rid);
+        if let Err(e) = self.send_envelope(envelope).await {
+            let inner = self.inner.lock().await;
+            inner.queries.lock().await.remove(&rid);
+            return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e)));
         }
-
+    
+        // Send file chunks
+        let mut counter = 0;
+        loop {
+            let bytes_read = file.read(&mut buffer).map_err(|e| {
+                OpenIAPError::ClientError(format!("Failed to read from file: {}", e))
+            })?;
+            counter += 1;
+    
+            if bytes_read == 0 {
+                break;
+            }
+    
+            let chunk = buffer[..bytes_read].to_vec();
+            let envelope = Stream::from_rid(chunk, rid.clone());
+            debug!("Sending chunk {} stream to #{}", counter, envelope.rid);
+            if let Err(e) = self.send_envelope(envelope).await {
+                let inner = self.inner.lock().await;
+                inner.queries.lock().await.remove(&rid);
+                return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e)));
+            }
+        }
+    
+        // Send the EndStream message
+        let envelope = EndStream::from_rid(rid.clone());
+        debug!("Sending endstream to #{}", rid);
+        if let Err(e) = self.send_envelope(envelope).await {
+            let inner = self.inner.lock().await;
+            inner.queries.lock().await.remove(&rid);
+            return Err(OpenIAPError::ClientError(format!("Failed to send data: {}", e)));
+        }
+    
+        // Await the response and clean up `inner.queries` afterward
         debug!("Wait for upload response for #{}", rid);
-        match response_rx.await {
+        let result = response_rx.await;
+        let inner = self.inner.lock().await;
+        inner.queries.lock().await.remove(&rid);
+    
+        match result {
             Ok(response) => {
                 if response.command == "error" {
                     let error_response: ErrorResponse = prost::Message::decode(

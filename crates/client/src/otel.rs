@@ -1,395 +1,455 @@
+// https://github.com/open-telemetry/opentelemetry-rust/blob/fcd7cae39b6730e5f5a907f29e9b0af3ff34d5ce/opentelemetry/CHANGELOG.md?plain=1#L101
 use crate::{otel, ClientStatistics};
 use openiap_proto::errors::OpenIAPError;
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
-use opentelemetry::global::{set_error_handler, Error as OtelError};
-use tracing::{trace, debug, error};
-use std::sync::{Arc, Mutex};
+use tracing::{debug, error};
+use std::sync::{Arc};
+#[cfg(feature = "otel_cpu")]
+use std::sync::{Mutex};
 use std::io::Write;
+#[cfg(feature = "otel_network")]
 use systemstat::{System, Platform};
 
+#[cfg(feature = "otel_cpu")]
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
+#[cfg(feature = "otel_cpu")]
 const PROCESS_CPU_UTILIZATION: &str = "process.cpu.utilization";
+#[cfg(feature = "otel_memory")]
 const PROCESS_MEMORY_USAGE: &str = "process.memory.usage";
+#[cfg(feature = "otel_memory")]
 const PROCESS_MEMORY_VIRTUAL: &str = "process.memory.virtual";
+#[cfg(feature = "otel_disk")]
 const PROCESS_DISK_IO: &str = "process.disk.io";
+#[cfg(feature = "otel_elapsed")]
 const PROCESS_ELAPSED_TIME: &str = "process.elapsed.time";
+#[cfg(feature = "otel_network")]
 const PROCESS_NETWORK_IO: &str = "process.network.io";
+#[cfg(feature = "otel_commands")]
 const CLIENT_COMMANDS : &str = "client.commands";
+#[cfg(feature = "otel_commands")]
 const CLIENT_CONNECTIONS : &str = "client.connections";
+#[cfg(feature = "otel_commands")]
 const CLIENT_CONNECTION_ATTEMPTS : &str = "client.connection_attempts";
+#[cfg(feature = "otel_package_stats")]
 const CLIENT_PACKAGE_TX : &str = "client.package_tx";
+#[cfg(feature = "otel_package_stats")]
 const CLIENT_PACKAGE_RX : &str = "client.package_rx";
+#[allow(dead_code)]
 const COMMAND: Key = Key::from_static_str("command");
+#[cfg(feature = "otel_network")]
 const DIRECTION: Key = Key::from_static_str("direction");
 const HOSTNAME: Key = Key::from_static_str("hostname");
 const OFID: Key = Key::from_static_str("ofid");
-
+#[cfg(feature = "otel_cpu")]
 use perf_monitor::cpu::{processor_numbers, ProcessStat};
+#[cfg(feature = "otel_disk")]
 use perf_monitor::io::get_process_io_stats;
+#[cfg(feature = "otel_memory")]
 use memory_stats::memory_stats;
 
 /// Register metrics for the process with the given OpenTelemetry meter.
 #[tracing::instrument(skip_all, target = "otel::register_metrics")]
 pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), String> {
-    let process_stat = ProcessStat::cur().map_err(|e| format!("Could not retrieve process stat: {}", e))?;
-    let core_count = processor_numbers().map_err(|e| format!("Could not get core numbers: {}", e))?;
-    let process_stat = Arc::new(Mutex::new( process_stat ));
+    #[cfg(feature = "otel_elapsed")]
     let start_time = SystemTime::now();
 
-    let process_cpu_usage = meter
+    #[cfg(feature = "otel_cpu")]
+    let process_stat = ProcessStat::cur().map_err(|e| format!("Could not retrieve process stat: {}", e))?;
+    #[cfg(feature = "otel_cpu")]
+    let core_count = processor_numbers().map_err(|e| format!("Could not get core numbers: {}", e))?;
+    #[cfg(feature = "otel_cpu")]
+    let process_stat = Arc::new(Mutex::new( process_stat ));
+
+    #[cfg(feature = "otel_cpu")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_cpu")]
+    let process_stat_clone = Arc::clone(&process_stat);
+    #[cfg(feature = "otel_cpu")]
+    meter
         .f64_observable_gauge(PROCESS_CPU_USAGE)
         .with_description("The percentage of CPU in use.")
+        .with_callback(move |gauge| {
+            let cpu = &process_stat_clone.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
+            gauge.observe(cpu, &common_attributes);
+        })
         .init();
-    let process_cpu_utilization = meter
+    #[cfg(feature = "otel_cpu")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    
+    #[cfg(feature = "otel_cpu")]
+    meter
         .f64_observable_gauge(PROCESS_CPU_UTILIZATION)
         .with_description("The percentage of CPU in use.")
+        .with_callback(move |gauge| {
+            let cpu = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
+            let cpu_utilization = cpu / core_count as f64;
+            gauge.observe(cpu_utilization, &common_attributes);
+        })
         .init();
-    let process_elapsed_time = meter
-        .u64_observable_gauge(PROCESS_ELAPSED_TIME)
-        .with_description("The uptime of the process in milliseconds.")
-        .init();
-    let process_memory_usage = meter
-        .u64_observable_gauge(PROCESS_MEMORY_USAGE)
-        .with_description("The amount of physical memory in use.")
-        .init();
-    let process_memory_virtual = meter
-        .u64_observable_gauge(PROCESS_MEMORY_VIRTUAL)
-        .with_description("The amount of committed virtual memory.")
-        .init();
-    let process_network_io = meter
+    #[cfg(feature = "otel_network")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_network")]
+    meter
         .u64_observable_gauge(PROCESS_NETWORK_IO)
         .with_description("Network bytes transferred.")
-        .init();
-    let process_disk_io = meter
-        .u64_observable_gauge(PROCESS_DISK_IO)
-        .with_description("Disk bytes transferred.")
-        .init();
-
-    let client_commands = meter
-        .u64_observable_counter(CLIENT_COMMANDS)
-        .with_description("Client Commands")
-        .init();
-    let client_connections = meter
-        .u64_observable_counter(CLIENT_CONNECTIONS)
-        .with_description("Client Connections")
-        .init();
-    let client_connection_attempts = meter
-        .u64_observable_counter(CLIENT_CONNECTION_ATTEMPTS)
-        .with_description("Client Connection Attempts")
-        .init();
-    let client_package_tx = meter
-        .u64_observable_counter(CLIENT_PACKAGE_TX)
-        .with_description("Client Package TX")
-        .init();
-    let client_package_rx = meter
-        .u64_observable_counter(CLIENT_PACKAGE_RX)
-        .with_description("Client Package RX")
-        .init();
-
-
-
-
-    let ofid = ofid.to_string();
-    let common_attributes = [
-        HOSTNAME.string(hostname::get().unwrap_or_default().into_string().unwrap()),
-        OFID.string(ofid),
-    ];
-
-    let previous_values = Arc::new(Mutex::new((0u64, 0u64, 0f64, Instant::now(), 0u64, 0u64)));
-
-
-    let os = std::env::consts::OS;
-
-    let stats_clone = Arc::clone(stats);
-    let sys = Arc::new(Mutex::new( System::new() ));
-
-
-    
-    
-    let result = meter.register_callback(
-        &[
-            process_cpu_usage.as_any(),
-            process_cpu_utilization.as_any(),
-            process_elapsed_time.as_any(),
-            process_memory_usage.as_any(),
-            process_memory_virtual.as_any(),
-            process_network_io.as_any(),
-            process_disk_io.as_any(),
-            client_commands.as_any(),
-            client_connections.as_any(),
-            client_connection_attempts.as_any(),
-            client_package_tx.as_any(),
-            client_package_rx.as_any(),
-        ],
-        move |context| {
-            let mut prev = previous_values.lock().unwrap();
-            let sys = sys.lock().unwrap();
-
+        .with_callback(move |gauge| {
             let mut net_rx: u64 = 0;
             let mut net_tx: u64 = 0;
-            if os == "linux" {
-                match sys.networks() {
-                    Ok(netifs) => {
-                        for netif in netifs.values() {
-                            let s = sys.network_stats(&netif.name);
-                            match s {
-                                Ok(stats) => {
-                                    net_rx += stats.rx_bytes.as_u64();
-                                    net_tx += stats.tx_bytes.as_u64();
-                                }
-                                Err(_x) => (),
+            match System::new().networks() {
+                Ok(netifs) => {
+                    for netif in netifs.values() {
+                        let s = System::new().network_stats(&netif.name);
+                        match s {
+                            Ok(stats) => {
+                                net_rx += stats.rx_bytes.as_u64();
+                                net_tx += stats.tx_bytes.as_u64();
                             }
+                            Err(_x) => (),
                         }
                     }
-                    Err(_x) => ()
                 }
-    
-                let net_rx_diff = net_rx.saturating_sub(prev.4);
-                let net_tx_diff = net_tx.saturating_sub(prev.5);
-    
-                if net_rx_diff > 0 {
-                    context.observe_u64(&process_network_io, net_rx_diff, &[common_attributes.as_slice(), &[DIRECTION.string("receive")]].concat());
-                }
-                if net_tx_diff > 0 {
-                    context.observe_u64(&process_network_io, net_tx_diff, &[common_attributes.as_slice(), &[DIRECTION.string("transmit")]].concat());
-                }
+                Err(_x) => ()
             }
-
-
+            gauge.observe(net_rx, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "receive")]].concat());
+            gauge.observe(net_tx, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "transmit")]].concat());
+        })
+        .init();
+    #[cfg(feature = "otel_disk")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_disk")]
+    meter
+        .u64_observable_gauge(PROCESS_DISK_IO)
+        .with_description("Disk bytes transferred.")
+        .with_callback(move |gauge| {
             let io_stat = get_process_io_stats().unwrap_or_default();
+            gauge.observe(io_stat.read_bytes, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "read")]].concat());
+            gauge.observe(io_stat.write_bytes, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "write")]].concat());
+        })
+        .init();
 
-            let read_bytes_diff = io_stat.read_bytes.saturating_sub(prev.0);
-            let write_bytes_diff = io_stat.write_bytes.saturating_sub(prev.1);
-
-            let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as u64;
-            let cpu = process_stat.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
-            let cpu_usage = cpu;
-            let cpu_utilization = cpu / core_count as f64;
-
-            context.observe_f64(&process_cpu_usage, cpu_usage, &common_attributes);
-            context.observe_f64(&process_cpu_utilization, cpu_utilization, &common_attributes);
+    #[cfg(feature = "otel_memory")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_memory")]
+    meter
+        .u64_observable_gauge(PROCESS_MEMORY_USAGE)
+        .with_description("The amount of physical memory in use.")
+        .with_callback(move |gauge| {
             let mut physical_mem: u64 = 0;
-            let mut virtual_mem: u64 = 0;
             if let Some(usage) = memory_stats() {
                 physical_mem = usage.physical_mem as u64;
+            }
+            gauge.observe(physical_mem, &common_attributes);
+        })
+        .init();
+    #[cfg(feature = "otel_memory")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_memory")]
+    meter
+        .u64_observable_gauge(PROCESS_MEMORY_VIRTUAL)
+        .with_description("The amount of committed virtual memory.")
+        .with_callback(move |gauge| {
+            let mut virtual_mem: u64 = 0;
+            if let Some(usage) = memory_stats() {
                 virtual_mem = usage.virtual_mem as u64;
             }
-
-            if physical_mem > 0 {
-                context.observe_u64(&process_memory_usage, physical_mem, &common_attributes);
-            }
-            if virtual_mem > 0 {
-                context.observe_u64(&process_memory_virtual, virtual_mem, &common_attributes);
-            }
-            context.observe_u64(&process_elapsed_time, elapsed_time, &common_attributes);
-            if read_bytes_diff > 0 {
-                context.observe_u64(
-                    &process_disk_io,
-                    read_bytes_diff as u64,
-                    &[common_attributes.as_slice(), &[DIRECTION.string("read")]].concat(),
-                );
-            }
-            if write_bytes_diff > 0 {
-                context.observe_u64(
-                    &process_disk_io,
-                    write_bytes_diff as u64,
-                    &[common_attributes.as_slice(), &[DIRECTION.string("write")]].concat(),
-                );
-            }
-
-
-            {
-                let stats = stats_clone.lock().unwrap();
-                if stats.connection_attempts > 0 {
-                    context.observe_u64(&client_connection_attempts, stats.connection_attempts, &common_attributes);
-                }
+            gauge.observe(virtual_mem, &common_attributes);
+        })
+        .init();
+    #[cfg(feature = "otel_elapsed")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_elapsed")]
+    meter
+        .u64_observable_gauge(PROCESS_ELAPSED_TIME)
+        .with_description("The uptime of the process in milliseconds.")
+        .with_callback(move |gauge| {
+            let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as u64;
+            gauge.observe(elapsed_time, &common_attributes);
+        })
+        .init();
+    #[cfg(feature = "otel_connections")]        
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_connections")]
+    meter
+        .u64_observable_counter(CLIENT_CONNECTIONS)
+        .with_description("Client Connections")
+        .with_callback({
+            let stats = Arc::clone(&stats);
+            move |counter| {
+                let stats = stats.lock().unwrap();
                 if stats.connections > 0 {
-                    context.observe_u64(&client_connections, stats.connections, &common_attributes);
+                    counter.observe(stats.connections, &common_attributes);
                 }
+            }
+        })
+        .init();
+    #[cfg(feature = "otel_connections")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_connections")]
+    meter
+        .u64_observable_counter(CLIENT_CONNECTION_ATTEMPTS)
+        .with_description("Client Connection Attempts")
+        .with_callback({
+            let stats = Arc::clone(stats);
+            move |counter| {
+                let stats = stats.lock().unwrap();
+                if stats.connection_attempts > 0 {
+                    counter.observe(stats.connection_attempts, &common_attributes);
+                }
+            }
+        })
+        .init();
+    #[cfg(feature = "otel_package_stats")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_package_stats")]
+    meter
+        .u64_observable_counter(CLIENT_PACKAGE_TX)
+        .with_description("Client Package TX")
+        .with_callback({
+            let stats = Arc::clone(stats);
+            move |counter| {
+                let stats = stats.lock().unwrap();
                 if stats.package_tx > 0 {
-                    context.observe_u64(&client_package_tx, stats.package_tx, &common_attributes);
+                    counter.observe(stats.package_tx, &common_attributes);
                 }
+            }
+        })
+        .init();
+    #[cfg(feature = "otel_package_stats")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_package_stats")]
+    meter
+        .u64_observable_counter(CLIENT_PACKAGE_RX)
+        .with_description("Client Package RX")
+        .with_callback({
+            let stats = Arc::clone(stats);
+            move |counter| {
+                let stats = stats.lock().unwrap();
                 if stats.package_rx > 0 {
-                    context.observe_u64(&client_package_rx, stats.package_rx, &common_attributes);
+                    counter.observe(stats.package_rx, &common_attributes);
                 }
-                
+            }
+        })
+        .init();
+
+    #[cfg(feature = "otel_commands")]
+    let common_attributes = [
+        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+        KeyValue::new(OFID, ofid.to_string()),
+        KeyValue::new("PID", std::process::id().to_string()),
+    ];
+    #[cfg(feature = "otel_commands")]
+    meter
+        .u64_observable_counter(CLIENT_COMMANDS)
+        .with_description("Client Commands")
+        .with_callback({
+            let stats = Arc::clone(stats);
+            move |counter| {
+                let stats = stats.lock().unwrap();
                 if stats.signin > 0 {
-                    context.observe_u64(&client_commands, stats.signin, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("signin")]].concat());
+                    counter.observe(stats.signin, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND, "signin")]].concat());
                 }
                 if stats.download > 0 {
-                    context.observe_u64(&client_commands, stats.download, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("download")]].concat());
+                    counter.observe(stats.download, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND, "download")]].concat());
                 }
                 if stats.getdocumentversion > 0 {
-                    context.observe_u64(&client_commands, stats.getdocumentversion, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("getdocumentversion")]].concat());
+                    counter.observe(stats.getdocumentversion, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"getdocumentversion")]].concat());
                 }
                 if stats.customcommand > 0 {
-                    context.observe_u64(&client_commands, stats.customcommand, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("customcommand")]].concat());
+                    counter.observe(stats.customcommand, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"customcommand")]].concat());
                 }
                 if stats.listcollections > 0 {
-                    context.observe_u64(&client_commands, stats.listcollections, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("listcollections")]].concat());
+                    counter.observe(stats.listcollections, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"listcollections")]].concat());
                 }
                 if stats.createcollection > 0 {
-                    context.observe_u64(&client_commands, stats.createcollection, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("createcollection")]].concat());
+                    counter.observe(stats.createcollection, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"createcollection")]].concat());
                 }
                 if stats.dropcollection > 0 {
-                    context.observe_u64(&client_commands, stats.dropcollection, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("dropcollection")]].concat());
+                    counter.observe(stats.dropcollection, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"dropcollection")]].concat());
                 }
                 if stats.ensurecustomer > 0 {
-                    context.observe_u64(&client_commands, stats.ensurecustomer, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("ensurecustomer")]].concat());
+                    counter.observe(stats.ensurecustomer, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"ensurecustomer")]].concat());
                 }
                 if stats.invokeopenrpa > 0 {
-                    context.observe_u64(&client_commands, stats.invokeopenrpa, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("invokeopenrpa")]].concat());
+                    counter.observe(stats.invokeopenrpa, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"invokeopenrpa")]].concat());
                 }
                 if stats.registerqueue > 0 {
-                    context.observe_u64(&client_commands, stats.registerqueue, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("registerqueue")]].concat());
+                    counter.observe(stats.registerqueue, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"registerqueue")]].concat());
                 }
                 if stats.registerexchange > 0 {
-                    context.observe_u64(&client_commands, stats.registerexchange, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("registerexchange")]].concat());
+                    counter.observe(stats.registerexchange, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"registerexchange")]].concat());
                 }
                 if stats.unregisterqueue > 0 {
-                    context.observe_u64(&client_commands, stats.unregisterqueue, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("unregisterqueue")]].concat());
+                    counter.observe(stats.unregisterqueue, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"unregisterqueue")]].concat());
                 }
                 if stats.watch > 0 {
-                    context.observe_u64(&client_commands, stats.watch, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("watch")]].concat());
+                    counter.observe(stats.watch, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"watch")]].concat());
                 }
                 if stats.unwatch > 0 {
-                    context.observe_u64(&client_commands, stats.unwatch, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("unwatch")]].concat());
+                    counter.observe(stats.unwatch , 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"unwatch")]].concat());
                 }
                 if stats.queuemessage > 0 {
-                    context.observe_u64(&client_commands, stats.queuemessage, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("queuemessage")]].concat());
+                    counter.observe(stats.queuemessage, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"queuemessage")]].concat());
                 }
                 if stats.pushworkitem > 0 {
-                    context.observe_u64(&client_commands, stats.pushworkitem, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("pushworkitem")]].concat());
+                    counter.observe(stats.pushworkitem, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"pushworkitem")]].concat());
                 }
                 if stats.pushworkitems > 0 {
-                    context.observe_u64(&client_commands, stats.pushworkitems, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("pushworkitems")]].concat());
+                    counter.observe(stats.pushworkitems, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"pushworkitems")]].concat());
                 }
                 if stats.popworkitem > 0 {
-                    context.observe_u64(&client_commands, stats.popworkitem, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("popworkitem")]].concat());
+                    counter.observe(stats.popworkitem, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"popworkitem")]].concat());
                 }
                 if stats.updateworkitem > 0 {
-                    context.observe_u64(&client_commands, stats.updateworkitem, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("updateworkitem")]].concat());
+                    counter.observe(stats.updateworkitem, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"updateworkitem")]].concat());
                 }
                 if stats.deleteworkitem > 0 {
-                    context.observe_u64(&client_commands, stats.deleteworkitem, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("deleteworkitem")]].concat());
+                    counter.observe(stats.deleteworkitem, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"deleteworkitem")]].concat());
                 }
                 if stats.addworkitemqueue > 0 {
-                    context.observe_u64(&client_commands, stats.addworkitemqueue, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("addworkitemqueue")]].concat());
+                    counter.observe(stats.addworkitemqueue, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"addworkitemqueue")]].concat());
                 }
                 if stats.updateworkitemqueue > 0 {
-                    context.observe_u64(&client_commands, stats.updateworkitemqueue, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("updateworkitemqueue")]].concat());
+                    counter.observe(stats.updateworkitemqueue, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"updateworkitemqueue")]].concat());
                 }
                 if stats.deleteworkitemqueue > 0 {
-                    context.observe_u64(&client_commands, stats.deleteworkitemqueue, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("deleteworkitemqueue")]].concat());
+                    counter.observe(stats.deleteworkitemqueue, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"deleteworkitemqueue")]].concat());
                 }
                 if stats.getindexes > 0 {
-                    context.observe_u64(&client_commands, stats.getindexes, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("getindexes")]].concat());
+                    counter.observe(stats.getindexes, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"getindexes")]].concat());
                 }
                 if stats.createindex > 0 {
-                    context.observe_u64(&client_commands, stats.createindex, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("createindex")]].concat());
+                    counter.observe(stats.createindex, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"createindex")]].concat());
                 }
                 if stats.dropindex > 0 {
-                    context.observe_u64(&client_commands, stats.dropindex, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("dropindex")]].concat());
+                    counter.observe(stats.dropindex, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"dropindex")]].concat());
                 }
                 if stats.upload > 0 {
-                    context.observe_u64(&client_commands, stats.upload, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("upload")]].concat());
+                    counter.observe(stats.upload, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"upload")]].concat());
                 }
                 if stats.query > 0 {
-                    context.observe_u64(&client_commands, stats.query, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("query")]].concat());
+                    counter.observe(stats.query, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"query")]].concat());
                 }
                 if stats.count > 0 {
-                    context.observe_u64(&client_commands, stats.count, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("count")]].concat());
+                    counter.observe(stats.count, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"count")]].concat());
                 }
                 if stats.distinct > 0 {
-                    context.observe_u64(&client_commands, stats.distinct, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("distinct")]].concat());
+                    counter.observe(stats.distinct, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"distinct")]].concat());
                 }
                 if stats.aggregate > 0 {
-                    context.observe_u64(&client_commands, stats.aggregate, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("aggregate")]].concat());
+                    counter.observe(stats.aggregate, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"aggregate")]].concat());
                 }
                 if stats.insertone > 0 {
-                    context.observe_u64(&client_commands, stats.insertone, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("insertone")]].concat());
+                    counter.observe(stats.insertone, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"insertone")]].concat());
                 }
                 if stats.insertmany > 0 {
-                    context.observe_u64(&client_commands, stats.insertmany, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("insertmany")]].concat());
+                    counter.observe(stats.insertmany, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"insertmany")]].concat());
                 }
                 if stats.insertorupdateone > 0 {
-                    context.observe_u64(&client_commands, stats.insertorupdateone, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("insertorupdateone")]].concat());
+                    counter.observe(stats.insertorupdateone, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"insertorupdateone")]].concat());
                 }
                 if stats.insertorupdatemany > 0 {
-                    context.observe_u64(&client_commands, stats.insertorupdatemany, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("insertorupdatemany")]].concat());
+                    counter.observe(stats.insertorupdatemany, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"insertorupdatemany")]].concat());
                 }
                 if stats.updateone > 0 {
-                    context.observe_u64(&client_commands, stats.updateone, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("updateone")]].concat());
+                    counter.observe(stats.updateone, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"updateone")]].concat());
                 }
                 if stats.updatedocument > 0 {
-                    context.observe_u64(&client_commands, stats.updatedocument, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("updatedocument")]].concat());
+                    counter.observe(stats.updatedocument, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"updatedocument")]].concat());
                 }
                 if stats.deleteone > 0 {
-                    context.observe_u64(&client_commands, stats.deleteone, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("deleteone")]].concat());
+                    counter.observe(stats.deleteone, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"deleteone")]].concat());
                 }
                 if stats.deletemany > 0 {
-                    context.observe_u64(&client_commands, stats.deletemany, 
-                        &[common_attributes.as_slice(), &[COMMAND.string("deletemany")]].concat());
+                    counter.observe(stats.deletemany, 
+                        &[common_attributes.as_slice(), &[KeyValue::new(COMMAND,"deletemany")]].concat());
                 }
             }
-
-
-            // Update previous values
-            *prev = (io_stat.read_bytes, io_stat.write_bytes, cpu_usage, Instant::now(), net_rx, net_tx);
-
-            // println!("UPTIME: {}, CPU: {}, MEM: {}, VIRT: {}, READ: {}, WRITE: {}", elapsed_time,
-            // cpu_usage, physical_mem, virtual_mem, read_bytes_diff, write_bytes_diff);
-        },
-    );
-
-    match result {
-        Ok(_) => {
-            let _ = set_error_handler(Box::new(|_error: OtelError| {
-                trace!("Error in OpenTelemetry: {:?}", _error);
-            }));
-            Ok(())
-        },
-        Err(e) => Err(format!("Could not register callback: {}", e)),
-    }
+        })
+        .init();
+    Ok(())
 }
 
 
@@ -400,7 +460,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
 use opentelemetry::{KeyValue};
 use opentelemetry_otlp::{WithExportConfig};
 use opentelemetry_sdk::{Resource};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime}; // Instant, 
 use opentelemetry_otlp::{new_exporter, new_pipeline};
 use opentelemetry_sdk::{runtime::Tokio};
 use opentelemetry::metrics::MeterProvider;
