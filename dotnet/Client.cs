@@ -541,6 +541,7 @@ public partial class Client : IDisposable
         public IntPtr id;
         public IntPtr folder;
         public IntPtr filename;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct DownloadResponseWrapper
@@ -549,6 +550,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr filename;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DownloadCallback(IntPtr responsePtr);
 
@@ -561,6 +563,7 @@ public partial class Client : IDisposable
         public IntPtr mimetype;
         public IntPtr metadata;
         public IntPtr collectionname;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct UploadResponseWrapper
@@ -569,6 +572,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr id;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void UploadCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
