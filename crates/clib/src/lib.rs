@@ -8,6 +8,8 @@ use openiap_client::protos::{
 };
 use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
+mod tests;
+
 use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -5307,6 +5309,7 @@ pub extern "C" fn free_push_workitem_response(response: *mut PushWorkitemRespons
 pub struct PopWorkitemRequestWrapper {
     wiq: *const c_char,
     wiqid: *const c_char,
+    request_id: u64
     // includefiles: bool,
     // compressed: bool,
 }
@@ -5316,6 +5319,7 @@ pub struct PopWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
     workitem: *const WorkitemWrapper,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -5332,6 +5336,7 @@ pub extern "C" fn pop_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -5344,6 +5349,7 @@ pub extern "C" fn pop_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             };
             return Box::into_raw(Box::new(response));
         }
@@ -5360,6 +5366,7 @@ pub extern "C" fn pop_workitem (
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return Box::into_raw(Box::new(response));
     }
@@ -5393,6 +5400,7 @@ pub extern "C" fn pop_workitem (
                 success: true,
                 error: std::ptr::null(),
                 workitem,
+                request_id: options.request_id
             }))
         }
         Err(e) => {
@@ -5403,6 +5411,7 @@ pub extern "C" fn pop_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             }))
         }
     }
@@ -5423,6 +5432,7 @@ pub extern "C" fn pop_workitem_async (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -5435,6 +5445,7 @@ pub extern "C" fn pop_workitem_async (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -5451,12 +5462,14 @@ pub extern "C" fn pop_workitem_async (
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let downloadfolder = c_char_to_str(downloadfolder);
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let mut _downloadfolder = Some(downloadfolder.as_str());
         if downloadfolder.is_empty() {
@@ -5482,6 +5495,7 @@ pub extern "C" fn pop_workitem_async (
                     success: true,
                     error: std::ptr::null(),
                     workitem,
+                    request_id: request_id
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -5493,6 +5507,7 @@ pub extern "C" fn pop_workitem_async (
                     success: false,
                     error: error_msg,
                     workitem: std::ptr::null(),
+                    request_id: request_id
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -5504,9 +5519,113 @@ pub extern "C" fn pop_workitem_async (
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_pop_workitem_response(response: *mut PopWorkitemResponseWrapper) {
-    free(response);
-}
+    if response.is_null() {
+        return;
+    }
 
+    unsafe {
+        // Free the error message if it exists
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char); // Take ownership to deallocate
+        }
+
+        // Free the workitem if it exists
+        if !(*response).workitem.is_null() {
+            free_workitem((*response).workitem as *mut WorkitemWrapper); // Custom function to free WorkitemWrapper
+        }
+
+        // Finally, free the response struct itself
+        let _ = Box::from_raw(response); // Take ownership to deallocate
+    }
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_workitem_file(file: *mut WorkitemFileWrapper) {
+    if file.is_null() {
+        return;
+    }
+
+    unsafe {
+        // Free each CString or pointer field in WorkitemFileWrapper if they are not null
+        if !(*file).filename.is_null() {
+            let _ = CString::from_raw((*file).filename as *mut c_char); // Take ownership to deallocate
+        }
+        if !(*file).id.is_null() {
+            let _ = CString::from_raw((*file).id as *mut c_char); // Take ownership to deallocate
+        }
+
+        // Finally, free the WorkitemFileWrapper struct itself
+        let _ = Box::from_raw(file); // Take ownership to deallocate
+    }
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_workitem(workitem: *mut WorkitemWrapper) {
+    if workitem.is_null() {
+        return;
+    }
+
+    unsafe {
+        // Free each CString or pointer field in WorkitemWrapper if they are not null
+        if !(*workitem).id.is_null() {
+            let _ = CString::from_raw((*workitem).id as *mut c_char);
+        }
+        if !(*workitem).name.is_null() {
+            let _ = CString::from_raw((*workitem).name as *mut c_char);
+        }
+        if !(*workitem).payload.is_null() {
+            let _ = CString::from_raw((*workitem).payload as *mut c_char);
+        }
+        if !(*workitem).state.is_null() {
+            let _ = CString::from_raw((*workitem).state as *mut c_char);
+        }
+        if !(*workitem).wiq.is_null() {
+            let _ = CString::from_raw((*workitem).wiq as *mut c_char);
+        }
+        if !(*workitem).wiqid.is_null() {
+            let _ = CString::from_raw((*workitem).wiqid as *mut c_char);
+        }
+        if !(*workitem).username.is_null() {
+            let _ = CString::from_raw((*workitem).username as *mut c_char);
+        }
+        if !(*workitem).success_wiqid.is_null() {
+            let _ = CString::from_raw((*workitem).success_wiqid as *mut c_char);
+        }
+        if !(*workitem).failed_wiqid.is_null() {
+            let _ = CString::from_raw((*workitem).failed_wiqid as *mut c_char);
+        }
+        if !(*workitem).success_wiq.is_null() {
+            let _ = CString::from_raw((*workitem).success_wiq as *mut c_char);
+        }
+        if !(*workitem).failed_wiq.is_null() {
+            let _ = CString::from_raw((*workitem).failed_wiq as *mut c_char);
+        }
+        if !(*workitem).errormessage.is_null() {
+            let _ = CString::from_raw((*workitem).errormessage as *mut c_char);
+        }
+        if !(*workitem).errorsource.is_null() {
+            let _ = CString::from_raw((*workitem).errorsource as *mut c_char);
+        }
+        if !(*workitem).errortype.is_null() {
+            let _ = CString::from_raw((*workitem).errortype as *mut c_char);
+        }
+
+        // Free the array of `WorkitemFileWrapper` pointers if it exists
+        if !(*workitem).files.is_null() && (*workitem).files_len > 0 {
+            for i in 0..(*workitem).files_len as isize {
+                let file_ptr = *(*workitem).files.offset(i);
+                if !file_ptr.is_null() {
+                    free_workitem_file(file_ptr as *mut WorkitemFileWrapper);
+                }
+            }
+            // Free the array of pointers itself
+            let _ = Box::from_raw((*workitem).files as *mut *const WorkitemFileWrapper);
+        }
+
+        // Finally, free the `workitem` struct itself
+        let _ = Box::from_raw(workitem); // Take ownership to deallocate
+    }
+}
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct UpdateWorkitemRequestWrapper {
@@ -5955,6 +6074,7 @@ pub struct ClientEventResponseWrapper {
     eventid: *const c_char,
     error: *const c_char,
 }
+
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn on_client_event(
@@ -5987,11 +6107,14 @@ pub extern "C" fn on_client_event(
     let _eventid = eventid.clone();
     tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-            handle.block_on(client
-            .on_event(
-                Box::new(move |event: ClientEvent| {
-                    let clientid = _eventid.clone();
-                    debug!("client event: {:?}", event);
+        handle.block_on(client.on_event(Box::new({
+            let handle = handle.clone(); // Clone to avoid the move error
+            move |event: ClientEvent| {
+                let clientid = _eventid.clone();
+                debug!("client event: {:?}", event);
+    
+                // Run async block synchronously within handle
+                handle.block_on(async {
                     let mut e = CLIENT_EVENTS.lock().unwrap();
                     let queue = e.get_mut(&clientid);
                     match queue {
@@ -6004,10 +6127,14 @@ pub extern "C" fn on_client_event(
                             e.insert(clientid, q);
                         }
                     }
-                }),
-            )
-        )
+                });
+            }
+        })));
     });
+    
+    
+    
+    
 
     let mut events = CLIENT_EVENTS.lock().unwrap();
     let _eventid = eventid.clone();
