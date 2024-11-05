@@ -65,7 +65,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
 
     let b = Client::new();
     // enable_tracing("openiap=debug", "new");
-    enable_tracing("openiap=info", "");
+    // enable_tracing("openiap=info", "");
     b.on_event(Box::new(|_event| {
         match _event {
             openiap_client::ClientEvent::Connecting => println!("CLI: Client connecting!"),
@@ -101,6 +101,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::from("bum");
     println!("? for help");
     let mut sthandle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut x: u64 = 0;
     while !input.eq_ignore_ascii_case("quit") {
         if input.eq_ignore_ascii_case("?") {
             println!("? for help");
@@ -158,8 +159,10 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 sthandle = Some(
                     // tokio::task::Builder::new().name("NonStop").spawn(async move {
                     tokio::task::spawn(async move {
+                    println!("Task started, begin loop...");
                     loop  {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_micros(1) ).await;
                         match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
                             Ok(response) => {
                                 match response.workitem {
@@ -172,17 +175,25 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                             workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
                                         }).await {
                                             Ok(_response) => {
-                                                println!("Updated workitem {:?} {:?}", id, name);
+                                                x = x + 1;
+                                                if x % 500 == 0 {
+                                                    println!("Updated workitem {:?} {:?}", id, name);
+                                                }
                                             }
                                             Err(e) => {
-                                                println!("Failed to update workitem: {:?}", e);
+                                                x = x + 1;
+                                                if x % 500 == 0 {
+                                                    println!("Failed to update workitem: {:?}", e);
+                                                }
                                             }
                                         };
                                     }
                                     None => {
                                         let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-                                        //println!("{}", a);
-                                        println!("No workitem popped {:?}", a);
+                                        x = x + 1;
+                                        if x % 500 == 0 {
+                                            println!("No workitem popped {:?}", a);
+                                        }
 
                                     }
                                 }
