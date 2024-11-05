@@ -46,20 +46,23 @@ class Program
 
         // Initialize the client
         Client client = new Client();
-        client.enabletracing("info", "");
+        // client.enabletracing("info", "");
         // client.enabletracing("openiap=debug", "new");
         await client.connect();
         if (!client.connected())
         {
-            client.info("Client connection error: " + client.connectionerror());
+            Console.WriteLine("Client connection error: " + client.connectionerror());
             return;
         }
-        client.info("Client connection success: " + client.connected());
+        Console.WriteLine("Client connection success: " + client.connected());
 
         // Command handling loop
         Console.WriteLine("? for help");
         string input = "";
         string watchId = "";
+        var cancellationTokenSource = new CancellationTokenSource();
+        CancellationToken token = cancellationTokenSource.Token;
+        cancellationTokenSource.Cancel();
         while (input.ToLower() != "quit")
         {
             Console.Write("Enter command: ");
@@ -76,6 +79,21 @@ class Program
                     Console.WriteLine("w - Watch for changes");
                     Console.WriteLine("uw - Unwatch");
                     break;
+                case "0":
+                    client.disabletracing();
+                    break;
+                case "1":
+                    client.enabletracing("openiap=info", "");
+                    break;
+                case "2":
+                    client.enabletracing("openiap=debug", "new");
+                    break;
+                case "3":
+                    client.enabletracing("openiap=trace", "new");
+                    break;
+                case "4":
+                    client.enabletracing("trace", "new");
+                    break;
                 case "dis":
                     try {
                         var t = System.Threading.Tasks.Task.Run(() => {
@@ -85,27 +103,73 @@ class Program
                     }
                     catch (Exception e)
                     {
-                        client.info("Error disconnecting: " + e.Message);
+                        Console.WriteLine("Error disconnecting: " + e.Message);
                     }
+                    break;
+                case "gc":
+                    GC.Collect();
+                    break;
+                case "st":
+                    if(!token.IsCancellationRequested) {
+                        Console.WriteLine("Stopping running task.");
+                        cancellationTokenSource.Cancel();
+                        break;
+                    }
+                    cancellationTokenSource = new CancellationTokenSource();
+                    token = cancellationTokenSource.Token;
+                    int x = 0;
+                    var task = Task.Run(async () => 
+                    {
+                        Console.WriteLine("Task started, begin loop...");
+                        while (!token.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                x++;
+                                var workitem = await client.PopWorkitem("q2");
+                                Thread.Sleep(1);
+                                if (workitem != null)
+                                {                          
+
+                                    Console.WriteLine("Updating ", workitem.id, workitem.name);
+                                    workitem.state = "successful";
+                                    workitem = await client.UpdateWorkitem(workitem, new string[] { });
+                                }
+                                else
+                                {
+                                    if (x % 500 == 0)
+                                    {
+                                        Console.WriteLine("No new workitem", DateTime.Now);
+                                        GC.Collect();
+                                    }
+                                }
+                            }
+                            catch (System.Exception ex)
+                            {   
+                                Console.WriteLine("Error: ", ex.ToString());
+                            }
+                        }
+                        Console.WriteLine("Task canceled.");
+                    }, token);
                     break;
                 case "s":
                     try {
                         var (jwt, error, success) = await client.Signin();
-                        client.info("Signin JWT: " + jwt);
+                        Console.WriteLine("Signin JWT: " + jwt);
                     } catch (Exception e) {
-                        client.info("Error signing in: " + e.Message);
+                        Console.WriteLine("Error signing in: " + e.Message);
                     }
                     break;
 
                 case "q":
                     try {
                         // string results = await client.Query<string>("entities", "{}", "{\"name\": 1}");
-                        // client.info("Query results: " + results);
+                        // Console.WriteLine("Query results: " + results);
                         var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
-                        client.info("Query returned " + results.Count + " results.");
+                        Console.WriteLine("Query returned " + results.Count + " results.");
                         for (int i = 0; i < results.Count; i++)
                         {
-                            client.info(results[i]._id, " ", results[i].name);
+                            Console.WriteLine(results[i]._id, " ", results[i].name);
                             if (i > 10) {
                                 break;
                             }
@@ -113,16 +177,16 @@ class Program
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error querying: " + e.Message);
+                        Console.WriteLine("Error querying: " + e.Message);
                     }
                     break;
                 case "a":
                     try {
                         var results = await client.Aggregate<List<Base>>("entities", "[{\"$match\": {\"_type\": \"test\"}}]");
-                        client.info("Aggregation returned " + results.Count + " results.");
+                        Console.WriteLine("Aggregation returned " + results.Count + " results.");
                         for (int i = 0; i < results.Count; i++)
                         {
-                            client.info(results[i]._id, " ", results[i].name);
+                            Console.WriteLine(results[i]._id, " ", results[i].name);
                             if (i > 10) {
                                 break;
                             }
@@ -130,19 +194,19 @@ class Program
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error querying: " + e.Message);
+                        Console.WriteLine("Error querying: " + e.Message);
                     }
                     break;
 
                 case "l":
                     try {
                         // string results = await client.ListCollections<string>();
-                        // client.info("Query results: " + results);
+                        // Console.WriteLine("Query results: " + results);
                         var results = await client.ListCollections<List<Collection>>();
-                        client.info("ListCollections returned " + results.Count + " results.");
+                        Console.WriteLine("ListCollections returned " + results.Count + " results.");
                         for (int i = 0; i < results.Count; i++)
                         {
-                            client.info(results[i].name);
+                            Console.WriteLine(results[i].name);
                             if (i > 10) {
                                 break;
                             }
@@ -150,70 +214,70 @@ class Program
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error querying: " + e.Message);
+                        Console.WriteLine("Error querying: " + e.Message);
                     }
                     break;
                 case "cc":
                     try {
                         await client.CreateCollection("testdotnetcollection");
-                        client.info("Create testdotnetcollection Collection success.");
+                        Console.WriteLine("Create testdotnetcollection Collection success.");
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error creating collection: " + e.Message);
+                        Console.WriteLine("Error creating collection: " + e.Message);
                     }
                     break;
                 case "cc2":
                     try {
                         await client.CreateCollection("testdotnettscollection", timeseries: 
                         new Client.ColTimeseriesWrapper("ts", "", "minutes"));
-                        client.info("Create testdotnettscollection Collection success.");
+                        Console.WriteLine("Create testdotnettscollection Collection success.");
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error creating collection: " + e.Message);
+                        Console.WriteLine("Error creating collection: " + e.Message);
                     }
                     break;
                 case "cc3":
                     try {
                         await client.CreateCollection("testdotnetcollection");
-                        client.info("Create testdotnetcollection Collection success.");
+                        Console.WriteLine("Create testdotnetcollection Collection success.");
                         await client.CreateIndex("testdotnetcollection", "{\"name\": 1}");
-                        client.info("Create index on testdotnetcollection Collection success.");
+                        Console.WriteLine("Create index on testdotnetcollection Collection success.");
                         await client.InsertOne<Base>("testdotnetcollection", "{\"name\": \"test from dotnet\", \"_type\": \"test\"}");
-                        client.info("Insert test entity into testdotnetcollection Collection success.");
+                        Console.WriteLine("Insert test entity into testdotnetcollection Collection success.");
                         var results = await client.GetIndexes<string>("testdotnetcollection");
-                        client.info("GetIndexes ", results);
+                        Console.WriteLine("GetIndexes ", results);
                         await client.DropIndex("testdotnetcollection", "name_1");
-                        client.info("Drop index on testdotnetcollection Collection success.");
+                        Console.WriteLine("Drop index on testdotnetcollection Collection success.");
                         results = await client.GetIndexes<string>("testdotnetcollection");
-                        client.info("GetIndexes ", results);
+                        Console.WriteLine("GetIndexes ", results);
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error creating collection: " + e.Message);
+                        Console.WriteLine("Error creating collection: " + e.Message);
                     }
                     break;
                 case "dc":
                     try {
                         await client.DropCollection("testdotnetcollection");
-                        client.info("Drop testdotnetcollection Collection success.");
+                        Console.WriteLine("Drop testdotnetcollection Collection success.");
                         await client.DropCollection("testdotnettscollection");
-                        client.info("Drop testdotnettscollection Collection success.");
+                        Console.WriteLine("Drop testdotnettscollection Collection success.");
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error dropping collection: " + e.Message);
+                        Console.WriteLine("Error dropping collection: " + e.Message);
                     }
                     break;
                 case "gi":
                     try {
                         var result = await client.GetIndexes<string>("entities");
-                        client.info("GetIndexes result: " + result);
+                        Console.WriteLine("GetIndexes result: " + result);
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error inserting: " + e.Message);
+                        Console.WriteLine("Error inserting: " + e.Message);
                     }
                     break;
 
@@ -221,25 +285,25 @@ class Program
                     try {
                         var item = new { name = "test from dotnet", _type = "test" };
                         var result = await client.InsertOne<Base>("entities", JsonSerializer.Serialize(item));
-                        client.info(result._id, " ", result.name);
+                        Console.WriteLine(result._id, " ", result.name);
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error inserting: " + e.Message);
+                        Console.WriteLine("Error inserting: " + e.Message);
                     }
                     break;
                 case "u1":
                     try {
                         var item = new Base { name = "test from dotnet", _type = "test" };
                         item = await client.InsertOne<Base>("entities", JsonSerializer.Serialize(item));
-                        client.info(item._id, " ", item.name);
+                        Console.WriteLine(item._id, " ", item.name);
                         item.name = "updated from dotnet";
                         var result = await client.UpdateOne<Base>("entities", JsonSerializer.Serialize(item));
-                        client.info(result._id, " ", result.name);
+                        Console.WriteLine(result._id, " ", result.name);
                     }
                     catch (System.Exception e)
                     {
-                        client.info("Error updating: " + e.Message);
+                        Console.WriteLine("Error updating: " + e.Message);
                     }
                     break;
 
@@ -252,21 +316,21 @@ class Program
                         // var insertManyResult = await client.InsertMany("entities", JsonSerializer.Serialize(items));
                         // if (insertManyResult == null)
                         // {
-                        //     client.info("Failed to insert many.");
+                        //     Console.WriteLine("Failed to insert many.");
                         // }
                         // else
                         // {
-                        //     client.info("Inserted items: " + insertManyResult);
+                        //     Console.WriteLine("Inserted items: " + insertManyResult);
                         // }
                         var results = await client.InsertMany<List<Base>>("entities", JsonSerializer.Serialize(items));
                         for (int i = 0; i < results.Count; i++)
                         {
-                            client.info(results[i]._id, " ", results[i].name);
+                            Console.WriteLine(results[i]._id, " ", results[i].name);
                         }
                     }
                     catch (Exception e)
                     {
-                        client.info("Error inserting many: " + e.Message);
+                        Console.WriteLine("Error inserting many: " + e.Message);
                     }
                     break;
                 case "d":
@@ -274,16 +338,16 @@ class Program
                         var deleteResult = await client.download("fs.files", "65a3aaf66d52b8c15131aebd");
                         if (deleteResult == null)
                         {
-                            client.info("Failed to download.");
+                            Console.WriteLine("Failed to download.");
                         }
                         else
                         {
-                            client.info("Downloaded as: " + deleteResult);
+                            Console.WriteLine("Downloaded as: " + deleteResult);
                         }
                     }
                     catch (Exception e)
                     {
-                        client.info("Download error: " + e.Message);
+                        Console.WriteLine("Download error: " + e.Message);
                     }
                     break;
                 case "u":
@@ -291,55 +355,55 @@ class Program
                         var uploadResult = await client.upload("train.csv", "train.csv");
                         if (uploadResult == null)
                         {
-                            client.info("Failed to upload.");
+                            Console.WriteLine("Failed to upload.");
                         }
                         else
                         {
-                            client.info("Uploaded as: " + uploadResult);
+                            Console.WriteLine("Uploaded as: " + uploadResult);
                         }
                     }
                     catch (Exception e)
                     {
-                        client.info("Error disconnecting: " + e.Message);
+                        Console.WriteLine("Error disconnecting: " + e.Message);
                     }
                     break;
                 case "w":
                     try {
                         watchId = await client.watch( "entities", "[]", e => {
-                            client.info("Watch event: " + e.operation + " " + e.id, e.document);
+                            Console.WriteLine("Watch event: " + e.operation + " " + e.id, e.document);
                         });
-                        client.info("Watch registered with id: " + watchId);
+                        Console.WriteLine("Watch registered with id: " + watchId);
                     }
                     catch (Exception e)
                     {
-                        client.info("Watch error: " + e.Message);
+                        Console.WriteLine("Watch error: " + e.Message);
                     }
                     break;
                 case "uw":
                     try {
                         if (string.IsNullOrEmpty(watchId))
                         {
-                            client.info("No watch ID to remove.");
+                            Console.WriteLine("No watch ID to remove.");
                             break;
                         }
                         client.off_client_event(watchId);
-                        client.info("Removed watch ID: " + watchId);
+                        Console.WriteLine("Removed watch ID: " + watchId);
                     }
                     catch (Exception e)
                     {
-                        client.info("Watch error: " + e.Message);                        
+                        Console.WriteLine("Watch error: " + e.Message);                        
                     }
                     break;
                 case "r":
                     try {
                         var queueId = await client.RegisterQueue("test2queue", e => {
-                            client.info("Queue event received from " + e.queuename + " with data: " + e.data);
+                            Console.WriteLine("Queue event received from " + e.queuename + " with data: " + e.data);
                         });
-                        client.info("Queue registered with id: " + queueId);
+                        Console.WriteLine("Queue registered with id: " + queueId);
                     }
                     catch (Exception e)
                     {
-                        client.info("Error disconnecting: " + e.Message);                        
+                        Console.WriteLine("Error disconnecting: " + e.Message);                        
                     }
                     break;
                 case "m":
@@ -349,7 +413,7 @@ class Program
                     }
                     catch (Exception e)
                     {
-                        client.info("Error disconnecting: " + e.Message);
+                        Console.WriteLine("Error disconnecting: " + e.Message);
                     }
                     break;
                 case "quit":
