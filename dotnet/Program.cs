@@ -109,6 +109,9 @@ class Program
                 case "gc":
                     GC.Collect();
                     break;
+                case "t":
+                    await test.Test(client);
+                    break;
                 case "st":
                     if(!token.IsCancellationRequested) {
                         Console.WriteLine("Stopping running task.");

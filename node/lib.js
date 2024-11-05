@@ -652,7 +652,7 @@ function loadLibrary() {
 
         lib.list_collections = lib.func('list_collections', ListCollectionsResponseWrapperPtr, [ClientWrapperPtr, 'bool']);
         lib.listCollectionsCallback = koffi.proto('void ListCollectionsCallback(ListCollectionsResponseWrapper*)');
-        lib.list_collections_async = lib.func('list_collections_async', 'void', [ClientWrapperPtr, 'bool', koffi.pointer(lib.listCollectionsCallback)]);
+        lib.list_collections_async = lib.func('list_collections_async', 'void', [ClientWrapperPtr, 'bool', 'int', koffi.pointer(lib.listCollectionsCallback)]);
         lib.free_list_collections_response = lib.func('free_list_collections_response', 'void', [ListCollectionsResponseWrapperPtr]);
 
         lib.create_collection = lib.func('create_collection', CreateCollectionResponseWrapperPtr, [ClientWrapperPtr, CreateCollectionRequestWrapperPtr]);
@@ -1005,7 +1005,7 @@ class Client {
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.listCollectionsCallback));
             this.trace('call list collections async');
-            this.lib.list_collections_async(this.client, includehist, cb, (err) => {
+            this.lib.list_collections_async(this.client, includehist, 0, cb, (err) => {
                 if (err) {
                     reject(new ClientError('List collections failed'));
                 }

@@ -862,7 +862,7 @@ public partial class Client : IDisposable
     public static extern void client_disconnect(IntPtr client);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void list_collections_async(IntPtr client, bool includehist, ListCollectionsCallback callback);
+    public static extern void list_collections_async(IntPtr client, bool includehist, int request_id, ListCollectionsCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_list_collections_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -1164,7 +1164,7 @@ public partial class Client : IDisposable
             }
         });
         // Invoke the native async function
-        list_collections_async(clientPtr, includehist, callback);
+        list_collections_async(clientPtr, includehist, 0, callback);
         // Use the helper to handle continuation
         return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
             tcs.Task,
@@ -1609,6 +1609,9 @@ public partial class Client : IDisposable
             responseJson => responseJson, // Simply pass the JSON string as is
             responseJson =>
             {
+                if(responseJson == null || responseJson == "") {
+                    responseJson = "[]";
+                }
                 if (typeof(T) == typeof(string))
                 {
                     return (T)(object)responseJson;

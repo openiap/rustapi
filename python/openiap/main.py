@@ -765,7 +765,7 @@ class Client:
         cb = QueryCallback(callback)
 
         self.trace("Calling list_collections_async")
-        self.lib.list_collections_async(self.client, includehist, cb)
+        self.lib.list_collections_async(self.client, includehist, 0, cb)
         self.trace("list_collections_async called")
 
         event.wait()

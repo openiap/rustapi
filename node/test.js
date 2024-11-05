@@ -72,11 +72,11 @@ const fs = require('fs');
                 if (nodejs_testcol_exists == false) {
                     client.create_collection({ collectionname: 'nodejs_testcol' });
                 }
-                client.insert_one({ collectionname: 'nodejs_testcol', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+                client.insert_one({ collectionname: 'nodejs_testcol', item: '{"name":"test watch from nodejs", "_type": "test"}' });
                 if (nodejs_testtimeseriescol_exists == false) {
                     client.create_collection({ collectionname: 'nodejs_testtimeseriescol', timeseries: { time_field: 'time', meta_field: 'value', granularity: 'minutes' } });
                 }
-                client.insert_one({ collectionname: 'nodejs_testtimeseriescol', document: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
+                client.insert_one({ collectionname: 'nodejs_testtimeseriescol', item: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
    
             }
 
@@ -98,11 +98,11 @@ const fs = require('fs');
                 if (nodejsa_testcol_exists == false) {
                     await client.create_collection_async({ collectionname: 'nodejsa_testcol' });
                 }
-                await client.insert_one_async ({ collectionname: 'nodejsa_testcol', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+                await client.insert_one_async ({ collectionname: 'nodejsa_testcol', item: '{"name":"test watch from nodejs", "_type": "test"}' });
                 if (nodejsa_testtimeseriescol_exists == false) {
                     await client.create_collection_async({ collectionname: 'nodejsa_testtimeseriescol', timeseries: { time_field: 'time', meta_field: 'value', granularity: 'minutes' } });
                 }
-                await client.insert_one_async({ collectionname: 'nodejsa_testtimeseriescol', document: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
+                await client.insert_one_async({ collectionname: 'nodejsa_testtimeseriescol', item: '{"time":"2024-10-13T08:52:41.430Z", "value": 1}' });
 
             } 
 
@@ -245,7 +245,7 @@ const fs = require('fs');
                 console.log("watch created as", watch_result);
     
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                client.insert_one({ collectionname: 'entities', document: '{"name":"test watch from nodejs", "_type": "test"}' });
+                client.insert_one({ collectionname: 'entities', item: '{"name":"test watch from nodejs", "_type": "test"}' });
     
     
                 while (eventcount < 1) {
@@ -256,7 +256,7 @@ const fs = require('fs');
             }
 
             if(test_async) {
-                const insert_one_async_result = await client.insert_one_async({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+                const insert_one_async_result = await client.insert_one_async({ collectionname: 'entities', item: '{"name":"test from nodejs", "_type": "test"}' });
                 console.log("insert_one async success", insert_one_async_result._id);
 
                 const update_one_async_result = await client.update_one_async({ collectionname: 'entities', item: `{"name":"test update async from nodejs", "_id": "${insert_one_async_result._id}"}` });
@@ -267,7 +267,7 @@ const fs = require('fs');
             }
 
             if(test_sync) {
-                const insert_one_result = client.insert_one({ collectionname: 'entities', document: '{"name":"test from nodejs", "_type": "test"}' });
+                const insert_one_result = client.insert_one({ collectionname: 'entities', item: '{"name":"test from nodejs", "_type": "test"}' });
                 console.log("insert_one success", insert_one_result._id);
     
                 const update_one_result = client.update_one({ collectionname: 'entities', item: `{"name":"test update from nodejs", "_id": "${insert_one_result._id}"}` });
@@ -286,7 +286,7 @@ const fs = require('fs');
                 const delete_many_ids_async_result = await client.delete_many_async({ collectionname: 'entities', ids: [insert_or_update_one_async_result._id, insert_or_update_one_async_result2._id] });
                 console.log("delete_many success", delete_many_ids_async_result);
 
-                const insert_many_async_result = await client.insert_many_async({ collectionname: 'entities', documents: '[{"name":"test insert many async from nodejs", "_type": "test"}, {"name":"test insert many async from nodejs", "_type": "test"}]' });
+                const insert_many_async_result = await client.insert_many_async({ collectionname: 'entities', items: '[{"name":"test insert many async from nodejs", "_type": "test"}, {"name":"test insert many async from nodejs", "_type": "test"}]' });
                 console.log("insert_many_async_result success", insert_many_async_result.map(result => result._id));
 
                 const delete_many_query_async_result = await client.delete_many_async({ collectionname: 'entities', query: '{"name":"test insert many async from nodejs"}' });
@@ -302,7 +302,7 @@ const fs = require('fs');
                 const delete_many_ids_result = client.delete_many({ collectionname: 'entities', ids: [insert_or_update_one_result._id, insert_or_update_one_result2._id] });
                 console.log("delete_many success", delete_many_ids_result);
 
-                const insert_many_result = client.insert_many({ collectionname: 'entities', documents: '[{"name":"test insert many from nodejs", "_type": "test"}, {"name":"test insert many from nodejs", "_type": "test"}]' });
+                const insert_many_result = client.insert_many({ collectionname: 'entities', items: '[{"name":"test insert many from nodejs", "_type": "test"}, {"name":"test insert many from nodejs", "_type": "test"}]' });
                 console.log("insert_many success", insert_many_result.map(result => result._id));
 
                 const delete_many_query_result = client.delete_many({ collectionname: 'entities', query: '{"name":"test insert many from nodejs"}' });

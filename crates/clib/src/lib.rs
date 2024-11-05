@@ -719,7 +719,6 @@ pub extern "C" fn free_signin_response(response: *mut SigninResponseWrapper) {
         }
         let _ = Box::from_raw(response);
     }
-
 }
 
 #[repr(C)]
@@ -727,6 +726,7 @@ pub struct ListCollectionsResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -742,6 +742,7 @@ pub extern "C" fn list_collections(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -753,6 +754,7 @@ pub extern "C" fn list_collections(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: 0,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -769,6 +771,7 @@ pub extern "C" fn list_collections(
                 success: true,
                 results,
                 error: std::ptr::null(),
+                request_id: 0,                
             }
         }
         Err(e) => {
@@ -779,6 +782,7 @@ pub extern "C" fn list_collections(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             }
         }
     };
@@ -791,6 +795,7 @@ type ListCollectionsCallback = extern "C" fn(wrapper: *mut ListCollectionsRespon
 pub extern "C" fn list_collections_async(
     client: *mut ClientWrapper,
     includehist: bool,
+    request_id: u64,
     callback: ListCollectionsCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -801,6 +806,7 @@ pub extern "C" fn list_collections_async(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -812,6 +818,7 @@ pub extern "C" fn list_collections_async(
             success: false,
             results: std::ptr::null(),
             error: error_msg,
+            request_id: request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -827,6 +834,7 @@ pub extern "C" fn list_collections_async(
                     success: true,
                     results,
                     error: std::ptr::null(),
+                    request_id: request_id,
                 }
             }
             Err(e) => {
@@ -837,6 +845,7 @@ pub extern "C" fn list_collections_async(
                     success: false,
                     results: std::ptr::null(),
                     error: error_msg,
+                    request_id: request_id,
                 }
             }
         };
@@ -847,7 +856,18 @@ pub extern "C" fn list_collections_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_list_collections_response(response: *mut ListCollectionsResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).results.is_null() {
+            let _ = CString::from_raw((*response).results as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
