@@ -154,11 +154,13 @@ const CreateIndexRequestWrapper = koffi.struct('CreateIndexRequestWrapper', {
     index: CString,
     options: CString,
     name: CString,
+    request_id: int
 });
 const CreateIndexRequestWrapperPtr = koffi.pointer(CreateIndexRequestWrapper);
 const CreateIndexResponseWrapper = koffi.struct('CreateIndexResponseWrapper', {
     success: bool,
-    error: CString
+    error: CString,
+    request_id: int
 });
 const CreateIndexResponseWrapperPtr = koffi.pointer(CreateIndexResponseWrapper);
 
@@ -405,7 +407,8 @@ const PopWorkitemRequestWrapperPtr = koffi.pointer(PopWorkitemRequestWrapper);
 const PopWorkitemResponseWrapper = koffi.struct('PopWorkitemResponseWrapper', {
     success: bool,
     error: CString,
-    workitem: WorkitemWrapperPtr
+    workitem: WorkitemWrapperPtr,
+    request_id: int
 });
 const PopWorkitemResponseWrapperPtr = koffi.pointer(PopWorkitemResponseWrapper);
 
@@ -677,7 +680,7 @@ function loadLibrary() {
 
         lib.drop_index = lib.func('drop_index', DropIndexResponseWrapperPtr, [ClientWrapperPtr, CString, CString]);
         lib.drop_indexCallback = koffi.proto('void drop_indexCallback(DropIndexResponseWrapper*)');
-        lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, koffi.pointer(lib.drop_indexCallback)]);
+        lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, 'int', koffi.pointer(lib.drop_indexCallback)]);
         lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
         
 
@@ -2055,15 +2058,17 @@ class Client {
         const response = this.lib.pop_workitem(this.client, reqptr, downloadfolder);
         this.trace('decode response');
         const result = koffi.decode(response, PopWorkitemResponseWrapper);
-        this.trace('free_pop_workitem_response');
-        this.lib.free_pop_workitem_response(response);
         if (!result.success) {
-            const errorMsg = result.error;
+            this.trace('free_pop_workitem_response');
+            this.lib.free_pop_workitem_response(response);
+                const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
         if(result.workitem != null) {
             var workitem = koffi.decode(result.workitem, WorkitemWrapper);
             decode_files(workitem);
+            this.trace('free_pop_workitem_response');
+            this.lib.free_pop_workitem_response(response);
             if(workitem.nextrun > 0) {
                 workitem.nextrun = new Date(workitem.nextrun * 1000);
             } else {

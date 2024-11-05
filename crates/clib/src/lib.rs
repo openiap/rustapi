@@ -526,12 +526,14 @@ pub struct SigninRequestWrapper {
     longtoken: bool,
     validateonly: bool,
     ping: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct SigninResponseWrapper {
     success: bool,
     jwt: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 
 #[no_mangle]
@@ -548,6 +550,7 @@ pub extern "C" fn signin(
                 success: false,
                 jwt: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -560,6 +563,7 @@ pub extern "C" fn signin(
                 success: false,
                 jwt: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -583,6 +587,7 @@ pub extern "C" fn signin(
             success: false,
             jwt: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -599,6 +604,7 @@ pub extern "C" fn signin(
                 success: true,
                 jwt,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -609,6 +615,7 @@ pub extern "C" fn signin(
                 success: false,
                 jwt: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -632,6 +639,7 @@ pub extern "C" fn signin_async(
                 success: false,
                 jwt: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -644,6 +652,7 @@ pub extern "C" fn signin_async(
                 success: false,
                 jwt: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -667,11 +676,13 @@ pub extern "C" fn signin_async(
             success: false,
             jwt: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         // let result = client_clone.unwrap().signin(request).await;
         let result = client.signin(request).await;
@@ -683,6 +694,7 @@ pub extern "C" fn signin_async(
                     success: true,
                     jwt,
                     error: std::ptr::null(),
+                    request_id
                 })
             }
             Err(e) => {
@@ -693,6 +705,7 @@ pub extern "C" fn signin_async(
                     success: false,
                     jwt: std::ptr::null(),
                     error: error_msg,
+                    request_id
                 })
             }
         };
@@ -1426,11 +1439,13 @@ pub struct CreateIndexRequestWrapper {
     index: *const c_char,
     options: *const c_char,
     name: *const c_char,
+    request_id: u64,
 }
 #[repr(C)]
 pub struct CreateIndexResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1445,6 +1460,7 @@ pub extern "C" fn create_index(
             let response = CreateIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1456,6 +1472,7 @@ pub extern "C" fn create_index(
             let response = CreateIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1472,6 +1489,7 @@ pub extern "C" fn create_index(
         let response = CreateIndexResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -1486,6 +1504,7 @@ pub extern "C" fn create_index(
             CreateIndexResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -1495,6 +1514,7 @@ pub extern "C" fn create_index(
             CreateIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -1516,6 +1536,7 @@ pub extern "C" fn create_index_async(
             let response = CreateIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1527,6 +1548,7 @@ pub extern "C" fn create_index_async(
             let response = CreateIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1543,11 +1565,13 @@ pub extern "C" fn create_index_async(
         let response = CreateIndexResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.create_index(request).await;
 
@@ -1556,6 +1580,7 @@ pub extern "C" fn create_index_async(
                 CreateIndexResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id
                 }
             }
             Err(e) => {
@@ -1565,6 +1590,7 @@ pub extern "C" fn create_index_async(
                 CreateIndexResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id
                 }
             }
         };
@@ -1575,13 +1601,22 @@ pub extern "C" fn create_index_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_create_index_response(response: *mut CreateIndexResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
 pub struct DropIndexResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1597,6 +1632,7 @@ pub extern "C" fn drop_index(
             let response = DropIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1611,6 +1647,7 @@ pub extern "C" fn drop_index(
         let response = DropIndexResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: 0,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -1625,6 +1662,7 @@ pub extern "C" fn drop_index(
             DropIndexResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: 0,
             }
         }
         Err(e) => {
@@ -1634,6 +1672,7 @@ pub extern "C" fn drop_index(
             DropIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             }
         }
     };
@@ -1647,6 +1686,7 @@ pub extern "C" fn drop_index_async(
     client: *mut ClientWrapper,
     collectionname: *const c_char,
     name: *const c_char,
+    request_id: u64,
     callback: DropIndexCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -1656,6 +1696,7 @@ pub extern "C" fn drop_index_async(
             let response = DropIndexResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1670,6 +1711,7 @@ pub extern "C" fn drop_index_async(
         let response = DropIndexResponseWrapper {
             success: false,
             error: error_msg,
+            request_id
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -1683,6 +1725,7 @@ pub extern "C" fn drop_index_async(
                 DropIndexResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id
                 }
             }
             Err(e) => {
@@ -1692,6 +1735,7 @@ pub extern "C" fn drop_index_async(
                 DropIndexResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id
                 }
             }
         };
@@ -1702,7 +1746,15 @@ pub extern "C" fn drop_index_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_drop_index_response(response: *mut DropIndexResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;        
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -1913,12 +1965,14 @@ pub struct CountRequestWrapper {
     query: *const c_char,
     queryas: *const c_char,
     explain: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct CountResponseWrapper {
     success: bool,
     result: i32,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1934,6 +1988,7 @@ pub extern "C" fn count(
                 success: false,
                 result: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1946,6 +2001,7 @@ pub extern "C" fn count(
                 success: false,
                 result: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -1963,6 +2019,7 @@ pub extern "C" fn count(
             success: false,
             result: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -1980,6 +2037,7 @@ pub extern "C" fn count(
                 success: true,
                 result,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -1990,6 +2048,7 @@ pub extern "C" fn count(
                 success: false,
                 result: 0,
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -2013,6 +2072,7 @@ pub extern "C" fn count_async(
                 success: false,
                 result: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2025,6 +2085,7 @@ pub extern "C" fn count_async(
                 success: false,
                 result: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2042,11 +2103,13 @@ pub extern "C" fn count_async(
             success: false,
             result: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.count(request).await;
         let response = match result {
@@ -2056,6 +2119,7 @@ pub extern "C" fn count_async(
                     success: true,
                     result,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -2066,6 +2130,7 @@ pub extern "C" fn count_async(
                     success: false,
                     result: 0,
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -2076,7 +2141,15 @@ pub extern "C" fn count_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_count_response(response: *mut CountResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -2086,6 +2159,7 @@ pub struct DistinctRequestWrapper {
     query: *const c_char,
     queryas: *const c_char,
     explain: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct DistinctResponseWrapper {
@@ -2094,6 +2168,7 @@ pub struct DistinctResponseWrapper {
     results: *mut *const c_char,
     error: *const c_char,
     results_len: i32,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2110,6 +2185,7 @@ pub extern "C" fn distinct(
                 results: std::ptr::null_mut(),
                 error: error_msg,
                 results_len: 0,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2123,6 +2199,7 @@ pub extern "C" fn distinct(
                 results: std::ptr::null_mut(),
                 error: error_msg,
                 results_len: 0,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2143,6 +2220,7 @@ pub extern "C" fn distinct(
             results: std::ptr::null_mut(),
             error: error_msg,
             results_len: 0,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -2171,6 +2249,7 @@ pub extern "C" fn distinct(
                 results: results_array,
                 error: std::ptr::null(),
                 results_len: data.results.len().try_into().unwrap(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -2182,6 +2261,7 @@ pub extern "C" fn distinct(
                 results: std::ptr::null_mut(),
                 error: error_msg,
                 results_len: 0,
+                request_id: options.request_id,
             }
         }
     };
@@ -2206,6 +2286,7 @@ pub extern "C" fn distinct_async(
                 results: std::ptr::null_mut(),
                 error: error_msg,
                 results_len: 0,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2219,6 +2300,7 @@ pub extern "C" fn distinct_async(
                 results: std::ptr::null_mut(),
                 error: error_msg,
                 results_len: 0,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2239,11 +2321,13 @@ pub extern "C" fn distinct_async(
             results: std::ptr::null_mut(),
             error: error_msg,
             results_len: 0,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.distinct(request).await;
         let response = match result {
@@ -2272,6 +2356,7 @@ pub extern "C" fn distinct_async(
                     results: results_array,
                     error: std::ptr::null(),
                     results_len: data.results.len().try_into().unwrap(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -2283,6 +2368,7 @@ pub extern "C" fn distinct_async(
                     results: std::ptr::null_mut(),
                     error: error_msg,
                     results_len: 0,
+                    request_id,
                 }
             }
         };
@@ -2293,22 +2379,25 @@ pub extern "C" fn distinct_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_distinct_response(response: *mut DistinctResponseWrapper) {
-    free(response);
-    // if !response.is_null() {
-    //     let response = Box::from_raw(response);
-    //     if !response.results.is_null() {
-    //         for i in 0..response.results_len {
-    //             let c_str = *response.results.add(i);
-    //             if !c_str.is_null() {
-    //                 _ = CString::from_raw(c_str as *mut c_char);
-    //             }
-    //         }
-    //         _ = Box::from_raw(response.results);
-    //     }
-    //     if !response.error.is_null() {
-    //         _ = CString::from_raw(response.error as *mut c_char);
-    //     }
-    // }
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).results.is_null() {
+            for i in 0..(*response).results_len {
+                let c_str_ptr = *(*response).results.add(i as usize);
+                if !c_str_ptr.is_null() {
+                    let _ = CString::from_raw(c_str_ptr as *mut c_char); // Free the C string
+                }
+            }
+            let _ = Box::from_raw((*response).results);
+        }
+
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 #[repr(C)]
 pub struct InsertOneRequestWrapper {
@@ -2316,12 +2405,14 @@ pub struct InsertOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct InsertOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2337,6 +2428,7 @@ pub extern "C" fn insert_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2349,6 +2441,7 @@ pub extern "C" fn insert_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2358,7 +2451,7 @@ pub extern "C" fn insert_one(
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
         w: options.w,
-        j: options.j
+        j: options.j,
     };
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
@@ -2366,6 +2459,7 @@ pub extern "C" fn insert_one(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -2382,6 +2476,7 @@ pub extern "C" fn insert_one(
                 success: true,
                 result,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -2392,6 +2487,7 @@ pub extern "C" fn insert_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -2415,6 +2511,7 @@ pub extern "C" fn insert_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2427,6 +2524,7 @@ pub extern "C" fn insert_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2436,7 +2534,7 @@ pub extern "C" fn insert_one_async(
         collectionname: c_char_to_str(options.collectionname),
         item: c_char_to_str(options.item),
         w: options.w,
-        j: options.j
+        j: options.j,
     };
     if client.is_none() {
         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
@@ -2444,12 +2542,14 @@ pub extern "C" fn insert_one_async(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
 
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.insert_one(request).await;
         let response = match result {
@@ -2459,6 +2559,7 @@ pub extern "C" fn insert_one_async(
                     success: true,
                     result,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -2469,6 +2570,7 @@ pub extern "C" fn insert_one_async(
                     success: false,
                     result: std::ptr::null(),
                     error: error_msg,
+                    request_id, 
                 }
             }
         };
@@ -2479,7 +2581,18 @@ pub extern "C" fn insert_one_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_insert_one_response(response: *mut InsertOneResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 #[repr(C)]
 pub struct InsertManyRequestWrapper {
@@ -2488,12 +2601,14 @@ pub struct InsertManyRequestWrapper {
     pub w: i32,
     pub j: bool,
     pub skipresults: bool,
+    pub request_id: u64
 }
 #[repr(C)]
 pub struct InsertManyResponseWrapper {
     pub success: bool,
     pub results: *const c_char,
     pub error: String,
+    pub request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2508,6 +2623,7 @@ pub extern "C" fn insert_many(
                 success: false,
                 results: std::ptr::null(),
                 error: "Invalid options".to_string(),
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2519,6 +2635,7 @@ pub extern "C" fn insert_many(
                 success: false,
                 results: std::ptr::null(),
                 error: "Client is not connected".to_string(),
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2536,6 +2653,7 @@ pub extern "C" fn insert_many(
             success: false,
             results: std::ptr::null(),
             error: "Client is not connected".to_string(),
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -2552,6 +2670,7 @@ pub extern "C" fn insert_many(
                 success: true,
                 results,
                 error: "".to_string(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -2560,6 +2679,7 @@ pub extern "C" fn insert_many(
                 success: false,
                 results: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -2582,6 +2702,7 @@ pub extern "C" fn insert_many_async(
                 success: false,
                 results: std::ptr::null(),
                 error: "Invalid options".to_string(),
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2593,6 +2714,7 @@ pub extern "C" fn insert_many_async(
                 success: false,
                 results: std::ptr::null(),
                 error: "Client is not connected".to_string(),
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2610,12 +2732,14 @@ pub extern "C" fn insert_many_async(
             success: false,
             results: std::ptr::null(),
             error: "Client is not connected".to_string(),
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
 
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.insert_many(request).await;
         let response = match result {
@@ -2625,6 +2749,7 @@ pub extern "C" fn insert_many_async(
                     success: true,
                     results,
                     error: "".to_string(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -2633,6 +2758,7 @@ pub extern "C" fn insert_many_async(
                     success: false,
                     results: std::ptr::null(),
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -2644,7 +2770,15 @@ pub extern "C" fn insert_many_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_insert_many_response(response: *mut InsertManyResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).results.is_null() {
+            let _ = CString::from_raw((*response).results as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -6239,26 +6373,22 @@ pub extern "C" fn on_client_event(
     tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
         handle.block_on(client.on_event(Box::new({
-            let handle = handle.clone(); // Clone to avoid the move error
             move |event: ClientEvent| {
                 let clientid = _eventid.clone();
                 debug!("client event: {:?}", event);
     
-                // Run async block synchronously within handle
-                handle.block_on(async {
-                    let mut e = CLIENT_EVENTS.lock().unwrap();
-                    let queue = e.get_mut(&clientid);
-                    match queue {
-                        Some(q) => {
-                            q.push_back(event);
-                        }
-                        None => {
-                            let mut q = std::collections::VecDeque::new();
-                            q.push_back(event);
-                            e.insert(clientid, q);
-                        }
+                let mut e = CLIENT_EVENTS.lock().unwrap();
+                let queue = e.get_mut(&clientid);
+                match queue {
+                    Some(q) => {
+                        q.push_back(event);
                     }
-                });
+                    None => {
+                        let mut q = std::collections::VecDeque::new();
+                        q.push_back(event);
+                        e.insert(clientid, q);
+                    }
+                }
             }
         })));
     });

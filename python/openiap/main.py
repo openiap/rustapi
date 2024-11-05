@@ -31,6 +31,17 @@ class OffClientEventResponseWrapper(Structure):
     _fields_ = [("success", c_bool),
                 ("error", c_char_p)]
 
+class CreateIndexRequestWrapper(Structure):
+    _fields_ = [("collectionname", c_char_p),
+                ("index", c_char_p),
+                ("options", c_char_p),
+                ("name", c_char_p),
+                ("request_id", c_int)]
+
+class CreateIndexResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("error", c_char_p),
+                ("request_id", c_int)]
 
 # Define the ConnectResponseWrapper struct
 class ConnectResponseWrapper(Structure):
@@ -899,8 +910,14 @@ class Client:
 
         cb = QueryCallback(callback)
 
+        req = CreateIndexRequestWrapper(
+            collectionname=collectionname.encode('utf-8'),
+            index=index.encode('utf-8'),
+            options=options.encode('utf-8'),
+            name=name.encode('utf-8')
+        )
         self.trace("Calling create_index_async")
-        self.lib.create_index_async(self.client, collectionname.encode('utf-8'), index.encode('utf-8'), options.encode('utf-8'), name.encode('utf-8'), cb)
+        self.lib.create_index_async(self.client, byref(req), cb)
         self.trace("create_index_async called")
 
         event.wait()
@@ -930,7 +947,7 @@ class Client:
         cb = QueryCallback(callback)
 
         self.trace("Calling drop_index_async")
-        self.lib.drop_index_async(self.client, collectionname.encode('utf-8'), indexname.encode('utf-8'), cb)
+        self.lib.drop_index_async(self.client, collectionname.encode('utf-8'), indexname.encode('utf-8'), 0, cb)
         self.trace("drop_index_async called")
 
         event.wait()

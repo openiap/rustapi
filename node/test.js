@@ -335,7 +335,7 @@ const fs = require('fs');
                         files2.push(filepath);
                         promises.push(client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2}));
                     }
-                    console.log("push_workitem success", (await Promise.all(promises)).map(result => result.id));
+                    console.log("push_workitem (multiple) success", (await Promise.all(promises)).map(result => result.id));
 
                     let workitem = await client.pop_workitem_async({ wiq: "rustqueue" });
                     do {
@@ -352,6 +352,8 @@ const fs = require('fs');
                 let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files: files1});
                 console.log("push_workitem success", push_workitem_result);
 
+                console.log("now pop the workitem");
+
                 let pop_workitem_result = client.pop_workitem({ wiq: "rustqueue" });
                 console.log("pop_workitem success", pop_workitem_result);
 
@@ -367,7 +369,7 @@ const fs = require('fs');
                         let files2 = [];
                         files2.push(filepath);
                         let push_workitem_result = client.push_workitem({ wiq: "rustqueue", name: "node test", nextrun, files: files2});
-                        console.log("push_workitem success", push_workitem_result);
+                        console.log("push_workitem (multiple 2) success", push_workitem_result);
                     }
                     let workitem = client.pop_workitem({ wiq: "rustqueue" });
                     do {

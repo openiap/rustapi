@@ -281,6 +281,7 @@ public partial class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DropCollectionCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
@@ -290,6 +291,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr results;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void GetIndexesCallback(IntPtr responsePtr);
 
@@ -300,6 +302,7 @@ public partial class Client : IDisposable
         public IntPtr index;
         public IntPtr options;
         public IntPtr name;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct CreateIndexResponseWrapper
@@ -307,6 +310,7 @@ public partial class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void CreateIndexCallback(IntPtr responsePtr);
     [StructLayout(LayoutKind.Sequential)]
@@ -316,6 +320,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr results;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DropIndexCallback(IntPtr responsePtr);
     public delegate void SigninCallback(IntPtr responsePtr);
@@ -374,6 +379,7 @@ public partial class Client : IDisposable
         public IntPtr queryas;
         [MarshalAs(UnmanagedType.I1)]
         public bool explain;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct CountResponseWrapper
@@ -382,6 +388,7 @@ public partial class Client : IDisposable
         public bool success;
         public int count;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void CountCallback(IntPtr responsePtr);
 
@@ -394,6 +401,7 @@ public partial class Client : IDisposable
         public IntPtr queryas;
         [MarshalAs(UnmanagedType.I1)]
         public bool explain;
+        public int request_id;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -404,6 +412,7 @@ public partial class Client : IDisposable
         public IntPtr results;
         public IntPtr error;
         public int results_len;
+        public int request_id;
     }
     public delegate void DistinctCallback(IntPtr responsePtr);
 
@@ -415,6 +424,7 @@ public partial class Client : IDisposable
         public IntPtr item;
         public int w;
         public bool j;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct InsertOneResponseWrapper
@@ -423,6 +433,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr result;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void InsertOneCallback(IntPtr responsePtr);
 
@@ -434,6 +445,7 @@ public partial class Client : IDisposable
         public int w;
         public bool j;
         public bool skipresults;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct InsertManyResponseWrapper
@@ -442,6 +454,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr result;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void InsertManyCallback(IntPtr responsePtr);
 
@@ -887,7 +900,7 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_create_index_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void drop_index_async(IntPtr client, string collectionname,string idnexname, DropIndexCallback callback);
+    public static extern void drop_index_async(IntPtr client, string collectionname,string idnexname, int request_id, DropIndexCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_drop_index_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -1466,7 +1479,7 @@ public partial class Client : IDisposable
             }
         });
 
-        drop_index_async(clientPtr, collectionname, indexname, callback);
+        drop_index_async(clientPtr, collectionname, indexname, 0, callback);
 
         return tcs.Task;       
     }
