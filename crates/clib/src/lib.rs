@@ -896,12 +896,14 @@ pub struct CreateCollectionRequestWrapper {
     change_stream_pre_and_post_images: bool,
     capped: bool,
     max: i32,
-    size: i32,    
+    size: i32,
+    request_id: u64,
 }
 #[repr(C)]
 pub struct CreateCollectionResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -916,6 +918,7 @@ pub extern "C" fn create_collection(
             let response = CreateCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -927,6 +930,7 @@ pub extern "C" fn create_collection(
             let response = CreateCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -970,6 +974,7 @@ pub extern "C" fn create_collection(
         let response = CreateCollectionResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -984,6 +989,7 @@ pub extern "C" fn create_collection(
             CreateCollectionResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -993,6 +999,7 @@ pub extern "C" fn create_collection(
             CreateCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -1013,6 +1020,7 @@ pub extern "C" fn create_collection_async(
             let response = CreateCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1024,6 +1032,7 @@ pub extern "C" fn create_collection_async(
             let response = CreateCollectionResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -1067,11 +1076,13 @@ pub extern "C" fn create_collection_async(
         let response = CreateCollectionResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.create_collection(request).await;
 
@@ -1080,6 +1091,7 @@ pub extern "C" fn create_collection_async(
                 CreateCollectionResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id
                 }
             }
             Err(e) => {
@@ -1089,6 +1101,7 @@ pub extern "C" fn create_collection_async(
                 CreateCollectionResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id
                 }
             }
         };
@@ -1099,7 +1112,15 @@ pub extern "C" fn create_collection_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_create_collection_response(response: *mut CreateCollectionResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]

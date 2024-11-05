@@ -239,6 +239,7 @@ public partial class Client : IDisposable
             this.capped = capped;
             this.max = max;
             this.size = size;
+            this.request_id = 0;
         }
         public void Dispose()
         {
@@ -262,6 +263,7 @@ public partial class Client : IDisposable
         public bool capped;
         public int max;
         public int size;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct CreateCollectionResponseWrapper
@@ -269,6 +271,7 @@ public partial class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void CreateCollectionCallback(IntPtr responsePtr);
 
