@@ -9,9 +9,31 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-openiap-client = { path = "../client", version = "0.0" }
-# tokio = { version = "1.38.0", features = ["rt-multi-thread"] } # "fs", "rt", "macros"
-tokio = { version = "1.40.0", features = ["rt-multi-thread"] }
-tracing = { version = "0.1", features = ["log", "attributes"] }
+openiap-client = { path = "../client", version = "0.0" } # , default-features = false
+tokio = { version = "1.41.0", features = ["rt-multi-thread"] }
+tracing = { version = "0.1.40", features = ["log", "attributes"] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter", "json"] }
-lazy_static = "1.5.0"
+lazy_static = { version = "1.5.0" }
+libc = { version = "0.2.161" }
+
+# [features]
+# default = ["openiap-client/otel_commands", "openiap-client/otel_connections", "openiap-client/otel_elapsed"]
+# otel = ["openiap-client/otel"]
+# otel_memory = ["openiap-client/otel_memory"]
+# otel_package_stats = ["openiap-client/otel_package_stats"]
+# otel_commands = ["openiap-client/otel_commands"]
+# otel_connections = ["openiap-client/otel_connections"]
+# otel_elapsed = ["openiap-client/otel_elapsed"]
+# otel_cpu = ["openiap-client/otel_cpu"]
+
+# [profile.dev]
+# opt-level = 0
+
+# [profile.test]
+# opt-level = 0
+# debug = true
+
+
+# [profile.release]
+# opt-level = 0
+
