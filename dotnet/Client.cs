@@ -464,6 +464,7 @@ public partial class Client : IDisposable
         public IntPtr item;
         public int w;
         public bool j;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct UpdateOneResponseWrapper {
@@ -471,6 +472,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr result;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void UpdateOneCallback(IntPtr responsePtr);
 
@@ -481,6 +483,7 @@ public partial class Client : IDisposable
         public IntPtr item;
         public int w;
         public bool j;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct InsertOrUpdateOneResponseWrapper {
@@ -488,6 +491,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr result;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void InsertOrUpdateOneCallback(IntPtr responsePtr);
 
@@ -497,6 +501,7 @@ public partial class Client : IDisposable
         public IntPtr collectionname;
         public IntPtr id;
         public bool recursive;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct DeleteOneResponseWrapper
@@ -505,6 +510,7 @@ public partial class Client : IDisposable
         public bool success;
         public int affectedrows;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DeleteOneCallback(IntPtr responsePtr);
 
@@ -515,6 +521,7 @@ public partial class Client : IDisposable
         public IntPtr query;
         public bool recursive;
         public IntPtr ids;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct DeleteManyResponseWrapper
@@ -523,6 +530,7 @@ public partial class Client : IDisposable
         public bool success;
         public int affectedrows;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DeleteManyCallback(IntPtr responsePtr);
 

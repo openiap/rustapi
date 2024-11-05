@@ -2787,12 +2787,14 @@ pub struct UpdateOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct UpdateOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2808,6 +2810,7 @@ pub extern "C" fn update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2820,6 +2823,7 @@ pub extern "C" fn update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2837,6 +2841,7 @@ pub extern "C" fn update_one(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -2853,6 +2858,7 @@ pub extern "C" fn update_one(
                 success: true,
                 result,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -2863,6 +2869,7 @@ pub extern "C" fn update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -2886,6 +2893,7 @@ pub extern "C" fn update_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2898,6 +2906,7 @@ pub extern "C" fn update_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -2915,12 +2924,14 @@ pub extern "C" fn update_one_async(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
 
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.update_one(request).await;
         let response = match result {
@@ -2930,6 +2941,7 @@ pub extern "C" fn update_one_async(
                     success: true,
                     result,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -2940,6 +2952,7 @@ pub extern "C" fn update_one_async(
                     success: false,
                     result: std::ptr::null(),
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -2951,7 +2964,18 @@ pub extern "C" fn update_one_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_update_one_response(response: *mut UpdateOneResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -2961,12 +2985,14 @@ pub struct InsertOrUpdateOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct InsertOrUpdateOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2982,6 +3008,7 @@ pub extern "C" fn insert_or_update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -2994,6 +3021,7 @@ pub extern "C" fn insert_or_update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3024,6 +3052,7 @@ pub extern "C" fn insert_or_update_one(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -3041,6 +3070,7 @@ pub extern "C" fn insert_or_update_one(
                 success: true,
                 result,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -3051,6 +3081,7 @@ pub extern "C" fn insert_or_update_one(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -3074,6 +3105,7 @@ pub extern "C" fn insert_or_update_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3086,6 +3118,7 @@ pub extern "C" fn insert_or_update_one_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3105,11 +3138,13 @@ pub extern "C" fn insert_or_update_one_async(
             success: false,
             result: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.insert_or_update_one(request).await;
 
@@ -3120,6 +3155,7 @@ pub extern "C" fn insert_or_update_one_async(
                     success: true,
                     result,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -3130,6 +3166,7 @@ pub extern "C" fn insert_or_update_one_async(
                     success: false,
                     result: std::ptr::null(),
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -3140,7 +3177,18 @@ pub extern "C" fn insert_or_update_one_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_insert_or_update_one_response(response: *mut InsertOrUpdateOneResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -3148,12 +3196,14 @@ pub struct DeleteOneRequestWrapper {
     collectionname: *const c_char,
     id: *const c_char,
     recursive: bool,
+    request_id: u64
 }
 #[repr(C)]
 pub struct DeleteOneResponseWrapper {
     success: bool,
     affectedrows: i32,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3169,6 +3219,7 @@ pub extern "C" fn delete_one(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3181,6 +3232,7 @@ pub extern "C" fn delete_one(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3197,6 +3249,7 @@ pub extern "C" fn delete_one(
             success: false,
             affectedrows: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -3213,6 +3266,7 @@ pub extern "C" fn delete_one(
                 success: true,
                 affectedrows,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -3223,6 +3277,7 @@ pub extern "C" fn delete_one(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -3245,6 +3300,7 @@ pub extern "C" fn delete_one_async(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3257,6 +3313,7 @@ pub extern "C" fn delete_one_async(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3273,12 +3330,14 @@ pub extern "C" fn delete_one_async(
             success: false,
             affectedrows: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
 
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.delete_one(request).await;
         let response = match result {
@@ -3288,6 +3347,7 @@ pub extern "C" fn delete_one_async(
                     success: true,
                     affectedrows,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -3298,6 +3358,7 @@ pub extern "C" fn delete_one_async(
                     success: false,
                     affectedrows: 0,
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -3308,7 +3369,15 @@ pub extern "C" fn delete_one_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_delete_one_response(response: *mut DeleteOneResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -3317,12 +3386,14 @@ pub struct DeleteManyRequestWrapper {
     query: *const c_char,
     recursive: bool,
     ids: *const *const c_char,
+    request_id: u64
 }
 #[repr(C)]
 pub struct DeleteManyResponseWrapper {
     success: bool,
     affectedrows: i32,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3338,6 +3409,7 @@ pub extern "C" fn delete_many(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3350,6 +3422,7 @@ pub extern "C" fn delete_many(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -3379,6 +3452,7 @@ pub extern "C" fn delete_many(
             success: false,
             affectedrows: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -3395,6 +3469,7 @@ pub extern "C" fn delete_many(
                 success: true,
                 affectedrows,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -3405,6 +3480,7 @@ pub extern "C" fn delete_many(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -3427,6 +3503,7 @@ pub extern "C" fn delete_many_async(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3439,6 +3516,7 @@ pub extern "C" fn delete_many_async(
                 success: false,
                 affectedrows: 0,
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -3468,11 +3546,13 @@ pub extern "C" fn delete_many_async(
             success: false,
             affectedrows: 0,
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client.delete_many(request).await;
         let response = match result {
@@ -3482,6 +3562,7 @@ pub extern "C" fn delete_many_async(
                     success: true,
                     affectedrows,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -3492,6 +3573,7 @@ pub extern "C" fn delete_many_async(
                     success: false,
                     affectedrows: 0,
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -3502,7 +3584,15 @@ pub extern "C" fn delete_many_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_delete_many_response(response: *mut DeleteManyResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
