@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Data;
 using System.Data.Common;
@@ -696,6 +697,7 @@ public partial class Client : IDisposable
     public struct PopWorkitemRequestWrapper {
         public IntPtr wiq;
         public IntPtr wiqid;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct PopWorkitemResponseWrapper {
@@ -703,6 +705,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr error;
         public IntPtr workitem;
+        public int request_id;
     }
     public delegate void PopWorkitemCallback(IntPtr responsePtr);
 
@@ -835,13 +838,13 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "off_client_event")]
     public static extern IntPtr int_off_client_event(string eventid);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr free_off_event_response(IntPtr response);
+    public static extern void free_off_event_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void client_set_agent_name(IntPtr client, string agentname);
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr connect_async(IntPtr client, string url, ConnectCallback callback);
+    public static extern void connect_async(IntPtr client, string url, ConnectCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
@@ -856,7 +859,7 @@ public partial class Client : IDisposable
     public static extern void client_disconnect(IntPtr client);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr list_collections_async(IntPtr client, bool includehist, ListCollectionsCallback callback);
+    public static extern void list_collections_async(IntPtr client, bool includehist, ListCollectionsCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_list_collections_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -937,13 +940,13 @@ public partial class Client : IDisposable
     public static extern void free_delete_many_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr download_async(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
+    public static extern void download_async(IntPtr client, ref DownloadRequestWrapper request, DownloadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_download_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr upload_async(IntPtr client, ref UploadRequestWrapper request, UploadCallback callback);
+    public static extern void upload_async(IntPtr client, ref UploadRequestWrapper request, UploadCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_upload_response(IntPtr response);
@@ -956,7 +959,7 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr watch_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr watch_async_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
+    public static extern void watch_async_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_response(IntPtr response);
@@ -994,20 +997,20 @@ public partial class Client : IDisposable
     public static extern void free_queue_message_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr push_workitem_async(IntPtr client, ref PushWorkitemRequestWrapper request, PushWorkitemCallback callback);
+    public static extern void push_workitem_async(IntPtr client, ref PushWorkitemRequestWrapper request, PushWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_push_workitem_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr pop_workitem_async(IntPtr client, ref PopWorkitemRequestWrapper request, string downloadfolder, PopWorkitemCallback callback);
+    public static extern void pop_workitem_async(IntPtr client, ref PopWorkitemRequestWrapper request, string downloadfolder, PopWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_pop_workitem_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr update_workitem_async(IntPtr client, ref UpdateWorkitemRequestWrapper request, UpdateWorkitemCallback callback);
+    public static extern void update_workitem_async(IntPtr client, ref UpdateWorkitemRequestWrapper request, UpdateWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_update_workitem_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
+    public static extern void delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_delete_workitem_response(IntPtr response);
 
@@ -1034,6 +1037,7 @@ public partial class Client : IDisposable
         client = clientWrapper;
         client_set_agent_name(clientPtr, "dotnet");
         isconnected = true;
+        _PopWorkitemCallbackDelegate = _PopWorkitemCallback; 
     }
     bool tracing { get; set; } = false;
     bool informing { get; set; } = false;
@@ -2934,108 +2938,132 @@ public partial class Client : IDisposable
         }
         return await tcs.Task;
     }
-    public async Task<Workitem?> PopWorkitem(string wiq = "", string wiqid = "", string downloadfolder = ".") {
-        var tcs = new TaskCompletionSource<Workitem?>();
-        IntPtr wiqPtr = Marshal.StringToHGlobalAnsi(wiq);
-        IntPtr wiqidPtr = Marshal.StringToHGlobalAnsi(wiqid);
-
+    private ConcurrentDictionary<int, TaskCompletionSource<Workitem?>> _PopWorkitemCallbackRegistry = new ConcurrentDictionary<int, TaskCompletionSource<Workitem?>>(); 
+    private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
+    private int _PopWorkitemNextRequestId = 0;
+    private void _PopWorkitemCallback(IntPtr responsePtr)
+    {
         try
         {
-            PopWorkitemRequestWrapper request = new PopWorkitemRequestWrapper
-            {
-                wiq = wiqPtr,
-                wiqid = wiqidPtr
-            };
-
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("callback to dotnet");
-                try
+            
+            var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = _PopWorkitemCallbackRegistry.Count;
+            if (count == 0) {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {_PopWorkitemCallbackRegistry.Count} items in the registry");
+                return;
+            } else if (count > 1) {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {_PopWorkitemCallbackRegistry.Count} items in the registry");
+            }
+            if (_PopWorkitemCallbackRegistry.TryGetValue(requestId, out var tcs)) {
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+                var workitem = default(Workitem);
+                if (success)
                 {
-                    if (responsePtr == IntPtr.Zero)
+                    if (response.workitem == IntPtr.Zero)
                     {
-                        tcs.SetException(new ClientError("Callback got null response"));
+                        _PopWorkitemCallbackRegistry.TryRemove(requestId, out _);
+                        tcs.SetResult(workitem);
                         return;
                     }
-
-                    var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    var workitem = default(Workitem);
-                    if(success) {
-                        if(response.workitem == IntPtr.Zero) {
-                            tcs.SetResult(workitem);
-                            return;
-                        }
-                        var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
-                        var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
-                        var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
-                        var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
-                        var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
-                        var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
-                        var lastrun = workitem_rsp.lastrun;
-                        var nextrun = workitem_rsp.nextrun;
-                        var priority = (int)workitem_rsp.priority;
-                        var retries = (int)workitem_rsp.retries;
-                        var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
-                        var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
-                        var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
-                        var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
-                        var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
-                        var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
-                        var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
-                        var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
-                        var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
-                        workitem = new Workitem
-                        {
-                            id = id,
-                            name = name,
-                            payload = payload,
-                            wiq = wiq,
-                            state = state,
-                            lastrun = lastrun,
-                            nextrun = nextrun,
-                            priority = priority,
-                            retries = retries,
-                            username = username,
-                            wiqid = wiqid,
-                            success_wiqid = success_wiqid,
-                            failed_wiqid = failed_wiqid,
-                            success_wiq = success_wiq,
-                            failed_wiq = failed_wiq,
-                            errormessage = errormessage,
-                            errorsource = errorsource,
-                            errortype = errortype,
-                        };
-                    }
-                    free_pop_workitem_response(responsePtr);
-
-                    if (!success)
+                    var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
+                    var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
+                    var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
+                    var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
+                    var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
+                    var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
+                    var lastrun = workitem_rsp.lastrun;
+                    var nextrun = workitem_rsp.nextrun;
+                    var priority = (int)workitem_rsp.priority;
+                    var retries = (int)workitem_rsp.retries;
+                    var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
+                    var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
+                    var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
+                    var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
+                    var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
+                    var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
+                    var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
+                    var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
+                    var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    workitem = new Workitem
                     {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(workitem);
-                    }
+                        id = id,
+                        name = name,
+                        payload = payload,
+                        wiq = wiq,
+                        state = state,
+                        lastrun = lastrun,
+                        nextrun = nextrun,
+                        priority = priority,
+                        retries = retries,
+                        username = username,
+                        wiqid = wiqid,
+                        success_wiqid = success_wiqid,
+                        failed_wiqid = failed_wiqid,
+                        success_wiq = success_wiq,
+                        failed_wiq = failed_wiq,
+                        errormessage = errormessage,
+                        errorsource = errorsource,
+                        errortype = errortype,
+                    };
                 }
-                catch (Exception ex)
+
+                if (!success)
                 {
-                    tcs.SetException(ex);
+                    tcs.SetException(new ClientError(error));
                 }
+                else
+                {
+                    tcs.SetResult(workitem);
+                }
+                _PopWorkitemCallbackRegistry.TryRemove(requestId, out _);
+            } else {
+                Console.WriteLine($"No matching TCS found for request_id: {requestId}");
             }
-
-            var callbackDelegate = new PopWorkitemCallback(Callback);
-
-            pop_workitem_async(clientPtr, ref request, downloadfolder, callbackDelegate);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
         }
         finally
         {
-            Marshal.FreeHGlobal(wiqPtr);
-            Marshal.FreeHGlobal(wiqidPtr);
+            free_pop_workitem_response(responsePtr);
         }
+    }
+
+    public async Task<Workitem?> PopWorkitem(string wiq = "", string wiqid = "", string downloadfolder = ".")
+    {
+        IntPtr wiqPtr = Marshal.StringToCoTaskMemAnsi(wiq);
+        IntPtr wiqidPtr = Marshal.StringToCoTaskMemAnsi(wiqid);
+
+        var tcs = new TaskCompletionSource<Workitem?>();
+
+        try
+        {
+            int requestId = Interlocked.Increment(ref _PopWorkitemNextRequestId);
+            PopWorkitemRequestWrapper request = new PopWorkitemRequestWrapper
+            {
+                wiq = wiqPtr,
+                wiqid = wiqidPtr,
+                request_id = requestId
+            };
+
+
+            // Create a task completion source for the current request
+            _PopWorkitemCallbackRegistry[requestId] = tcs;
+            // Pass the delegate to the unmanaged function
+            pop_workitem_async(clientPtr, ref request, downloadfolder, _PopWorkitemCallbackDelegate);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(wiqPtr);
+            Marshal.FreeCoTaskMem(wiqidPtr);
+        }
+
         return await tcs.Task;
     }
+
     public async Task<Workitem?> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
         var tcs = new TaskCompletionSource<Workitem?>();
 
