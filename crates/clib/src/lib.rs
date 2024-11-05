@@ -285,7 +285,6 @@ pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
         }
         let _ = Box::from_raw(response);
     }
-
 }
 
 
@@ -708,7 +707,19 @@ pub extern "C" fn signin_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_signin_response(response: *mut SigninResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).jwt.is_null() {
+            let _ = CString::from_raw((*response).jwt as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
+
 }
 
 #[repr(C)]
