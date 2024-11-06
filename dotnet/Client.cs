@@ -19,7 +19,7 @@ public partial class Client : IDisposable
     private readonly DeleteOneCallback _DeleteOneCallbackDelegate;
     private readonly InsertOrUpdateOneCallback _InsertOrUpdateOneCallbackDelegate;
     private readonly UploadCallback _UploadCallbackDelegate;
-
+    private readonly DownloadCallback _DownloadCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1026,6 +1026,8 @@ public partial class Client : IDisposable
         _DeleteOneCallbackDelegate = _DeleteOneCallback;
         _InsertOrUpdateOneCallbackDelegate = _InsertOrUpdateOneCallback;
         _UploadCallbackDelegate = _UploadCallback;
+        _DownloadCallbackDelegate = _DownloadCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -2196,7 +2198,7 @@ public partial class Client : IDisposable
         finally
         {
             this.trace("Freeing memory");
-            free_delete_many_response(responsePtr);
+            free_delete_one_response(responsePtr);
         }
     }
 
@@ -2314,6 +2316,47 @@ public partial class Client : IDisposable
         return tcs.Task;
     }
 
+    private void _DownloadCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<DownloadResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string filename = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, filename);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_query_response(responsePtr);
+        }
+    }
     public Task<string> download(string collectionname, string id, string folder = "", string filename = "")
     {
         var tcs = new TaskCompletionSource<string>();
@@ -2325,39 +2368,17 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             DownloadRequestWrapper request = new DownloadRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 id = idPtr,
                 folder = folderPtr,
-                filename = filenamePtr
+                filename = filenamePtr,
+                request_id = requestId
             };
-            void Callback(IntPtr responsePtr)
-            {
-                if (responsePtr == IntPtr.Zero)
-                {
-                    tcs.SetException(new ClientError("Callback got null response"));
-                    return;
-                }
 
-                var response = Marshal.PtrToStructure<DownloadResponseWrapper>(responsePtr);
-                string filename = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
-                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                bool success = response.success;
-                free_query_response(responsePtr);
-
-                if (!success)
-                {
-                    tcs.SetException(new ClientError(error));
-                }
-                else
-                {
-                    tcs.SetResult(filename);
-                }
-            }
-            var callbackDelegate = new DownloadCallback(Callback);
-
-            download_async(clientPtr, ref request, callbackDelegate);
+            download_async(clientPtr, ref request, _DownloadCallbackDelegate);
         }
         finally
         {
@@ -2389,7 +2410,6 @@ public partial class Client : IDisposable
                 string id = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
-                free_upload_response(responsePtr);
 
                 if (!success)
                 {
@@ -2407,7 +2427,7 @@ public partial class Client : IDisposable
         }
         finally
         {
-            free_pop_workitem_response(responsePtr);
+            free_upload_response(responsePtr);
         }
     }
     public Task<string> upload(string filepath, string filename = "", string mimetype = "", string metadata = "", string collectionname = "")
@@ -3365,8 +3385,6 @@ public partial class Client : IDisposable
         {
             this.trace("Freeing memory");
             free_delete_workitem_response(responsePtr);
-            // Free each WorkitemFileWrapper and its associated strings
-
         }
     }
     public async Task DeleteWorkitem(string id)
