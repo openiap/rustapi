@@ -580,6 +580,7 @@ public partial class Client : IDisposable
     {
         public IntPtr collectionname;
         public IntPtr paths;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct WatchResponseWrapper
@@ -588,6 +589,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr watchid;
         public IntPtr error;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct WatchEventWrapper
@@ -601,6 +603,7 @@ public partial class Client : IDisposable
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -714,6 +717,7 @@ public partial class Client : IDisposable
         public int priority;
         public IntPtr files;
         public int files_len;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct PushWorkitemResponseWrapper {
@@ -721,6 +725,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr error;
         public IntPtr workitem;
+        public int request_id;
     }
     public delegate void PushWorkitemCallback(IntPtr responsePtr);
 
@@ -746,6 +751,7 @@ public partial class Client : IDisposable
         public bool ignoremaxretries;
         public IntPtr files;
         public int files_len;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct UpdateWorkitemResponseWrapper {
@@ -753,18 +759,21 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr error;
         public IntPtr workitem;
+        public int request_id;
     }
     public delegate void UpdateWorkitemCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DeleteWorkitemRequestWrapper {
         public string id;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct DeleteWorkitemResponseWrapper {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
 
@@ -987,8 +996,6 @@ public partial class Client : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void WatchEventCallback(IntPtr eventStr);
 
-    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr watch_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void watch_async_async(IntPtr client, ref WatchRequestWrapper request, WatchCallback callback, WatchEventCallback event_callback);
 

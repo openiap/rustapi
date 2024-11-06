@@ -41,9 +41,9 @@ memory-stats = { version = "1.2.0" }
 systemstat = { version = "0.2.3" }
 
 [features]
-default = []
+# default = []
 # default = ["otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed"]
-# default = ["otel_memory", "otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed"]
+default = ["otel_memory", "otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed"]
 # default = ["otel_memory", "otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed", "otel_cpu", "otel_network", "otel_disk"]
 otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp"]
 otel_memory = ["otel"]

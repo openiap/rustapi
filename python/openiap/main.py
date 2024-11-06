@@ -434,6 +434,9 @@ def get_raw_bytes(c_char_p_ptr):
 
 def decode_workitem(workitem_ptr):
     """Parses the WorkitemWrapper structure and returns a dictionary."""
+    # if workitem_ptr is null or NULL pointer
+    if not workitem_ptr:
+        return None
     workitem = workitem_ptr.contents
 
     # get_raw_bytes(workitem_ptr)
@@ -1633,7 +1636,7 @@ class Client:
                                   paths=c_char_p(paths.encode('utf-8'))
                                   )
         
-        self.trace("Calling watch_async")
+        self.trace("Calling watch_async_async")
         self.lib.watch_async_async(self.client, byref(req), cb, c_callback)
         self.trace("watch_async_async called, now waiting for event")
         

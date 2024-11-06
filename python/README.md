@@ -11,6 +11,6 @@ export OPENIAP_JWT=eyJhbGciOiJI....
 
 test python
 ```bash
-rm -rf build dist lib && mkdir lib && cp ../target/lib/* ./lib && python -m build --wheel
-pip uninstall openiap -y && pip install dist/openiap-0.1.1-py3-none-any.whl && python test.py
+rm -rf build dist lib && mkdir lib && cp ../target/lib/* ./lib && python setup.py sdist # python -m build --wheel
+pip uninstall openiap -y && pip install dist/openiap_edge-0.0.13.tar.gz && python test.py
 ```

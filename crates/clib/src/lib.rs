@@ -8,6 +8,7 @@ use openiap_client::protos::{
 };
 use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
+#[cfg(all(test, not(windows)))]
 mod tests;
 
 use std::collections::{HashMap, VecDeque};
@@ -4052,12 +4053,14 @@ pub extern "C" fn free_upload_response(response: *mut UploadResponseWrapper) {
 pub struct WatchRequestWrapper {
     collectionname: *const c_char,
     paths: *const c_char,
+    request_id: u64
 }
 #[repr(C)]
 pub struct WatchResponseWrapper {
     success: bool,
     watchid: *const c_char,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4073,6 +4076,7 @@ pub extern "C" fn watch(
                 success: false,
                 watchid: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4085,6 +4089,7 @@ pub extern "C" fn watch(
                 success: false,
                 watchid: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4103,10 +4108,12 @@ pub extern "C" fn watch(
             success: false,
             watchid: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
     let client = client.unwrap();
+    let request_id = options.request_id;
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
         handle.block_on(
@@ -4154,6 +4161,7 @@ pub extern "C" fn watch(
                 success: true,
                 watchid,
                 error: std::ptr::null(),
+                request_id,
             }
         }
         Err(e) => {
@@ -4164,6 +4172,7 @@ pub extern "C" fn watch(
                 success: false,
                 watchid: std::ptr::null(),
                 error: error_msg,
+                request_id,
             }
         }
     };
@@ -4213,102 +4222,24 @@ pub extern "C" fn next_watch_event (
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_watch_event(response: *mut WatchEventWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).id.is_null() {
+            let _ = CString::from_raw((*response).id as *mut c_char);
+        }
+        if !(*response).operation.is_null() {
+            let _ = CString::from_raw((*response).operation as *mut c_char);
+        }
+        if !(*response).document.is_null() {
+            let _ = CString::from_raw((*response).document as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 type WatchEventCallback = extern "C" fn(*mut WatchEventWrapper);
-#[no_mangle]
-#[tracing::instrument(skip_all)]
-pub extern "C" fn watch_async(
-    client: *mut ClientWrapper,
-    options: *mut WatchRequestWrapper,
-    event_callback: WatchEventCallback,
-)  -> *mut WatchResponseWrapper {
-    debug!("watch_async");
-    let options = match safe_wrapper(options) {
-        Some(options) => options,
-        None => {
-            let error_msg = CString::new("Invalid options").unwrap().into_raw();
-            let response = WatchResponseWrapper {
-                success: false,
-                watchid: std::ptr::null(),
-                error: error_msg,
-            };
-            return Box::into_raw(Box::new(response))
-        }
-    };
-    let client_wrapper = match safe_wrapper(client) {
-        Some(client) => client,
-        None => {
-            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-            let response = WatchResponseWrapper {
-                success: false,
-                watchid: std::ptr::null(),
-                error: error_msg,
-            };
-            return Box::into_raw(Box::new(response))
-        }
-    };
-    let client = client_wrapper.client.clone();
-    let paths = c_char_to_str(options.paths);
-    let paths = paths.split(",").map(|s| s.to_string()).collect();
-    let request = WatchRequest {
-        collectionname: c_char_to_str(options.collectionname),
-        paths,
-    };
-    if client.is_none() {
-        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
-        let response = WatchResponseWrapper {
-            success: false,
-            watchid: std::ptr::null(),
-            error: error_msg,
-        };
-        return Box::into_raw(Box::new(response))
-    }
-    let client = client.unwrap();
-    trace!("watch_async: runtime.spawn");
-    let result = tokio::task::block_in_place(|| {
-        // let result = client_clone.unwrap().watch(request).await;
-        let handle = client.get_runtime_handle();
-            handle.block_on(
-        client.watch(request,
-            Box::new(move |event: WatchEvent| {
-                debug!("call event_callback");
-                event_callback(Box::into_raw(Box::new(WatchEventWrapper {
-                    id: CString::new(event.id).unwrap().into_raw(),
-                    operation: CString::new(event.operation).unwrap().into_raw(),
-                    document: CString::new(event.document).unwrap().into_raw(),
-                })));
-            })
-        ))
-    });
-
-    trace!("parse result");
-    let response = match result {
-        Ok(data) => {
-            let id = String::from(&data);
-            let watchid = CString::new(id).unwrap().into_raw();
-            WatchResponseWrapper {
-                success: true,
-                watchid,
-                error: std::ptr::null(),
-            }
-        }
-        Err(e) => {
-            let error_msg = CString::new(format!("Watch failed: {:?}", e))
-                .unwrap()
-                .into_raw();
-            WatchResponseWrapper {
-                success: false,
-                watchid: std::ptr::null(),
-                error: error_msg,
-            }
-        }
-    };
-
-    Box::into_raw(Box::new(response))
-}
-
 type WatchCallback = extern "C" fn(wrapper: *mut WatchResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4329,6 +4260,7 @@ pub extern "C" fn watch_async_async(
                 success: false,
                 watchid: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -4341,6 +4273,7 @@ pub extern "C" fn watch_async_async(
                 success: false,
                 watchid: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -4358,12 +4291,14 @@ pub extern "C" fn watch_async_async(
             success: false,
             watchid: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     debug!("watch_async: runtime.spawn");
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         debug!("watch_async: call client.watch");
         let result = client
@@ -4393,6 +4328,7 @@ pub extern "C" fn watch_async_async(
                     success: true,
                     watchid,
                     error: std::ptr::null(),
+                    request_id,
                 }
             }
             Err(e) => {
@@ -4403,6 +4339,7 @@ pub extern "C" fn watch_async_async(
                     success: false,
                     watchid: std::ptr::null(),
                     error: error_msg,
+                    request_id,
                 }
             }
         };
@@ -4415,19 +4352,31 @@ pub extern "C" fn watch_async_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_watch_response(response: *mut WatchResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).watchid.is_null() {
+            let _ = CString::from_raw((*response).watchid as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
 pub struct UnWatchResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn unwatch(
     client: *mut ClientWrapper,
-    watchid: *const c_char,
+    watchid: *const c_char
 ) -> *mut UnWatchResponseWrapper {
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
@@ -4436,6 +4385,7 @@ pub extern "C" fn unwatch(
             let response = UnWatchResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4447,6 +4397,7 @@ pub extern "C" fn unwatch(
         let response = UnWatchResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: 0,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -4455,6 +4406,7 @@ pub extern "C" fn unwatch(
         let response = UnWatchResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: 0
         };
         return Box::into_raw(Box::new(response));
     }
@@ -4470,6 +4422,7 @@ pub extern "C" fn unwatch(
             let response = UnWatchResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: 0
             };
             debug!("Unwatch success");
             Box::into_raw(Box::new(response))
@@ -4482,6 +4435,7 @@ pub extern "C" fn unwatch(
             let response = UnWatchResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0
             };
             Box::into_raw(Box::new(response))
         }
@@ -4492,6 +4446,7 @@ pub extern "C" fn unwatch(
 pub extern "C" fn unwatch_async(
     client: *mut ClientWrapper,
     watchid: *const c_char,
+    request_id: u64,
     callback: extern "C" fn(*mut UnWatchResponseWrapper),
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -4501,6 +4456,7 @@ pub extern "C" fn unwatch_async(
             let response = UnWatchResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -4512,6 +4468,7 @@ pub extern "C" fn unwatch_async(
         let response = UnWatchResponseWrapper {
             success: false,
             error: error_msg,
+            request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
     }
@@ -4524,6 +4481,7 @@ pub extern "C" fn unwatch_async(
                 let response = UnWatchResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id,
                 };
                 callback(Box::into_raw(Box::new(response)));
             }
@@ -4534,6 +4492,7 @@ pub extern "C" fn unwatch_async(
                 let response = UnWatchResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id,
                 };
                 callback(Box::into_raw(Box::new(response)));
             }
@@ -4543,7 +4502,15 @@ pub extern "C" fn unwatch_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_unwatch_response(response: *mut UnWatchResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 
@@ -4770,7 +4737,18 @@ pub extern "C" fn register_queue_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_register_queue_response(response: *mut RegisterQueueResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).queuename.is_null() {
+            let _ = CString::from_raw((*response).queuename as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 
@@ -4779,7 +4757,7 @@ pub struct RegisterExchangeRequestWrapper {
     exchangename: *const c_char,
     algorithm: *const c_char,
     routingkey: *const c_char,
-    addqueue: bool
+    addqueue: bool,
 }
 #[repr(C)]
 pub struct RegisterExchangeResponseWrapper {
@@ -4993,7 +4971,18 @@ pub extern "C" fn register_exchange_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_register_exchange_response(response: *mut RegisterExchangeResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).queuename.is_null() {
+            let _ = CString::from_raw((*response).queuename as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -5068,7 +5057,30 @@ pub extern "C" fn next_queue_event (
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_queue_event(response: *mut QueueEventWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).queuename.is_null() {
+            let _ = CString::from_raw((*response).queuename as *mut c_char);
+        }
+        if !(*response).correlation_id.is_null() {
+            let _ = CString::from_raw((*response).correlation_id as *mut c_char);
+        }
+        if !(*response).replyto.is_null() {
+            let _ = CString::from_raw((*response).replyto as *mut c_char);
+        }
+        if !(*response).routingkey.is_null() {
+            let _ = CString::from_raw((*response).routingkey as *mut c_char);
+        }
+        if !(*response).exchangename.is_null() {
+            let _ = CString::from_raw((*response).exchangename as *mut c_char);
+        }
+        if !(*response).data.is_null() {
+            let _ = CString::from_raw((*response).data as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -5167,7 +5179,15 @@ pub extern "C" fn queue_message(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_queue_message_response(response: *mut QueueMessageResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -5230,7 +5250,15 @@ pub extern "C" fn unregister_queue(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_unregister_queue_response(response: *mut UnRegisterQueueResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 
@@ -5438,6 +5466,7 @@ pub struct PushWorkitemRequestWrapper {
     priority: i32,
     files: *const *const WorkitemFileWrapper,
     files_len: i32,
+    request_id: u64
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -5445,6 +5474,7 @@ pub struct PushWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
     workitem: *const WorkitemWrapper,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -5460,6 +5490,7 @@ pub extern "C" fn push_workitem(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -5472,6 +5503,7 @@ pub extern "C" fn push_workitem(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -5532,6 +5564,7 @@ pub extern "C" fn push_workitem(
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return Box::into_raw(Box::new(response));
     }
@@ -5552,6 +5585,7 @@ pub extern "C" fn push_workitem(
                         success: true,
                         error: std::ptr::null(),
                         workitem: Box::into_raw(Box::new(workitem)),
+                        request_id: options.request_id
                     }
                 }
                 None => {
@@ -5560,6 +5594,7 @@ pub extern "C" fn push_workitem(
                         success: false,
                         error: error_msg,
                         workitem: std::ptr::null(),
+                        request_id: options.request_id
                     }
                 }
             }))
@@ -5572,6 +5607,7 @@ pub extern "C" fn push_workitem(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             }))
         }
     }
@@ -5591,6 +5627,7 @@ pub extern "C" fn push_workitem_async(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -5603,6 +5640,7 @@ pub extern "C" fn push_workitem_async(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -5664,11 +5702,13 @@ pub extern "C" fn push_workitem_async(
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
             .push_workitem(request)
@@ -5682,6 +5722,7 @@ pub extern "C" fn push_workitem_async(
                             success: true,
                             error: std::ptr::null(),
                             workitem: Box::into_raw(Box::new(workitem)),
+                            request_id,
                         }
                     }
                     None => {
@@ -5690,6 +5731,7 @@ pub extern "C" fn push_workitem_async(
                             success: false,
                             error: error_msg,
                             workitem: std::ptr::null(),
+                            request_id,
                         }
                     }
                 }
@@ -5702,6 +5744,7 @@ pub extern "C" fn push_workitem_async(
                     success: false,
                     error: error_msg,
                     workitem: std::ptr::null(),
+                    request_id,
                 }
             }
         };
@@ -5715,7 +5758,18 @@ pub extern "C" fn push_workitem_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_push_workitem_response(response: *mut PushWorkitemResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).workitem.is_null() {
+            free_workitem((*response).workitem as *mut WorkitemWrapper);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
@@ -6033,13 +6087,15 @@ pub struct UpdateWorkitemRequestWrapper {
     ignoremaxretries: bool,    
     files: *const *const WorkitemFileWrapper,
     files_len: i32,
+    request_id: u64
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct UpdateWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
-    workitem: *const WorkitemWrapper
+    workitem: *const WorkitemWrapper,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -6055,6 +6111,7 @@ pub extern "C" fn update_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -6067,6 +6124,7 @@ pub extern "C" fn update_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             };
             return Box::into_raw(Box::new(response));
         }
@@ -6117,6 +6175,7 @@ pub extern "C" fn update_workitem (
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return Box::into_raw(Box::new(response));
     }
@@ -6137,6 +6196,7 @@ pub extern "C" fn update_workitem (
                         success: true,
                         error: std::ptr::null(),
                         workitem: Box::into_raw(Box::new(workitem)),
+                        request_id: options.request_id
                     }
                 }
                 None => {
@@ -6145,6 +6205,7 @@ pub extern "C" fn update_workitem (
                         success: false,
                         error: error_msg,
                         workitem: std::ptr::null(),
+                        request_id: options.request_id
                     }
                 }
             }))            
@@ -6157,6 +6218,7 @@ pub extern "C" fn update_workitem (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             }))
         }
     }
@@ -6176,6 +6238,7 @@ pub extern "C" fn update_workitem_async (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: 0
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -6188,6 +6251,7 @@ pub extern "C" fn update_workitem_async (
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
+                request_id: options.request_id
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -6240,11 +6304,13 @@ pub extern "C" fn update_workitem_async (
             success: false,
             error: error_msg,
             workitem: std::ptr::null(),
+            request_id: options.request_id
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
             .update_workitem(request)
@@ -6258,6 +6324,7 @@ pub extern "C" fn update_workitem_async (
                             success: true,
                             error: std::ptr::null(),
                             workitem: Box::into_raw(Box::new(workitem)),
+                            request_id,
                         }
                     }
                     None => {
@@ -6266,6 +6333,7 @@ pub extern "C" fn update_workitem_async (
                             success: false,
                             error: error_msg,
                             workitem: std::ptr::null(),
+                            request_id,
                         }
                     }
                 };
@@ -6279,6 +6347,7 @@ pub extern "C" fn update_workitem_async (
                     success: false,
                     error: error_msg,
                     workitem: std::ptr::null(),
+                    request_id,
                 }))
             }
         };
@@ -6288,19 +6357,32 @@ pub extern "C" fn update_workitem_async (
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_update_workitem_response(response: *mut UpdateWorkitemResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).workitem.is_null() {
+            free_workitem((*response).workitem as *mut WorkitemWrapper);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct DeleteWorkitemRequestWrapper {
     id: *const c_char,
+    request_id: u64
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct DeleteWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
+    request_id: u64
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -6315,6 +6397,7 @@ pub extern "C" fn delete_workitem(
             let response = DeleteWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -6326,6 +6409,7 @@ pub extern "C" fn delete_workitem(
             let response = DeleteWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id
             };
             return Box::into_raw(Box::new(response));
         }
@@ -6339,6 +6423,7 @@ pub extern "C" fn delete_workitem(
         let response = DeleteWorkitemResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id
         };
         return Box::into_raw(Box::new(response));
     }
@@ -6355,6 +6440,7 @@ pub extern "C" fn delete_workitem(
             let response = DeleteWorkitemResponseWrapper {
                 success: true,
                 error: std::ptr::null(),
+                request_id: options.request_id
             };
             Box::into_raw(Box::new(response))
         }
@@ -6365,6 +6451,7 @@ pub extern "C" fn delete_workitem(
             let response = DeleteWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id
             };
             Box::into_raw(Box::new(response))
         }
@@ -6386,6 +6473,7 @@ pub extern "C" fn delete_workitem_async(
             let response = DeleteWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: 0
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -6397,6 +6485,7 @@ pub extern "C" fn delete_workitem_async(
             let response = DeleteWorkitemResponseWrapper {
                 success: false,
                 error: error_msg,
+                request_id: options.request_id
             };
             return callback(Box::into_raw(Box::new(response)));
         }
@@ -6410,11 +6499,13 @@ pub extern "C" fn delete_workitem_async(
         let response = DeleteWorkitemResponseWrapper {
             success: false,
             error: error_msg,
+            request_id: options.request_id
         };
         return callback(Box::into_raw(Box::new(response)));
     }
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
             .delete_workitem(request)
@@ -6425,6 +6516,7 @@ pub extern "C" fn delete_workitem_async(
                 let response = DeleteWorkitemResponseWrapper {
                     success: true,
                     error: std::ptr::null(),
+                    request_id,
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -6436,6 +6528,7 @@ pub extern "C" fn delete_workitem_async(
                 let response = DeleteWorkitemResponseWrapper {
                     success: false,
                     error: error_msg,
+                    request_id,
                 };
                 Box::into_raw(Box::new(response))
             }
@@ -6447,7 +6540,15 @@ pub extern "C" fn delete_workitem_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_delete_workitem_response(response: *mut DeleteWorkitemResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 
 
@@ -6528,10 +6629,6 @@ pub extern "C" fn on_client_event(
         })));
     });
     
-    
-    
-    
-
     let mut events = CLIENT_EVENTS.lock().unwrap();
     let _eventid = eventid.clone();
     let queue = events.get_mut(&_eventid);
@@ -6633,8 +6730,7 @@ pub extern "C" fn on_client_event_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn next_client_event (
-    clientid: *const c_char,
-    
+    clientid: *const c_char,    
 ) -> *mut ClientEventWrapper {
     debug!("unwrap clientid");
     let clientid = c_char_to_str(clientid);
@@ -6707,15 +6803,45 @@ pub extern "C" fn off_client_event(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_off_event_response(response: *mut OffClientEventResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_event_response(response: *mut ClientEventResponseWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).eventid.is_null() {
+            let _ = CString::from_raw((*response).eventid as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }    
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_client_event(response: *mut ClientEventWrapper) {
-    free(response);
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).event.is_null() {
+            let _ = CString::from_raw((*response).event as *mut c_char);
+        }
+        if !(*response).reason.is_null() {
+            let _ = CString::from_raw((*response).reason as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }        
 }

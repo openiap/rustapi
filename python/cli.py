@@ -44,6 +44,25 @@ def start_cpu_load(num_iters, available_cores, iter_per_core):
             thread.start()
         for thread in threads:
             thread.join()
+async def st_func(client: Client):
+    try:
+        i = 0
+        
+        print("Starting loop")
+        while True:
+            workitem = client.pop_workitem(wiq="q2")
+            if workitem is not None:
+                id = workitem["id"]
+                print(f"Updating workitem: {id}")
+                workitem["state"] = "successful"
+                client.update_workitem(workitem)
+            i += 1
+            if i % 500 == 0:
+                print(f"looped 500 times")
+        print("loop completed")
+    except ClientError as e:
+        print(f"Failed to connect to server: {e}")
+        return
 
 async def main():
     client = Client()
@@ -85,12 +104,26 @@ async def main():
             r: Register queue
             m: Queue message
             """)
+        elif input_command == "0":
+            client.disable_tracing()
+        elif input_command == "1":
+            client.enable_tracing("openiap=info", "")
+        elif input_command == "2":
+            client.enable_tracing("openiap=debug", "new")
+        elif input_command == "3":
+            client.enable_tracing("openiap=trace", "new")
         elif input_command == "dis":
             try:
                 query_result = client.disconnect()
                 print(query_result)
             except ClientError as e:
                 print(f"Failed to query: {e}")
+        elif input_command == "st":
+            if sthandle is None:
+                sthandle = asyncio.create_task(st_func(client))
+            else:
+                sthandle.cancel()
+                sthandle = None
         elif input_command == "q":
             try:
                 query_result = client.query(collectionname="entities", query="{}", projection="{\"name\":1}")
@@ -203,6 +236,10 @@ async def main():
             iter_per_core = num_calcs // available_cores
             num_iters = 5000
             threading.Thread(target=start_cpu_load, args=(num_iters, available_cores, iter_per_core)).start()
+
+    if sthandle is not None:
+        sthandle.cancel()
+        sthandle = None
 
     print("*********************************")
     print("done, free client")

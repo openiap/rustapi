@@ -752,13 +752,12 @@ function loadLibrary() {
         lib.next_watch_event = lib.func('next_watch_event', WatchEventWrapperPtr, [CString]);
         lib.WatchEventCallback = koffi.proto('void WatchEventCallback(WatchEventWrapper*)');
         lib.watchCallback = koffi.proto('void watchCallback(WatchResponseWrapper*)');
-        lib.watch_async = lib.func('watch_async', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.WatchEventCallback)]);
         lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
         lib.free_watch_event = lib.func('free_watch_event', 'void', [WatchEventWrapperPtr]);
         lib.free_watch_response = lib.func('free_watch_response', 'void', [WatchResponseWrapperPtr]);
         lib.unwatch = lib.func('unwatch', UnwatchResponseWrapperPtr, [ClientWrapperPtr, CString]);
         lib.unwatchCallback = koffi.proto('void unwatchCallback(UnwatchResponseWrapper*)');
-        lib.unwatch_async = lib.func('unwatch_async', 'void', [ClientWrapperPtr, CString, koffi.pointer(lib.unwatchCallback)]);
+        lib.unwatch_async = lib.func('unwatch_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.unwatchCallback)]);
         lib.free_unwatch_response = lib.func('free_unwatch_response', 'void', [UnwatchResponseWrapperPtr]);
 
         lib.register_queue = lib.func('register_queue', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr]);
@@ -814,6 +813,21 @@ class Client {
         this.client = _clientWrapperPtr;
         this.lib.set_agent_name(_clientWrapperPtr, 'node');
     }
+    formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return "0 Bytes";
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+        if (bytes < 0) {
+            bytes = bytes * -1;
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return "-" + parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+        } else {
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+        }
+    }
+    
     tracing = false;
     informing = true;
     verbosing = false;
@@ -2099,6 +2113,7 @@ class Client {
             };
             const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
             this.verbose('create callback');
+            var cb;
             const callback = (responsePtr) => {
                 this.verbose('pop_workitem_async callback');
                 this.trace('decode response');
@@ -2133,15 +2148,19 @@ class Client {
                 }
                 this.trace('free_pop_workitem_response');
                 this.lib.free_pop_workitem_response(responsePtr);
+                responsePtr = null;
+                koffi.unregister(cb);
+                cb = null;
             };
+            // const cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
+            cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
+            
+            // const cb = koffi.pointer(callback);
 
-            const cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
+            // lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
+            // lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, koffi.pointer(lib.pop_workitemCallback)]);
             this.verbose('call pop_workitem_async');
-            this.lib.pop_workitem_async(this.client, reqptr, downloadfolder, cb, (err) => {
-                if (err) {
-                    reject(new ClientError('PopWorkitem async failed'));
-                }
-            });
+            this.lib.pop_workitem_async(this.client, reqptr, downloadfolder, cb);
         
         });
     }

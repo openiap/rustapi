@@ -1,6 +1,13 @@
 const readline = require('readline');
 const { Client } = require('./lib');
 const os = require('os');
+const { runInThisContext, runInNewContext } = require('vm');
+const { setFlagsFromString } = require('v8');
+const { memoryUsage } = require('node:process');
+
+// import { setFlagsFromString } from 'v8';
+// import { runInNewContext } from 'vm';
+
 
 // Reads a line from the keyboard input.
 function keyboardInput() {
@@ -42,7 +49,14 @@ target="_new">function addOneLoop(numLoops) {
 
 // Main function
 async function doit() {
-    // Display system information
+    if (global.gc) {
+        global.gc();
+    } else {
+        console.log('Garbage collection unavailable.  Pass --expose-gc '
+          + 'when launching node to enable forced garbage collection.');
+        setFlagsFromString('--expose_gc');
+        global.gc = runInNewContext('gc');      
+    }
 
     const numCalcs = 100000;
     const availableCores = Math.floor(os.cpus().length / 2); // use half of the threads
@@ -67,6 +81,32 @@ async function doit() {
     // client.enable_tracing("openiap=debug", "new");
     client.enable_tracing("openiap=info", "");
 
+    let do_st_func = false;
+    let st_func = async () => {
+        console.log("let begin loop");
+        let i = 0;
+        do {
+            let workitem = await client.pop_workitem_async({ wiq: "q2" });
+            if (workitem != null) {
+                console.log("Updated workitem", workitem.id);
+                workitem.state = "successful"
+                await client.update_workitem_async({ workitem: workitem });
+            }
+            i++;
+            if (i % 500 === 0) {
+                // console.log("pop_workitem_async_result", pop_workitem_async_result);
+                const mem = memoryUsage();
+                console.log("looped 500 times, memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
+
+
+                if (global.gc) {
+                    global.gc();
+                }
+            }
+        } while (do_st_func === true);
+        console.log("loop completed");
+    }
+
     try {
         while (input.toLowerCase() !== 'quit') {
             switch (input.toLowerCase()) {
@@ -87,6 +127,20 @@ async function doit() {
                             );
                         }
                         await Promise.all(threads);
+                    }
+                    break;
+                case 'gc':
+                    global.gc();
+                    const mem = memoryUsage();
+                    console.log("memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
+                    
+                    break;
+                case 'st':
+                    if(do_st_func === true) {
+                        do_st_func = false;
+                    } else {
+                        do_st_func = true;
+                        st_func();
                     }
                     break;
                 case 'dis':
@@ -248,6 +302,10 @@ async function doit() {
         }
     } catch (error) {
         console.error('Error:', error);        
+    }
+    if(do_st_func === true) {
+        do_st_func = false;
+        await new Promise((resolve) => setTimeout(resolve, 500));
     }
     client.free();
 }
