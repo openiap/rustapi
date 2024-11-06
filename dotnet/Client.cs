@@ -18,6 +18,8 @@ public partial class Client : IDisposable
     private readonly DeleteManyCallback _DeleteManyCallbackDelegate;
     private readonly DeleteOneCallback _DeleteOneCallbackDelegate;
     private readonly InsertOrUpdateOneCallback _InsertOrUpdateOneCallbackDelegate;
+    private readonly UploadCallback _UploadCallbackDelegate;
+
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1023,6 +1025,7 @@ public partial class Client : IDisposable
         _DeleteManyCallbackDelegate = _DeleteManyCallback;
         _DeleteOneCallbackDelegate = _DeleteOneCallback;
         _InsertOrUpdateOneCallbackDelegate = _InsertOrUpdateOneCallback;
+        _UploadCallbackDelegate = _UploadCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -2365,6 +2368,48 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
+    private void _UploadCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<UploadResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string id = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+                free_upload_response(responsePtr);
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_pop_workitem_response(responsePtr);
+        }
+    }
     public Task<string> upload(string filepath, string filename = "", string mimetype = "", string metadata = "", string collectionname = "")
     {
         var tcs = new TaskCompletionSource<string>();
@@ -2377,49 +2422,18 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             UploadRequestWrapper request = new UploadRequestWrapper
             {
                 filepath = filepathPtr,
                 filename = filenamePtr,
                 mimetype = mimetypePtr,
                 metadata = metadataPtr,
-                collectionname = collectionnamePtr
+                collectionname = collectionnamePtr,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<UploadResponseWrapper>(responsePtr);
-                    string id = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_upload_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(id);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-
-            var callbackDelegate = new UploadCallback(Callback);
-
-            upload_async(clientPtr, ref request, callbackDelegate);
+            upload_async(clientPtr, ref request, _UploadCallbackDelegate);
         }
         finally
         {
