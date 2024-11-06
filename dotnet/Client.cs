@@ -21,7 +21,7 @@ public partial class Client : IDisposable
     private readonly UploadCallback _UploadCallbackDelegate;
     private readonly DownloadCallback _DownloadCallbackDelegate;
     private readonly UpdateOneCallback _UpdateOneCallbackDelegate;
-
+    private readonly InsertManyCallback _InsertManyCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1030,6 +1030,7 @@ public partial class Client : IDisposable
         _UploadCallbackDelegate = _UploadCallback;
         _DownloadCallbackDelegate = _DownloadCallback;
         _UpdateOneCallbackDelegate = _UpdateOneCallback;
+        _InsertManyCallbackDelegate = _InsertManyCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1912,6 +1913,46 @@ public partial class Client : IDisposable
         );
     }
 
+    private void _InsertManyCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
+
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, result);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_insert_many_response(responsePtr);
+        }
+    }
     public Task<T> InsertMany<T>(string collectionname, string items, int w = 1, bool j = false, bool skipresults = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1922,6 +1963,7 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             InsertManyRequestWrapper request = new InsertManyRequestWrapper
             {
@@ -1929,42 +1971,12 @@ public partial class Client : IDisposable
                 items = itemsPtr,
                 w = w,
                 j = j,
-                skipresults = skipresults
+                skipresults = skipresults,
+                request_id = requestId
             };
 
-            // Define the callback logic that is unique to this function
-            InsertManyCallback callback = new InsertManyCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
-                    free_insert_many_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                        tcs.SetResult(result);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            insert_many_async(clientPtr, ref request, callback);
+            insert_many_async(clientPtr, ref request, _InsertManyCallbackDelegate);
         }
         finally
         {
