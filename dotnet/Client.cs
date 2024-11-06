@@ -6,96 +6,20 @@ using System.Data.Common;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-public class WatchEvent
-{
-    public WatchEvent() {
-        id = "";
-        operation = "";
-        document = "";
-    }
-    public string id { get; set; }
-    public string operation { get; set; }
-    public string document { get; set; }
-}
-public class ClientEvent
-{
-    public ClientEvent() {
-        evt = "";
-        reason = "";
-    }
-    public string evt { get; set; }
-    public string reason { get; set; }
-}
-public class QueueEvent {
-    public QueueEvent() {
-        queuename = "";
-        correlation_id = "";
-        replyto = "";
-        routingkey = "";
-        exchangename = "";
-        data = "";
-    }
-    public string queuename;
-    public string correlation_id;
-    public string replyto;
-    public string routingkey;
-    public string exchangename;
-    public string data;
-}
-public class WorkitemFile {
-    public WorkitemFile() {
-        filename = "";
-        id = "";
-        compressed = false;
-    }
-    public string filename;
-    public string id;
-    public bool compressed;
-}
-public class Workitem {
-    public Workitem() {
-        id = "";
-        name = "";
-        payload = "";
-        priority = 0;
-        nextrun = 0;
-        lastrun = 0;
-        files = new WorkitemFile[0];
-        state = "";
-        wiq = "";
-        wiqid = "";
-        retries = 0;
-        username = "";
-        success_wiqid = "";
-        failed_wiqid = "";
-        success_wiq = "";
-        failed_wiq = "";
-        errormessage = "";
-        errorsource = "";
-        errortype = "";
-    }
-    public string id;
-    public string name;
-    public string payload;
-    public int priority;
-    public ulong nextrun;
-    public ulong lastrun;
-    public WorkitemFile[] files;
-    public string state;
-    public string wiq;
-    public string wiqid;
-    public int retries;
-    public string username;
-    public string success_wiqid;
-    public string failed_wiqid;
-    public string success_wiq;
-    public string failed_wiq;
-    public string errormessage;
-    public string errorsource;
-    public string errortype;
-}
 public partial class Client : IDisposable
 {
+    // private ConcurrentDictionary<int, TaskCompletionSource<Workitem?>> _PopWorkitemCallbackRegistry = new ConcurrentDictionary<int, TaskCompletionSource<Workitem?>>(); 
+    private CallbackRegistry CallbackRegistry = new CallbackRegistry(); 
+    private int CallbackRegistryNextRequestId = 0;
+    private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
+    private readonly UpdateWorkitemCallback _UpdateWorkitemCallbackDelegate;
+    public IntPtr clientPtr;
+    ClientWrapper client;
+    bool tracing { get; set; } = false;
+    bool informing { get; set; } = false;
+    bool verbosing { get; set; } = false;
+
+#region Structs
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientWrapper
     {
@@ -776,19 +700,10 @@ public partial class Client : IDisposable
         public int request_id;
     }
     public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
+#endregion
 
-    public class ClientError : Exception
-    {
-        public ClientError(string message) : base(message) { }
-    }
-    public class LibraryLoadError : ClientError
-    {
-        public LibraryLoadError(string message) : base(message) { }
-    }
-    public class ClientCreationError : ClientError
-    {
-        public ClientCreationError(string message) : base(message) { }
-    }
+
+#region dll imports
     private static string GetLibraryPath()
     {
         string libfile;
@@ -1051,9 +966,7 @@ public partial class Client : IDisposable
     public static extern void delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_delete_workitem_response(IntPtr response);
-
-    public IntPtr clientPtr;
-    ClientWrapper client;
+#endregion
     public Client()
     {
         string libPath = GetLibraryPath();
@@ -1074,13 +987,9 @@ public partial class Client : IDisposable
         }
         client = clientWrapper;
         client_set_agent_name(clientPtr, "dotnet");
-        isconnected = true;
         _PopWorkitemCallbackDelegate = _PopWorkitemCallback; 
+        _UpdateWorkitemCallbackDelegate = _UpdateWorkitemCallback;
     }
-    bool tracing { get; set; } = false;
-    bool informing { get; set; } = false;
-    bool verbosing { get; set; } = false;
-    bool isconnected { get; set; } = false;
     public void enabletracing(string rust_log = "", string tracing = "")
     {
         enable_tracing(rust_log, tracing);
@@ -1129,7 +1038,6 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    isconnected = true;
                     tcs.SetResult(clientWrapper);
                 }
             }
@@ -1150,7 +1058,6 @@ public partial class Client : IDisposable
         if (clientPtr != IntPtr.Zero)
         {
             client_disconnect(clientPtr);
-            isconnected = false;
         }
     }
     public bool connected()
@@ -2979,24 +2886,20 @@ public partial class Client : IDisposable
         }
         return await tcs.Task;
     }
-    private ConcurrentDictionary<int, TaskCompletionSource<Workitem?>> _PopWorkitemCallbackRegistry = new ConcurrentDictionary<int, TaskCompletionSource<Workitem?>>(); 
-    private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
-    private int _PopWorkitemNextRequestId = 0;
     private void _PopWorkitemCallback(IntPtr responsePtr)
     {
         try
-        {
-            
+        {            
             var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
             int requestId = response.request_id;
-            var count = _PopWorkitemCallbackRegistry.Count;
+            var count = CallbackRegistry.Count;
             if (count == 0) {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {_PopWorkitemCallbackRegistry.Count} items in the registry");
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 return;
             } else if (count > 1) {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {_PopWorkitemCallbackRegistry.Count} items in the registry");
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (_PopWorkitemCallbackRegistry.TryGetValue(requestId, out var tcs)) {
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs)) {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
                 var workitem = default(Workitem);
@@ -3004,8 +2907,7 @@ public partial class Client : IDisposable
                 {
                     if (response.workitem == IntPtr.Zero)
                     {
-                        _PopWorkitemCallbackRegistry.TryRemove(requestId, out _);
-                        tcs.SetResult(workitem);
+                        CallbackRegistry.TrySetResult(requestId, workitem);
                         return;
                     }
                     var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
@@ -3052,13 +2954,12 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    tcs.SetException(new ClientError(error));
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
                 }
                 else
                 {
-                    tcs.SetResult(workitem);
+                    CallbackRegistry.TrySetResult(requestId, workitem);
                 }
-                _PopWorkitemCallbackRegistry.TryRemove(requestId, out _);
             } else {
                 Console.WriteLine($"No matching TCS found for request_id: {requestId}");
             }
@@ -3082,7 +2983,7 @@ public partial class Client : IDisposable
 
         try
         {
-            int requestId = Interlocked.Increment(ref _PopWorkitemNextRequestId);
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             PopWorkitemRequestWrapper request = new PopWorkitemRequestWrapper
             {
                 wiq = wiqPtr,
@@ -3090,10 +2991,7 @@ public partial class Client : IDisposable
                 request_id = requestId
             };
 
-
-            // Create a task completion source for the current request
-            _PopWorkitemCallbackRegistry[requestId] = tcs;
-            // Pass the delegate to the unmanaged function
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             pop_workitem_async(clientPtr, ref request, downloadfolder, _PopWorkitemCallbackDelegate);
         }
         finally
@@ -3105,6 +3003,89 @@ public partial class Client : IDisposable
         return await tcs.Task;
     }
 
+    private void _UpdateWorkitemCallback(IntPtr responsePtr) {
+        this.trace("UpdateWorkitem callback to dotnet");
+        try
+        {
+
+            var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0) {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            } else if (count > 1) {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs)) {
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+                var workitem = default(Workitem);
+                if(success) {
+                    var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
+                    var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
+                    var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
+                    var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
+                    var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
+                    var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
+                    var lastrun = workitem_rsp.lastrun;
+                    var nextrun = workitem_rsp.nextrun;
+                    var priority = (int)workitem_rsp.priority;
+                    var retries = (int)workitem_rsp.retries;
+                    var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
+                    var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
+                    var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
+                    var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
+                    var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
+                    var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
+                    var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
+                    var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
+                    var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    workitem = new Workitem
+                    {
+                        id = id,
+                        name = name,
+                        payload = payload,
+                        wiq = wiq,
+                        state = state,
+                        lastrun = lastrun,
+                        nextrun = nextrun,
+                        priority = priority,
+                        retries = retries,
+                        username = username,
+                        wiqid = wiqid,
+                        success_wiqid = success_wiqid,
+                        failed_wiqid = failed_wiqid,
+                        success_wiq = success_wiq,
+                        failed_wiq = failed_wiq,
+                        errormessage = errormessage,
+                        errorsource = errorsource,
+                        errortype = errortype,
+                    };
+
+                }
+                free_update_workitem_response(responsePtr);
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, workitem);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally {
+            this.trace("Freeing memory");
+            // Free each WorkitemFileWrapper and its associated strings
+
+        }
+    }
     public async Task<Workitem?> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
         var tcs = new TaskCompletionSource<Workitem?>();
 
@@ -3134,7 +3115,7 @@ public partial class Client : IDisposable
         // Allocate memory for the array of pointers and copy the pointers into it
         IntPtr filesPtr = Marshal.AllocHGlobal(filePointers.Length * Marshal.SizeOf<IntPtr>());
         Marshal.Copy(filePointers, 0, filesPtr, filePointers.Length);
-
+        GCHandle handle = default(GCHandle);
         try
         {
             var workitemwrapper = new WorkitemWrapper {
@@ -3159,128 +3140,47 @@ public partial class Client : IDisposable
             };
 
             // Create a GCHandle to the workitemptr object
-            GCHandle handle = GCHandle.Alloc(workitemwrapper, GCHandleType.Pinned);
+            handle = GCHandle.Alloc(workitemwrapper, GCHandleType.Pinned);
 
             // Get the IntPtr that points to the WorkitemWrapper object
             IntPtr workitemPtr = handle.AddrOfPinnedObject();
+
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
 
             UpdateWorkitemRequestWrapper request = new UpdateWorkitemRequestWrapper
             {
                 workitem = workitemPtr,
                 files = filesPtr,
                 files_len = files.Length,
-                ignoremaxretries = ignoremaxretries
+                ignoremaxretries = ignoremaxretries,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("UpdateWorkitem callback to dotnet");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<UpdateWorkitemResponseWrapper>(responsePtr);
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    var workitem = default(Workitem);
-                    if(success) {
-                        var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
-                        var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
-                        var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
-                        var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
-                        var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
-                        var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
-                        var lastrun = workitem_rsp.lastrun;
-                        var nextrun = workitem_rsp.nextrun;
-                        var priority = (int)workitem_rsp.priority;
-                        var retries = (int)workitem_rsp.retries;
-                        var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
-                        var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
-                        var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
-                        var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
-                        var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
-                        var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
-                        var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
-                        var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
-                        var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
-                        workitem = new Workitem
-                        {
-                            id = id,
-                            name = name,
-                            payload = payload,
-                            wiq = wiq,
-                            state = state,
-                            lastrun = lastrun,
-                            nextrun = nextrun,
-                            priority = priority,
-                            retries = retries,
-                            username = username,
-                            wiqid = wiqid,
-                            success_wiqid = success_wiqid,
-                            failed_wiqid = failed_wiqid,
-                            success_wiq = success_wiq,
-                            failed_wiq = failed_wiq,
-                            errormessage = errormessage,
-                            errorsource = errorsource,
-                            errortype = errortype,
-                        };
-
-                    }
-                    free_update_workitem_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(workitem);
-                    }
-
-
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-                finally {
-                    this.trace("Freeing memory");
-                    // Free each WorkitemFileWrapper and its associated strings
-                    for (int i = 0; i < _files.Length; i++)
-                    {
-                        // Get the pointer to the WorkitemFileWrapper
-                        IntPtr structPtr = Marshal.ReadIntPtr(filesPtr, i * Marshal.SizeOf<IntPtr>());
-
-                        // Retrieve the WorkitemFileWrapper from the unmanaged memory
-                        WorkitemFileWrapper wrapper = Marshal.PtrToStructure<WorkitemFileWrapper>(structPtr);
-
-                        // Free the unmanaged strings
-                        Marshal.FreeHGlobal(wrapper.filename);
-                        Marshal.FreeHGlobal(wrapper.id);
-
-                        // Free the WorkitemFileWrapper memory block
-                        Marshal.FreeHGlobal(structPtr);
-                    }
-
-                    // Free the array of pointers
-                    Marshal.FreeHGlobal(filesPtr);
-                    handle.Free();
-
-                }
-            
-            }
-            var callbackDelegate = new UpdateWorkitemCallback(Callback);
-            update_workitem_async(clientPtr, ref request, callbackDelegate);
+            CallbackRegistry.TryAddCallback(requestId, tcs);
+            update_workitem_async(clientPtr, ref request, _UpdateWorkitemCallbackDelegate);
         }
         finally
         {
-            // Marshal.FreeHGlobal(namePtr);
-            // Marshal.FreeHGlobal(payloadPtr);
-            // Marshal.FreeHGlobal(wiqPtr);
+            for (int i = 0; i < _files.Length; i++)
+            {
+                // Get the pointer to the WorkitemFileWrapper
+                IntPtr structPtr = Marshal.ReadIntPtr(filesPtr, i * Marshal.SizeOf<IntPtr>());
+
+                // Retrieve the WorkitemFileWrapper from the unmanaged memory
+                WorkitemFileWrapper wrapper = Marshal.PtrToStructure<WorkitemFileWrapper>(structPtr);
+
+                // Free the unmanaged strings
+                Marshal.FreeHGlobal(wrapper.filename);
+                Marshal.FreeHGlobal(wrapper.id);
+
+                // Free the WorkitemFileWrapper memory block
+                Marshal.FreeHGlobal(structPtr);
+            }
+
+            // Free the array of pointers
+            Marshal.FreeHGlobal(filesPtr);
+            handle.Free();
+
         }
         return await tcs.Task;    
     }
@@ -3351,3 +3251,105 @@ public partial class Client : IDisposable
     }
 }
 
+#region helper classes
+public class WatchEvent
+{
+    public WatchEvent() {
+        id = "";
+        operation = "";
+        document = "";
+    }
+    public string id { get; set; }
+    public string operation { get; set; }
+    public string document { get; set; }
+}
+public class ClientEvent
+{
+    public ClientEvent() {
+        evt = "";
+        reason = "";
+    }
+    public string evt { get; set; }
+    public string reason { get; set; }
+}
+public class QueueEvent {
+    public QueueEvent() {
+        queuename = "";
+        correlation_id = "";
+        replyto = "";
+        routingkey = "";
+        exchangename = "";
+        data = "";
+    }
+    public string queuename;
+    public string correlation_id;
+    public string replyto;
+    public string routingkey;
+    public string exchangename;
+    public string data;
+}
+public class WorkitemFile {
+    public WorkitemFile() {
+        filename = "";
+        id = "";
+        compressed = false;
+    }
+    public string filename;
+    public string id;
+    public bool compressed;
+}
+public class Workitem {
+    public Workitem() {
+        id = "";
+        name = "";
+        payload = "";
+        priority = 0;
+        nextrun = 0;
+        lastrun = 0;
+        files = new WorkitemFile[0];
+        state = "";
+        wiq = "";
+        wiqid = "";
+        retries = 0;
+        username = "";
+        success_wiqid = "";
+        failed_wiqid = "";
+        success_wiq = "";
+        failed_wiq = "";
+        errormessage = "";
+        errorsource = "";
+        errortype = "";
+    }
+    public string id;
+    public string name;
+    public string payload;
+    public int priority;
+    public ulong nextrun;
+    public ulong lastrun;
+    public WorkitemFile[] files;
+    public string state;
+    public string wiq;
+    public string wiqid;
+    public int retries;
+    public string username;
+    public string success_wiqid;
+    public string failed_wiqid;
+    public string success_wiq;
+    public string failed_wiq;
+    public string errormessage;
+    public string errorsource;
+    public string errortype;
+}
+public class ClientError : Exception
+{
+    public ClientError(string message) : base(message) { }
+}
+public class LibraryLoadError : ClientError
+{
+    public LibraryLoadError(string message) : base(message) { }
+}
+public class ClientCreationError : ClientError
+{
+    public ClientCreationError(string message) : base(message) { }
+}
+#endregion
