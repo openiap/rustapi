@@ -16,6 +16,8 @@ public partial class Client : IDisposable
     private readonly DeleteWorkitemCallback _DeleteWorkitemCallbackDelegate;
     private readonly PushWorkitemCallback _PushWorkitemCallbackDelegate;
     private readonly DeleteManyCallback _DeleteManyCallbackDelegate;
+    private readonly DeleteOneCallback _DeleteOneCallbackDelegate;
+
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1016,11 +1018,10 @@ public partial class Client : IDisposable
         client_set_agent_name(clientPtr, "dotnet");
         _PopWorkitemCallbackDelegate = _PopWorkitemCallback;
         _UpdateWorkitemCallbackDelegate = _UpdateWorkitemCallback;
-
         _DeleteWorkitemCallbackDelegate = _DeleteWorkitemCallback;
-
         _PushWorkitemCallbackDelegate = _PushWorkitemCallback;
         _DeleteManyCallbackDelegate = _DeleteManyCallback;
+        _DeleteOneCallbackDelegate = _DeleteOneCallback;
 
     }
     public void enabletracing(string rust_log = "", string tracing = "")
@@ -2141,6 +2142,50 @@ public partial class Client : IDisposable
             }
         );
     }
+
+    private void _DeleteOneCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<DeleteOneResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                int affectedrows = (int)response.affectedrows;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, affectedrows);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+          finally
+        {
+            this.trace("Freeing memory");
+            free_delete_many_response(responsePtr);
+        }
+    }
+
     public Task<int> DeleteOne(string collectionname, string id, bool recursive = false)
     {
         var tcs = new TaskCompletionSource<int>();
@@ -2150,47 +2195,18 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             DeleteOneRequestWrapper request = new DeleteOneRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 id = idPtr,
-                recursive = recursive
+                recursive = recursive,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
+            CallbackRegistry.TryAddCallback(requestId, tcs);
 
-                    var response = Marshal.PtrToStructure<DeleteOneResponseWrapper>(responsePtr);
-                    int affectedrows = (int)response.affectedrows;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_delete_one_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(affectedrows);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-
-            var callbackDelegate = new DeleteOneCallback(Callback);
-
-            delete_one_async(clientPtr, ref request, callbackDelegate);
+            delete_one_async(clientPtr, ref request, _DeleteOneCallback);
         }
         finally
         {
@@ -2235,7 +2251,6 @@ public partial class Client : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
-            // tcs.SetException(ex);
         }
         finally
         {
@@ -2273,8 +2288,6 @@ public partial class Client : IDisposable
                 ids = idsPtr,
                 request_id = requestId
             };
-
-            var callbackDelegate = new DeleteManyCallback(_DeleteManyCallback);
 
             delete_many_async(clientPtr, ref request, _DeleteManyCallbackDelegate);
         }
