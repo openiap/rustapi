@@ -9,17 +9,20 @@ using System.Text.Json;
 public partial class Client : IDisposable
 {
     // private ConcurrentDictionary<int, TaskCompletionSource<Workitem?>> _PopWorkitemCallbackRegistry = new ConcurrentDictionary<int, TaskCompletionSource<Workitem?>>(); 
-    private CallbackRegistry CallbackRegistry = new CallbackRegistry(); 
+    private CallbackRegistry CallbackRegistry = new CallbackRegistry();
     private int CallbackRegistryNextRequestId = 0;
     private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
     private readonly UpdateWorkitemCallback _UpdateWorkitemCallbackDelegate;
+    private readonly DeleteWorkitemCallback _DeleteWorkitemCallbackDelegate;
+    private readonly PushWorkitemCallback _PushWorkitemCallbackDelegate;
+
     public IntPtr clientPtr;
     ClientWrapper client;
     bool tracing { get; set; } = false;
     bool informing { get; set; } = false;
     bool verbosing { get; set; } = false;
 
-#region Structs
+    #region Structs
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientWrapper
     {
@@ -52,7 +55,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr error;
     }
-    
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientEventWrapper
@@ -100,7 +103,7 @@ public partial class Client : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     public struct ColCollationWrapper : IDisposable
     {
-        ColCollationWrapper (string locale, bool case_level, string case_first, int strength, bool numeric_ordering, string alternate, string max_variable, bool backwards)
+        ColCollationWrapper(string locale, bool case_level, string case_first, int strength, bool numeric_ordering, string alternate, string max_variable, bool backwards)
         {
             this.locale = Marshal.StringToHGlobalAnsi(locale);
             this.case_level = case_level;
@@ -153,7 +156,7 @@ public partial class Client : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     public struct CreateCollectionRequestWrapper : IDisposable
     {
-        CreateCollectionRequestWrapper (string collectionname, ColCollationWrapper? collation = null, ColTimeseriesWrapper? timeseries = null, int expire_after_seconds = 0, bool change_stream_pre_and_post_images = false, bool capped = false, int max = 0, int size = 0)
+        CreateCollectionRequestWrapper(string collectionname, ColCollationWrapper? collation = null, ColTimeseriesWrapper? timeseries = null, int expire_after_seconds = 0, bool change_stream_pre_and_post_images = false, bool capped = false, int max = 0, int size = 0)
         {
             this.collectionname = Marshal.StringToHGlobalAnsi(collectionname);
             this.collation = collation != null ? Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ColCollationWrapper))) : IntPtr.Zero;
@@ -382,8 +385,9 @@ public partial class Client : IDisposable
     }
     public delegate void InsertManyCallback(IntPtr responsePtr);
 
-        [StructLayout(LayoutKind.Sequential)]
-    public struct UpdateOneRequestWrapper{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UpdateOneRequestWrapper
+    {
         public IntPtr collectionname;
         public IntPtr item;
         public int w;
@@ -391,7 +395,8 @@ public partial class Client : IDisposable
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct UpdateOneResponseWrapper {
+    public struct UpdateOneResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr result;
@@ -401,7 +406,8 @@ public partial class Client : IDisposable
     public delegate void UpdateOneCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct InsertOrUpdateOneRequestWrapper {
+    public struct InsertOrUpdateOneRequestWrapper
+    {
         public IntPtr collectionname;
         public IntPtr uniqeness;
         public IntPtr item;
@@ -410,7 +416,8 @@ public partial class Client : IDisposable
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct InsertOrUpdateOneResponseWrapper {
+    public struct InsertOrUpdateOneResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr result;
@@ -523,7 +530,8 @@ public partial class Client : IDisposable
         public IntPtr document;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct UnWatchResponseWrapper {
+    public struct UnWatchResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
@@ -531,7 +539,8 @@ public partial class Client : IDisposable
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct QueueEventWrapper {
+    public struct QueueEventWrapper
+    {
         public IntPtr queuename;
         public IntPtr correlation_id;
         public IntPtr replyto;
@@ -541,11 +550,13 @@ public partial class Client : IDisposable
     }
     public delegate void QueueEventCallback(IntPtr eventStr);
     [StructLayout(LayoutKind.Sequential)]
-    public struct RegisterQueueRequestWrapper {
+    public struct RegisterQueueRequestWrapper
+    {
         public IntPtr queuename;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct RegisterQueueResponseWrapper {
+    public struct RegisterQueueResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr queuename;
@@ -554,7 +565,8 @@ public partial class Client : IDisposable
     public delegate void RegisterQueueCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct RegisterExchangeRequestWrapper {
+    public struct RegisterExchangeRequestWrapper
+    {
         public IntPtr exchangename;
         public IntPtr algorithm;
         public IntPtr routingkey;
@@ -562,7 +574,8 @@ public partial class Client : IDisposable
         public bool addqueue;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct RegisterExchangeResponseWrapper {
+    public struct RegisterExchangeResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr queuename;
@@ -571,14 +584,16 @@ public partial class Client : IDisposable
     public delegate void RegisterExchangeCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct UnRegisterQueueResponseWrapper {
+    public struct UnRegisterQueueResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct QueueMessageRequestWrapper {
+    public struct QueueMessageRequestWrapper
+    {
         public IntPtr queuename;
         public IntPtr correlation_id;
         public IntPtr replyto;
@@ -590,7 +605,8 @@ public partial class Client : IDisposable
         public int expiration;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct QueueMessageResponseWrapper {
+    public struct QueueMessageResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
@@ -598,14 +614,16 @@ public partial class Client : IDisposable
     public delegate void QueueMessageCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct WorkitemFileWrapper {
+    public struct WorkitemFileWrapper
+    {
         public IntPtr filename;
         public IntPtr id;
         public bool compressed;
         // public IntPtr file;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct WorkitemWrapper {
+    public struct WorkitemWrapper
+    {
         public IntPtr id;
         public IntPtr name;
         public IntPtr payload;
@@ -628,7 +646,8 @@ public partial class Client : IDisposable
         public IntPtr errortype;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct PushWorkitemRequestWrapper {
+    public struct PushWorkitemRequestWrapper
+    {
         public IntPtr wiq;
         public IntPtr wiqid;
         public IntPtr name;
@@ -644,7 +663,8 @@ public partial class Client : IDisposable
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct PushWorkitemResponseWrapper {
+    public struct PushWorkitemResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
@@ -654,13 +674,15 @@ public partial class Client : IDisposable
     public delegate void PushWorkitemCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct PopWorkitemRequestWrapper {
+    public struct PopWorkitemRequestWrapper
+    {
         public IntPtr wiq;
         public IntPtr wiqid;
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct PopWorkitemResponseWrapper {
+    public struct PopWorkitemResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
@@ -670,7 +692,8 @@ public partial class Client : IDisposable
     public delegate void PopWorkitemCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct UpdateWorkitemRequestWrapper {
+    public struct UpdateWorkitemRequestWrapper
+    {
         public IntPtr workitem;
         public bool ignoremaxretries;
         public IntPtr files;
@@ -678,7 +701,8 @@ public partial class Client : IDisposable
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct UpdateWorkitemResponseWrapper {
+    public struct UpdateWorkitemResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
@@ -688,22 +712,24 @@ public partial class Client : IDisposable
     public delegate void UpdateWorkitemCallback(IntPtr responsePtr);
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct DeleteWorkitemRequestWrapper {
+    public struct DeleteWorkitemRequestWrapper
+    {
         public string id;
         public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
-    public struct DeleteWorkitemResponseWrapper {
+    public struct DeleteWorkitemResponseWrapper
+    {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
         public IntPtr error;
         public int request_id;
     }
     public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
-#endregion
+    #endregion
 
 
-#region dll imports
+    #region dll imports
     private static string GetLibraryPath()
     {
         string libfile;
@@ -776,10 +802,10 @@ public partial class Client : IDisposable
     public static extern IntPtr create_client();
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void enable_tracing(string rust_log, string tracing); 
+    public static extern void enable_tracing(string rust_log, string tracing);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void disable_tracing();
-    
+
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void ClientEventCallback(IntPtr eventStr);
@@ -826,7 +852,7 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void drop_collection_async(IntPtr client, string collectionname, int request_id, DropCollectionCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void free_drop_collection_response(IntPtr response);    
+    public static extern void free_drop_collection_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void get_indexes_async(IntPtr client, string collectionname, int request_id, GetIndexesCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -836,7 +862,7 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_create_index_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern void drop_index_async(IntPtr client, string collectionname,string idnexname, int request_id, DropIndexCallback callback);
+    public static extern void drop_index_async(IntPtr client, string collectionname, string idnexname, int request_id, DropIndexCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_drop_index_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
@@ -918,7 +944,7 @@ public partial class Client : IDisposable
     public static extern void free_watch_response(IntPtr response);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_watch_event(IntPtr response);
-    
+
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr unwatch(IntPtr client, string watchid);
@@ -966,7 +992,7 @@ public partial class Client : IDisposable
     public static extern void delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_delete_workitem_response(IntPtr response);
-#endregion
+    #endregion
     public Client()
     {
         string libPath = GetLibraryPath();
@@ -987,36 +1013,47 @@ public partial class Client : IDisposable
         }
         client = clientWrapper;
         client_set_agent_name(clientPtr, "dotnet");
-        _PopWorkitemCallbackDelegate = _PopWorkitemCallback; 
+        _PopWorkitemCallbackDelegate = _PopWorkitemCallback;
         _UpdateWorkitemCallbackDelegate = _UpdateWorkitemCallback;
+
+        _DeleteWorkitemCallbackDelegate = _DeleteWorkitemCallback;
+
+        _PushWorkitemCallbackDelegate = _PushWorkitemCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
         enable_tracing(rust_log, tracing);
         informing = true;
-        if(rust_log.Contains("verbose")) verbosing = true;
-        if(rust_log.Contains("trace")) this.tracing = true;
+        if (rust_log.Contains("verbose")) verbosing = true;
+        if (rust_log.Contains("trace")) this.tracing = true;
     }
     public void disabletracing()
     {
         disable_tracing();
     }
-    public void info(params object[] objs) {
-        if (informing) {
-            Console.Write("dotnet: ");
-            objs.ToList().ForEach(obj => Console.Write(obj));
-            Console.WriteLine();
-        }
-    } 
-    public void verbose(params object[] objs) {
-        if (verbosing) {
+    public void info(params object[] objs)
+    {
+        if (informing)
+        {
             Console.Write("dotnet: ");
             objs.ToList().ForEach(obj => Console.Write(obj));
             Console.WriteLine();
         }
     }
-    public void trace(params object[] objs) {
-        if (tracing) {
+    public void verbose(params object[] objs)
+    {
+        if (verbosing)
+        {
+            Console.Write("dotnet: ");
+            objs.ToList().ForEach(obj => Console.Write(obj));
+            Console.WriteLine();
+        }
+    }
+    public void trace(params object[] objs)
+    {
+        if (tracing)
+        {
             Console.Write("dotnet: ");
             objs.ToList().ForEach(obj => Console.Write(obj));
             Console.WriteLine();
@@ -1073,7 +1110,7 @@ public partial class Client : IDisposable
         }
         return res;
     }
-   public Task<T> ListCollections<T>(bool includehist = false)
+    public Task<T> ListCollections<T>(bool includehist = false)
     {
         var tcs = new TaskCompletionSource<string>();
         ListCollectionsCallback callback = new ListCollectionsCallback((IntPtr responsePtr) =>
@@ -1374,7 +1411,8 @@ public partial class Client : IDisposable
 
         return tcs.Task;
     }
-    public Task DropIndex(string collectionname, string indexname) {
+    public Task DropIndex(string collectionname, string indexname)
+    {
         var tcs = new TaskCompletionSource();
         DropIndexCallback callback = new DropIndexCallback((IntPtr responsePtr) =>
         {
@@ -1407,7 +1445,7 @@ public partial class Client : IDisposable
 
         drop_index_async(clientPtr, collectionname, indexname, 0, callback);
 
-        return tcs.Task;       
+        return tcs.Task;
     }
     public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
@@ -1551,7 +1589,8 @@ public partial class Client : IDisposable
             responseJson => responseJson, // Simply pass the JSON string as is
             responseJson =>
             {
-                if(responseJson == null || responseJson == "") {
+                if (responseJson == null || responseJson == "")
+                {
                     responseJson = "[]";
                 }
                 if (typeof(T) == typeof(string))
@@ -2158,12 +2197,13 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public Task<int> DeleteMany(string collectionname, string query = "", string[]? ids = null, bool recursive = false) {
+    public Task<int> DeleteMany(string collectionname, string query = "", string[]? ids = null, bool recursive = false)
+    {
         var tcs = new TaskCompletionSource<int>();
-        if(ids == null) ids = new string[] { "" };
-        if(ids.Length == 0) ids = new string[] { "" };
+        if (ids == null) ids = new string[] { "" };
+        if (ids.Length == 0) ids = new string[] { "" };
         // ids = ids.Concat(new string[] { "test" }).ToArray();
-        
+
         IntPtr idsPtr = Marshal.AllocHGlobal(ids.Length * IntPtr.Size);
         IntPtr[] stringPointers = new IntPtr[ids.Length];
         for (int i = 0; i < ids.Length; i++)
@@ -2227,7 +2267,7 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    
+
     public Task<string> download(string collectionname, string id, string folder = "", string filename = "")
     {
         var tcs = new TaskCompletionSource<string>();
@@ -2401,7 +2441,7 @@ public partial class Client : IDisposable
         {
             Marshal.FreeHGlobal(eventidPtr);
         }
-        
+
     }
 
     public Task<string> watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
@@ -2474,9 +2514,11 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public void UnWatch(string watchid) {
+    public void UnWatch(string watchid)
+    {
         IntPtr watchidPtr = Marshal.StringToHGlobalAnsi(watchid);
-        try {
+        try
+        {
             var response = unwatch(clientPtr, watchid);
             var responseWrapper = Marshal.PtrToStructure<UnWatchResponseWrapper>(response);
             string error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? string.Empty;
@@ -2505,7 +2547,7 @@ public partial class Client : IDisposable
                 queuename = queuenamePtr
             };
 
-            var callback = new  QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+            var callback = new QueueEventCallback((IntPtr QueueEventWrapperptr) =>
             {
                 var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
                 var watchEvent = new QueueEvent
@@ -2582,7 +2624,7 @@ public partial class Client : IDisposable
                 addqueue = addqueue
             };
 
-            var callback = new  QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+            var callback = new QueueEventCallback((IntPtr QueueEventWrapperptr) =>
             {
                 var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
                 var watchEvent = new QueueEvent
@@ -2642,25 +2684,29 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public void UnRegisterQueue(string queuename)  {
+    public void UnRegisterQueue(string queuename)
+    {
         IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
-        try {
+        try
+        {
             var response = unregister_queue(clientPtr, queuename);
             var responseWrapper = Marshal.PtrToStructure<UnRegisterQueueResponseWrapper>(response);
             var error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? "Unknown error";
             var success = responseWrapper.success;
             free_unregister_queue_response(response);
 
-            if (!success) {
+            if (!success)
+            {
                 throw new ClientError(error);
             }
         }
         finally
         {
             Marshal.FreeHGlobal(queuenamePtr);
-        }        
+        }
     }
-    public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0) {
+    public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
+    {
         var tcs = new TaskCompletionSource<string>();
         IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
         IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
@@ -2713,8 +2759,6 @@ public partial class Client : IDisposable
                 }
             }
 
-            var callbackDelegate = new QueueMessageCallback(Callback);
-
             var response = queue_message(clientPtr, ref request);
             Callback(response);
         }
@@ -2729,15 +2773,113 @@ public partial class Client : IDisposable
         }
         await tcs.Task;
     }
-    public async Task<Workitem> PushWorkitem(string wiq, Workitem item, string[] files) {
+
+
+    private void _PushWorkitemCallback(IntPtr responsePtr)
+    {
+        this.trace("PushWorkitem callback to dotnet");
+        try
+        {
+            var response = Marshal.PtrToStructure<PushWorkitemResponseWrapper>(responsePtr);
+
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+                var workitem = default(Workitem);
+                if (success)
+                {
+                    var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
+                    var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
+                    var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
+                    var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
+                    var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
+                    var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
+                    var lastrun = workitem_rsp.lastrun;
+                    var nextrun = workitem_rsp.nextrun;
+                    var priority = (int)workitem_rsp.priority;
+                    var retries = (int)workitem_rsp.retries;
+                    var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
+                    var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
+                    var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
+                    var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
+                    var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
+                    var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
+                    var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
+                    var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
+                    var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    workitem = new Workitem
+                    {
+                        id = id,
+                        name = name,
+                        payload = payload,
+                        wiq = wiq,
+                        state = state,
+                        lastrun = lastrun,
+                        nextrun = nextrun,
+                        priority = priority,
+                        retries = retries,
+                        username = username,
+                        wiqid = wiqid,
+                        success_wiqid = success_wiqid,
+                        failed_wiqid = failed_wiqid,
+                        success_wiq = success_wiq,
+                        failed_wiq = failed_wiq,
+                        errormessage = errormessage,
+                        errorsource = errorsource,
+                        errortype = errortype,
+                    };
+                }
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, workitem);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // tcs.SetException(ex);
+            Console.WriteLine(ex.Message);
+
+        }
+        finally
+        {
+            this.trace("Freeing memory");
+            free_push_workitem_response(responsePtr);
+            // Free each WorkitemFileWrapper and its associated strings
+
+
+        }
+    }
+
+    public async Task<Workitem> PushWorkitem(string wiq, Workitem item, string[] files)
+    {
         var tcs = new TaskCompletionSource<Workitem>();
 
         if (files == null) files = new string[] { };
         var _files_coll = new Collection<WorkitemFileWrapper>();
 
         // Fill the collection with WorkitemFileWrapper objects
-        for (int i = 0; i < files.Length; i++) {
-            _files_coll.Add(new WorkitemFileWrapper {
+        for (int i = 0; i < files.Length; i++)
+        {
+            _files_coll.Add(new WorkitemFileWrapper
+            {
                 filename = Marshal.StringToHGlobalAnsi(files[i]),
                 id = Marshal.StringToHGlobalAnsi(""),
                 compressed = false
@@ -2745,7 +2887,7 @@ public partial class Client : IDisposable
         }
 
         var _files = _files_coll.ToArray();
-        var filePointers = new IntPtr[_files.Length]; 
+        var filePointers = new IntPtr[_files.Length];
 
         // Allocate memory for each WorkitemFileWrapper and store the pointer
         for (int i = 0; i < _files.Length; i++)
@@ -2761,6 +2903,8 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+
             PushWorkitemRequestWrapper request = new PushWorkitemRequestWrapper
             {
                 name = Marshal.StringToHGlobalAnsi(item.name),
@@ -2775,131 +2919,58 @@ public partial class Client : IDisposable
                 wiqid = Marshal.StringToHGlobalAnsi(item.wiqid),
                 files = filesPtr,
                 files_len = files.Length,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("PushWorkitem callback to dotnet");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
+            // var callbackDelegate = new PushWorkitemCallback(Callback);
+            CallbackRegistry.TryAddCallback(requestId, tcs);
 
-                    var response = Marshal.PtrToStructure<PushWorkitemResponseWrapper>(responsePtr);
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    var workitem = default(Workitem);
-                    if(success) {
-                        var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
-                        var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
-                        var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
-                        var payload = Marshal.PtrToStringAnsi(workitem_rsp.payload) ?? string.Empty;
-                        var wiq = Marshal.PtrToStringAnsi(workitem_rsp.wiq) ?? string.Empty;
-                        var state = Marshal.PtrToStringAnsi(workitem_rsp.state) ?? string.Empty;
-                        var lastrun = workitem_rsp.lastrun;
-                        var nextrun = workitem_rsp.nextrun;
-                        var priority = (int)workitem_rsp.priority;
-                        var retries = (int)workitem_rsp.retries;
-                        var username = Marshal.PtrToStringAnsi(workitem_rsp.username) ?? string.Empty;
-                        var wiqid = Marshal.PtrToStringAnsi(workitem_rsp.wiqid) ?? string.Empty;
-                        var success_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.success_wiqid) ?? string.Empty;
-                        var failed_wiqid = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiqid) ?? string.Empty;
-                        var success_wiq = Marshal.PtrToStringAnsi(workitem_rsp.success_wiq) ?? string.Empty;
-                        var failed_wiq = Marshal.PtrToStringAnsi(workitem_rsp.failed_wiq) ?? string.Empty;
-                        var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
-                        var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
-                        var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
-                        workitem = new Workitem
-                        {
-                            id = id,
-                            name = name,
-                            payload = payload,
-                            wiq = wiq,
-                            state = state,
-                            lastrun = lastrun,
-                            nextrun = nextrun,
-                            priority = priority,
-                            retries = retries,
-                            username = username,
-                            wiqid = wiqid,
-                            success_wiqid = success_wiqid,
-                            failed_wiqid = failed_wiqid,
-                            success_wiq = success_wiq,
-                            failed_wiq = failed_wiq,
-                            errormessage = errormessage,
-                            errorsource = errorsource,
-                            errortype = errortype,
-                        };
-                    }
-                    free_push_workitem_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        if (workitem != null) { tcs.SetResult(workitem); }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-                finally {
-                    this.trace("Freeing memory");
-                    // Free each WorkitemFileWrapper and its associated strings
-                    for (int i = 0; i < _files.Length; i++)
-                    {
-                        // Get the pointer to the WorkitemFileWrapper
-                        IntPtr structPtr = Marshal.ReadIntPtr(filesPtr, i * Marshal.SizeOf<IntPtr>());
-
-                        // Retrieve the WorkitemFileWrapper from the unmanaged memory
-                        WorkitemFileWrapper wrapper = Marshal.PtrToStructure<WorkitemFileWrapper>(structPtr);
-
-                        // Free the unmanaged strings
-                        Marshal.FreeHGlobal(wrapper.filename);
-                        Marshal.FreeHGlobal(wrapper.id);
-
-                        // Free the WorkitemFileWrapper memory block
-                        Marshal.FreeHGlobal(structPtr);
-                    }
-
-                    // Free the array of pointers
-                    Marshal.FreeHGlobal(filesPtr);
-
-                }
-            }
-
-            var callbackDelegate = new PushWorkitemCallback(Callback);
-
-            push_workitem_async(clientPtr, ref request, callbackDelegate);
+            push_workitem_async(clientPtr, ref request, _PushWorkitemCallbackDelegate);
         }
         finally
         {
             // Marshal.FreeHGlobal(namePtr);
             // Marshal.FreeHGlobal(payloadPtr);
             // Marshal.FreeHGlobal(wiqPtr);
+            for (int i = 0; i < _files.Length; i++)
+            {
+                // Get the pointer to the WorkitemFileWrapper
+                IntPtr structPtr = Marshal.ReadIntPtr(filesPtr, i * Marshal.SizeOf<IntPtr>());
+
+                // Retrieve the WorkitemFileWrapper from the unmanaged memory
+                WorkitemFileWrapper wrapper = Marshal.PtrToStructure<WorkitemFileWrapper>(structPtr);
+
+                // Free the unmanaged strings
+                Marshal.FreeHGlobal(wrapper.filename);
+                Marshal.FreeHGlobal(wrapper.id);
+
+                // Free the WorkitemFileWrapper memory block
+                Marshal.FreeHGlobal(structPtr);
+            }
+
+            // Free the array of pointers
+            Marshal.FreeHGlobal(filesPtr);
         }
         return await tcs.Task;
     }
     private void _PopWorkitemCallback(IntPtr responsePtr)
     {
         try
-        {            
+        {
             var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
             int requestId = response.request_id;
             var count = CallbackRegistry.Count;
-            if (count == 0) {
+            if (count == 0)
+            {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 return;
-            } else if (count > 1) {
+            }
+            else if (count > 1)
+            {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs)) {
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
                 var workitem = default(Workitem);
@@ -2960,7 +3031,9 @@ public partial class Client : IDisposable
                 {
                     CallbackRegistry.TrySetResult(requestId, workitem);
                 }
-            } else {
+            }
+            else
+            {
                 Console.WriteLine($"No matching TCS found for request_id: {requestId}");
             }
         }
@@ -3003,7 +3076,8 @@ public partial class Client : IDisposable
         return await tcs.Task;
     }
 
-    private void _UpdateWorkitemCallback(IntPtr responsePtr) {
+    private void _UpdateWorkitemCallback(IntPtr responsePtr)
+    {
         this.trace("UpdateWorkitem callback to dotnet");
         try
         {
@@ -3011,17 +3085,22 @@ public partial class Client : IDisposable
             var response = Marshal.PtrToStructure<PopWorkitemResponseWrapper>(responsePtr);
             int requestId = response.request_id;
             var count = CallbackRegistry.Count;
-            if (count == 0) {
+            if (count == 0)
+            {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 return;
-            } else if (count > 1) {
+            }
+            else if (count > 1)
+            {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs)) {
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
                 var workitem = default(Workitem);
-                if(success) {
+                if (success)
+                {
                     var workitem_rsp = Marshal.PtrToStructure<WorkitemWrapper>(response.workitem);
                     var id = Marshal.PtrToStringAnsi(workitem_rsp.id) ?? string.Empty;
                     var name = Marshal.PtrToStringAnsi(workitem_rsp.name) ?? string.Empty;
@@ -3064,7 +3143,6 @@ public partial class Client : IDisposable
                     };
 
                 }
-                free_update_workitem_response(responsePtr);
 
                 if (!success)
                 {
@@ -3080,21 +3158,26 @@ public partial class Client : IDisposable
         {
             Console.WriteLine(ex.Message);
         }
-        finally {
+        finally
+        {
             this.trace("Freeing memory");
+            free_update_workitem_response(responsePtr);
             // Free each WorkitemFileWrapper and its associated strings
 
         }
     }
-    public async Task<Workitem?> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false) {
+    public async Task<Workitem?> UpdateWorkitem(Workitem workitem, string[] files, bool ignoremaxretries = false)
+    {
         var tcs = new TaskCompletionSource<Workitem?>();
 
         if (files == null) files = new string[] { };
         var _files_coll = new Collection<WorkitemFileWrapper>();
 
         // Fill the collection with WorkitemFileWrapper objects
-        for (int i = 0; i < files.Length; i++) {
-            _files_coll.Add(new WorkitemFileWrapper {
+        for (int i = 0; i < files.Length; i++)
+        {
+            _files_coll.Add(new WorkitemFileWrapper
+            {
                 filename = Marshal.StringToHGlobalAnsi(files[i]),
                 id = Marshal.StringToHGlobalAnsi(""),
                 compressed = false
@@ -3102,7 +3185,7 @@ public partial class Client : IDisposable
         }
 
         var _files = _files_coll.ToArray();
-        var filePointers = new IntPtr[_files.Length]; 
+        var filePointers = new IntPtr[_files.Length];
 
         // Allocate memory for each WorkitemFileWrapper and store the pointer
         for (int i = 0; i < _files.Length; i++)
@@ -3118,7 +3201,8 @@ public partial class Client : IDisposable
         GCHandle handle = default(GCHandle);
         try
         {
-            var workitemwrapper = new WorkitemWrapper {
+            var workitemwrapper = new WorkitemWrapper
+            {
                 id = Marshal.StringToHGlobalAnsi(workitem.id),
                 name = Marshal.StringToHGlobalAnsi(workitem.name),
                 payload = Marshal.StringToHGlobalAnsi(workitem.payload),
@@ -3182,47 +3266,65 @@ public partial class Client : IDisposable
             handle.Free();
 
         }
-        return await tcs.Task;    
+        return await tcs.Task;
     }
-    public async Task DeleteWorkitem(string id) {
+
+
+    private void _DeleteWorkitemCallback(IntPtr responsePtr)
+    {
+        this.trace("DeleteWorkitem callback to dotnet");
+        try
+        {
+
+            var response = Marshal.PtrToStructure<DeleteWorkitemResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, "ok");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            this.trace("Freeing memory");
+            free_delete_workitem_response(responsePtr);
+            // Free each WorkitemFileWrapper and its associated strings
+
+        }
+    }
+    public async Task DeleteWorkitem(string id)
+    {
         var tcs = new TaskCompletionSource<string>();
         try
         {
-            DeleteWorkitemRequestWrapper request = new DeleteWorkitemRequestWrapper { id = id };
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+            DeleteWorkitemRequestWrapper request = new DeleteWorkitemRequestWrapper { id = id, request_id = requestId };
+            CallbackRegistry.TryAddCallback(requestId, tcs);
 
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("DeleteWorkitem callback to dotnet");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<DeleteWorkitemResponseWrapper>(responsePtr);
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-
-                    free_delete_workitem_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult("ok");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-            var callbackDelegate = new DeleteWorkitemCallback(Callback);
-            delete_workitem_async(clientPtr, ref request, callbackDelegate);
+            delete_workitem_async(clientPtr, ref request, _DeleteWorkitemCallbackDelegate);
         }
         finally
         {
@@ -3254,7 +3356,8 @@ public partial class Client : IDisposable
 #region helper classes
 public class WatchEvent
 {
-    public WatchEvent() {
+    public WatchEvent()
+    {
         id = "";
         operation = "";
         document = "";
@@ -3265,15 +3368,18 @@ public class WatchEvent
 }
 public class ClientEvent
 {
-    public ClientEvent() {
+    public ClientEvent()
+    {
         evt = "";
         reason = "";
     }
     public string evt { get; set; }
     public string reason { get; set; }
 }
-public class QueueEvent {
-    public QueueEvent() {
+public class QueueEvent
+{
+    public QueueEvent()
+    {
         queuename = "";
         correlation_id = "";
         replyto = "";
@@ -3288,8 +3394,10 @@ public class QueueEvent {
     public string exchangename;
     public string data;
 }
-public class WorkitemFile {
-    public WorkitemFile() {
+public class WorkitemFile
+{
+    public WorkitemFile()
+    {
         filename = "";
         id = "";
         compressed = false;
@@ -3298,8 +3406,10 @@ public class WorkitemFile {
     public string id;
     public bool compressed;
 }
-public class Workitem {
-    public Workitem() {
+public class Workitem
+{
+    public Workitem()
+    {
         id = "";
         name = "";
         payload = "";
