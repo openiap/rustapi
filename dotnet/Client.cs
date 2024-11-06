@@ -20,6 +20,8 @@ public partial class Client : IDisposable
     private readonly InsertOrUpdateOneCallback _InsertOrUpdateOneCallbackDelegate;
     private readonly UploadCallback _UploadCallbackDelegate;
     private readonly DownloadCallback _DownloadCallbackDelegate;
+    private readonly UpdateOneCallback _UpdateOneCallbackDelegate;
+
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1027,7 +1029,7 @@ public partial class Client : IDisposable
         _InsertOrUpdateOneCallbackDelegate = _InsertOrUpdateOneCallback;
         _UploadCallbackDelegate = _UploadCallback;
         _DownloadCallbackDelegate = _DownloadCallback;
-
+        _UpdateOneCallbackDelegate = _UpdateOneCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1989,6 +1991,46 @@ public partial class Client : IDisposable
         );
     }
 
+    private void _UpdateOneCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<UpdateOneResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, result);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_update_one_response(responsePtr);
+        }
+    }
+
     public Task<T> UpdateOne<T>(string collectionname, string item, int w = 1, bool j = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1999,48 +2041,19 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             UpdateOneRequestWrapper request = new UpdateOneRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 item = itemPtr,
                 w = w,
-                j = j
+                j = j,
+                request_id = requestId
             };
 
-            // Define the callback logic that is unique to this function
-            UpdateOneCallback callback = new UpdateOneCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<UpdateOneResponseWrapper>(responsePtr);
-                    free_update_one_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
-                        tcs.SetResult(result);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            update_one_async(clientPtr, ref request, callback);
+            update_one_async(clientPtr, ref request, _UpdateOneCallbackDelegate);
         }
         finally
         {
