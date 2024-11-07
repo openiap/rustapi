@@ -2597,19 +2597,19 @@ pub extern "C" fn free_insert_one_response(response: *mut InsertOneResponseWrapp
 }
 #[repr(C)]
 pub struct InsertManyRequestWrapper {
-    pub collectionname: *const c_char,
-    pub items: *const c_char,
-    pub w: i32,
-    pub j: bool,
-    pub skipresults: bool,
-    pub request_id: i32
+    collectionname: *const c_char,
+    items: *const c_char,
+    w: i32,
+    j: bool,
+    skipresults: bool,
+    request_id: i32
 }
 #[repr(C)]
 pub struct InsertManyResponseWrapper {
-    pub success: bool,
-    pub results: *const c_char,
-    pub error: String,
-    pub request_id: i32
+    success: bool,
+    results: *const c_char,
+    error: *const c_char,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2620,10 +2620,11 @@ pub extern "C" fn insert_many(
     let options = match safe_wrapper(options) {
         Some(options) => options,
         None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
             let response = InsertManyResponseWrapper {
                 success: false,
                 results: std::ptr::null(),
-                error: "Invalid options".to_string(),
+                error: error_msg,
                 request_id: 0,
             };
             return Box::into_raw(Box::new(response));
@@ -2632,10 +2633,11 @@ pub extern "C" fn insert_many(
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
         None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
             let response = InsertManyResponseWrapper {
                 success: false,
                 results: std::ptr::null(),
-                error: "Client is not connected".to_string(),
+                error: error_msg,
                 request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
@@ -2650,10 +2652,11 @@ pub extern "C" fn insert_many(
         skipresults: options.skipresults
     };
     if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = InsertManyResponseWrapper {
             success: false,
             results: std::ptr::null(),
-            error: "Client is not connected".to_string(),
+            error: error_msg,
             request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
@@ -2670,12 +2673,14 @@ pub extern "C" fn insert_many(
             InsertManyResponseWrapper {
                 success: true,
                 results,
-                error: "".to_string(),
+                error: std::ptr::null(),
                 request_id: options.request_id,
             }
         }
         Err(e) => {
-            let error_msg = format!("InsertMany failed: {:?}", e);
+            let error_msg = CString::new(format!("InsertMany failed: {:?}", e))
+                .unwrap()
+                .into_raw();
             InsertManyResponseWrapper {
                 success: false,
                 results: std::ptr::null(),
@@ -2699,10 +2704,11 @@ pub extern "C" fn insert_many_async(
     let options = match safe_wrapper(options) {
         Some(options) => options,
         None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
             let response = InsertManyResponseWrapper {
                 success: false,
                 results: std::ptr::null(),
-                error: "Invalid options".to_string(),
+                error: error_msg,
                 request_id: 0,
             };
             return callback(Box::into_raw(Box::new(response)));
@@ -2711,10 +2717,11 @@ pub extern "C" fn insert_many_async(
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
         None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
             let response = InsertManyResponseWrapper {
                 success: false,
                 results: std::ptr::null(),
-                error: "Client is not connected".to_string(),
+                error: error_msg,
                 request_id: options.request_id,
             };
             return callback(Box::into_raw(Box::new(response)));
@@ -2729,10 +2736,11 @@ pub extern "C" fn insert_many_async(
         skipresults: options.skipresults
     };
     if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
         let response = InsertManyResponseWrapper {
             success: false,
             results: std::ptr::null(),
-            error: "Client is not connected".to_string(),
+            error: error_msg,
             request_id: options.request_id,
         };
         return callback(Box::into_raw(Box::new(response)));
@@ -2745,16 +2753,18 @@ pub extern "C" fn insert_many_async(
         let result = client.insert_many(request).await;
         let response = match result {
             Ok(data) => {
-                let results = CString::new(data.results).unwrap().into_raw();
+                let results = CString::new(data.results.clone()).unwrap().into_raw();
                 InsertManyResponseWrapper {
                     success: true,
                     results,
-                    error: "".to_string(),
+                    error: std::ptr::null(),
                     request_id,
                 }
             }
             Err(e) => {
-                let error_msg = format!("InsertMany failed: {:?}", e);
+                let error_msg = CString::new(format!("InsertMany failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
                 InsertManyResponseWrapper {
                     success: false,
                     results: std::ptr::null(),
