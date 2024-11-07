@@ -76,7 +76,7 @@ pub struct QueryRequestWrapper {
     explain: bool,
     skip: i32,
     top: i32,
-    request_id: u64,
+    request_id: i32,
 }
 /// QueryResponseWrapper is a wrapper for the QueryResponse struct.
 #[repr(C)]
@@ -84,7 +84,7 @@ pub struct QueryResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 // run query syncronously
 #[no_mangle]
@@ -330,7 +330,7 @@ pub extern "C" fn create_client() -> *mut ClientWrapper {
 pub struct ConnectResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address: *const c_char) -> *mut ConnectResponseWrapper {
@@ -396,7 +396,7 @@ pub extern "C" fn client_set_agent_version(client_wrap: *mut ClientWrapper, agen
 type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
-pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *const c_char, request_id: u64, callback: ConnectCallback) {
+pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *const c_char, request_id: i32, callback: ConnectCallback) {
     debug!("connect_async");
     let server_address = c_char_to_str(server_address);
     debug!("server_address = {:?}", server_address);
@@ -527,14 +527,14 @@ pub struct SigninRequestWrapper {
     longtoken: bool,
     validateonly: bool,
     ping: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct SigninResponseWrapper {
     success: bool,
     jwt: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 
 #[no_mangle]
@@ -740,7 +740,7 @@ pub struct ListCollectionsResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -809,7 +809,7 @@ type ListCollectionsCallback = extern "C" fn(wrapper: *mut ListCollectionsRespon
 pub extern "C" fn list_collections_async(
     client: *mut ClientWrapper,
     includehist: bool,
-    request_id: u64,
+    request_id: i32,
     callback: ListCollectionsCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -911,13 +911,13 @@ pub struct CreateCollectionRequestWrapper {
     capped: bool,
     max: i32,
     size: i32,
-    request_id: u64,
+    request_id: i32,
 }
 #[repr(C)]
 pub struct CreateCollectionResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1141,7 +1141,7 @@ pub extern "C" fn free_create_collection_response(response: *mut CreateCollectio
 pub struct DropCollectionResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1208,7 +1208,7 @@ type DropCollectionCallback = extern "C" fn(wrapper: *mut DropCollectionResponse
 pub extern "C" fn drop_collection_async(
     client: *mut ClientWrapper,
     collectionname: *const c_char,
-    request_id: u64,
+    request_id: i32,
     callback: DropCollectionCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -1283,7 +1283,7 @@ pub struct GetIndexesResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1355,7 +1355,7 @@ type GetIndexesCallback = extern "C" fn(wrapper: *mut GetIndexesResponseWrapper)
 pub extern "C" fn get_indexes_async(
     client: *mut ClientWrapper,
     collectionname: *const c_char,
-    request_id: u64,
+    request_id: i32,
     callback: GetIndexesCallback,
 )  {
     let client_wrapper = match safe_wrapper(client) {
@@ -1440,13 +1440,13 @@ pub struct CreateIndexRequestWrapper {
     index: *const c_char,
     options: *const c_char,
     name: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[repr(C)]
 pub struct CreateIndexResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1617,7 +1617,7 @@ pub extern "C" fn free_create_index_response(response: *mut CreateIndexResponseW
 pub struct DropIndexResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64,
+    request_id: i32,
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1687,7 +1687,7 @@ pub extern "C" fn drop_index_async(
     client: *mut ClientWrapper,
     collectionname: *const c_char,
     name: *const c_char,
-    request_id: u64,
+    request_id: i32,
     callback: DropIndexCallback,
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -1765,14 +1765,14 @@ pub struct AggregateRequestWrapper {
     queryas: *const c_char,
     hint: *const c_char,
     explain: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct AggregateResponseWrapper {
     success: bool,
     results: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -1966,14 +1966,14 @@ pub struct CountRequestWrapper {
     query: *const c_char,
     queryas: *const c_char,
     explain: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct CountResponseWrapper {
     success: bool,
     result: i32,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2160,7 +2160,7 @@ pub struct DistinctRequestWrapper {
     query: *const c_char,
     queryas: *const c_char,
     explain: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct DistinctResponseWrapper {
@@ -2169,7 +2169,7 @@ pub struct DistinctResponseWrapper {
     results: *mut *const c_char,
     error: *const c_char,
     results_len: i32,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2406,14 +2406,14 @@ pub struct InsertOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct InsertOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2602,14 +2602,14 @@ pub struct InsertManyRequestWrapper {
     pub w: i32,
     pub j: bool,
     pub skipresults: bool,
-    pub request_id: u64
+    pub request_id: i32
 }
 #[repr(C)]
 pub struct InsertManyResponseWrapper {
     pub success: bool,
     pub results: *const c_char,
     pub error: String,
-    pub request_id: u64
+    pub request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2788,14 +2788,14 @@ pub struct UpdateOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct UpdateOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -2986,14 +2986,14 @@ pub struct InsertOrUpdateOneRequestWrapper {
     item: *const c_char,
     w: i32,
     j: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct InsertOrUpdateOneResponseWrapper {
     success: bool,
     result: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3197,14 +3197,14 @@ pub struct DeleteOneRequestWrapper {
     collectionname: *const c_char,
     id: *const c_char,
     recursive: bool,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct DeleteOneResponseWrapper {
     success: bool,
     affectedrows: i32,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3387,14 +3387,14 @@ pub struct DeleteManyRequestWrapper {
     query: *const c_char,
     recursive: bool,
     ids: *const *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct DeleteManyResponseWrapper {
     success: bool,
     affectedrows: i32,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3602,14 +3602,14 @@ pub struct DownloadRequestWrapper {
     id: *const c_char,
     folder: *const c_char,
     filename: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct DownloadResponseWrapper {
     success: bool,
     filename: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3803,14 +3803,14 @@ pub struct UploadRequestWrapper {
     mimetype: *const c_char,
     metadata: *const c_char,
     collectionname: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct UploadResponseWrapper {
     success: bool,
     id: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4053,14 +4053,14 @@ pub extern "C" fn free_upload_response(response: *mut UploadResponseWrapper) {
 pub struct WatchRequestWrapper {
     collectionname: *const c_char,
     paths: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 pub struct WatchResponseWrapper {
     success: bool,
     watchid: *const c_char,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4370,7 +4370,7 @@ pub extern "C" fn free_watch_response(response: *mut WatchResponseWrapper) {
 pub struct UnWatchResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4446,7 +4446,7 @@ pub extern "C" fn unwatch(
 pub extern "C" fn unwatch_async(
     client: *mut ClientWrapper,
     watchid: *const c_char,
-    request_id: u64,
+    request_id: i32,
     callback: extern "C" fn(*mut UnWatchResponseWrapper),
 ) {
     let client_wrapper = match safe_wrapper(client) {
@@ -5466,7 +5466,7 @@ pub struct PushWorkitemRequestWrapper {
     priority: i32,
     files: *const *const WorkitemFileWrapper,
     files_len: i32,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -5474,7 +5474,7 @@ pub struct PushWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
     workitem: *const WorkitemWrapper,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -5632,6 +5632,9 @@ pub extern "C" fn push_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
+    println!("******************************");
+    println!("request_id: {:?}", options);
+    println!("******************************");
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
         None => {
@@ -5777,7 +5780,7 @@ pub extern "C" fn free_push_workitem_response(response: *mut PushWorkitemRespons
 pub struct PopWorkitemRequestWrapper {
     wiq: *const c_char,
     wiqid: *const c_char,
-    request_id: u64
+    request_id: i32
     // includefiles: bool,
     // compressed: bool,
 }
@@ -5787,7 +5790,7 @@ pub struct PopWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
     workitem: *const WorkitemWrapper,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -6088,7 +6091,7 @@ pub extern "C" fn pop_workitem2_async (
     _client: *mut ClientWrapper,
     _options: *mut PopWorkitemRequestWrapper,
     _downloadfolder: *const c_char,
-    request_id: u64,
+    request_id: i32,
     callback: extern "C" fn(*mut PopWorkitemResponseWrapper),
 ) {
     callback(Box::into_raw(Box::new(PopWorkitemResponseWrapper {
@@ -6106,7 +6109,7 @@ pub struct UpdateWorkitemRequestWrapper {
     ignoremaxretries: bool,    
     files: *const *const WorkitemFileWrapper,
     files_len: i32,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -6114,7 +6117,7 @@ pub struct UpdateWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
     workitem: *const WorkitemWrapper,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -6394,14 +6397,14 @@ pub extern "C" fn free_update_workitem_response(response: *mut UpdateWorkitemRes
 #[derive(Debug, Clone)]
 pub struct DeleteWorkitemRequestWrapper {
     id: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct DeleteWorkitemResponseWrapper {
     success: bool,
     error: *const c_char,
-    request_id: u64
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]

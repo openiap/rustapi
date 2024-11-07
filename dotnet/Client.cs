@@ -3503,7 +3503,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;

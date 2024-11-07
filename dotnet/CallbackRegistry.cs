@@ -12,10 +12,16 @@ public class CallbackRegistry
 
     public bool TryGetCallback<T>(int id, out TaskCompletionSource<T>? tcs)
     {
-        if (_callbackRegistry.TryGetValue(id, out var obj) && obj is TaskCompletionSource<T> typedTcs)
+        if (_callbackRegistry.TryGetValue(id, out var obj))
         {
-            tcs = typedTcs;
-            return true;
+            if(obj is TaskCompletionSource<T> typedTcs) {
+                tcs = typedTcs;
+                return true;
+            } else {
+                Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(TaskCompletionSource<T>));
+            }
+        } else {
+            Console.WriteLine("Failed to get callback for id: " + id);
         }
         tcs = null;
         return false;
