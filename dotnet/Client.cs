@@ -27,6 +27,7 @@ public partial class Client : IDisposable
     private readonly CountCallback _CountCallbackDelegate;
     private readonly AggregateCallback _AggregateCallbackDelegate;
     private readonly QueryCallback _QueryCallbackDelegate;
+    private readonly DropIndexCallback _DropIndexCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1041,6 +1042,7 @@ public partial class Client : IDisposable
         _CountCallbackDelegate = _CountCallback;
         _AggregateCallbackDelegate = _AggregateCallback;
         _QueryCallbackDelegate = _QueryCallback;
+        _DropIndexCallbackDelegate = _DropIndexCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1432,39 +1434,51 @@ public partial class Client : IDisposable
 
         return tcs.Task;
     }
-    public Task DropIndex(string collectionname, string indexname)
+    private void _DropIndexCallback(IntPtr responsePtr)
     {
-        var tcs = new TaskCompletionSource();
-        DropIndexCallback callback = new DropIndexCallback((IntPtr responsePtr) =>
+        try
         {
-            try
+            var response = Marshal.PtrToStructure<DropIndexResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
             {
-                if (responsePtr == IntPtr.Zero)
-                {
-                    tcs.SetException(new ClientError("Callback got null response"));
-                    return;
-                }
-
-                var response = Marshal.PtrToStructure<DropIndexResponseWrapper>(responsePtr);
-                free_drop_index_response(responsePtr);
-
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    tcs.SetException(new ClientError(error));
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
                 }
                 else
                 {
-                    tcs.SetResult();
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, "");
                 }
             }
-            catch (Exception ex)
-            {
-                tcs.SetException(ex);
-            }
-        });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_drop_index_response(responsePtr);
+        }
+    }
+    public Task DropIndex(string collectionname, string indexname)
+    {
+        var tcs = new TaskCompletionSource();
+        int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
 
-        drop_index_async(clientPtr, collectionname, indexname, 0, callback);
+        drop_index_async(clientPtr, collectionname, indexname, requestId, _DropIndexCallbackDelegate);
 
         return tcs.Task;
     }
