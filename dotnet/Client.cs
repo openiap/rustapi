@@ -25,6 +25,8 @@ public partial class Client : IDisposable
     private readonly InsertOneCallback _InsertOneCallbackDelegate;
     private readonly DistinctCallback _DistinctCallbackDelegate;
     private readonly CountCallback _CountCallbackDelegate;
+    private readonly AggregateCallback _AggregateCallbackDelegate;
+
 
 
     public IntPtr clientPtr;
@@ -1038,6 +1040,8 @@ public partial class Client : IDisposable
         _InsertOneCallbackDelegate = _InsertOneCallback;
         _DistinctCallbackDelegate = _DistinctCallback;
         _CountCallbackDelegate = _CountCallback;
+        _AggregateCallbackDelegate = _AggregateCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1622,6 +1626,46 @@ public partial class Client : IDisposable
             }
         );
     }
+    private void _AggregateCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<AggregateResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, results);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_aggregate_response(responsePtr);
+        }
+    }
     public Task<T> Aggregate<T>(string collectionname, string aggregates, string queryas = "", string hint = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1634,6 +1678,7 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             AggregateRequestWrapper request = new AggregateRequestWrapper
             {
@@ -1641,42 +1686,12 @@ public partial class Client : IDisposable
                 aggregates = aggregatesPtr,
                 queryas = queryasPtr,
                 hint = hintPtr,
-                explain = explain
+                explain = explain,
+                request_id = requestId
             };
 
-            // Define the callback logic that is unique to this function
-            AggregateCallback callback = new AggregateCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<AggregateResponseWrapper>(responsePtr);
-                    free_aggregate_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                        tcs.SetResult(results);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            aggregate_async(clientPtr, ref request, callback);
+            aggregate_async(clientPtr, ref request, _AggregateCallbackDelegate);
         }
         finally
         {
