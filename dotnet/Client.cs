@@ -30,6 +30,7 @@ public partial class Client : IDisposable
     private readonly DropIndexCallback _DropIndexCallbackDelegate;
     private readonly CreateIndexCallback _CreateIndexCallbackDelegate;
     private readonly GetIndexesCallback _GetIndexesCallbackDelegate;
+    private readonly SigninCallback _SigninCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -93,6 +94,7 @@ public partial class Client : IDisposable
         public bool validateonly;
         [MarshalAs(UnmanagedType.I1)]
         public bool ping;
+        public int request_id;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -102,6 +104,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr jwt;
         public IntPtr error;
+        public int request_id;
     }
 
 
@@ -1047,7 +1050,7 @@ public partial class Client : IDisposable
         _DropIndexCallbackDelegate = _DropIndexCallback;
         _CreateIndexCallbackDelegate = _CreateIndexCallback;
         _GetIndexesCallbackDelegate = _GetIndexesCallback;
-
+        _SigninCallbackDelegate = _SigninCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1505,6 +1508,49 @@ public partial class Client : IDisposable
 
         return tcs.Task;
     }
+
+    private void _SigninCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<SigninResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string jwt = Marshal.PtrToStringAnsi(response.jwt) ?? string.Empty;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, jwt);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_signin_response(responsePtr);
+        }
+    }
+
     public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
         var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
@@ -1517,6 +1563,7 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             SigninRequestWrapper request = new SigninRequestWrapper
             {
                 username = usernamePtr,
@@ -1526,36 +1573,11 @@ public partial class Client : IDisposable
                 version = versionPtr,
                 longtoken = false,
                 validateonly = false,
-                ping = false
+                ping = false,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<SigninResponseWrapper>(responsePtr);
-                    string jwt = Marshal.PtrToStringAnsi(response.jwt) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_signin_response(responsePtr);
-
-                    tcs.SetResult((jwt, error, success));
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-
-            var callbackDelegate = new SigninCallback(Callback);
-
-            signin_async(clientPtr, ref request, callbackDelegate);
+            signin_async(clientPtr, ref request, _SigninCallbackDelegate);
         }
         catch (Exception ex)
         {

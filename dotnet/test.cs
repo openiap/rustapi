@@ -156,7 +156,7 @@ public class test
             Console.WriteLine("done");
             Console.WriteLine("*********************************");
         }
-        catch (Client.ClientError e)
+        catch (ClientError e)
         {
             Console.WriteLine($"An error occurred: {e.Message}");
         }
