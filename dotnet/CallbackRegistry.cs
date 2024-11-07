@@ -10,6 +10,11 @@ public class CallbackRegistry
         return _callbackRegistry.TryAdd(id, tcs);
     }
 
+    public bool TryAddCallback(int id, TaskCompletionSource tcs)
+    {
+        return _callbackRegistry.TryAdd(id, tcs);
+    }
+
     public bool TryGetCallback<T>(int id, out TaskCompletionSource<T>? tcs)
     {
         if (_callbackRegistry.TryGetValue(id, out var obj))

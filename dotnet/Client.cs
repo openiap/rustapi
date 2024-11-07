@@ -35,6 +35,7 @@ public partial class Client : IDisposable
     private readonly ListCollectionsCallback _ListCollectionsCallbackDelegate;
     private readonly ConnectCallback _ConnectCallbackDelegate;
     private readonly WatchCallback _WatchCallbackDelegate;
+    private readonly DropCollectionCallback _DropCollectionCallbackDelegate;
 
 
     public IntPtr clientPtr;
@@ -1061,6 +1062,8 @@ public partial class Client : IDisposable
         _ListCollectionsCallbackDelegate = _ListCollectionsCallback;
         _ConnectCallbackDelegate = _ConnectCallback;
         _WatchCallbackDelegate = _WatchCallback;
+        _DropCollectionCallbackDelegate = _DropCollectionCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1210,6 +1213,7 @@ public partial class Client : IDisposable
     {
         var tcs = new TaskCompletionSource<string>();
         int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+        CallbackRegistry.TryAddCallback(requestId, tcs);
         list_collections_async(clientPtr, includehist, requestId, _ListCollectionsCallbackDelegate);
         // Use the helper to handle continuation
         return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
@@ -1303,7 +1307,7 @@ public partial class Client : IDisposable
             {
                 Marshal.StructureToPtr(timeseries, request.timeseries, false);
             }
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             create_collection_async(clientPtr, ref request, _CreateCollectionCallbackDelegate);
         }
@@ -1322,43 +1326,53 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
-    public Task DropCollection(string collectionname)
+    private void _DropCollectionCallback(IntPtr responsePtr)
     {
-        var tcs = new TaskCompletionSource();
-
-        // Allocate unmanaged memory for the strings
-        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
-
-        DropCollectionCallback callback = new DropCollectionCallback((IntPtr responsePtr) =>
+        try
         {
-            try
+            var response = Marshal.PtrToStructure<DropCollectionResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
             {
-                if (responsePtr == IntPtr.Zero)
-                {
-                    tcs.SetException(new ClientError("Callback got null response"));
-                    return;
-                }
-
-                var response = Marshal.PtrToStructure<DropCollectionResponseWrapper>(responsePtr);
-                free_drop_collection_response(responsePtr);
-
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    tcs.SetException(new ClientError(error));
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
                 }
                 else
                 {
-                    tcs.SetResult();
+                    CallbackRegistry.TrySetResult(requestId, "");
                 }
-            }
-            catch (Exception ex)
-            {
-                tcs.SetException(ex);
-            }
-        });
 
-        drop_collection_async(clientPtr, collectionname, 0, callback);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_drop_collection_response(responsePtr);
+        }
+    }
+    public Task DropCollection(string collectionname)
+    {
+        var tcs = new TaskCompletionSource();
+        int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+        // Allocate unmanaged memory for the strings
+        IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
+        CallbackRegistry.TryAddCallback(requestId, tcs);
+        drop_collection_async(clientPtr, collectionname, 0, _DropCollectionCallbackDelegate);
 
         return tcs.Task;
     }
@@ -1410,6 +1424,7 @@ public partial class Client : IDisposable
         {
             int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Invoke the native async function
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             get_indexes_async(clientPtr, collectionname, requestId, _GetIndexesCallbackDelegate);
         }
         finally
@@ -1493,6 +1508,7 @@ public partial class Client : IDisposable
                 name = namePtr,
                 request_id = requestId
             };
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             create_index_async(clientPtr, ref request, _CreateIndexCallbackDelegate);
         }
@@ -1549,7 +1565,7 @@ public partial class Client : IDisposable
     {
         var tcs = new TaskCompletionSource();
         int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
-
+        CallbackRegistry.TryAddCallback(requestId, tcs);
         drop_index_async(clientPtr, collectionname, indexname, requestId, _DropIndexCallbackDelegate);
 
         return tcs.Task;
@@ -1622,7 +1638,7 @@ public partial class Client : IDisposable
                 ping = false,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             signin_async(clientPtr, ref request, _SigninCallbackDelegate);
         }
         catch (Exception ex)
@@ -1705,7 +1721,7 @@ public partial class Client : IDisposable
                 top = top,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             query_async(clientPtr, ref request, _QueryCallbackDelegate);
         }
@@ -1803,7 +1819,7 @@ public partial class Client : IDisposable
                 explain = explain,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             aggregate_async(clientPtr, ref request, _AggregateCallbackDelegate);
         }
@@ -1895,7 +1911,7 @@ public partial class Client : IDisposable
                 explain = explain,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             count_async(clientPtr, ref request, _CountCallbackDelegate);
         }
         finally
@@ -1976,7 +1992,7 @@ public partial class Client : IDisposable
                 explain = explain,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             distinct_async(clientPtr, ref request, _DistinctCallbackDelegate);
         }
         finally
@@ -2047,7 +2063,7 @@ public partial class Client : IDisposable
                 j = j,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             insert_one_async(clientPtr, ref request, _InsertOneCallbackDelegate);
         }
@@ -2136,7 +2152,7 @@ public partial class Client : IDisposable
                 skipresults = skipresults,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             insert_many_async(clientPtr, ref request, _InsertManyCallbackDelegate);
         }
@@ -2225,7 +2241,7 @@ public partial class Client : IDisposable
                 j = j,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             update_one_async(clientPtr, ref request, _UpdateOneCallbackDelegate);
         }
@@ -2316,7 +2332,7 @@ public partial class Client : IDisposable
                 j = j,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             // Invoke the native async function
             insert_or_update_one_async(clientPtr, ref request, _InsertOrUpdateOneCallbackDelegate);
         }
@@ -2491,7 +2507,7 @@ public partial class Client : IDisposable
                 ids = idsPtr,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             delete_many_async(clientPtr, ref request, _DeleteManyCallbackDelegate);
         }
         finally
@@ -2564,7 +2580,7 @@ public partial class Client : IDisposable
                 filename = filenamePtr,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             download_async(clientPtr, ref request, _DownloadCallbackDelegate);
         }
         finally
@@ -2639,7 +2655,7 @@ public partial class Client : IDisposable
                 collectionname = collectionnamePtr,
                 request_id = requestId
             };
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
             upload_async(clientPtr, ref request, _UploadCallbackDelegate);
         }
         finally
