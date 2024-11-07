@@ -33,6 +33,7 @@ public partial class Client : IDisposable
     private readonly SigninCallback _SigninCallbackDelegate;
     private readonly CreateCollectionCallback _CreateCollectionCallbackDelegate;
     private readonly ListCollectionsCallback _ListCollectionsCallbackDelegate;
+    private readonly ConnectCallback _ConnectCallbackDelegate;
 
 
     public IntPtr clientPtr;
@@ -1057,6 +1058,7 @@ public partial class Client : IDisposable
         _SigninCallbackDelegate = _SigninCallback;
         _CreateCollectionCallbackDelegate = _CreateCollectionCallback;
         _ListCollectionsCallbackDelegate = _ListCollectionsCallback;
+        _ConnectCallbackDelegate = _ConnectCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1096,34 +1098,50 @@ public partial class Client : IDisposable
             Console.WriteLine();
         }
     }
-    public Task connect(string url = "")
+    void _ConnectCallback(IntPtr clientWrapperPtr)
     {
-        var tcs = new TaskCompletionSource<ConnectResponseWrapper>();
-
-        void Callback(IntPtr clientWrapperPtr)
+        try
         {
-            try
+            var clientWrapper = Marshal.PtrToStructure<ConnectResponseWrapper>(clientWrapperPtr);
+            int requestId = clientWrapper.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
             {
-                var clientWrapper = Marshal.PtrToStructure<ConnectResponseWrapper>(clientWrapperPtr);
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 if (!clientWrapper.success)
                 {
-                    var errorMsg = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
-                    tcs.SetException(new ClientCreationError(errorMsg));
+                    string error = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
                 }
                 else
                 {
-                    tcs.SetResult(clientWrapper);
+                    CallbackRegistry.TrySetResult(requestId, clientWrapper);
                 }
             }
-            catch (Exception ex)
-            {
-                tcs.SetException(ex);
-            }
         }
-
-        var callbackDelegate = new ConnectCallback(Callback);
-
-        connect_async(clientPtr, url, 0, callbackDelegate);
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_signin_response(clientWrapperPtr);
+        }
+    }
+    public Task connect(string url = "")
+    {
+        var tcs = new TaskCompletionSource<ConnectResponseWrapper>();
+        int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+        CallbackRegistry.TryAddCallback(requestId, tcs);
+        connect_async(clientPtr, url, requestId, _ConnectCallbackDelegate);
 
         return tcs.Task;
     }
