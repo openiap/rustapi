@@ -809,7 +809,7 @@ public partial class Client : IDisposable
         switch (Environment.OSVersion.Platform)
         {
             case PlatformID.Win32NT:
-                libfile = "libopeniap_clib.dll";
+                libfile = "openiap_clib.dll";
                 break;
             case PlatformID.MacOSX:
                 libfile = "libopeniap_clib.dylib";

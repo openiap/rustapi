@@ -1,6 +1,6 @@
 import ctypes
 import json
-import os
+import os, platform
 import sys
 from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, c_uint64, CFUNCTYPE, POINTER, byref, pointer
 import threading
@@ -532,8 +532,8 @@ class Client:
     def _load_library(self):
         # Determine the path to the shared library
         lib_dir = os.path.join(os.path.dirname(__file__), 'lib')
-        architecture = os.uname().machine
         if sys.platform == 'win32':
+            architecture = platform.machine()
             if architecture == 'x86_64':
                 lib_file = 'openiap-windows-x64.dll'
             elif architecture == 'AMD64':
@@ -541,6 +541,7 @@ class Client:
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'darwin':
+            architecture = os.uname().machine
             if architecture == 'x86_64':
                 lib_file = 'libopeniap-macos-x64.dylib'
             elif architecture == 'arm64':
@@ -548,6 +549,7 @@ class Client:
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'linux':
+            architecture = os.uname().machine
             if architecture == 'x86_64':
                 # is Musl ?
                 if os.path.exists('/lib/libc.musl-x86_64.so.1'):
@@ -563,6 +565,7 @@ class Client:
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'freebsd':
+            architecture = os.uname().machine
             if architecture == 'x86_64':
                 lib_file = 'libopeniap-freebsd-x64.so'
             else:
@@ -574,9 +577,9 @@ class Client:
         if not os.path.exists(lib_path):
             lib_dir = os.path.join(os.path.dirname(__file__), '..', 'lib')
             lib_path = os.path.join(lib_dir, lib_file)
-
+    
         if not os.path.exists(lib_path):
-            lib_file = 'libopeniap_clib.so' if sys.platform != 'win32' else 'libopeniap_clib.dll';
+            lib_file = 'libopeniap_clib.so' if sys.platform != 'win32' else 'openiap_clib.dll';
             if sys.platform == 'darwin':
                 lib_file = 'libopeniap_clib.dylib'
             lib_dir = os.path.join(os.path.dirname(__file__), '../../target/debug/')
