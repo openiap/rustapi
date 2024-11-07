@@ -24,6 +24,7 @@ public partial class Client : IDisposable
     private readonly InsertManyCallback _InsertManyCallbackDelegate;
     private readonly InsertOneCallback _InsertOneCallbackDelegate;
     private readonly DistinctCallback _DistinctCallbackDelegate;
+    private readonly CountCallback _CountCallbackDelegate;
 
 
     public IntPtr clientPtr;
@@ -1036,7 +1037,7 @@ public partial class Client : IDisposable
         _InsertManyCallbackDelegate = _InsertManyCallback;
         _InsertOneCallbackDelegate = _InsertOneCallback;
         _DistinctCallbackDelegate = _DistinctCallback;
-
+        _CountCallbackDelegate = _CountCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1703,6 +1704,49 @@ public partial class Client : IDisposable
             }
         );
     }
+
+    private void _CountCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<CountResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                int resCount = (int)response.count;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, resCount);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_count_response(responsePtr);
+        }
+    }
+
     public Task<int> Count(string collectionname, string query = "", string queryas = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<int>();
@@ -1713,48 +1757,17 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             CountRequestWrapper request = new CountRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 query = queryPtr,
                 queryas = queryasPtr,
-                explain = explain
+                explain = explain,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<CountResponseWrapper>(responsePtr);
-                    int count = (int)response.count;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_count_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(count);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-
-            var callbackDelegate = new CountCallback(Callback);
-
-            count_async(clientPtr, ref request, callbackDelegate);
+            count_async(clientPtr, ref request, _CountCallbackDelegate);
         }
         finally
         {
@@ -1784,7 +1797,7 @@ public partial class Client : IDisposable
             {
                 bool success = response.success;
 
-                if (!response.success)
+                if (!success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                     CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
