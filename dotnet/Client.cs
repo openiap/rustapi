@@ -31,6 +31,9 @@ public partial class Client : IDisposable
     private readonly CreateIndexCallback _CreateIndexCallbackDelegate;
     private readonly GetIndexesCallback _GetIndexesCallbackDelegate;
     private readonly SigninCallback _SigninCallbackDelegate;
+    private readonly CreateCollectionCallback _CreateCollectionCallbackDelegate;
+    private readonly ListCollectionsCallback _ListCollectionsCallbackDelegate;
+
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -115,6 +118,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr results;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void ListCollectionsCallback(IntPtr responsePtr);
 
@@ -1051,6 +1055,8 @@ public partial class Client : IDisposable
         _CreateIndexCallbackDelegate = _CreateIndexCallback;
         _GetIndexesCallbackDelegate = _GetIndexesCallback;
         _SigninCallbackDelegate = _SigninCallback;
+        _CreateCollectionCallbackDelegate = _CreateCollectionCallback;
+        _ListCollectionsCallbackDelegate = _ListCollectionsCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1141,40 +1147,50 @@ public partial class Client : IDisposable
         }
         return res;
     }
-    public Task<T> ListCollections<T>(bool includehist = false)
+    private void _ListCollectionsCallback(IntPtr responsePtr)
     {
-        var tcs = new TaskCompletionSource<string>();
-        ListCollectionsCallback callback = new ListCollectionsCallback((IntPtr responsePtr) =>
+        try
         {
-            try
+            var response = Marshal.PtrToStructure<ListCollectionsResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
             {
-                if (responsePtr == IntPtr.Zero)
-                {
-                    tcs.SetException(new ClientError("Callback got null response"));
-                    return;
-                }
-
-                var response = Marshal.PtrToStructure<ListCollectionsResponseWrapper>(responsePtr);
-                free_list_collections_response(responsePtr);
-
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    tcs.SetException(new ClientError(error));
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
                 }
                 else
                 {
                     string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                    tcs.SetResult(results);
+                    CallbackRegistry.TrySetResult(requestId, results);
                 }
             }
-            catch (Exception ex)
-            {
-                tcs.SetException(ex);
-            }
-        });
-        // Invoke the native async function
-        list_collections_async(clientPtr, includehist, 0, callback);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_list_collections_response(responsePtr);
+        }
+    }
+    public Task<T> ListCollections<T>(bool includehist = false)
+    {
+        var tcs = new TaskCompletionSource<string>();
+        int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+        list_collections_async(clientPtr, includehist, requestId, _ListCollectionsCallbackDelegate);
         // Use the helper to handle continuation
         return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
             tcs.Task,
@@ -1194,6 +1210,44 @@ public partial class Client : IDisposable
             }
         );
     }
+    private void _CreateCollectionCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<CreateCollectionResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, "");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_create_collection_response(responsePtr);
+        }
+    }
     public Task CreateCollection(string collectionname, ColCollationWrapper? collation = null, ColTimeseriesWrapper? timeseries = null, int expireAfterSeconds = 0, bool changeStreamPreAndPostImages = false, bool capped = false, int max = 0, int size = 0)
     {
         var tcs = new TaskCompletionSource();
@@ -1204,6 +1258,7 @@ public partial class Client : IDisposable
         CreateCollectionRequestWrapper request = new CreateCollectionRequestWrapper();
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             request = new CreateCollectionRequestWrapper
             {
@@ -1214,7 +1269,8 @@ public partial class Client : IDisposable
                 change_stream_pre_and_post_images = changeStreamPreAndPostImages,
                 capped = capped,
                 max = max,
-                size = size
+                size = size,
+                request_id = requestId
             };
 
             // Copy collation and timeseries if provided
@@ -1228,38 +1284,8 @@ public partial class Client : IDisposable
                 Marshal.StructureToPtr(timeseries, request.timeseries, false);
             }
 
-            // Define the callback logic that is unique to this function
-            CreateCollectionCallback callback = new CreateCollectionCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<CreateCollectionResponseWrapper>(responsePtr);
-                    free_create_collection_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            create_collection_async(clientPtr, ref request, callback);
+            create_collection_async(clientPtr, ref request, _CreateCollectionCallbackDelegate);
         }
         finally
         {
