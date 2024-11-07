@@ -34,6 +34,7 @@ public partial class Client : IDisposable
     private readonly CreateCollectionCallback _CreateCollectionCallbackDelegate;
     private readonly ListCollectionsCallback _ListCollectionsCallbackDelegate;
     private readonly ConnectCallback _ConnectCallbackDelegate;
+    private readonly WatchCallback _WatchCallbackDelegate;
 
 
     public IntPtr clientPtr;
@@ -1059,6 +1060,7 @@ public partial class Client : IDisposable
         _CreateCollectionCallbackDelegate = _CreateCollectionCallback;
         _ListCollectionsCallbackDelegate = _ListCollectionsCallback;
         _ConnectCallbackDelegate = _ConnectCallback;
+        _WatchCallbackDelegate = _WatchCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -2706,6 +2708,49 @@ public partial class Client : IDisposable
 
     }
 
+    void _WatchCallback(IntPtr responsePtr)
+    {
+        this.trace("register watch callback");
+        try
+        {
+            var response = Marshal.PtrToStructure<WatchResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                string watchid = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                bool success = response.success;
+
+                if (!success)
+                {
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, watchid);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_watch_response(responsePtr);
+        }
+    }
+
     public Task<string> watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -2714,10 +2759,12 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             WatchRequestWrapper request = new WatchRequestWrapper
             {
                 collectionname = collectionnamePtr,
-                paths = pathsPtr
+                paths = pathsPtr,
+                request_id = requestId
             };
 
             var callback = new WatchEventCallback((IntPtr WatchEventWrapper) =>
@@ -2732,42 +2779,8 @@ public partial class Client : IDisposable
                 free_watch_event(WatchEventWrapper);
                 eventHandler(watchEvent);
             });
-
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("register watch callback");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<WatchResponseWrapper>(responsePtr);
-                    string watchid = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_watch_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(watchid);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-            var callbackDelegate = new WatchCallback(Callback);
-
-            watch_async_async(clientPtr, ref request, callbackDelegate, callback);
-
+            CallbackRegistry.TryAddCallback(requestId, tcs);
+            watch_async_async(clientPtr, ref request, _WatchCallbackDelegate, callback);
         }
         finally
         {
