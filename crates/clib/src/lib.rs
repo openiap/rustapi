@@ -6080,6 +6080,25 @@ pub extern "C" fn free_workitem(workitem: *mut WorkitemWrapper) {
         let _ = Box::from_raw(workitem); // Take ownership to deallocate
     }
 }
+
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn pop_workitem2_async (
+    _client: *mut ClientWrapper,
+    _options: *mut PopWorkitemRequestWrapper,
+    _downloadfolder: *const c_char,
+    request_id: u64,
+    callback: extern "C" fn(*mut PopWorkitemResponseWrapper),
+) {
+    callback(Box::into_raw(Box::new(PopWorkitemResponseWrapper {
+        success: true,
+        error: std::ptr::null(),
+        workitem: std::ptr::null(),
+        request_id: request_id
+    })));
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct UpdateWorkitemRequestWrapper {

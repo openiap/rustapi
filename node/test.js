@@ -316,15 +316,15 @@ const fs = require('fs');
             files1.push(filepath);
             if(test_async) {
                 let push_workitem_async_result = await client.push_workitem_async({ wiq: "rustqueue", name: "node test async", nextrun, files: files1});
-                console.log("push_workitem async success", push_workitem_async_result);
+                console.log("push_workitem_async success", push_workitem_async_result);
 
                 let pop_workitem_async_result = await client.pop_workitem_async({ wiq: "rustqueue" });
-                console.log("pop_workitem async success", pop_workitem_async_result);
+                console.log("pop_workitem_async success", pop_workitem_async_result);
 
                 console.log("set pop_workitem_async_result.state = successful");
                 pop_workitem_async_result.state = "successful";
                 const update_workitem_async_result = await client.update_workitem_async({ workitem: pop_workitem_async_result });
-                console.log("update_workitem async success", update_workitem_async_result);
+                console.log("update_workitem_async success", update_workitem_async_result);
 
                 await client.delete_workitem_async(update_workitem_async_result.id);
     
@@ -335,13 +335,14 @@ const fs = require('fs');
                         files2.push(filepath);
                         promises.push(client.push_workitem_async({ wiq: "rustqueue", name: "node test", nextrun, files: files2}));
                     }
-                    console.log("push_workitem (multiple) success", (await Promise.all(promises)).map(result => result.id));
+                    console.log("push_workitem_async (multiple) success", (await Promise.all(promises)).map(result => result.id));
 
                     let workitem = await client.pop_workitem_async({ wiq: "rustqueue" });
                     do {
-                        console.log("pop_workitem async success", workitem);
+                        console.log("pop_workitem async (multiple) success", workitem);
                         workitem.state = "successful";
                         await client.update_workitem_async({ workitem });
+                        console.log("update_workitem async (multiple) success");
                         workitem = await client.pop_workitem_async({ wiq: "rustqueue" });
                     } while (workitem != null);
                 }
@@ -417,10 +418,6 @@ const fs = require('fs');
                 console.log("exchange event loop done");
                 client.unregister_queue(queuename);
             }
-
-            // while(true) {
-            //     await new Promise(resolve => setTimeout(resolve, 1000));
-            // }
         } else {
             client.info("signed failed", signin_result.error);
         }

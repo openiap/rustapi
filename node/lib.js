@@ -15,9 +15,9 @@ function encodeStruct(value, type) {
     return buf;
 }
 function encode_files(req) {
-    for(let i = 0; i < req.files.length; i++) {
-        if(req.files[i] == null) continue;
-        if( typeof req.files[i] === 'string' ) {
+    for (let i = 0; i < req.files.length; i++) {
+        if (req.files[i] == null) continue;
+        if (typeof req.files[i] === 'string') {
             req.files[i] = {
                 filename: req.files[i],
                 id: "",
@@ -25,18 +25,18 @@ function encode_files(req) {
         }
         req.files[i] = encodeStruct(req.files[i], WorkitemFileWrapper);
     }
-    if(req.files.length == 0 || req.files.at(-1) != null) {
+    if (req.files.length == 0 || req.files.at(-1) != null) {
         req.files.push(null); // terminate array
     }
     req.files_len = req.files.length - 1;
 }
 function decode_files(res) {
     let _files = [];
-    if(res.files_len > 0) {
+    if (res.files_len > 0) {
         var files = koffi.decode(res.files, 'WorkitemFileWrapper ***', res.files_len);
-        for(let i = 0; i < res.files_len; i++) {
+        for (let i = 0; i < res.files_len; i++) {
             let file = files[i];
-            if(file != null) {
+            if (file != null) {
                 var _file = koffi.decode(file, WorkitemFileWrapper);
                 delete _file.compressed;
                 delete _file.file;
@@ -154,13 +154,13 @@ const CreateIndexRequestWrapper = koffi.struct('CreateIndexRequestWrapper', {
     index: CString,
     options: CString,
     name: CString,
-    request_id: int
+    request_id: int,
 });
 const CreateIndexRequestWrapperPtr = koffi.pointer(CreateIndexRequestWrapper);
 const CreateIndexResponseWrapper = koffi.struct('CreateIndexResponseWrapper', {
     success: bool,
     error: CString,
-    request_id: int
+    request_id: int,
 });
 const CreateIndexResponseWrapperPtr = koffi.pointer(CreateIndexResponseWrapper);
 
@@ -188,7 +188,7 @@ const QueryResponseWrapper = koffi.struct('QueryResponseWrapper', {
 });
 const QueryResponseWrapperPtr = koffi.pointer(QueryResponseWrapper);
 
-const AggregateRequestWrapper = koffi.struct('AggregateRequestWrapper',{
+const AggregateRequestWrapper = koffi.struct('AggregateRequestWrapper', {
     collectionname: CString,
     aggregates: CString,
     queryas: CString,
@@ -402,15 +402,17 @@ const PushWorkitemResponseWrapperPtr = koffi.pointer(PushWorkitemResponseWrapper
 const PopWorkitemRequestWrapper = koffi.struct('PopWorkitemRequestWrapper', {
     wiq: CString,
     wiqid: CString,
+    request_id: int,
 });
 const PopWorkitemRequestWrapperPtr = koffi.pointer(PopWorkitemRequestWrapper);
 const PopWorkitemResponseWrapper = koffi.struct('PopWorkitemResponseWrapper', {
     success: bool,
     error: CString,
     workitem: WorkitemWrapperPtr,
-    request_id: int
+    request_id: int,
 });
 const PopWorkitemResponseWrapperPtr = koffi.pointer(PopWorkitemResponseWrapper);
+
 
 const UpdateWorkitemRequestWrapper = koffi.struct('UpdateWorkitemRequestWrapper', {
     workitem: WorkitemWrapperPtr,
@@ -486,7 +488,7 @@ const RegisterExchangeRequestWrapper = koffi.struct('RegisterExchangeRequestWrap
     addqueue: bool,
 });
 const RegisterExchangeRequestWrapperPtr = koffi.pointer(RegisterExchangeRequestWrapper);
-const RegisterExchangeResponseWrapper = koffi.struct('RegisterExchangeResponseWrapper',{
+const RegisterExchangeResponseWrapper = koffi.struct('RegisterExchangeResponseWrapper', {
     success: bool,
     queuename: CString,
     error: CString
@@ -682,7 +684,7 @@ function loadLibrary() {
         lib.drop_indexCallback = koffi.proto('void drop_indexCallback(DropIndexResponseWrapper*)');
         lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, 'int', koffi.pointer(lib.drop_indexCallback)]);
         lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
-        
+
 
         lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
         lib.queryCallback = koffi.proto('void queryCallback(QueryResponseWrapper*)');
@@ -739,6 +741,8 @@ function loadLibrary() {
         lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString]);
         lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
         lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, koffi.pointer(lib.pop_workitemCallback)]);
+        lib.pop_workitem2_async = lib.func('pop_workitem2_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, 'int', koffi.pointer(lib.pop_workitemCallback)]);
+
         lib.free_pop_workitem_response = lib.func('free_pop_workitem_response', 'void', [PopWorkitemResponseWrapperPtr]);
         lib.update_workitem = lib.func('update_workitem', UpdateWorkitemResponseWrapperPtr, [ClientWrapperPtr, UpdateWorkitemRequestWrapperPtr]);
         lib.update_workitemCallback = koffi.proto('void update_workitemCallback(UpdateWorkitemResponseWrapper*)');
@@ -769,8 +773,8 @@ function loadLibrary() {
         lib.unregister_queue = lib.func('unregister_queue', UnRegisterQueueResponseWrapperPtr, [ClientWrapperPtr, CString]);
         lib.free_unregister_queue_response = lib.func('free_unregister_queue_response', 'void', [UnRegisterQueueResponseWrapperPtr]);
         lib.queue_message = lib.func('queue_message', QueueMessageResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
-        lib.free_queue_message_response = lib.func('free_queue_message_response', 'void', [QueueMessageResponseWrapperPtr]);        
-        
+        lib.free_queue_message_response = lib.func('free_queue_message_response', 'void', [QueueMessageResponseWrapperPtr]);
+
         return lib;
     } catch (e) {
         throw new LibraryLoadError(`Failed to load library: ${e.message}`);
@@ -809,7 +813,7 @@ class Client {
             this.trace('Received a null pointer from Rust function');
             throw new Error('Received a null pointer from Rust function');
         }
-        const clientWrapper = koffi.decode(_clientWrapperPtr,ClientWrapper);
+        const clientWrapper = koffi.decode(_clientWrapperPtr, ClientWrapper);
         this.client = _clientWrapperPtr;
         this.lib.set_agent_name(_clientWrapperPtr, 'node');
     }
@@ -827,7 +831,7 @@ class Client {
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
         }
     }
-    
+
     tracing = false;
     informing = true;
     verbosing = false;
@@ -846,21 +850,21 @@ class Client {
         this.verbose('enable_tracing invoked', rust_log, tracing);
         this.lib.enable_tracing(rust_log, tracing);
         this.informing = true;
-        if(rust_log.indexOf('verbose') > -1) this.verbosing = true;
-        if(rust_log.indexOf('trace') > -1) { this.tracing = true; this.verbosing = true; }
+        if (rust_log.indexOf('verbose') > -1) this.verbosing = true;
+        if (rust_log.indexOf('trace') > -1) { this.tracing = true; this.verbosing = true; }
         this.trace('enable_tracing called');
     }
     disable_tracing() {
         this.lib.disable_tracing();
     }
     info(...args) {
-        if(this.informing == true) console.log('Node.js:', ...args);
+        if (this.informing == true) console.log('Node.js:', ...args);
     }
     verbose(...args) {
-        if(this.verbosing == true) console.log('Node.js:', ...args);
+        if (this.verbosing == true) console.log('Node.js:', ...args);
     }
     trace(...args) {
-        if(this.tracing == true) console.log('Node.js:', ...args);
+        if (this.tracing == true) console.log('Node.js:', ...args);
     }
     set_agent_name(name) {
         this.verbose('set_agent_name invoked', name);
@@ -879,7 +883,7 @@ class Client {
             throw new Error('Received a null pointer from Rust function');
         }
         this.trace('Callback invoked');
-        const Response = koffi.decode(ResponsePtr,ConnectResponseWrapper);
+        const Response = koffi.decode(ResponsePtr, ConnectResponseWrapper);
         if (!Response.success) {
             throw new ClientCreationError(Response.error);
         }
@@ -907,10 +911,10 @@ class Client {
                         }
                     } catch (error) {
                         reject(new ClientCreationError(error.message));
-                    } 
+                    }
                 }, koffi.pointer(this.lib.ConnectCallback));
                 this.verbose('call connect_async');
-                this.lib.connect_async(this.client, url, 0, cb);                
+                this.lib.connect_async(this.client, url, 0, cb);
             } catch (error) {
                 reject(new ClientCreationError(error.message));
             }
@@ -935,12 +939,10 @@ class Client {
             validateonly: validateonly,
             ping: ping
         };
-        const reqptr = encodeStruct(req, SigninRequestWrapper);
-
         this.trace('call signin');
-        const response = this.lib.signin(this.client, reqptr);
+        const response = this.lib.signin(this.client, req);
         this.trace('decode response');
-        const result = koffi.decode(response,SigninResponseWrapper);
+        const result = koffi.decode(response, SigninResponseWrapper);
         this.trace('free_signin_response');
         this.lib.free_signin_response(response);
         if (!result.success) {
@@ -966,8 +968,6 @@ class Client {
                 validateonly: validateonly,
                 ping: ping
             };
-            const reqptr = encodeStruct(req, SigninRequestWrapper);
-    
             this.trace('create callback');
             const callback = (responsePtr) => {
                 this.verbose('signin_async callback');
@@ -985,7 +985,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.signinCallback));
             this.trace('call signin_async');
-            this.lib.signin_async(this.client, reqptr, cb, (err, res) => {
+            this.lib.signin_async(this.client, req, cb, (err, res) => {
                 console.log('signin_async error', err, res);
                 if (err) {
                     reject(new ClientError('Signin failed'));
@@ -994,7 +994,7 @@ class Client {
         });
     }
 
-    list_collections(includehist = false) { 
+    list_collections(includehist = false) {
         this.verbose('list_collections invoked');
         const responsePtr = this.lib.list_collections(this.client, includehist);
         const response = koffi.decode(responsePtr, ListCollectionsResponseWrapper);
@@ -1005,7 +1005,7 @@ class Client {
         }
         return JSON.parse(response.collections);
     }
-    list_collections_async(includehist = false) { 
+    list_collections_async(includehist = false) {
         this.verbose('list_collections invoked');
         return new Promise((resolve, reject) => {
             const callback = (responsePtr) => {
@@ -1032,27 +1032,18 @@ class Client {
     // "seconds" | "minutes" | "hours"
     create_collection({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
         this.verbose('create_collection invoked');
-        let collationPtr = null;
-        if(collation != null) {
-            collationPtr = encodeStruct(collation, ColCollationWrapper);            
-        }
-        let timeseriesPtr = null;
-        if(timeseries != null) {
-            timeseriesPtr = encodeStruct(timeseries, ColTimeseriesWrapper);
-        }
         const req = {
             collectionname: collectionname,
-            collation: collationPtr,
-            timeseries: timeseriesPtr,
+            collation: collation,
+            timeseries: timeseries,
             expire_after_seconds: expire_after_seconds,
             change_stream_pre_and_post_images: change_stream_pre_and_post_images,
             capped: capped,
             max: max,
             size: size
         };
-        const reqptr = encodeStruct(req, CreateCollectionRequestWrapper);
         this.verbose('call create_collection');
-        const response = this.lib.create_collection(this.client, reqptr);
+        const response = this.lib.create_collection(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, CreateCollectionResponseWrapper);
         this.verbose('free_create_collection_response');
@@ -1066,25 +1057,16 @@ class Client {
     create_collection_async({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
         this.verbose('create_collection invoked');
         return new Promise((resolve, reject) => {
-            let collationPtr = null;
-            if(collation != null) {
-                collationPtr = encodeStruct(collation, ColCollationWrapper);            
-            }
-            let timeseriesPtr = null;
-            if(timeseries != null) {
-                timeseriesPtr = encodeStruct(timeseries, ColTimeseriesWrapper);
-            }
             const req = {
                 collectionname: collectionname,
-                collation: collationPtr,
-                timeseries: timeseriesPtr,
+                collation: collation,
+                timeseries: timeseries,
                 expire_after_seconds: expire_after_seconds,
                 change_stream_pre_and_post_images: change_stream_pre_and_post_images,
                 capped: capped,
                 max: max,
                 size: size
             };
-            const reqptr = encodeStruct(req, CreateCollectionRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('create_collection_async callback');
@@ -1100,7 +1082,7 @@ class Client {
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.create_collectionCallback));
             this.verbose('call create_collection_async');
-            this.lib.create_collection_async(this.client, reqptr, cb, (err) => {
+            this.lib.create_collection_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Create collection failed'));
                 }
@@ -1167,9 +1149,8 @@ class Client {
             options: options,
             name: name
         };
-        const reqptr = encodeStruct(req, CreateIndexRequestWrapper);
         this.verbose('call create_index');
-        const response = this.lib.create_index(this.client, reqptr);
+        const response = this.lib.create_index(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, CreateIndexResponseWrapper);
         this.verbose('free_create_index_response');
@@ -1178,7 +1159,7 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return result.success;        
+        return result.success;
     }
     create_index_async({ collectionname, index, options, name }) {
         this.verbose('create_index invoked');
@@ -1189,7 +1170,6 @@ class Client {
                 options: options,
                 name: name
             };
-            const reqptr = encodeStruct(req, CreateIndexRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('create_index_async callback');
@@ -1205,7 +1185,7 @@ class Client {
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.create_indexCallback));
             this.verbose('call create_index_async');
-            this.lib.create_index_async(this.client, reqptr, cb, (err) => {
+            this.lib.create_index_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Create index failed'));
                 }
@@ -1250,9 +1230,8 @@ class Client {
             skip: skip,
             top: top
         };
-        const reqptr = encodeStruct(req, QueryRequestWrapper);
         this.trace('call query');
-        const responsePtr = this.lib.query(this.client, reqptr);
+        const responsePtr = this.lib.query(this.client, req);
         this.trace('decode response');
         const response = koffi.decode(responsePtr, QueryResponseWrapper);
         this.trace('free_query_response');
@@ -1267,7 +1246,7 @@ class Client {
     query_async({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
         this.trace('query_async invoked');
         return new Promise((resolve, reject) => {
-            const req = {            
+            const req = {
                 collectionname: collectionname,
                 query: query,
                 projection: projection,
@@ -1277,7 +1256,6 @@ class Client {
                 skip: skip,
                 top: top
             };
-            const reqptr = encodeStruct(req, QueryRequestWrapper);
             const callback = (responsePtr) => {
                 this.trace('query_async callback');
                 const response = koffi.decode(responsePtr, QueryResponseWrapper);
@@ -1294,7 +1272,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.queryCallback));
             this.trace('call query_async');
-            this.lib.query_async(this.client, reqptr, cb, (err) => {
+            this.lib.query_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Query failed'));
                 }
@@ -1310,9 +1288,8 @@ class Client {
             hint: hint,
             explain: explain
         };
-        const reqptr = encodeStruct(req, AggregateRequestWrapper);
         this.verbose('call aggregate');
-        const response = this.lib.aggregate(this.client, reqptr);
+        const response = this.lib.aggregate(this.client, req);
         const result = koffi.decode(response, AggregateResponseWrapper);
         this.verbose('free_aggregate_response');
         this.lib.free_aggregate_response(response);
@@ -1332,7 +1309,6 @@ class Client {
                 hint: hint,
                 explain: explain
             };
-            const reqptr = encodeStruct(req, AggregateRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('aggregate_async callback');
@@ -1349,14 +1325,14 @@ class Client {
             const cb = koffi.register(callback, koffi.pointer(this.lib.aggregateCallback));
 
             this.verbose('call aggregate_async');
-            this.lib.aggregate_async(this.client, reqptr, cb, (err) => {
+            this.lib.aggregate_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Aggregate failed'));
                 }
             });
         });
     }
-    count({ collectionname, query = "", queryas = "", explain = false}) {
+    count({ collectionname, query = "", queryas = "", explain = false }) {
         this.verbose('count invoked');
         const req = {
             collectionname: collectionname,
@@ -1364,9 +1340,8 @@ class Client {
             queryas: queryas,
             explain: explain
         };
-        const reqptr = encodeStruct(req, CountRequestWrapper);
         this.trace('call count');
-        const response = this.lib.count(this.client, reqptr);
+        const response = this.lib.count(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, CountResponseWrapper);
         this.trace('free_count_response');
@@ -1377,7 +1352,7 @@ class Client {
         }
         return result.result;
     }
-    count_async({ collectionname, query = "", queryas = "", explain = false}) {
+    count_async({ collectionname, query = "", queryas = "", explain = false }) {
         this.verbose('count async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1386,7 +1361,6 @@ class Client {
                 queryas: queryas,
                 explain: explain
             };
-            const reqptr = encodeStruct(req, CountRequestWrapper);
             this.trace('create callback');
             const callback = (responsePtr) => {
                 this.verbose('count_async callback');
@@ -1403,7 +1377,7 @@ class Client {
             const cb = koffi.register(callback, koffi.pointer(this.lib.countCallback));
 
             this.trace('call count_async');
-            this.lib.count_async(this.client, reqptr, cb, (err) => {
+            this.lib.count_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Count failed'));
                 }
@@ -1419,16 +1393,15 @@ class Client {
             queryas: queryas,
             explain: explain
         };
-        const reqptr = encodeStruct(req, DistinctRequestWrapper);
         this.verbose('call distinct');
-        const responsePtr = this.lib.distinct(this.client, reqptr);
+        const responsePtr = this.lib.distinct(this.client, req);
         this.trace('decode response');
         let results = [];
         const response = koffi.decode(responsePtr, DistinctResponseWrapper);
-        if(response.success) {
+        if (response.success) {
             this.trace('decode response results');
             let strings = koffi.decode(response.results, 'void *', -1);
-            for(let i = 0; i < response.results_len; i++) {
+            for (let i = 0; i < response.results_len; i++) {
                 this.trace('decode response results #', i);
                 let ptr = strings[i];
                 let value = koffi.decode(ptr, 'char', -1);
@@ -1453,7 +1426,6 @@ class Client {
                 queryas: queryas,
                 explain: explain
             };
-            const reqptr = encodeStruct(req, DistinctRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('distinct_async callback');
@@ -1461,7 +1433,7 @@ class Client {
                 let results = [];
                 if (response.success) {
                     let strings = koffi.decode(response.results, 'void *', -1);
-                    for(let i = 0; i < response.results_len; i++) {
+                    for (let i = 0; i < response.results_len; i++) {
                         let ptr = strings[i];
                         let value = koffi.decode(ptr, 'char', -1);
                         results.push(value.toString());
@@ -1479,7 +1451,7 @@ class Client {
             const cb = koffi.register(callback, koffi.pointer(this.lib.distinctCallback));
 
             this.verbose('call distinct_async');
-            this.lib.distinct_async(this.client, reqptr, cb, (err) => {
+            this.lib.distinct_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Distinct failed'));
                 }
@@ -1494,9 +1466,8 @@ class Client {
             w: w,
             j: j
         };
-        const reqptr = encodeStruct(req, InsertOneRequestWrapper);
         this.trace('call insert_one');
-        const response = this.lib.insert_one(this.client, reqptr);
+        const response = this.lib.insert_one(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, InsertOneResponseWrapper);
         this.trace('free_insert_one_response');
@@ -1516,7 +1487,6 @@ class Client {
                 w: w,
                 j: j
             };
-            const reqptr = encodeStruct(req, InsertOneRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('insert_one_async callback');
                 this.trace('decode response');
@@ -1532,7 +1502,7 @@ class Client {
             }
             const cb = koffi.register(callback, koffi.pointer(this.lib.insert_oneCallback));
             this.verbose('call insert_one_async');
-            this.lib.insert_one_async(this.client, reqptr, cb, (err) => {
+            this.lib.insert_one_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOne failed'));
                 }
@@ -1548,9 +1518,8 @@ class Client {
             j: j,
             skipresults: skipresults
         };
-        const reqptr = encodeStruct(req, InsertManyRequestWrapper);
         this.trace('call insert_many');
-        const response = this.lib.insert_many(this.client, reqptr);
+        const response = this.lib.insert_many(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, InsertManyResponseWrapper);
         this.trace('free_insert_many_response');
@@ -1571,7 +1540,6 @@ class Client {
                 j: j,
                 skipresults: skipresults
             };
-            const reqptr = encodeStruct(req, InsertManyRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('insert_many_async callback');
@@ -1589,7 +1557,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.insert_manyCallback));
             this.verbose('call insert_many_async');
-            this.lib.insert_many_async(this.client, reqptr, cb, (err) => {
+            this.lib.insert_many_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertMany failed'));
                 }
@@ -1602,11 +1570,10 @@ class Client {
             collectionname: collectionname,
             item: item,
             w: w,
-            j: j            
+            j: j
         };
-        const reqptr = encodeStruct(req, UpdateOneRequestWrapper);
         this.trace('call update_one');
-        const response = this.lib.update_one(this.client, reqptr);
+        const response = this.lib.update_one(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, UpdateOneResponseWrapper);
         this.trace('free_update_one_response');
@@ -1626,7 +1593,6 @@ class Client {
                 w: w,
                 j: j
             };
-            const reqptr = encodeStruct(req, UpdateOneRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('update_one_async callback');
                 this.trace('decode response');
@@ -1643,7 +1609,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.update_oneCallback));
             this.trace('call update_one_async');
-            this.lib.update_one_async(this.client, reqptr, cb, (err) => {
+            this.lib.update_one_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('UpdateOne failed'));
                 }
@@ -1659,9 +1625,8 @@ class Client {
             w: w,
             j: j
         };
-        const reqptr = encodeStruct(req, InsertOrUpdateOneRequestWrapper);
         this.trace('call insert_or_update_one');
-        const response = this.lib.insert_or_update_one(this.client, reqptr);
+        const response = this.lib.insert_or_update_one(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, InsertOrUpdateOneResponseWrapper);
         this.trace('free_insert_or_update_one_response');
@@ -1682,7 +1647,6 @@ class Client {
                 w: w,
                 j: j
             };
-            const reqptr = encodeStruct(req, InsertOrUpdateOneRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('insert_or_update_one_async callback');
                 this.trace('decode response');
@@ -1699,11 +1663,11 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.insert_or_update_oneCallback));
             this.trace('call insert_or_update_one_async');
-            this.lib.insert_or_update_one_async(this.client, reqptr, cb, (err) => {
+            this.lib.insert_or_update_one_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOrUpdateOne failed'));
                 }
-            });        
+            });
         });
     }
     delete_one({ collectionname, id, recursive }) {
@@ -1713,9 +1677,8 @@ class Client {
             id: id,
             recursive: recursive
         };
-        const reqptr = encodeStruct(req, DeleteOneRequestWrapper);
         this.trace('call delete_one');
-        const response = this.lib.delete_one(this.client, reqptr);
+        const response = this.lib.delete_one(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, DeleteOneResponseWrapper);
         this.trace('free_delete_one_response');
@@ -1734,7 +1697,6 @@ class Client {
                 id: id,
                 recursive: recursive
             };
-            const reqptr = encodeStruct(req, DeleteOneRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('delete_one_async callback');
                 this.trace('decode response');
@@ -1751,7 +1713,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.delete_oneCallback));
             this.trace('call delete_one_async');
-            this.lib.delete_one_async(this.client, reqptr, cb, (err) => {
+            this.lib.delete_one_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteOne failed'));
                 }
@@ -1768,9 +1730,8 @@ class Client {
         };
         ids.push(null); // terminate array
         req.ids = ids;
-        const reqptr = encodeStruct(req, DeleteManyRequestWrapper);
         this.trace('call delete_many');
-        const response = this.lib.delete_many(this.client, reqptr);
+        const response = this.lib.delete_many(this.client, req);
         this.trace('decode response');
         const result = koffi.decode(response, DeleteManyResponseWrapper);
         this.trace('free_delete_many_response');
@@ -1792,7 +1753,6 @@ class Client {
             };
             ids.push(null); // terminate array
             req.ids = ids;
-            const reqptr = encodeStruct(req, DeleteManyRequestWrapper);
             const callback = (responsePtr) => {
                 this.verbose('delete_many_async callback');
                 this.trace('decode response');
@@ -1809,7 +1769,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.delete_manyCallback));
             this.trace('call delete_many_async');
-            this.lib.delete_many_async(this.client, reqptr, cb, (err) => {
+            this.lib.delete_many_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteMany failed'));
                 }
@@ -1824,9 +1784,8 @@ class Client {
             folder: folder,
             filename: filename
         };
-        const reqptr = encodeStruct(req, DownloadRequestWrapper);
         this.trace('call download');
-        const response = this.lib.download(this.client, reqptr);
+        const response = this.lib.download(this.client, req);
         const result = koffi.decode(response, DownloadResponseWrapper);
         this.trace('free_download_response');
         this.lib.free_download_response(response);
@@ -1845,7 +1804,6 @@ class Client {
                 folder: folder,
                 filename: filename
             };
-            const reqptr = encodeStruct(req, DownloadRequestWrapper);
             this.trace('create callback');
             const callback = (responsePtr) => {
                 this.verbose('download_async callback');
@@ -1862,7 +1820,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.downloadCallback));
             this.trace('call download_async');
-            this.lib.download_async(this.client, reqptr, cb, (err) => {
+            this.lib.download_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Download failed'));
                 }
@@ -1878,9 +1836,8 @@ class Client {
             metadata: metadata,
             collectionname: collectionname
         };
-        const reqptr = encodeStruct(req, UploadRequestWrapper);
         this.trace('call upload');
-        const response = this.lib.upload(this.client, reqptr);
+        const response = this.lib.upload(this.client, req);
         const result = koffi.decode(response, UploadResponseWrapper);
         this.trace('free_upload_response');
         this.lib.free_upload_response(response);
@@ -1900,7 +1857,6 @@ class Client {
                 metadata: metadata,
                 collectionname: collectionname
             };
-            const reqptr = encodeStruct(req, UploadRequestWrapper);
             this.trace('create callback');
             const callback = (responsePtr) => {
                 this.verbose('upload_async callback');
@@ -1917,7 +1873,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.uploadCallback));
             this.trace('call upload_async');
-            this.lib.upload_async(this.client, reqptr, cb, (err) => {
+            this.lib.upload_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Upload failed'));
                 }
@@ -1926,7 +1882,7 @@ class Client {
     }
     push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
-     }) {
+    }) {
         this.verbose('push_workitem invoked');
         // if nextrun is not null and nextrun is a date
         if (nextrun != null && nextrun instanceof Date) {
@@ -1951,43 +1907,45 @@ class Client {
             files_len: files.length
         };
         encode_files(req);
-        const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
         this.verbose('call push_workitem');
-        const response = this.lib.push_workitem(this.client, reqptr);
-        this.verbose('decode response');
-        const result = koffi.decode(response, PushWorkitemResponseWrapper);
-        this.verbose('free_push_workitem_response');
-        this.lib.free_push_workitem_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        if(result.workitem != null) {
-            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
-            decode_files(workitem);
-            if(workitem.nextrun > 0) {
-                workitem.nextrun = new Date(workitem.nextrun * 1000);
-            } else {
-                delete workitem.nextrun;
+        const response = this.lib.push_workitem(this.client, req);
+        try {
+            this.verbose('decode response');
+            const result = koffi.decode(response, PushWorkitemResponseWrapper);
+            if (!result.success) {
+                const errorMsg = result.error;
+                throw new ClientError(errorMsg);
             }
-            if(workitem.lastrun > 0) {
-                workitem.lastrun = new Date(workitem.lastrun * 1000);
-            } else {
-                delete workitem.lastrun;
-            }
-            try {
-                if(workitem.payload != null && workitem.payload != "") {
-                    workitem.payload = JSON.parse(workitem.payload);
+            if (result.workitem != null) {
+                var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+                decode_files(workitem);
+                if (workitem.nextrun > 0) {
+                    workitem.nextrun = new Date(workitem.nextrun * 1000);
+                } else {
+                    delete workitem.nextrun;
                 }
-            } catch (error) {
+                if (workitem.lastrun > 0) {
+                    workitem.lastrun = new Date(workitem.lastrun * 1000);
+                } else {
+                    delete workitem.lastrun;
+                }
+                try {
+                    if (workitem.payload != null && workitem.payload != "") {
+                        workitem.payload = JSON.parse(workitem.payload);
+                    }
+                } catch (error) {
+                }
+                return workitem;
             }
-            return workitem;
+            return null;
+        } finally {
+            this.verbose('free_push_workitem_response');
+            this.lib.free_push_workitem_response(response);
         }
-        return null;
     }
     push_workitem_async({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
-        }) {
+    }) {
         this.verbose('push_workitem invoked');
         return new Promise((resolve, reject) => {
             // if nextrun is not null and nextrun is a date
@@ -2013,7 +1971,6 @@ class Client {
                 files_len: files.length
             };
             encode_files(req);
-            const reqptr = encodeStruct(req, PushWorkitemRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('push_workitem_async callback');
@@ -2023,21 +1980,21 @@ class Client {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    if(response.workitem != null) {
+                    if (response.workitem != null) {
                         var workitem = koffi.decode(response.workitem, WorkitemWrapper);
                         decode_files(workitem);
-                        if(workitem.nextrun > 0) {
+                        if (workitem.nextrun > 0) {
                             workitem.nextrun = new Date(workitem.nextrun * 1000);
                         } else {
                             delete workitem.nextrun;
                         }
-                        if(workitem.lastrun > 0) {
+                        if (workitem.lastrun > 0) {
                             workitem.lastrun = new Date(workitem.lastrun * 1000);
                         } else {
                             delete workitem.lastrun;
                         }
                         try {
-                            if(workitem.payload != null && workitem.payload != "") {
+                            if (workitem.payload != null && workitem.payload != "") {
                                 workitem.payload = JSON.parse(workitem.payload);
                             }
                         } catch (error) {
@@ -2052,119 +2009,134 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.push_workitemCallback));
             this.verbose('call push_workitem_async');
-            this.lib.push_workitem_async(this.client, reqptr, cb, (err) => {
+            this.lib.push_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('PushWorkitem async failed'));
                 }
             }
             );
         });
-    }    
+    }
     pop_workitem({ wiq = "", wiqid = "", downloadfolder = "." }) {
         this.verbose('pop_workitem invoked');
-        if(downloadfolder == null || downloadfolder == "") downloadfolder = ".";
+        if (downloadfolder == null || downloadfolder == "") downloadfolder = ".";
         const req = {
             wiq: wiq,
             wiqid: wiqid
         };
-        const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
         this.trace('call pop_workitem');
-        const response = this.lib.pop_workitem(this.client, reqptr, downloadfolder);
-        this.trace('decode response');
-        const result = koffi.decode(response, PopWorkitemResponseWrapper);
-        if (!result.success) {
-            this.trace('free_pop_workitem_response');
-            this.lib.free_pop_workitem_response(response);
+        const response = this.lib.pop_workitem(this.client, req, downloadfolder);
+        try {
+            this.trace('decode response');
+            const result = koffi.decode(response, PopWorkitemResponseWrapper);
+            if (!result.success) {
                 const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        if(result.workitem != null) {
-            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
-            decode_files(workitem);
-            this.trace('free_pop_workitem_response');
-            this.lib.free_pop_workitem_response(response);
-            if(workitem.nextrun > 0) {
-                workitem.nextrun = new Date(workitem.nextrun * 1000);
-            } else {
-                delete workitem.nextrun;
+                throw new ClientError(errorMsg);
             }
-            if(workitem.lastrun > 0) {
-                workitem.lastrun = new Date(workitem.lastrun * 1000);
-            } else {
-                delete workitem.lastrun;
-            }
-            try {
-                if(workitem.payload != null && workitem.payload != "") {
-                    workitem.payload = JSON.parse(workitem.payload);
+            if (result.workitem != null) {
+                var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+                decode_files(workitem);
+                if (workitem.nextrun > 0) {
+                    workitem.nextrun = new Date(workitem.nextrun * 1000);
+                } else {
+                    delete workitem.nextrun;
                 }
-            } catch (error) {
+                if (workitem.lastrun > 0) {
+                    workitem.lastrun = new Date(workitem.lastrun * 1000);
+                } else {
+                    delete workitem.lastrun;
+                }
+                try {
+                    if (workitem.payload != null && workitem.payload != "") {
+                        workitem.payload = JSON.parse(workitem.payload);
+                    }
+                } catch (error) {
+                }
+                return workitem;
             }
-            return workitem;
+            return null;            
+        } finally {
+            this.trace('free_pop_workitem_response');
+            this.lib.free_pop_workitem_response(response);            
         }
-        return null;
+    }
+    callbackid = 0;
+    callbacks = {};
+    pop_workitem_async_callback(responsePtr) {
+        this.verbose('pop_workitem_async callback');
+        this.trace('decode response');
+        const response = koffi.decode(responsePtr, PopWorkitemResponseWrapper);
+        const request_id = response.request_id;
+        if (this.callbacks[request_id] == null) {
+            console.log(`Callback for request_id ${request_id} not found!`);
+            return;
+        }
+        const { resolve, reject, callback } = this.callbacks[request_id];
+        delete this.callbacks[request_id];
+        koffi.unregister(callback);
+        let keys = Object.keys(this.callbacks);
+        if(keys.length > 0) {
+            console.log(`Deleted callback for request_id ${request_id}, i now have ${keys.length} remaining callbacks`);
+        }
+        try {
+            if (!response.success) {
+                const errorMsg = response.error;
+                reject(new ClientError(errorMsg));
+            } else {
+                if (response.workitem != null) {
+                    var workitem = koffi.decode(response.workitem, WorkitemWrapper);
+                    decode_files(workitem);
+                    if (workitem.nextrun > 0) {
+                        workitem.nextrun = new Date(workitem.nextrun * 1000);
+                    } else {
+                        delete workitem.nextrun;
+                    }
+                    if (workitem.lastrun > 0) {
+                        workitem.lastrun = new Date(workitem.lastrun * 1000);
+                    } else {
+                        delete workitem.lastrun;
+                    }
+                    try {
+                        if (workitem.payload != null && workitem.payload != "") {
+                            workitem.payload = JSON.parse(workitem.payload);
+                        }
+                    } catch (error) {
+                    }
+                    resolve(workitem);
+                } else {
+                    resolve(null);
+                }
+            }
+        } catch (error) {
+            console.log(error);
+        } finally {
+            this.trace('free_pop_workitem_response');
+            this.lib.free_pop_workitem_response(responsePtr);
+            responsePtr = null;
+        }
     }
     pop_workitem_async({ wiq = "", wiqid = "", downloadfolder = "." }) {
         this.verbose('pop_workitem async invoked');
         return new Promise((resolve, reject) => {
-            if(downloadfolder == null || downloadfolder == "") downloadfolder = ".";
+            if (downloadfolder == null || downloadfolder == "") downloadfolder = ".";
+
+            this.callbackid++;
+            let request_id = this.callbackid;
+            this.callbacks[request_id] = {
+                resolve: resolve,
+                reject: reject,
+                callback: koffi.register(this, this.pop_workitem_async_callback, koffi.pointer(this.lib.pop_workitemCallback))
+            }
             const req = {
                 wiq: wiq,
-                wiqid: wiqid
+                wiqid: wiqid,
+                request_id: request_id
             };
-            const reqptr = encodeStruct(req, PopWorkitemRequestWrapper);
-            this.verbose('create callback');
-            var cb;
-            const callback = (responsePtr) => {
-                this.verbose('pop_workitem_async callback');
-                this.trace('decode response');
-                const response = koffi.decode(responsePtr, PopWorkitemResponseWrapper);
-                if (!response.success) {
-                    const errorMsg = response.error;
-                    reject(new ClientError(errorMsg));
-                } else {
-                    if(response.workitem != null) {
-                        var workitem = koffi.decode(response.workitem, WorkitemWrapper);
-                        decode_files(workitem);
-                        if(workitem.nextrun > 0) {
-                            workitem.nextrun = new Date(workitem.nextrun * 1000);
-                        } else {
-                            delete workitem.nextrun;
-                        }
-                        if(workitem.lastrun > 0) {
-                            workitem.lastrun = new Date(workitem.lastrun * 1000);
-                        } else {
-                            delete workitem.lastrun;
-                        }
-                        try {
-                            if(workitem.payload != null && workitem.payload != "") {
-                                workitem.payload = JSON.parse(workitem.payload);
-                            }
-                        } catch (error) {
-                        }
-                        resolve(workitem);
-                    } else {
-                        resolve(null);
-                    }
-                }
-                this.trace('free_pop_workitem_response');
-                this.lib.free_pop_workitem_response(responsePtr);
-                responsePtr = null;
-                koffi.unregister(cb);
-                cb = null;
-            };
-            // const cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
-            cb = koffi.register(callback, koffi.pointer(this.lib.pop_workitemCallback));
-            
-            // const cb = koffi.pointer(callback);
-
-            // lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
-            // lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, koffi.pointer(lib.pop_workitemCallback)]);
             this.verbose('call pop_workitem_async');
-            this.lib.pop_workitem_async(this.client, reqptr, downloadfolder, cb);
-        
+            this.lib.pop_workitem_async(this.client, req, downloadfolder, this.callbacks[request_id].callback);
         });
     }
-    update_workitem({ workitem, ignoremaxretries = false, files = []}) {
+    update_workitem({ workitem, ignoremaxretries = false, files = [] }) {
         this.verbose('update_workitem invoked');
         workitem = Object.assign({
             id: "",
@@ -2187,9 +2159,9 @@ class Client {
             errormessage: "",
             errorsource: "",
             errortype: ""
-        } , workitem);
-        if(workitem.payload == null) workitem.payload = "{}";
-        if(workitem.payload != null && typeof workitem.payload === 'object') {
+        }, workitem);
+        if (workitem.payload == null) workitem.payload = "{}";
+        if (workitem.payload != null && typeof workitem.payload === 'object') {
             workitem.payload = JSON.stringify(workitem.payload);
         }
         const req = {
@@ -2215,43 +2187,45 @@ class Client {
         }
         encode_files(workitem);
         this.verbose('encode workitem');
-        req.workitem = encodeStruct(workitem, WorkitemWrapper);
+        req.workitem = workitem;
         this.verbose('encode request');
-        const reqptr = encodeStruct(req, UpdateWorkitemRequestWrapper);
         this.verbose('call update_workitem with ', files.length, ' files');
-        const response = this.lib.update_workitem(this.client, reqptr);
+        const response = this.lib.update_workitem(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, UpdateWorkitemResponseWrapper);
-        this.verbose('free_update_workitem_response');
-        this.lib.free_update_workitem_response(response);
-        if (!result.success) {
-            const errorMsg = result.error;
-            throw new ClientError(errorMsg);
-        }
-        if(result.workitem != null) {
-            var workitem = koffi.decode(result.workitem, WorkitemWrapper);
-            decode_files(workitem);
-            if(workitem.nextrun > 0) {
-                workitem.nextrun = new Date(workitem.nextrun * 1000);
-            } else {
-                delete workitem.nextrun;
+        try {
+            if (!result.success) {
+                const errorMsg = result.error;
+                throw new ClientError(errorMsg);
             }
-            if(workitem.lastrun > 0) {
-                workitem.lastrun = new Date(workitem.lastrun * 1000);
-            } else {
-                delete workitem.lastrun;
-            }
-            try {
-                if(workitem.payload != null && workitem.payload != "") {
-                    workitem.payload = JSON.parse(workitem.payload);
+            if (result.workitem != null) {
+                var workitem = koffi.decode(result.workitem, WorkitemWrapper);
+                decode_files(workitem);
+                if (workitem.nextrun > 0) {
+                    workitem.nextrun = new Date(workitem.nextrun * 1000);
+                } else {
+                    delete workitem.nextrun;
                 }
-            } catch (error) {
+                if (workitem.lastrun > 0) {
+                    workitem.lastrun = new Date(workitem.lastrun * 1000);
+                } else {
+                    delete workitem.lastrun;
+                }
+                try {
+                    if (workitem.payload != null && workitem.payload != "") {
+                        workitem.payload = JSON.parse(workitem.payload);
+                    }
+                } catch (error) {
+                }
+                return workitem;
             }
-            return workitem;
+            return null;
+        } finally {
+            this.verbose('free_update_workitem_response');
+            this.lib.free_update_workitem_response(response);
         }
-        return null;
     }
-    update_workitem_async({ workitem, ignoremaxretries = false, files = []}) {
+    update_workitem_async({ workitem, ignoremaxretries = false, files = [] }) {
         this.verbose('update_workitem async invoked');
         return new Promise((resolve, reject) => {
             workitem = Object.assign({
@@ -2275,9 +2249,9 @@ class Client {
                 errormessage: "",
                 errorsource: "",
                 errortype: ""
-            } , workitem);
-            if(workitem.payload == null) workitem.payload = "{}";
-            if(workitem.payload != null && typeof workitem.payload === 'object') {
+            }, workitem);
+            if (workitem.payload == null) workitem.payload = "{}";
+            if (workitem.payload != null && typeof workitem.payload === 'object') {
                 workitem.payload = JSON.stringify(workitem.payload);
             }
             const req = {
@@ -2303,9 +2277,8 @@ class Client {
             }
             encode_files(workitem);
             this.verbose('encode workitem');
-            req.workitem = encodeStruct(workitem, WorkitemWrapper);
+            req.workitem = workitem;
             this.verbose('encode request');
-            const reqptr = encodeStruct(req, UpdateWorkitemRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('update_workitem_async callback');
@@ -2315,21 +2288,21 @@ class Client {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    if(response.workitem != null) {
+                    if (response.workitem != null) {
                         var workitem = koffi.decode(response.workitem, WorkitemWrapper);
                         decode_files(workitem);
-                        if(workitem.nextrun > 0) {
+                        if (workitem.nextrun > 0) {
                             workitem.nextrun = new Date(workitem.nextrun * 1000);
                         } else {
                             delete workitem.nextrun;
                         }
-                        if(workitem.lastrun > 0) {
+                        if (workitem.lastrun > 0) {
                             workitem.lastrun = new Date(workitem.lastrun * 1000);
                         } else {
                             delete workitem.lastrun;
                         }
                         try {
-                            if(workitem.payload != null && workitem.payload != "") {
+                            if (workitem.payload != null && workitem.payload != "") {
                                 workitem.payload = JSON.parse(workitem.payload);
                             }
                         } catch (error) {
@@ -2344,7 +2317,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.update_workitemCallback));
             this.verbose('call update_workitem_async');
-            this.lib.update_workitem_async(this.client, reqptr, cb, (err) => {
+            this.lib.update_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('UpdateWorkitem async failed'));
                 }
@@ -2359,9 +2332,8 @@ class Client {
         const req = {
             id: id
         };
-        const reqptr = encodeStruct(req, DeleteWorkitemRequestWrapper);
         this.verbose('call delete_workitem');
-        const response = this.lib.delete_workitem(this.client, reqptr);
+        const response = this.lib.delete_workitem(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, DeleteWorkitemResponseWrapper);
         this.verbose('free_delete_workitem_response');
@@ -2377,7 +2349,6 @@ class Client {
             const req = {
                 id: id
             };
-            const reqptr = encodeStruct(req, DeleteWorkitemRequestWrapper);
             this.verbose('create callback');
             const callback = (responsePtr) => {
                 this.verbose('delete_workitem_async callback');
@@ -2395,7 +2366,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.delete_workitemCallback));
             this.verbose('call delete_workitem_async');
-            this.lib.delete_workitem_async(this.client, reqptr, cb, (err) => {
+            this.lib.delete_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteWorkitem async failed'));
                 }
@@ -2410,9 +2381,8 @@ class Client {
             collectionname: collectionname,
             paths: paths
         }
-        const reqptr = encodeStruct(req, WatchRequestWrapper);
         this.trace('call watch');
-        const response = this.lib.watch(this.client, reqptr);
+        const response = this.lib.watch(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
         this.trace('free_watch_response');
@@ -2448,8 +2418,8 @@ class Client {
                     try {
                         callback(event, event_counter);
                     } catch (error) {
-                        console.error('Error in watch event callback', error);                        
-                    }                    
+                        console.error('Error in watch event callback', error);
+                    }
                 } else {
                     hadone = false;
                 }
@@ -2502,8 +2472,8 @@ class Client {
                     try {
                         callback(event, event_counter);
                     } catch (error) {
-                        console.error('Error in client event callback', error);                        
-                    }                    
+                        console.error('Error in client event callback', error);
+                    }
                 } else {
                     hadone = false;
                 }
@@ -2529,7 +2499,7 @@ class Client {
             this.trace('clearInterval for eventid', eventid);
             clearInterval(this.clientevents[eventid]);
             delete this.clientevents[eventid];
-        }        
+        }
     }
 
 
@@ -2546,7 +2516,6 @@ class Client {
             collectionname: collectionname,
             paths: paths
         }
-        const reqptr = encodeStruct(req, WatchRequestWrapper);
         let event_counter = 0;
         const event_callback = (responsePtr) => {
             event_counter++;
@@ -2563,13 +2532,13 @@ class Client {
                 callback(event, event_counter);
                 this.trace('event #', event_counter, ' callback done');
             } catch (error) {
-                console.error('Error in watch event callback', error);                    
+                console.error('Error in watch event callback', error);
             }
         }
         const event_cb = koffi.register(event_callback, koffi.pointer(this.lib.WatchEventCallback));
 
         this.trace('call watch');
-        const response = this.lib.watch(this.client, reqptr, event_cb);
+        const response = this.lib.watch(this.client, req, event_cb);
         this.verbose('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
         this.trace('free_watch_response');
@@ -2590,7 +2559,6 @@ class Client {
                 collectionname: collectionname,
                 paths: paths
             };
-            const reqptr = encodeStruct(req, WatchRequestWrapper);
             const callback = (responsePtr) => {
                 this.trace('watch_async callback');
                 const response = koffi.decode(responsePtr, WatchResponseWrapper);
@@ -2618,7 +2586,7 @@ class Client {
                 try {
                     callback(event, event_counter);
                 } catch (error) {
-                    console.error('Error in watch event callback', error);                    
+                    console.error('Error in watch event callback', error);
                 }
             }
             const cb = koffi.register(callback, koffi.pointer(this.lib.watchCallback));
@@ -2627,7 +2595,7 @@ class Client {
             // this.event_refs[this.uniqeid()] = { event_callback, event_cb };
 
             this.trace('call watch_async');
-            this.lib.watch_async(this.client, reqptr, cb, event_cb, (err) => {
+            this.lib.watch_async(this.client, req, cb, event_cb, (err) => {
                 if (err) {
                     reject(new ClientError('Watch failed'));
                 }
@@ -2649,7 +2617,7 @@ class Client {
             this.trace('clearInterval for watchid', watchid);
             clearInterval(this.watches[watchid]);
             delete this.watches[watchid];
-        }        
+        }
     }
     queues = {}
     next_queue_interval = 200;
@@ -2658,9 +2626,8 @@ class Client {
         const req = {
             queuename: queuename
         };
-        const reqptr = encodeStruct(req, RegisterQueueRequestWrapper);
         this.trace('call register_queue');
-        const response = this.lib.register_queue(this.client, reqptr);
+        const response = this.lib.register_queue(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, RegisterQueueResponseWrapper);
         this.trace('free_register_queue_response');
@@ -2671,55 +2638,56 @@ class Client {
         }
         queuename = result.queuename;
         const id = this.uniqeid();
-        this.queues[id] = { interval: 
-            setInterval(() => {
-                if (this.connected == false) {
-                    clearInterval(this.queues[id].interval);
-                    delete this.queues[id];
-                    return;
-                }
-                let hadone = false;
-                do {
-                    hadone = false;
-                    this.trace('call next queue event');
-                    const responsePtr = this.lib.next_queue_event(queuename);
-                    this.trace('decode response');
-                    const result = koffi.decode(responsePtr, QueueEventWrapper);
-                    if (result.queuename != null && result.queuename != "") {
-                        hadone = true;
-                        let data = result.data;
-                        let jwt = undefined;
-                        let user = undefined;
-                        if(data != null && data != "") {
-                            try {
-                                data = JSON.parse(data);
-                            } catch (error) {
-                            }
-                        }
-                        if(data.__jwt != null) {
-                            jwt = data.__jwt;
-                            delete data.__jwt;
-                        }
-                        if(data.__user != null) {
-                            user = data.__user;
-                            delete data.__user;
-                        }
-                        let event = {
-                            queuename: result.queuename,
-                            correlation_id: result.correlation_id,
-                            replyto: result.replyto,
-                            routingkey: result.routingkey,
-                            exchangename: result.exchangename,
-                            data: data,
-                        }
-                        this.trace('call next had result', event);
-                        callback(event);
+        this.queues[id] = {
+            interval:
+                setInterval(() => {
+                    if (this.connected == false) {
+                        clearInterval(this.queues[id].interval);
+                        delete this.queues[id];
+                        return;
                     }
-                    
-                    this.trace('free_queue_event');
-                    this.lib.free_queue_event(responsePtr);
-                } while (hadone);
-            }, this.next_queue_interval),
+                    let hadone = false;
+                    do {
+                        hadone = false;
+                        this.trace('call next queue event');
+                        const responsePtr = this.lib.next_queue_event(queuename);
+                        this.trace('decode response');
+                        const result = koffi.decode(responsePtr, QueueEventWrapper);
+                        if (result.queuename != null && result.queuename != "") {
+                            hadone = true;
+                            let data = result.data;
+                            let jwt = undefined;
+                            let user = undefined;
+                            if (data != null && data != "") {
+                                try {
+                                    data = JSON.parse(data);
+                                } catch (error) {
+                                }
+                            }
+                            if (data.__jwt != null) {
+                                jwt = data.__jwt;
+                                delete data.__jwt;
+                            }
+                            if (data.__user != null) {
+                                user = data.__user;
+                                delete data.__user;
+                            }
+                            let event = {
+                                queuename: result.queuename,
+                                correlation_id: result.correlation_id,
+                                replyto: result.replyto,
+                                routingkey: result.routingkey,
+                                exchangename: result.exchangename,
+                                data: data,
+                            }
+                            this.trace('call next had result', event);
+                            callback(event);
+                        }
+
+                        this.trace('free_queue_event');
+                        this.lib.free_queue_event(responsePtr);
+                    } while (hadone);
+                }, this.next_queue_interval),
             queuename
         };
         return result.queuename;
@@ -2736,9 +2704,8 @@ class Client {
             routingkey: routingkey,
             addqueue: addqueue
         };
-        const reqptr = encodeStruct(req, RegisterExchangeRequestWrapper);
         this.trace('call register_exchange');
-        const response = this.lib.register_exchange(this.client, reqptr);
+        const response = this.lib.register_exchange(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, RegisterExchangeResponseWrapper);
         this.trace('free_register_exchange_response');
@@ -2750,37 +2717,38 @@ class Client {
         let queuename = result.queuename;
         if (queuename != null && queuename != "") {
             const id = this.uniqeid();
-            this.queues[id] = { interval: 
-                setInterval(() => {
-                    if (this.connected == false) {
-                        clearInterval(this.queues[id].interval);
-                        delete this.queues[id];
-                        return;
-                    }
-                    let hadone = false;
-                    do {
-                        hadone = false;
-                        this.trace('call next queue event');
-                        const responsePtr = this.lib.next_queue_event(queuename);
-                        this.trace('decode response');
-                        const result = koffi.decode(responsePtr, QueueEventWrapper);
-                        if (result.queuename != null && result.queuename != "") {
-                            hadone = true;
-                            let event = {
-                                queuename: result.queuename,
-                                correlation_id: result.correlation_id,
-                                replyto: result.replyto,
-                                routingkey: result.routingkey,
-                                exchangename: result.exchangename,
-                                data: result.data,
-                            }
-                            this.trace('call next had result', event);
-                            callback(event);
+            this.queues[id] = {
+                interval:
+                    setInterval(() => {
+                        if (this.connected == false) {
+                            clearInterval(this.queues[id].interval);
+                            delete this.queues[id];
+                            return;
                         }
-                        this.trace('free_queue_event');
-                        this.lib.free_queue_event(responsePtr);
-                    } while (hadone);
-                }, this.next_queue_interval),
+                        let hadone = false;
+                        do {
+                            hadone = false;
+                            this.trace('call next queue event');
+                            const responsePtr = this.lib.next_queue_event(queuename);
+                            this.trace('decode response');
+                            const result = koffi.decode(responsePtr, QueueEventWrapper);
+                            if (result.queuename != null && result.queuename != "") {
+                                hadone = true;
+                                let event = {
+                                    queuename: result.queuename,
+                                    correlation_id: result.correlation_id,
+                                    replyto: result.replyto,
+                                    routingkey: result.routingkey,
+                                    exchangename: result.exchangename,
+                                    data: result.data,
+                                }
+                                this.trace('call next had result', event);
+                                callback(event);
+                            }
+                            this.trace('free_queue_event');
+                            this.lib.free_queue_event(responsePtr);
+                        } while (hadone);
+                    }, this.next_queue_interval),
                 queuename
             };
         }
@@ -2797,7 +2765,7 @@ class Client {
             throw new ClientError(errorMsg);
         }
         let keys = Object.keys(this.queues);
-        for(let i = 0; i < keys.length; i++) {
+        for (let i = 0; i < keys.length; i++) {
             if (this.queues[keys[i]].queuename == queuename) {
                 clearInterval(this.queues[keys[i]].interval);
                 delete this.queues[keys[i]];
@@ -2807,7 +2775,7 @@ class Client {
     queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey, striptoken, expiration }) {
         this.verbose('queue message invoked');
         if (queuename == null || queuename == "") {
-            if(exchangename == null || exchangename == "") {
+            if (exchangename == null || exchangename == "") {
                 throw new ClientError('queuename or exchangename is required');
             }
         }
@@ -2828,9 +2796,8 @@ class Client {
             striptoken: striptoken,
             expiration: expiration
         };
-        const reqptr = encodeStruct(req, QueueMessageRequestWrapper);
         this.trace('call queue_message');
-        const response = this.lib.queue_message(this.client, reqptr);
+        const response = this.lib.queue_message(this.client, req);
         this.verbose('decode response');
         const result = koffi.decode(response, QueueMessageResponseWrapper);
         this.trace('free_queue_message_response');
