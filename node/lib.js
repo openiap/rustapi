@@ -257,7 +257,7 @@ const InsertManyRequestWrapper = koffi.struct('InsertManyRequestWrapper', {
 const InsertManyRequestWrapperPtr = koffi.pointer(InsertManyRequestWrapper);
 const InsertManyResponseWrapper = koffi.struct('InsertManyResponseWrapper', {
     success: bool,
-    result: CString,
+    results: CString,
     error: CString
 });
 const InsertManyResponseWrapperPtr = koffi.pointer(InsertManyResponseWrapper);
@@ -1528,7 +1528,7 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
-        return JSON.parse(result.result);
+        return JSON.parse(result.results);
     }
     insert_many_async({ collectionname, items, w = 1, j = false, skipresults = false }) {
         this.verbose('insert_many invoked');
@@ -1549,7 +1549,7 @@ class Client {
                     const errorMsg = response.error;
                     reject(new ClientError(errorMsg));
                 } else {
-                    resolve(JSON.parse(response.result));
+                    resolve(JSON.parse(response.results));
                 }
                 this.verbose('free_insert_many_response');
                 this.lib.free_insert_many_response(responsePtr);

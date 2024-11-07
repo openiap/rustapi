@@ -161,7 +161,7 @@ class InsertManyRequestWrapper(Structure):
                 ("skipresults", c_bool)]
 class InsertManyResponseWrapper(Structure):
     _fields_ = [("success", c_bool),
-                ("result", c_char_p),
+                ("results", c_char_p),
                 ("error", c_char_p)]
 InsertManyCallback = CFUNCTYPE(None, POINTER(InsertManyResponseWrapper))
 
@@ -1185,7 +1185,7 @@ class Client:
                     result["error"] = ClientError(f"InsertMany failed: {error_message}")
                 else:
                     result["success"] = response.success
-                    result["result"] = ctypes.cast(response.result, c_char_p).value.decode('utf-8')
+                    result["results"] = ctypes.cast(response.results, c_char_p).value.decode('utf-8')
                 self.lib.free_insert_many_response(response_ptr)
             finally:
                 event.set()
@@ -1207,7 +1207,7 @@ class Client:
         if result["error"]:
             raise result["error"]
         
-        return result["result"]
+        return result["results"]
     
     def update_one(self, collectionname = "", item = "", w = 0, j = False):
         self.trace("Inside update_one")
