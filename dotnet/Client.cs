@@ -26,8 +26,7 @@ public partial class Client : IDisposable
     private readonly DistinctCallback _DistinctCallbackDelegate;
     private readonly CountCallback _CountCallbackDelegate;
     private readonly AggregateCallback _AggregateCallbackDelegate;
-
-
+    private readonly QueryCallback _QueryCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1041,7 +1040,7 @@ public partial class Client : IDisposable
         _DistinctCallbackDelegate = _DistinctCallback;
         _CountCallbackDelegate = _CountCallback;
         _AggregateCallbackDelegate = _AggregateCallback;
-
+        _QueryCallbackDelegate = _QueryCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1535,6 +1534,45 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
+    private void _QueryCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, results);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_query_response(responsePtr);
+        }
+    }
     public Task<T> Query<T>(string collectionname, string query, string projection = "", string orderby = "", string queryas = "", bool explain = false, int skip = 0, int top = 100)
     {
         var tcs = new TaskCompletionSource<string>();
@@ -1548,6 +1586,7 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             QueryRequestWrapper request = new QueryRequestWrapper
             {
@@ -1558,42 +1597,12 @@ public partial class Client : IDisposable
                 queryas = queryasPtr,
                 explain = explain,
                 skip = skip,
-                top = top
+                top = top,
+                request_id = requestId
             };
 
-            // Define the callback logic that is unique to this function
-            QueryCallback callback = new QueryCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<QueryResponseWrapper>(responsePtr);
-                    free_query_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                        tcs.SetResult(results);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            query_async(clientPtr, ref request, callback);
+            query_async(clientPtr, ref request, _QueryCallbackDelegate);
         }
         finally
         {
