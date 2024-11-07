@@ -23,6 +23,7 @@ public partial class Client : IDisposable
     private readonly UpdateOneCallback _UpdateOneCallbackDelegate;
     private readonly InsertManyCallback _InsertManyCallbackDelegate;
     private readonly InsertOneCallback _InsertOneCallbackDelegate;
+    private readonly DistinctCallback _DistinctCallbackDelegate;
 
 
     public IntPtr clientPtr;
@@ -1034,6 +1035,8 @@ public partial class Client : IDisposable
         _UpdateOneCallbackDelegate = _UpdateOneCallback;
         _InsertManyCallbackDelegate = _InsertManyCallback;
         _InsertOneCallbackDelegate = _InsertOneCallback;
+        _DistinctCallbackDelegate = _DistinctCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1761,6 +1764,55 @@ public partial class Client : IDisposable
         }
         return tcs.Task;
     }
+    private void _DistinctCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<DistinctResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                bool success = response.success;
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    int resultsCount = (int)response.results_len;
+                    string[] results = new string[resultsCount];
+                    IntPtr[] resultPtrs = new IntPtr[resultsCount];
+                    Marshal.Copy(response.results, resultPtrs, 0, resultsCount);
+
+                    for (int i = 0; i < resultsCount; i++)
+                    {
+                        results[i] = Marshal.PtrToStringAnsi(resultPtrs[i]) ?? string.Empty;
+                    }
+                    CallbackRegistry.TrySetResult(requestId, results);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_distinct_response(responsePtr);
+        }
+    }
     public Task<string[]> Distinct(string collectionname, string field, string query = "", string queryas = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<string[]>();
@@ -1772,62 +1824,18 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             DistinctRequestWrapper request = new DistinctRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 field = fieldPtr,
                 query = queryPtr,
                 queryas = queryasPtr,
-                explain = explain
+                explain = explain,
+                request_id = requestId
             };
 
-            void Callback(IntPtr responsePtr)
-            {
-                try
-                {
-
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<DistinctResponseWrapper>(responsePtr);
-                    bool success = response.success;
-
-                    if (!success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        int resultsCount = (int)response.results_len;
-                        string[] results = new string[resultsCount];
-                        IntPtr[] resultPtrs = new IntPtr[resultsCount];
-                        Marshal.Copy(response.results, resultPtrs, 0, resultsCount);
-
-                        for (int i = 0; i < resultsCount; i++)
-                        {
-                            results[i] = Marshal.PtrToStringAnsi(resultPtrs[i]) ?? string.Empty;
-                        }
-
-                        tcs.SetResult(results);
-                    }
-
-                    free_distinct_response(responsePtr);
-
-
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            }
-
-            var callbackDelegate = new DistinctCallback(Callback);
-
-            distinct_async(clientPtr, ref request, callbackDelegate);
+            distinct_async(clientPtr, ref request, _DistinctCallbackDelegate);
         }
         finally
         {
