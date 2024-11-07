@@ -28,6 +28,7 @@ public partial class Client : IDisposable
     private readonly AggregateCallback _AggregateCallbackDelegate;
     private readonly QueryCallback _QueryCallbackDelegate;
     private readonly DropIndexCallback _DropIndexCallbackDelegate;
+    private readonly CreateIndexCallback _CreateIndexCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1043,6 +1044,8 @@ public partial class Client : IDisposable
         _AggregateCallbackDelegate = _AggregateCallback;
         _QueryCallbackDelegate = _QueryCallback;
         _DropIndexCallbackDelegate = _DropIndexCallback;
+        _CreateIndexCallbackDelegate = _CreateIndexCallback;
+
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1369,6 +1372,44 @@ public partial class Client : IDisposable
             }
         );
     }
+    private void _CreateIndexCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<CreateIndexResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    CallbackRegistry.TrySetResult(requestId, "");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_create_index_response(responsePtr);
+        }
+    }
     public Task CreateIndex(string collectionname, string index, string options = "", string name = "")
     {
         var tcs = new TaskCompletionSource();
@@ -1381,47 +1422,18 @@ public partial class Client : IDisposable
 
         try
         {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Create the request wrapper
             CreateIndexRequestWrapper request = new CreateIndexRequestWrapper
             {
                 collectionname = collectionnamePtr,
                 index = indexPtr,
                 options = optionsPtr,
-                name = namePtr
+                name = namePtr,
+                request_id = requestId
             };
-
-            // Define the callback logic that is unique to this function
-            CreateIndexCallback callback = new CreateIndexCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<CreateIndexResponseWrapper>(responsePtr);
-                    free_create_index_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
             // Invoke the native async function
-            create_index_async(clientPtr, ref request, callback);
+            create_index_async(clientPtr, ref request, _CreateIndexCallbackDelegate);
         }
         finally
         {
@@ -1459,7 +1471,6 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
                     CallbackRegistry.TrySetResult(requestId, "");
                 }
             }
