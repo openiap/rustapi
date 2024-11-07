@@ -110,7 +110,9 @@ class Program
                     GC.Collect();
                     break;
                 case "t":
-                    await test.Test(client);
+                    Task.Run(async () => {
+                        await test.Test(client);
+                    });
                     break;
                 case "st":
                     if(!token.IsCancellationRequested) {
@@ -164,10 +166,27 @@ class Program
                     }
                     break;
 
-                case "q":
+                case "q2":
                     try {
-                        // string results = await client.Query<string>("entities", "{}", "{\"name\": 1}");
-                        // Console.WriteLine("Query results: " + results);
+                        var t = Task.Run(async () => {
+                            var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
+                            Console.WriteLine("Query returned " + results.Count + " results.");
+                            for (int i = 0; i < results.Count; i++)
+                            {
+                                Console.WriteLine(results[i]._id, " ", results[i].name);
+                                if (i > 10) {
+                                    break;
+                                }
+                            }
+                        });
+                    }
+                    catch (System.Exception e)
+                    {
+                        Console.WriteLine("Error querying: " + e.Message);
+                    }
+                    break;
+                case "qq":
+                    try {
                         var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
                         Console.WriteLine("Query returned " + results.Count + " results.");
                         for (int i = 0; i < results.Count; i++)
@@ -177,6 +196,29 @@ class Program
                                 break;
                             }
                         }
+
+                    }
+                    catch (System.Exception e)
+                    {
+                        Console.WriteLine("Error querying: " + e.Message);
+                    }
+                    break;
+                case "q":
+
+                    try {
+                        var results = Task.Run(async () => {
+                            var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
+                            return results;
+                        }).Result;
+                        Console.WriteLine("Query returned " + results.Count + " results.");
+                        for (int i = 0; i < results.Count; i++)
+                        {
+                            Console.WriteLine(results[i]._id, " ", results[i].name);
+                            if (i > 10) {
+                                break;
+                            }
+                        }
+
                     }
                     catch (System.Exception e)
                     {

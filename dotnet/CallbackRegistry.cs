@@ -31,6 +31,22 @@ public class CallbackRegistry
         tcs = null;
         return false;
     }
+    public bool TryGetCallback(int id, out TaskCompletionSource? tcs)
+    {
+        if (_callbackRegistry.TryGetValue(id, out var obj))
+        {
+            if(obj is TaskCompletionSource typedTcs) {
+                tcs = typedTcs;
+                return true;
+            } else {
+                Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(TaskCompletionSource));
+            }
+        } else {
+            Console.WriteLine("Failed to get callback for id: " + id);
+        }
+        tcs = null;
+        return false;
+    }
 
     public bool TryRemoveCallback<T>(int id, out TaskCompletionSource<T>? tcs)
     {
@@ -52,10 +68,28 @@ public class CallbackRegistry
         }
         return false;
     }
+    public bool TrySetResult(int id)
+    {
+        if (_callbackRegistry.TryRemove(id, out var obj) && obj is TaskCompletionSource tcs)
+        {
+            tcs.SetResult();
+            return true;
+        }
+        return false;
+    }
 
     public bool TrySetException<T>(int id, Exception ex)
     {
         if (_callbackRegistry.TryRemove(id, out var obj) && obj is TaskCompletionSource<T> tcs)
+        {
+            tcs.SetException(ex);
+            return true;
+        }
+        return false;
+    }
+    public bool TrySetException(int id, Exception ex)
+    {
+        if (_callbackRegistry.TryRemove(id, out var obj) && obj is TaskCompletionSource tcs)
         {
             tcs.SetException(ex);
             return true;

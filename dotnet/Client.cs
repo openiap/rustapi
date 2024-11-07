@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 public partial class Client : IDisposable
 {
-    // private ConcurrentDictionary<int, TaskCompletionSource<Workitem?>> _PopWorkitemCallbackRegistry = new ConcurrentDictionary<int, TaskCompletionSource<Workitem?>>(); 
     private CallbackRegistry CallbackRegistry = new CallbackRegistry();
     private int CallbackRegistryNextRequestId = 0;
     private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
@@ -1119,16 +1118,16 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 if (!clientWrapper.success)
                 {
                     string error = Marshal.PtrToStringAnsi(clientWrapper.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
-                    CallbackRegistry.TrySetResult(requestId, clientWrapper);
+                    CallbackRegistry.TrySetResult(requestId);
                 }
             }
         }
@@ -1143,7 +1142,7 @@ public partial class Client : IDisposable
     }
     public Task connect(string url = "")
     {
-        var tcs = new TaskCompletionSource<ConnectResponseWrapper>();
+        var tcs = new TaskCompletionSource();
         int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
         CallbackRegistry.TryAddCallback(requestId, tcs);
         connect_async(clientPtr, url, requestId, _ConnectCallbackDelegate);
@@ -1186,12 +1185,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1250,12 +1249,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1342,12 +1341,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1392,13 +1391,13 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
 
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1464,12 +1463,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1539,12 +1538,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1587,7 +1586,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<(string jwt, string error, bool success)>(requestId, out var tcs))
             {
                 string jwt = Marshal.PtrToStringAnsi(response.jwt) ?? string.Empty;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -1595,7 +1594,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<(string jwt, string error, bool success)>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1671,12 +1670,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string?>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1772,13 +1771,13 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
 
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1866,7 +1865,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
                 int resCount = (int)response.count;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -1874,7 +1873,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<int>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -1938,14 +1937,14 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string[]>(requestId, out var tcs))
             {
                 bool success = response.success;
 
                 if (!success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string[]>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2020,12 +2019,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2108,12 +2107,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2197,12 +2196,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2286,12 +2285,12 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 if (!response.success)
                 {
                     string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2378,7 +2377,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
                 int affectedrows = (int)response.affectedrows;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -2386,7 +2385,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<int>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2451,7 +2450,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
                 int affectedrows = (int)response.affectedrows;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -2459,7 +2458,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<int>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2535,7 +2534,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 string filename = Marshal.PtrToStringAnsi(response.filename) ?? string.Empty;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -2543,7 +2542,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2608,7 +2607,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 string id = Marshal.PtrToStringAnsi(response.id) ?? string.Empty;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -2616,7 +2615,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -2741,7 +2740,7 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 string watchid = Marshal.PtrToStringAnsi(response.watchid) ?? string.Empty;
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
@@ -2749,7 +2748,7 @@ public partial class Client : IDisposable
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -3576,14 +3575,14 @@ public partial class Client : IDisposable
             {
                 Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
 
                 if (!success)
                 {
-                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                    CallbackRegistry.TrySetException(requestId, new ClientError(error));
                 }
                 else
                 {
@@ -3603,7 +3602,7 @@ public partial class Client : IDisposable
     }
     public async Task DeleteWorkitem(string id)
     {
-        var tcs = new TaskCompletionSource<string>();
+        var tcs = new TaskCompletionSource();
         try
         {
             int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
