@@ -16,6 +16,17 @@ public class test
             }
             // files = new string[] {};
 
+
+            var collections = await client.ListCollections<List<Collection>>();
+            Console.WriteLine("ListCollections returned " + collections.Count + " results.");
+            for (int i = 0; i < collections.Count; i++)
+            {
+                Console.WriteLine(collections[i].name);
+                if (i > 10) {
+                    break;
+                }
+            }
+
             var workitem = new Workitem { name = "test from dotnet 1", payload = "{\"name\": \"test from dotnet 1\"}" };
             var push_workitem_result = await client.PushWorkitem("rustqueue", workitem, files);
             Console.WriteLine("PushWorkitem: ", push_workitem_result);
@@ -70,16 +81,20 @@ public class test
             Console.WriteLine("delete one result: " + delete_one_result);
 
             var insert_or_update_one_result2 = await client.InsertOne<string>("entities", "{\"name\": \"test insert or update from dotnet\", \"_type\": \"test\"}");
-            Console.WriteLine("insert one result: " + insert_or_update_one_result2);
+            Console.WriteLine("insert one for update result: " + insert_or_update_one_result2);
             dynamic? item2 = JsonSerializer.Deserialize<ExpandoObject>(insert_or_update_one_result2, new JsonSerializerOptions { IncludeFields = true });
             if(item2 == null) throw new Exception("Failed to deserialize insert_one_result");
             item2.name = "test insert or update from dotnet updated";
             insert_or_update_one_result2 = System.Text.Json.JsonSerializer.Serialize(item2);
             insert_or_update_one_result2 = await client.InsertOrUpdateOne<string>("entities", insert_or_update_one_result2);
+            insert_or_update_one_result2 = await client.InsertOrUpdateOne<string>("entities", insert_or_update_one_result2);
 
             System.Text.Json.JsonElement itemid2 = item2._id;
             var _id2 = itemid2.GetString();
             if(string.IsNullOrEmpty(_id2)) throw new Exception("Failed to get _id from insert_one_result");
+
+            // insert_or_update_one_result2 = await client.InsertOrUpdateOne<string>("entities", insert_or_update_one_result2);
+            // var update_one_result2 = await client.UpdateOne<string>("entities", insert_one_result);
 
             var delete_many_by_ids_result = await client.DeleteMany("entities", ids: new string[] { _id2 });
             Console.WriteLine("delete many by ids result: " + delete_many_by_ids_result);

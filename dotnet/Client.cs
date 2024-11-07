@@ -374,6 +374,7 @@ public partial class Client : IDisposable
         public IntPtr collectionname;
         public IntPtr item;
         public int w;
+        [MarshalAs(UnmanagedType.I1)]
         public bool j;
         public int request_id;
     }
@@ -394,7 +395,9 @@ public partial class Client : IDisposable
         public IntPtr collectionname;
         public IntPtr items;
         public int w;
+        [MarshalAs(UnmanagedType.I1)]
         public bool j;
+        [MarshalAs(UnmanagedType.I1)]
         public bool skipresults;
         public int request_id;
     }
@@ -403,7 +406,7 @@ public partial class Client : IDisposable
     {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
-        public IntPtr result;
+        public IntPtr results;
         public IntPtr error;
         public int request_id;
     }
@@ -415,6 +418,7 @@ public partial class Client : IDisposable
         public IntPtr collectionname;
         public IntPtr item;
         public int w;
+        [MarshalAs(UnmanagedType.I1)]
         public bool j;
         public int request_id;
     }
@@ -436,6 +440,7 @@ public partial class Client : IDisposable
         public IntPtr uniqeness;
         public IntPtr item;
         public int w;
+        [MarshalAs(UnmanagedType.I1)]
         public bool j;
         public int request_id;
     }
@@ -455,6 +460,7 @@ public partial class Client : IDisposable
     {
         public IntPtr collectionname;
         public IntPtr id;
+        [MarshalAs(UnmanagedType.I1)]
         public bool recursive;
         public int request_id;
     }
@@ -474,6 +480,7 @@ public partial class Client : IDisposable
     {
         public IntPtr collectionname;
         public IntPtr query;
+        [MarshalAs(UnmanagedType.I1)]
         public bool recursive;
         public IntPtr ids;
         public int request_id;
@@ -642,6 +649,7 @@ public partial class Client : IDisposable
     {
         public IntPtr filename;
         public IntPtr id;
+        [MarshalAs(UnmanagedType.I1)]
         public bool compressed;
         // public IntPtr file;
     }
@@ -719,6 +727,7 @@ public partial class Client : IDisposable
     public struct UpdateWorkitemRequestWrapper
     {
         public IntPtr workitem;
+        [MarshalAs(UnmanagedType.I1)]
         public bool ignoremaxretries;
         public IntPtr files;
         public int files_len;
@@ -1116,7 +1125,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
@@ -1183,7 +1192,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -1247,7 +1256,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
@@ -1339,7 +1348,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
@@ -1389,7 +1398,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -1461,7 +1470,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
@@ -1536,7 +1545,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
             {
@@ -1584,7 +1593,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<(string jwt, string error, bool success)>(requestId, out var tcs))
             {
@@ -1668,7 +1677,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -1769,7 +1778,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -1863,7 +1872,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
@@ -1935,7 +1944,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string[]>(requestId, out var tcs))
             {
@@ -2017,7 +2026,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2096,6 +2105,7 @@ public partial class Client : IDisposable
         try
         {
             var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
+            
             int requestId = response.request_id;
             var count = CallbackRegistry.Count;
             if (count == 0)
@@ -2105,7 +2115,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2116,7 +2126,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                    string result = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
                     CallbackRegistry.TrySetResult(requestId, result);
                 }
             }
@@ -2194,7 +2204,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2283,7 +2293,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2375,7 +2385,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
@@ -2448,7 +2458,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
             {
@@ -2532,7 +2542,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2605,7 +2615,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -2738,7 +2748,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
@@ -3081,7 +3091,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
             {
@@ -3257,7 +3267,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
             {
@@ -3381,7 +3391,7 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
             if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
             {
@@ -3573,9 +3583,9 @@ public partial class Client : IDisposable
             }
             else if (count > 1)
             {
-                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
             }
-            if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
+            if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
             {
                 string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
                 bool success = response.success;
@@ -3602,7 +3612,7 @@ public partial class Client : IDisposable
     }
     public async Task DeleteWorkitem(string id)
     {
-        var tcs = new TaskCompletionSource();
+        var tcs = new TaskCompletionSource<string>();
         try
         {
             int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);

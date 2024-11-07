@@ -110,7 +110,7 @@ class Program
                     GC.Collect();
                     break;
                 case "t":
-                    Task.Run(async () => {
+                    var res = Task.Run(async () => {
                         await test.Test(client);
                     });
                     break;
