@@ -29,6 +29,7 @@ public partial class Client : IDisposable
     private readonly QueryCallback _QueryCallbackDelegate;
     private readonly DropIndexCallback _DropIndexCallbackDelegate;
     private readonly CreateIndexCallback _CreateIndexCallbackDelegate;
+    private readonly GetIndexesCallback _GetIndexesCallbackDelegate;
 
     public IntPtr clientPtr;
     ClientWrapper client;
@@ -1045,6 +1046,7 @@ public partial class Client : IDisposable
         _QueryCallbackDelegate = _QueryCallback;
         _DropIndexCallbackDelegate = _DropIndexCallback;
         _CreateIndexCallbackDelegate = _CreateIndexCallback;
+        _GetIndexesCallbackDelegate = _GetIndexesCallback;
 
     }
     public void enabletracing(string rust_log = "", string tracing = "")
@@ -1311,45 +1313,55 @@ public partial class Client : IDisposable
 
         return tcs.Task;
     }
+    private void _GetIndexesCallback(IntPtr responsePtr)
+    {
+        try
+        {
+            var response = Marshal.PtrToStructure<GetIndexesResponseWrapper>(responsePtr);
+            int requestId = response.request_id;
+            var count = CallbackRegistry.Count;
+            if (count == 0)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                return;
+            }
+            else if (count > 1)
+            {
+                Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+            }
+            if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
+            {
+
+                if (!response.success)
+                {
+                    string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                    CallbackRegistry.TrySetException<Workitem?>(requestId, new ClientError(error));
+                }
+                else
+                {
+                    string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
+                    CallbackRegistry.TrySetResult(requestId, results);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            free_get_indexes_response(responsePtr);
+        }
+    }
     public Task<T> GetIndexes<T>(string collectionname)
     {
         var tcs = new TaskCompletionSource<string>();
 
         try
         {
-            // Define the callback logic that is unique to this function
-            GetIndexesCallback callback = new GetIndexesCallback((IntPtr responsePtr) =>
-            {
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<GetIndexesResponseWrapper>(responsePtr);
-                    free_get_indexes_response(responsePtr);
-
-                    if (!response.success)
-                    {
-                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        string results = Marshal.PtrToStringAnsi(response.results) ?? string.Empty;
-                        tcs.SetResult(results);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
             // Invoke the native async function
-            get_indexes_async(clientPtr, collectionname, 0, callback);
+            get_indexes_async(clientPtr, collectionname, requestId, _GetIndexesCallbackDelegate);
         }
         finally
         {
