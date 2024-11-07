@@ -5632,9 +5632,6 @@ pub extern "C" fn push_workitem_async(
             return callback(Box::into_raw(Box::new(response)));
         }
     };
-    println!("******************************");
-    println!("request_id: {:?}", options);
-    println!("******************************");
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
         None => {
