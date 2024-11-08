@@ -304,7 +304,7 @@ impl Client {
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
-            agent_version: Arc::new(std::sync::Mutex::new("0.0.13".to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new("0.0.14".to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -403,7 +403,7 @@ impl Client {
         if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, "0.0.13", strurl, _otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, "0.0.14", strurl, _otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -1122,43 +1122,28 @@ impl Client {
     /// Return value of the runtime handle
     #[tracing::instrument(skip_all)]
     pub fn get_runtime_handle(&self) -> tokio::runtime::Handle {
-        {
-            let rt = self.runtime.lock().unwrap();
-            match rt.as_ref() {
-                Some(_rt) => (),
-                None => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    self.set_runtime(Some(rt));
-                }
-            };
+        let mut rt = self.runtime.lock().unwrap();
+        if rt.is_none() {
+            // println!("Rust: Initializing new Tokio runtime");
+            let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+            *rt = Some(runtime);
+        } else {
+            // println!("Rust: Runtime already initialized");
         }
-        let runtime = self.runtime.lock().unwrap();
-        runtime.as_ref().unwrap().handle().clone()
+        rt.as_ref().unwrap().handle().clone()
     }
-
-
-//     mismatched types
-//     expected enum `std::option::Option<Arc<tokio::runtime::Runtime>>`
-//   found reference `&std::sync::Mutex<std::option::Option<tokio::runtime::Runtime>>`
-
     /// Method to allow the user to subscribe with a callback function
     #[tracing::instrument(skip_all)]
     pub async fn on_event(&self, callback: Box<dyn Fn(ClientEvent) + Send + Sync>)
     {
-        // F: Fn(ClientEvent) + Send + Sync + 'static,
-        // callback: Box<dyn Fn(WatchEvent) + Send + Sync>,
-
-
         // call the callback function every time there is an event in the client.event_receiver
         let event_receiver = self.event_receiver.clone();
         let callback = callback;
         let _handle =  tokio::task::spawn(async move {
-        // let _handle =  tokio::task::Builder::new().name("Notify event").spawn(async move {
             while let Ok(event) = event_receiver.recv().await {
                 callback(event);
             }
         }); // .unwrap();
-        // self.push_handle(_handle);
     }
     /// Internal function, used to generate a unique id for each message sent to the server.
     #[tracing::instrument(skip_all)]
@@ -1173,17 +1158,6 @@ impl Client {
     /// Internal function, Send a message to the OpenIAP server, and wait for a response.
     #[tracing::instrument(skip_all)]
     async fn send(&self, msg: Envelope) -> Result<Envelope, OpenIAPError> {
-        // let response = self.send_noawait(msg).await;
-        // match response {
-        //     Ok((response_rx, _)) => {
-        //         let response = response_rx.await;
-        //         match response {
-        //             Ok(response) => Ok(response),
-        //             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
-        //         }
-        //     }
-        //     Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
-        // }
         let response = self.send_noawait(msg).await;
         match response {
             Ok((response_rx, id)) => {
@@ -1210,23 +1184,6 @@ impl Client {
         &self,
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, String), OpenIAPError> {
-        // let (response_tx, response_rx) = oneshot::channel();
-        // let id = Client::get_uniqueid();
-        // msg.id = id.clone();
-        // {
-        //     trace!("get inner lock");
-        //     let inner = self.inner.lock().await;
-        //     {
-        //         trace!("get query lock");
-        //         inner.queries.lock().await.insert(id.clone(), response_tx);
-        //     }
-        //     let res = self.send_envelope(msg).await;
-        //     match res {
-        //         Ok(_) => (),
-        //         Err(e) => return Err(OpenIAPError::ClientError(e.to_string())),
-        //     }
-        // }
-        // Ok((response_rx, id))
         let (response_tx, response_rx) = oneshot::channel();
         let id = Client::get_uniqueid();
         msg.id = id.clone();
@@ -1254,11 +1211,6 @@ impl Client {
         &self,
         mut msg: Envelope,
     ) -> Result<(oneshot::Receiver<Envelope>, mpsc::Receiver<Vec<u8>>), OpenIAPError> {
-        {
-            // if !self.is_connected() {
-            //     return Err(OpenIAPError::ClientError("sendwithstream::Not connected".to_string()));
-            // }
-        }
         let (response_tx, response_rx) = oneshot::channel();
         let (stream_tx, stream_rx) = mpsc::channel(1024 * 1024);
         let id = Client::get_uniqueid();
@@ -1329,9 +1281,6 @@ impl Client {
             "deletemany" => { self.stats.lock().unwrap().deletemany += 1;},
             _ => {}
         };
-
-        
-
         if envelope.id.is_empty() {
             let id = Client::get_uniqueid();
             envelope.id = id.clone();
@@ -1383,9 +1332,6 @@ impl Client {
             let streamresponse: Stream =
                 prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
             let streamdata = streamresponse.data;
-
-            // self.event_sender.send(crate::ClientEvent::Stream(streamdata.clone())).await.unwrap();
-    
             if !streamdata.is_empty() {
                 let stream = streams.get(rid.as_str()).unwrap();
     
@@ -1394,7 +1340,6 @@ impl Client {
                     Err(e) => error!("Failed to send data: {}", e),
                 }
             }
-    
             if command == "endstream" {
                 let _ = streams.remove(rid.as_str());
             }

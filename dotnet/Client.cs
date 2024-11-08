@@ -9,6 +9,7 @@ using System.Text.Json;
 public partial class Client : IDisposable
 {
     private CallbackRegistry CallbackRegistry = new CallbackRegistry();
+    private ActionRegistry DelegateRegistry = new ActionRegistry();
     private int CallbackRegistryNextRequestId = 0;
     private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
     private readonly UpdateWorkitemCallback _UpdateWorkitemCallbackDelegate;
@@ -34,15 +35,16 @@ public partial class Client : IDisposable
     private readonly ListCollectionsCallback _ListCollectionsCallbackDelegate;
     private readonly ConnectCallback _ConnectCallbackDelegate;
     private readonly WatchCallback _WatchCallbackDelegate;
+    private readonly WatchEventCallback _WatchEventCallbackDelegate;
     private readonly DropCollectionCallback _DropCollectionCallbackDelegate;
 
-
+    private readonly QueueEventCallback _QueueEventCallbackDelegate;
+    private readonly ExchangeEventCallback _ExchangeEventCallbackDelegate;
     public IntPtr clientPtr;
     ClientWrapper client;
     bool tracing { get; set; } = false;
     bool informing { get; set; } = false;
     bool verbosing { get; set; } = false;
-
     #region Structs
     [StructLayout(LayoutKind.Sequential)]
     public struct ClientWrapper
@@ -269,7 +271,6 @@ public partial class Client : IDisposable
     {
         [MarshalAs(UnmanagedType.I1)]
         public bool success;
-        public IntPtr results;
         public IntPtr error;
         public int request_id;
     }
@@ -559,6 +560,7 @@ public partial class Client : IDisposable
         public IntPtr id;
         public IntPtr operation;
         public IntPtr document;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct UnWatchResponseWrapper
@@ -578,12 +580,16 @@ public partial class Client : IDisposable
         public IntPtr routingkey;
         public IntPtr exchangename;
         public IntPtr data;
+        public int request_id;
     }
     public delegate void QueueEventCallback(IntPtr eventStr);
+    public delegate void ExchangeEventCallback(IntPtr eventStr);
+   
     [StructLayout(LayoutKind.Sequential)]
     public struct RegisterQueueRequestWrapper
     {
         public IntPtr queuename;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct RegisterQueueResponseWrapper
@@ -592,6 +598,7 @@ public partial class Client : IDisposable
         public bool success;
         public IntPtr queuename;
         public IntPtr error;
+        public int request_id;
     }
     public delegate void RegisterQueueCallback(IntPtr responsePtr);
 
@@ -603,6 +610,7 @@ public partial class Client : IDisposable
         public IntPtr routingkey;
         [MarshalAs(UnmanagedType.I1)]
         public bool addqueue;
+        public int request_id;
     }
     [StructLayout(LayoutKind.Sequential)]
     public struct RegisterExchangeResponseWrapper
@@ -761,7 +769,6 @@ public partial class Client : IDisposable
     public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
     #endregion
 
-
     #region dll imports
     private static string GetLibraryPath()
     {
@@ -859,6 +866,8 @@ public partial class Client : IDisposable
     public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void connect_async(IntPtr client, string url, int request_id, ConnectCallback callback);
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr client_connect(IntPtr client, string url);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_client(IntPtr client);
@@ -991,7 +1000,10 @@ public partial class Client : IDisposable
     public static extern void free_register_queue_response(IntPtr response);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr register_exchange_async(IntPtr client, ref RegisterExchangeRequestWrapper request, QueueEventCallback callback);
+    public static extern void free_queue_event(IntPtr response);
+
+    [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr register_exchange_async(IntPtr client, ref RegisterExchangeRequestWrapper request, ExchangeEventCallback callback);
 
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_register_exchange_response(IntPtr response);
@@ -1070,8 +1082,10 @@ public partial class Client : IDisposable
         _ListCollectionsCallbackDelegate = _ListCollectionsCallback;
         _ConnectCallbackDelegate = _ConnectCallback;
         _WatchCallbackDelegate = _WatchCallback;
+        _WatchEventCallbackDelegate = _WatchEventCallback;
         _DropCollectionCallbackDelegate = _DropCollectionCallback;
-
+        _QueueEventCallbackDelegate = _QueueEventCallback;
+        _ExchangeEventCallbackDelegate = _ExchangeEventCallback;
     }
     public void enabletracing(string rust_log = "", string tracing = "")
     {
@@ -1151,12 +1165,19 @@ public partial class Client : IDisposable
     }
     public Task connect(string url = "")
     {
-        var tcs = new TaskCompletionSource();
-        int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
-        CallbackRegistry.TryAddCallback(requestId, tcs);
-        connect_async(clientPtr, url, requestId, _ConnectCallbackDelegate);
-
-        return tcs.Task;
+        // var tcs = new TaskCompletionSource();
+        // int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+        // CallbackRegistry.TryAddCallback(requestId, tcs);
+        // connect_async(clientPtr, url, requestId, _ConnectCallbackDelegate);
+        // return tcs.Task;
+        var reqptr = client_connect(clientPtr, url);
+        var response = Marshal.PtrToStructure<ConnectResponseWrapper>(reqptr);
+        if (!response.success)
+        {
+            string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+            throw new ClientError(error);
+        }
+        return Task.CompletedTask;
     }
     public void disconnect()
     {
@@ -1267,7 +1288,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    CallbackRegistry.TrySetResult(requestId, "");
+                    CallbackRegistry.TrySetResult(requestId);
                 }
             }
         }
@@ -1359,7 +1380,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    CallbackRegistry.TrySetResult(requestId, "");
+                    CallbackRegistry.TrySetResult(requestId);
                 }
 
             }
@@ -1481,7 +1502,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    CallbackRegistry.TrySetResult(requestId, "");
+                    CallbackRegistry.TrySetResult(requestId);
                 }
             }
         }
@@ -1556,7 +1577,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
-                    CallbackRegistry.TrySetResult(requestId, "");
+                    CallbackRegistry.TrySetResult(requestId);
                 }
             }
         }
@@ -1578,7 +1599,6 @@ public partial class Client : IDisposable
 
         return tcs.Task;
     }
-
     private void _SigninCallback(IntPtr responsePtr)
     {
         try
@@ -1620,7 +1640,6 @@ public partial class Client : IDisposable
             free_signin_response(responsePtr);
         }
     }
-
     public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
     {
         var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
@@ -1857,7 +1876,6 @@ public partial class Client : IDisposable
             }
         );
     }
-
     private void _CountCallback(IntPtr responsePtr)
     {
         try
@@ -1899,7 +1917,6 @@ public partial class Client : IDisposable
             free_count_response(responsePtr);
         }
     }
-
     public Task<int> Count(string collectionname, string query = "", string queryas = "", bool explain = false)
     {
         var tcs = new TaskCompletionSource<int>();
@@ -2490,17 +2507,23 @@ public partial class Client : IDisposable
     public Task<int> DeleteMany(string collectionname, string query = "", string[]? ids = null, bool recursive = false)
     {
         var tcs = new TaskCompletionSource<int>();
-        if (ids == null) ids = new string[] { "" };
-        if (ids.Length == 0) ids = new string[] { "" };
-        // ids = ids.Concat(new string[] { "test" }).ToArray();
+        // Handle null or empty ids array by setting it to a single empty string if necessary
+        if (ids == null || ids.Length == 0)
+        {
+            ids = new string[] { "" };
+        }
 
-        IntPtr idsPtr = Marshal.AllocHGlobal(ids.Length * IntPtr.Size);
-        IntPtr[] stringPointers = new IntPtr[ids.Length];
+        // Allocate unmanaged memory for ids array, including space for null terminator
+        IntPtr[] idsPtrs = new IntPtr[ids.Length + 1];
         for (int i = 0; i < ids.Length; i++)
         {
-            stringPointers[i] = Marshal.StringToHGlobalAnsi(ids[i]);
-            Marshal.WriteIntPtr(idsPtr, i * IntPtr.Size, stringPointers[i]);
+            idsPtrs[i] = Marshal.StringToHGlobalAnsi(ids[i]);
         }
+        idsPtrs[ids.Length] = IntPtr.Zero; // Set the final element to IntPtr.Zero to act as a null terminator
+
+        // Allocate the actual memory block for the array, including the null terminator
+        IntPtr idsArrayPtr = Marshal.AllocHGlobal(IntPtr.Size * (ids.Length + 1));
+        Marshal.Copy(idsPtrs, 0, idsArrayPtr, ids.Length + 1);
 
         IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
         IntPtr queryPtr = Marshal.StringToHGlobalAnsi(query);
@@ -2513,7 +2536,7 @@ public partial class Client : IDisposable
                 collectionname = collectionnamePtr,
                 query = queryPtr,
                 recursive = recursive,
-                ids = idsPtr,
+                ids = idsArrayPtr,
                 request_id = requestId
             };
             CallbackRegistry.TryAddCallback(requestId, tcs);
@@ -2523,7 +2546,11 @@ public partial class Client : IDisposable
         {
             Marshal.FreeHGlobal(collectionnamePtr);
             Marshal.FreeHGlobal(queryPtr);
-            Marshal.FreeHGlobal(idsPtr);
+            Marshal.FreeHGlobal(idsArrayPtr);
+            for (int i = 0; i < ids.Length; i++)
+            {
+                Marshal.FreeHGlobal(idsPtrs[i]);
+            }
         }
         return tcs.Task;
     }
@@ -2762,6 +2789,7 @@ public partial class Client : IDisposable
                 }
                 else
                 {
+                    DelegateRegistry.TrySetQueueName(requestId, watchid);
                     CallbackRegistry.TrySetResult(requestId, watchid);
                 }
             }
@@ -2775,6 +2803,37 @@ public partial class Client : IDisposable
             free_watch_response(responsePtr);
         }
     }
+    void _WatchEventCallback(IntPtr WatchEventWrapper)
+    {
+        try
+        {
+            var eventObj = Marshal.PtrToStructure<WatchEventWrapper>(WatchEventWrapper);
+            if(eventObj.request_id == 0)
+            {
+                return;
+            }
+            if (DelegateRegistry.TryGetCallback<WatchEvent>(eventObj.request_id, out var eventHandeventHandlerler))
+            {
+                if (eventHandeventHandlerler == null)
+                {
+                    return;
+                }
+                var watchEvent = new WatchEvent
+                {
+                    id = Marshal.PtrToStringAnsi(eventObj.id) ?? string.Empty,
+                    operation = Marshal.PtrToStringAnsi(eventObj.operation) ?? string.Empty,
+                    document = Marshal.PtrToStringAnsi(eventObj.document) ?? string.Empty
+                };
+                eventHandeventHandlerler(watchEvent);
+            }
+        }
+        catch (System.Exception)
+        {
+        } finally {
+        free_watch_event(WatchEventWrapper);
+        }
+    }
+
 
     public Task<string> watch(string collectionname, string paths, Action<WatchEvent> eventHandler)
     {
@@ -2792,20 +2851,9 @@ public partial class Client : IDisposable
                 request_id = requestId
             };
 
-            var callback = new WatchEventCallback((IntPtr WatchEventWrapper) =>
-            {
-                var eventObj = Marshal.PtrToStructure<WatchEventWrapper>(WatchEventWrapper);
-                var watchEvent = new WatchEvent
-                {
-                    id = Marshal.PtrToStringAnsi(eventObj.id) ?? string.Empty,
-                    operation = Marshal.PtrToStringAnsi(eventObj.operation) ?? string.Empty,
-                    document = Marshal.PtrToStringAnsi(eventObj.document) ?? string.Empty
-                };
-                free_watch_event(WatchEventWrapper);
-                eventHandler(watchEvent);
-            });
+            DelegateRegistry.TryAddCallback(requestId, "", eventHandler);
             CallbackRegistry.TryAddCallback(requestId, tcs);
-            watch_async_async(clientPtr, ref request, _WatchCallbackDelegate, callback);
+            watch_async_async(clientPtr, ref request, _WatchCallbackDelegate, _WatchEventCallbackDelegate);
         }
         finally
         {
@@ -2824,6 +2872,7 @@ public partial class Client : IDisposable
             string error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? string.Empty;
             bool success = responseWrapper.success;
             free_unwatch_response(response);
+            DelegateRegistry.TryRemoveCallback<WatchEvent>(watchid, out var eventHandler);
             if (!success)
             {
                 throw new ClientError(error);
@@ -2834,22 +2883,20 @@ public partial class Client : IDisposable
             Marshal.FreeHGlobal(watchidPtr);
         }
     }
-    public Task<string> RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
-    {
-        if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
-        var tcs = new TaskCompletionSource<string>();
-        IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
-
+    void _QueueEventCallback (IntPtr QueueEventWrapperptr) {
         try
         {
-            RegisterQueueRequestWrapper request = new RegisterQueueRequestWrapper
+            var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+            if(eventObj.request_id == 0)
             {
-                queuename = queuenamePtr
-            };
-
-            var callback = new QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+                return;
+            }
+            if (DelegateRegistry.TryGetCallback<QueueEvent>(eventObj.request_id, out var eventHandler))
             {
-                var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+                if (eventHandler == null)
+                {
+                    return;
+                }
                 var watchEvent = new QueueEvent
                 {
                     queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
@@ -2860,73 +2907,69 @@ public partial class Client : IDisposable
                     data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                 };
                 eventHandler(watchEvent);
-            });
-
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("register watch callback");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<RegisterQueueResponseWrapper>(responsePtr);
-                    string queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_register_queue_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(queuename);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
+            } else {
+                Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
             }
-            var callbackDelegate = new RegisterQueueCallback(Callback);
-            var queuecallbackkDelegate = new RegisterQueueCallback(Callback);
+        }
+        catch (System.Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        } finally {
+            free_queue_event(QueueEventWrapperptr);
+        }
+    }
 
-            var response = register_queue_async(clientPtr, ref request, callback);
-            Callback(response);
-
+    public string RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
+    {
+        if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
+        IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
+        try
+        {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+            RegisterQueueRequestWrapper request = new RegisterQueueRequestWrapper
+            {
+                queuename = queuenamePtr,
+                request_id = requestId
+            };
+            var responsePtr = register_queue_async(clientPtr, ref request, _QueueEventCallbackDelegate);
+            if (responsePtr == IntPtr.Zero)
+            {
+                throw new ClientError("Callback got null response");
+            }
+            var response = Marshal.PtrToStructure<RegisterQueueResponseWrapper>(responsePtr);
+            string result_queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
+            string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+            bool success = response.success;
+            free_register_queue_response(responsePtr);
+            if (!success)
+            {
+                throw new ClientError(error);
+            }
+            else
+            {
+                DelegateRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
+                return result_queuename;
+            }
         }
         finally
         {
             Marshal.FreeHGlobal(queuenamePtr);
         }
-        return tcs.Task;
     }
-    public Task<string> RegisterExchange(string exchangename, string algorithm = "", string routingkey = "", bool addqueue = true, Action<QueueEvent>? eventHandler = null)
-    {
-        if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
-        var tcs = new TaskCompletionSource<string>();
-        IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
-        IntPtr algorithmPtr = Marshal.StringToHGlobalAnsi(algorithm);
-        IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
-
+    void _ExchangeEventCallback (IntPtr QueueEventWrapperptr) {
         try
         {
-            RegisterExchangeRequestWrapper request = new RegisterExchangeRequestWrapper
+            var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+            if(eventObj.request_id == 0)
             {
-                exchangename = exchangenamePtr,
-                algorithm = algorithmPtr,
-                routingkey = routingkeyPtr,
-                addqueue = addqueue
-            };
-
-            var callback = new QueueEventCallback((IntPtr QueueEventWrapperptr) =>
+                return;
+            }
+            if (DelegateRegistry.TryGetCallback<QueueEvent>(eventObj.request_id, out var eventHandler))
             {
-                var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
+                if (eventHandler == null)
+                {
+                    return;
+                }
                 var watchEvent = new QueueEvent
                 {
                     queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
@@ -2937,44 +2980,49 @@ public partial class Client : IDisposable
                     data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                 };
                 eventHandler(watchEvent);
-            });
-
-            void Callback(IntPtr responsePtr)
-            {
-                this.trace("register watch callback");
-                try
-                {
-                    if (responsePtr == IntPtr.Zero)
-                    {
-                        tcs.SetException(new ClientError("Callback got null response"));
-                        return;
-                    }
-
-                    var response = Marshal.PtrToStructure<RegisterExchangeResponseWrapper>(responsePtr);
-                    string queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
-                    string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
-                    bool success = response.success;
-                    free_register_exchange_response(responsePtr);
-
-                    if (!success)
-                    {
-                        tcs.SetException(new ClientError(error));
-                    }
-                    else
-                    {
-                        tcs.SetResult(queuename);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
+            } else {
+                Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
             }
-            // var callbackDelegate = new RegisterExchangeCallback(Callback);
+        }
+        catch (System.Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        } finally {
+            free_queue_event(QueueEventWrapperptr);
+        }
+    }
+    public string RegisterExchange(string exchangename, string algorithm = "", string routingkey = "", bool addqueue = true, Action<QueueEvent>? eventHandler = null)
+    {
+        IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
+        IntPtr algorithmPtr = Marshal.StringToHGlobalAnsi(algorithm);
+        IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
+        try
+        {
+            int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+            RegisterExchangeRequestWrapper request = new RegisterExchangeRequestWrapper
+            {
+                exchangename = exchangenamePtr,
+                algorithm = algorithmPtr,
+                routingkey = routingkeyPtr,
+                addqueue = addqueue,
+                request_id = requestId
+            };
 
-            var response = register_exchange_async(clientPtr, ref request, callback);
-            Callback(response);
-
+            var responsePtr = register_exchange_async(clientPtr, ref request, _ExchangeEventCallbackDelegate);
+            var response = Marshal.PtrToStructure<RegisterExchangeResponseWrapper>(responsePtr);
+            string result_queuename = Marshal.PtrToStringAnsi(response.queuename) ?? string.Empty;
+            string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+            bool success = response.success;
+            free_register_exchange_response(responsePtr);
+            if (!success)
+            {
+                throw new ClientError(error);
+            }
+            else
+            {
+                if(eventHandler != null) DelegateRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
+                return result_queuename;
+            }
         }
         finally
         {
@@ -2982,7 +3030,6 @@ public partial class Client : IDisposable
             Marshal.FreeHGlobal(algorithmPtr);
             Marshal.FreeHGlobal(routingkeyPtr);
         }
-        return tcs.Task;
     }
     public void UnRegisterQueue(string queuename)
     {
@@ -2994,7 +3041,7 @@ public partial class Client : IDisposable
             var error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? "Unknown error";
             var success = responseWrapper.success;
             free_unregister_queue_response(response);
-
+            DelegateRegistry.TryRemoveCallback<QueueEvent>(queuename, out var eventHandler);
             if (!success)
             {
                 throw new ClientError(error);

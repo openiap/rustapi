@@ -45,10 +45,12 @@ class Program
         };
 
         // Initialize the client
+        Console.WriteLine($"Creating client, Thread ID: {Thread.CurrentThread.ManagedThreadId}");
         Client client = new Client();
         // client.enabletracing("info", "");
-        // client.enabletracing("openiap=debug", "new");
+        // client.enabletracing("openiap=trace", "new");
         await client.connect();
+        // client.connect();
         if (!client.connected())
         {
             Console.WriteLine("Client connection error: " + client.connectionerror());
@@ -157,6 +159,39 @@ class Program
                         Console.WriteLine("Task canceled.");
                     }, token);
                     break;
+                case "st2":
+                    if(!token.IsCancellationRequested) {
+                        Console.WriteLine("Stopping running task.");
+                        cancellationTokenSource.Cancel();
+                        break;
+                    }
+                    cancellationTokenSource = new CancellationTokenSource();
+                    token = cancellationTokenSource.Token;
+                    int x2 = 0;
+                    var task2 = Task.Run(async () => 
+                    {
+                        Console.WriteLine("Task started, begin loop...");
+                        while (!token.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                x2++;
+                                Thread.Sleep(1);
+                                await test.Test(client);
+                                if (x2 % 500 == 0)
+                                {
+                                    Console.WriteLine("No new workitem", DateTime.Now);
+                                    GC.Collect();
+                                }
+                            }
+                            catch (System.Exception ex)
+                            {   
+                                Console.WriteLine("Error: ", ex.ToString());
+                            }
+                        }
+                        Console.WriteLine("Task canceled.");
+                    }, token);
+                    break;
                 case "s":
                     try {
                         var (jwt, error, success) = await client.Signin();
@@ -169,6 +204,7 @@ class Program
                 case "q2":
                     try {
                         var t = Task.Run(async () => {
+                            Console.WriteLine($"Creating client, Thread ID: {Thread.CurrentThread.ManagedThreadId}");
                             var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
                             Console.WriteLine("Query returned " + results.Count + " results.");
                             for (int i = 0; i < results.Count; i++)
@@ -187,6 +223,7 @@ class Program
                     break;
                 case "qq":
                     try {
+                        Console.WriteLine($"Creating client, Thread ID: {Thread.CurrentThread.ManagedThreadId}");
                         var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
                         Console.WriteLine("Query returned " + results.Count + " results.");
                         for (int i = 0; i < results.Count; i++)
@@ -207,6 +244,7 @@ class Program
 
                     try {
                         var results = Task.Run(async () => {
+                            Console.WriteLine($"Creating client, Thread ID: {Thread.CurrentThread.ManagedThreadId}");
                             var results = await client.Query<List<Base>>("entities", "{}", "{\"name\": 1}");
                             return results;
                         }).Result;
@@ -260,6 +298,32 @@ class Program
                     catch (System.Exception e)
                     {
                         Console.WriteLine("Error querying: " + e.Message);
+                    }
+                    break;
+                case "c":
+                    try {
+                        var count_res = await client.Count("entities", "{}");
+                        Console.WriteLine("Count result: " + count_res);
+                    }
+                    catch (System.Exception e)
+                    {
+                        Console.WriteLine("Error creating collection: " + e.Message);
+                    }
+                    break;
+                case "dd":
+                    try {
+                        var distinct_res = await client.Distinct("entities", "name", "{}");
+                        for (int i = 0; i < distinct_res.Count(); i++)
+                        {
+                            Console.WriteLine(distinct_res[i]);
+                            if (i > 10) {
+                                break;
+                            }
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        Console.WriteLine("Error creating collection: " + e.Message);
                     }
                     break;
                 case "cc":
@@ -441,7 +505,7 @@ class Program
                     break;
                 case "r":
                     try {
-                        var queueId = await client.RegisterQueue("test2queue", e => {
+                        var queueId = client.RegisterQueue("test2queue", e => {
                             Console.WriteLine("Queue event received from " + e.queuename + " with data: " + e.data);
                         });
                         Console.WriteLine("Queue registered with id: " + queueId);

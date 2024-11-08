@@ -97,3 +97,90 @@ public class CallbackRegistry
         return false;
     }
 }
+public class ActionObject {
+    public object tcs;
+    public object queuename;
+    public ActionObject(object tcs, string queuename) {
+        this.tcs = tcs;
+        this.queuename = queuename;
+    }
+}
+public class ActionRegistry
+{
+    private ConcurrentDictionary<int, object> _callbackRegistry = new ConcurrentDictionary<int, object>();
+    public int Count => _callbackRegistry.Count;
+    public bool TryAddCallback<T>(int id, string queuename, Action<T> tcs)
+    {
+        var obj = new ActionObject(tcs, queuename);
+        return _callbackRegistry.TryAdd(id, obj);
+    }
+    public bool TryAddCallback(int id, string queuename, Action tcs)
+    {
+        var obj = new ActionObject(tcs, queuename);
+        return _callbackRegistry.TryAdd(id, obj);
+    }
+    public bool TryGetCallback<T>(int id, out Action<T>? tcs)
+    {
+        if (_callbackRegistry.TryGetValue(id, out var _obj))
+        {
+            ActionObject obj = (ActionObject)_obj;
+            if(obj.tcs is Action<T> typedTcs) {
+                tcs = typedTcs;
+                return true;
+            } else {
+                Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(Action<T>));
+            }
+        } else {
+            Console.WriteLine("Failed to get callback for id: " + id);
+        }
+        tcs = null;
+        return false;
+    }
+    public bool TryGetCallback(int id, out Action? tcs)
+    {
+        if (_callbackRegistry.TryGetValue(id, out var _obj))
+        {
+            ActionObject obj = (ActionObject)_obj;
+            if(obj.tcs is Action typedTcs) {
+                tcs = typedTcs;
+                return true;
+            } else {
+                Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(Action));
+            }
+        } else {
+            Console.WriteLine("Failed to get callback for id: " + id);
+        }
+        tcs = null;
+        return false;
+    }
+    public bool TrySetQueueName(int id, string queuename)
+    {
+        if (_callbackRegistry.TryGetValue(id, out var obj))
+        {
+            ((ActionObject)obj).queuename = queuename;
+            return true;
+        }
+        return false;
+    }
+    public bool TryRemoveCallback<T>(int id, out Action<T>? tcs)
+    {
+        if (_callbackRegistry.TryRemove(id, out var obj) && obj is Action<T> typedTcs)
+        {
+            tcs = typedTcs;
+            return true;
+        }
+        tcs = null;
+        return false;
+    }
+    public bool TryRemoveCallback<T>(string queuename, out Action<T>? tcs)
+    {
+        var id = _callbackRegistry.Where(x => (string)((ActionObject)x.Value).queuename == queuename).FirstOrDefault().Key;
+        if (_callbackRegistry.TryRemove(id, out var obj) && obj is Action<T> typedTcs)
+        {
+            tcs = typedTcs;
+            return true;
+        }
+        tcs = null;
+        return false;
+    }
+}

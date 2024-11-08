@@ -55,13 +55,15 @@ pub struct WatchEventWrapper {
     id: *const c_char,
     operation: *const c_char,
     document: *const c_char,
+    request_id: i32,
 }
 impl Default for WatchEventWrapper {
     fn default() -> Self { 
         WatchEventWrapper {
             id: std::ptr::null(),
             operation: std::ptr::null(),
-            document: std::ptr::null()
+            document: std::ptr::null(),
+            request_id: 0,
         }
      }
 }
@@ -241,6 +243,8 @@ pub extern "C" fn query_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
+    // tokio::spawn(async move {
+    let _guard = handle.enter();
     handle.spawn(async move {
         debug!("Rust: client.query");
         let result = client.query(request).await;
@@ -368,31 +372,6 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
     info!("connect::complete result address: {:?}", result);
     result
 }
-
-#[no_mangle]
-pub extern "C" fn client_set_agent_name(client_wrap: *mut ClientWrapper, agent_name: *const c_char) {
-    let agent_name = c_char_to_str(agent_name);
-    debug!("set_agent_name = {:?}", agent_name);
-    let client = match safe_wrapper( client_wrap ) {
-        Some( wrap ) => wrap.client.clone().unwrap(),
-        None => {
-            Client::new()
-        }
-    };
-    client.set_agent_name(&agent_name);
-}
-#[no_mangle]
-pub extern "C" fn client_set_agent_version(client_wrap: *mut ClientWrapper, agent_version: *const c_char) {
-    let agent_version = c_char_to_str(agent_version);
-    debug!("set_agent_version = {:?}", agent_version);
-    let client = match safe_wrapper( client_wrap ) {
-        Some( wrap ) => wrap.client.clone().unwrap(),
-        None => {
-            Client::new()
-        }
-    };
-    client.set_agent_version(&agent_version);
-}
 type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -432,6 +411,30 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
         trace!("Client::Calling callback with result");
         callback(wrapper);
     });
+}
+#[no_mangle]
+pub extern "C" fn client_set_agent_name(client_wrap: *mut ClientWrapper, agent_name: *const c_char) {
+    let agent_name = c_char_to_str(agent_name);
+    debug!("set_agent_name = {:?}", agent_name);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.set_agent_name(&agent_name);
+}
+#[no_mangle]
+pub extern "C" fn client_set_agent_version(client_wrap: *mut ClientWrapper, agent_version: *const c_char) {
+    let agent_version = c_char_to_str(agent_version);
+    debug!("set_agent_version = {:?}", agent_version);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.set_agent_version(&agent_version);
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -3545,7 +3548,8 @@ pub extern "C" fn delete_many_async(
                 if id.is_null() {
                     break;
                 }
-                ids.push(c_char_to_str(id));
+                let id = c_char_to_str(id);
+                ids.push(id);
                 i += 1;
             }
             ids
@@ -4213,7 +4217,8 @@ pub extern "C" fn next_watch_event (
                     let event = Box::new(WatchEventWrapper {
                         id,
                         operation,
-                        document
+                        document,
+                        request_id: 0
                     });
                     Box::into_raw(event)
                 }
@@ -4323,7 +4328,8 @@ pub extern "C" fn watch_async_async(
                     let event = Box::into_raw(Box::new(WatchEventWrapper {
                         id,
                         operation,
-                        document
+                        document,
+                        request_id
                     }));
 
                     event_callback(event);
@@ -4527,12 +4533,14 @@ pub extern "C" fn free_unwatch_response(response: *mut UnWatchResponseWrapper) {
 #[repr(C)]
 pub struct RegisterQueueRequestWrapper {
     queuename: *const c_char,
+    request_id: i32
 }
 #[repr(C)]
 pub struct RegisterQueueResponseWrapper {
     success: bool,
     queuename: *const c_char,
     error: *const c_char,
+    request_id: i32
 }
 
 #[no_mangle]
@@ -4549,6 +4557,7 @@ pub extern "C" fn register_queue(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4561,6 +4570,7 @@ pub extern "C" fn register_queue(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4576,6 +4586,7 @@ pub extern "C" fn register_queue(
             success: false,
             queuename: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -4624,6 +4635,7 @@ pub extern "C" fn register_queue(
                 success: true,
                 queuename,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -4634,6 +4646,7 @@ pub extern "C" fn register_queue(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -4657,6 +4670,7 @@ pub extern "C" fn register_queue_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response))
         }
@@ -4669,6 +4683,7 @@ pub extern "C" fn register_queue_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response))
         }
@@ -4683,11 +4698,13 @@ pub extern "C" fn register_queue_async(
             success: false,
             queuename: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response))
     }
     let client = client.unwrap();
     debug!("register_queue_async: runtime.spawn");
+    let request_id = options.request_id;
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
         handle.block_on(
@@ -4709,7 +4726,8 @@ pub extern "C" fn register_queue_async(
                         replyto,
                         routingkey,
                         exchangename,
-                        data
+                        data,
+                        request_id
                     });
                     event_callback(Box::into_raw(event));
                 }),
@@ -4725,6 +4743,7 @@ pub extern "C" fn register_queue_async(
                 success: true,
                 queuename,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -4735,6 +4754,7 @@ pub extern "C" fn register_queue_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -4768,12 +4788,14 @@ pub struct RegisterExchangeRequestWrapper {
     algorithm: *const c_char,
     routingkey: *const c_char,
     addqueue: bool,
+    request_id: i32
 }
 #[repr(C)]
 pub struct RegisterExchangeResponseWrapper {
     success: bool,
     queuename: *const c_char,
     error: *const c_char,
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -4789,6 +4811,7 @@ pub extern "C" fn register_exchange (
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4801,6 +4824,7 @@ pub extern "C" fn register_exchange (
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response));
         }
@@ -4818,6 +4842,7 @@ pub extern "C" fn register_exchange (
             success: false,
             queuename: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response));
     }
@@ -4858,6 +4883,7 @@ pub extern "C" fn register_exchange (
                 success: true,
                 queuename,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -4868,6 +4894,7 @@ pub extern "C" fn register_exchange (
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -4891,6 +4918,7 @@ pub extern "C" fn register_exchange_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: 0,
             };
             return Box::into_raw(Box::new(response))
         }
@@ -4903,6 +4931,7 @@ pub extern "C" fn register_exchange_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             };
             return Box::into_raw(Box::new(response))
         }
@@ -4920,11 +4949,13 @@ pub extern "C" fn register_exchange_async(
             success: false,
             queuename: std::ptr::null(),
             error: error_msg,
+            request_id: options.request_id,
         };
         return Box::into_raw(Box::new(response))
     }
     let client = client.unwrap();
     debug!("register_exchange_async: runtime.spawn");
+    let request_id = options.request_id;
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
             handle.block_on(
@@ -4945,7 +4976,8 @@ pub extern "C" fn register_exchange_async(
                         replyto,
                         routingkey,
                         exchangename,
-                        data
+                        data,
+                        request_id
                     });
                     event_callback(Box::into_raw(event));
                 }),
@@ -4962,6 +4994,7 @@ pub extern "C" fn register_exchange_async(
                 success: true,
                 queuename,
                 error: std::ptr::null(),
+                request_id: options.request_id,
             }
         }
         Err(e) => {
@@ -4972,6 +5005,7 @@ pub extern "C" fn register_exchange_async(
                 success: false,
                 queuename: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id,
             }
         }
     };
@@ -5004,6 +5038,7 @@ pub struct QueueEventWrapper {
     routingkey: *const c_char,
     exchangename: *const c_char,
     data: *const c_char,
+    request_id: i32,
 }
 impl Default for QueueEventWrapper {
     fn default() -> Self { 
@@ -5014,6 +5049,7 @@ impl Default for QueueEventWrapper {
             routingkey: std::ptr::null(),
             exchangename: std::ptr::null(),
             data: std::ptr::null(),
+            request_id: 0,
         }
      }
 }
@@ -5049,6 +5085,7 @@ pub extern "C" fn next_queue_event (
                         routingkey,
                         exchangename,
                         data,
+                        request_id: 0
                     });
                     Box::into_raw(event)
                 }
