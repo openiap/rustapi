@@ -9,8 +9,11 @@ cross build --target aarch64-unknown-linux-gnu --release && cp target/aarch64-un
 cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 # skip for now, to save space
 # cross build --target x86_64-unknown-linux-musl --release && cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-x64.a
+# cp target/x86_64-unknown-linux-musl/release/openiap target/cli/linux-musl-x64-openiap
 # cross build --target aarch64-unknown-linux-musl --release && cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-arm64.a
+# cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-musl-arm64-openiap
 # cross build --target x86_64-unknown-freebsd --release && cp target/x86_64-unknown-freebsd/release/libopeniap_clib.so target/lib/libopeniap-freebsd-x64.so
+# cp target/x86_64-unknown-freebsd/release/openiap target/cli/freebsd-x64-openiap
 
 cross build --target aarch64-apple-darwin --release && cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
 cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap
@@ -27,7 +30,7 @@ rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node 
 (cd node && npm publish)
 echo "Building dotnet"
 rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-dotnet nuget push dotnet/bin/Release/openiap.0.0.14.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
+dotnet nuget push dotnet/bin/Release/openiap.0.0.15.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
                   
 
 echo "Building python"

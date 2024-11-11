@@ -134,22 +134,23 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         //     let prof_final = profiling::prof_final::read().unwrap();
         //     println!("dump final memory usage to file: {}", prof_final);           
         // }
-        if  input.eq_ignore_ascii_case("0") {
+        if input.eq_ignore_ascii_case("0") {
             disable_tracing();
         }
-        if  input.eq_ignore_ascii_case("1") {
+        if input.eq_ignore_ascii_case("1") {
             enable_tracing("openiap=info", "");
         }
-        if  input.eq_ignore_ascii_case("2") {
+        if input.eq_ignore_ascii_case("2") {
             enable_tracing("openiap=debug", "new");
         }
-        if  input.eq_ignore_ascii_case("3") {
+        if input.eq_ignore_ascii_case("3") {
             enable_tracing("openiap=trace", "new");
         }
-        if  input.eq_ignore_ascii_case("4") {
+        if input.eq_ignore_ascii_case("4") {
             enable_tracing("trace", "new");
         }
-        if  input.eq_ignore_ascii_case("st") {
+        if input.eq_ignore_ascii_case("st") || input.eq_ignore_ascii_case("bum") {
+            input = "".to_string();
             let client = b.clone();
             if sthandle.is_some() {
                 println!("Stopping nonstop");

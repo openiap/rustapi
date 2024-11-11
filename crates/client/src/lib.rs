@@ -304,7 +304,7 @@ impl Client {
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
-            agent_version: Arc::new(std::sync::Mutex::new("0.0.14".to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new("0.0.15".to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -403,7 +403,7 @@ impl Client {
         if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, "0.0.14", strurl, _otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, "0.0.15", strurl, _otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);
@@ -885,6 +885,7 @@ impl Client {
                                 trace!("Reconnecting . . .");
                                 client.reconnect().await.unwrap_or_else(|e| {
                                     error!("Failed to reconnect: {}", e);
+                                    client.set_connected(ClientState::Disconnected, Some(&e.to_string()));
                                 });
                             } else {
                                 debug!("Not reconnecting");

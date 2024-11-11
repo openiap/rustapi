@@ -8,9 +8,12 @@ cp target/x86_64-unknown-linux-gnu/release/openiap target/cli/linux-x64-openiap
 cross build --target aarch64-unknown-linux-gnu --release && cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
 cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 # skip for now, to save space
-# cross build --target x86_64-unknown-linux-musl --release && cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-x64.a
-# cross build --target aarch64-unknown-linux-musl --release && cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-arm64.a
-# cross build --target x86_64-unknown-freebsd --release && cp target/x86_64-unknown-freebsd/release/libopeniap_clib.so target/lib/libopeniap-freebsd-x64.so
+cross build --target x86_64-unknown-linux-musl --release && cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-x64.a
+cp target/x86_64-unknown-linux-musl/release/openiap target/cli/linux-musl-x64-openiap
+cross build --target aarch64-unknown-linux-musl --release && cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-arm64.a
+cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-musl-arm64-openiap
+cross build --target x86_64-unknown-freebsd --release && cp target/x86_64-unknown-freebsd/release/libopeniap_clib.so target/lib/libopeniap-freebsd-x64.so
+cp target/x86_64-unknown-freebsd/release/openiap target/cli/freebsd-x64-openiap
 
 cross build --target aarch64-apple-darwin --release && cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
 cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap

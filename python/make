@@ -1,4 +1,4 @@
 rm -rf build dist openiap/lib && mkdir openiap/lib && cp ../target/debug/libopeniap_clib.so ./openiap/lib && python -m build --wheel
-pip uninstall openiap_edge -y && pip install dist/openiap_edge-0.0.14.tar.gz && python test.py
+pip uninstall openiap_edge -y && pip install dist/openiap_edge-0.0.15.tar.gz && python test.py
 # python -m build --wheel # Binary Distribution Wheel
 # python -m build --sdist # source distribution

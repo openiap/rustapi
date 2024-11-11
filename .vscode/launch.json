@@ -76,6 +76,13 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "attach",
+            "name": "Rust: attach",
+            "pid": "${command:pickMyProcess}"
         }
+
     ]
 }
