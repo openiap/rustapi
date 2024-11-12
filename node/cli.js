@@ -1,5 +1,5 @@
-const readline = require('readline');
 const { Client } = require('./lib');
+const readline = require('readline');
 const os = require('os');
 const { runInThisContext, runInNewContext } = require('vm');
 const { setFlagsFromString } = require('v8');
