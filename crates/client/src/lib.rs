@@ -470,6 +470,10 @@ impl Client {
         if !url.username().is_empty() {
             username = url.username().to_string();
         }
+        if !username.is_empty() && !password.is_empty() {
+            self.set_username(&username);
+            self.set_password(&password);
+        }
         url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
 
@@ -505,8 +509,6 @@ impl Client {
             };
             self.set_client(ClientEnum::WS(Arc::new(Mutex::new(socket))));
             self.set_connect_called(true);
-            self.set_username(&username);
-            self.set_password(&password);
             self.set_config(config);
             self.set_url(&strurl);
             match self.setup_ws(&strurl).await {
@@ -584,8 +586,6 @@ impl Client {
                 self.set_client(ClientEnum::Grpc(FlowServiceClient::new(channel)));
             }
             self.set_connect_called(true);
-            self.set_username(&username);
-            self.set_password(&password);
             self.set_config(config);
             self.set_url(&strurl);
             self.setup_grpc_stream().await?;
