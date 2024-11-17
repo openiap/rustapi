@@ -5,6 +5,7 @@ use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
+use openiap_client::PushWorkitemRequest;
 #[allow(unused_imports)]
 use openiap_client::{self, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
 
@@ -149,7 +150,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("4") {
             enable_tracing("trace", "new");
         }
-        if input.eq_ignore_ascii_case("st") || input.eq_ignore_ascii_case("bum") {
+        if input.eq_ignore_ascii_case("st") { // || input.eq_ignore_ascii_case("bum")
             input = "".to_string();
             let client = b.clone();
             if sthandle.is_some() {
@@ -171,6 +172,87 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                         let name = workitem.name.clone();
                                         let id = workitem.id.clone();
                                         println!("popped workitem {:?} {:?}", id, name);
+                                        workitem.state = "successful".to_string();
+                                        match client.update_workitem(UpdateWorkitemRequest {
+                                            workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
+                                        }).await {
+                                            Ok(_response) => {
+                                                x = x + 1;
+                                                if x % 500 == 0 {
+                                                    println!("Updated workitem {:?} {:?}", id, name);
+                                                }
+                                            }
+                                            Err(e) => {
+                                                x = x + 1;
+                                                if x % 500 == 0 {
+                                                    println!("Failed to update workitem: {:?}", e);
+                                                }
+                                            }
+                                        };
+                                    }
+                                    None => {
+                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+                                        x = x + 1;
+                                        if x % 500 == 0 {
+                                            println!("No workitem popped {:?}", a);
+                                        }
+
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("Failed to pop workitem: {:?}", e);
+                            }
+                        }
+                    };
+                }));
+            }
+        }
+        if input.eq_ignore_ascii_case("st2") { // || input.eq_ignore_ascii_case("bum")
+            input = "".to_string();
+            let client = b.clone();
+            if sthandle.is_some() {
+                println!("Stopping nonstop");
+                sthandle.unwrap().abort();
+                sthandle = None;
+            } else {
+                sthandle = Some(
+                    // tokio::task::Builder::new().name("NonStop").spawn(async move {
+                    tokio::task::spawn(async move {
+                    println!("Task started, begin loop...");
+                    loop  {
+                        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_micros(1) ).await;
+                        match client.push_workitem(PushWorkitemRequest { 
+                            wiq: "rustqueue".to_string(),
+                            name: "test".to_string(),
+                            payload: "{}".to_string(),
+                            ..Default::default()                            
+                        }).await {
+                            Ok(response) => {
+                                match  response.workitem {
+                                    Some(_workitem) => {
+                                        // let name = _workitem.name.clone();
+                                        // let id = _workitem.id.clone();
+                                        // println!("pushed workitem {:?} {:?}", id, name);
+                                    }
+                                    None => {
+                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+                                        println!("No workitem pushed {:?}", a);
+                                    }
+                                };
+                            }
+                            Err(e) => {
+                                println!("Failed to push workitem: {:?}", e);
+                            }
+                        }
+                        match client.pop_workitem( PopWorkitemRequest::bywiq("rustqueue"), None).await {
+                            Ok(response) => {
+                                match response.workitem {
+                                    Some(mut workitem) => {
+                                        let name = workitem.name.clone();
+                                        let id = workitem.id.clone();
+                                        // println!("popped workitem {:?} {:?}", id, name);
                                         workitem.state = "successful".to_string();
                                         match client.update_workitem(UpdateWorkitemRequest {
                                             workitem: Some(workitem), ignoremaxretries: false, ..Default::default()

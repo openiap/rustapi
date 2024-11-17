@@ -1,5 +1,5 @@
 
-rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/*.csv dotnet/bin dotnet/obj python/openiap/lib python//*.csv python/build python/dist
+rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj python/openiap/lib python//*.csv python/build python/dist
 rm -rf target/lib target/cli
 mkdir -p target/lib
 mkdir -p target/cli
@@ -29,8 +29,11 @@ echo "Building node"
 rm -rf node/lib *.tgz && mkdir node/lib && cp target/lib/* node/lib && (cd node && npm pack)
 (cd node && npm publish)
 echo "Building dotnet"
-rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib && (cd dotnet && dotnet build --configuration Release && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release) 
-dotnet nuget push dotnet/bin/Release/openiap.0.0.15.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
+rm -rf dotnet/lib && mkdir dotnet/lib && cp target/lib/* dotnet/lib 
+(cd dotnet && dotnet build --configuration Release openiap.csproj  && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap.csproj) 
+(cd dotnet && dotnet build --configuration Release openiap-slim.csproj  && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap-slim.csproj) 
+dotnet nuget push dotnet/bin/Release/openiap.0.0.16.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
+dotnet nuget push dotnet/bin/Release/openiap-slim.0.0.16.nupkg --source https://api.nuget.org/v3/index.json --api-key $NUGET_API_KEY
                   
 
 echo "Building python"

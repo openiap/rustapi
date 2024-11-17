@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>openiap</PackageId>
     <id>openiap</id>
-    <version>0.0.15</version>
+    <version>0.0.16</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
     <owners>OpenIAP ApS</owners>
@@ -37,6 +37,15 @@
 
 
 <ItemGroup>
+  <!-- <None Include="runtimes/linux-x64/native/libopeniap_clib.so" Pack="true" PackagePath="runtimes/linux-x64/native/libopeniap_clib.so" />
+  <None Include="runtimes/linux-arm64/native/libopeniap_clib.so" Pack="true" PackagePath="runtimes/linux-arm64/native/libopeniap_clib.so" />
+  <None Include="runtimes/linux-musl-x64/native/libopeniap_clib.a" Pack="true" PackagePath="runtimes/linux-musl-x64/native/libopeniap_clib.a" />
+  <None Include="runtimes/linux-musl-arm64/native/libopeniap_clib.a" Pack="true" PackagePath="runtimes/linux-musl-arm64/native/libopeniap_clib.a" />
+  <None Include="runtimes/osx-x64/native/libopeniap_clib.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/libopeniap_clib.dylib" />
+  <None Include="runtimes/osx-arm64/native/libopeniap_clib.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/libopeniap_clib.dylib" />
+  <None Include="runtimes/win-x86/native/openiap_clib.dll" Pack="true" PackagePath="runtimes/win-x86/native/openiap_clib.dll" />
+  <None Include="runtimes/win-x64/native/openiap_clib.dll" Pack="true" PackagePath="runtimes/win-x64/native/openiap_clib.dll" /> -->
+
   <Content Include="lib/*.so">
     <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     <PackageCopyToOutput>true</PackageCopyToOutput>
@@ -52,26 +61,7 @@
     <PackageCopyToOutput>true</PackageCopyToOutput>
     <pack>true</pack>
   </Content>
-    <!-- <Content Include="lib/*.so"  >
-      <Pack>true</Pack>
-      <PackagePath>lib/net6.0</PackagePath>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content> -->
-    <!-- <Content Include="lib/*.dll">
-      <Pack>true</Pack>
-      <PackagePath>lib</PackagePath>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="lib/*.dylib">
-      <Pack>true</Pack>
-      <PackagePath>lib</PackagePath>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content> -->
-    <!-- <Content Include="lib/*.a">
-      <Pack>true</Pack>
-      <PackagePath>lib</PackagePath>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content> -->
+
   </ItemGroup>
 
 </Project>

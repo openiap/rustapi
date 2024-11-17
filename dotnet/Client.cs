@@ -1038,9 +1038,12 @@ public partial class Client : IDisposable
     [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
     public static extern void free_delete_workitem_response(IntPtr response);
     #endregion
-    public Client()
+    public Client(string libPath = "")
     {
-        string libPath = GetLibraryPath();
+        if (string.IsNullOrEmpty(libPath))
+        {
+            libPath = GetLibraryPath();
+        }
         NativeLibrary.SetDllImportResolver(typeof(Client).Assembly, (name, assembly, path) =>
         {
             if (name == "libopeniap")
