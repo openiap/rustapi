@@ -58,6 +58,8 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::{StreamExt };
 use async_channel::{unbounded};
+const VERSION: &str = "0.0.16";
+
 
 /// The `Client` struct provides the client for the OpenIAP service.
 /// Initialize a new client, by calling the [Client::new_connect] method.
@@ -304,7 +306,7 @@ impl Client {
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
-            agent_version: Arc::new(std::sync::Mutex::new("0.0.16".to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new(VERSION.to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -403,7 +405,7 @@ impl Client {
         if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, "0.0.16", strurl, _otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, VERSION, strurl, _otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);

@@ -1,11 +1,42 @@
 .PHONY: clean build build-all package package-all publish publish-all
 
 # Variables
-VERSION = 0.0.16
+VERSION = 0.0.15
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 export CROSS_CONTAINER_ENGINE_NO_BUILDKIT = 1
 
-# SHELL := /bin/bash
+# Bump version in all relevant files
+bump:
+	@echo "Bumping version to $(VERSION) recursively..."
+
+	# Update Cargo.toml files (enforce version format X.Y.Z)
+	@find crates -name "Cargo.toml" -exec sed -i.bak 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
+
+	# Update version in lib.rs files (Rust source files)
+	@find crates -name "*.rs" -exec sed -i.bak -E "s/^[[:space:]]*const VERSION: &str = \"[0-9]+\\.[0-9]+\\.[0-9]+\";/const VERSION: &str = \"$(VERSION)\";/g" {} \;
+
+
+
+	# Update version in .csproj files (C# project files)
+	@find dotnet -name "*.csproj" -exec sed -i.bak 's/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/Version>/<Version>$(VERSION)<\/Version>/' {} \;
+
+	# Update version in JSON files (e.g., package.json)
+	@find node -name "package.json" -exec sed -i.bak 's/"version": "[0-9]\+\.[0-9]\+\.[0-9]\+"/"version": "$(VERSION)"/' {} \;
+
+	# Update version in .toml files (e.g., pyproject.toml)
+	@find python -name "*.toml" -exec sed -i.bak 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
+
+	# Update version in Python setup files (setup.py)
+	@find python -name "setup.py" -exec sed -i.bak 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="$(VERSION)"/' {} \;
+
+	# Update version in Markdown files (e.g., README.md)
+	@find . -name "*.md" -exec sed -i.bak 's/\b[0-9]\+\.[0-9]\+\.[0-9]\+\b/$(VERSION)/g' {} \;
+
+	# Clean up backup files created by sed
+	@find . -name "*.bak" -type f -delete
+
+	@echo "Version bump completed to $(VERSION)"
+
 # Clean up
 clean:
 	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj
