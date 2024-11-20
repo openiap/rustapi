@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>openiap</PackageId>
     <id>openiap</id>
-    <version>0.0.16</version>
+    <version>0.0.17</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
     <owners>OpenIAP ApS</owners>
@@ -15,7 +15,9 @@
     <releaseNotes>Initial release</releaseNotes>
     <tags>openiap, rust, api</tags>
   </PropertyGroup>
-
+  <PropertyGroup>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+  </PropertyGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net6.0</TargetFramework>

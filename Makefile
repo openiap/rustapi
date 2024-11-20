@@ -13,12 +13,12 @@ bump:
 	@find crates -name "Cargo.toml" -exec sed -i.bak 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
 
 	# Update version in lib.rs files (Rust source files)
-	@find crates -name "*.rs" -exec sed -i.bak -E "s/^[[:space:]]*const VERSION: &str = \"[0-9]+\\.[0-9]+\\.[0-9]+\";/const VERSION: &str = \"$(VERSION)\";/g" {} \;
+	@find crates -name "*.rs" -exec sed -i.bak -E "s/(^[[:space:]]*const VERSION: &str = )\"[0-9]+\.[0-9]+\.[0-9]+\";/\1\"$(VERSION)\";/g" {} \;
 
 
 
 	# Update version in .csproj files (C# project files)
-	@find dotnet -name "*.csproj" -exec sed -i.bak 's/<Version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/Version>/<Version>$(VERSION)<\/Version>/' {} \;
+	@find dotnet -name "*.csproj" -exec sed -i.bak 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
 
 	# Update version in JSON files (e.g., package.json)
 	@find node -name "package.json" -exec sed -i.bak 's/"version": "[0-9]\+\.[0-9]\+\.[0-9]\+"/"version": "$(VERSION)"/' {} \;
