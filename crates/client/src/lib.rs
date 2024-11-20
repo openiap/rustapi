@@ -58,7 +58,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::{StreamExt };
 use async_channel::{unbounded};
-const VERSION: &str = "0.0.16";
+const VERSION: &str = "0.0.17";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -394,10 +394,18 @@ impl Client {
         }
         let mut _enable_analytics = true;
         let mut _otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
+        let mut apihostname = url.host_str().unwrap_or("localhost.openiap.io").to_string();
+        if apihostname.starts_with("grpc.") {
+            apihostname = apihostname[5..].to_string();
+        }
+    
         if config.is_some() {
             let config = config.as_ref().unwrap();
             if !config.otel_metric_url.is_empty() {
                 _otel_metric_url = config.otel_metric_url.clone();
+            }
+            if !config.domain.is_empty() {
+                apihostname = config.domain.clone();
             }
             _enable_analytics = config.enable_analytics;
         }
@@ -405,7 +413,7 @@ impl Client {
         if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, VERSION, strurl, _otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);

@@ -479,19 +479,10 @@ lazy_static! {
 }
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
-pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, strurl: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    if strurl.is_empty() {
-        return Err(Box::new(OpenIAPError::ClientError("No URL provided".to_string())));
-    }
+pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let period = 5;
     let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
     let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
-    let url = url::Url::parse(strurl)
-    .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-    let mut apihostname = url.host_str().unwrap_or("localhost.openiap.io").to_string();
-    if apihostname.starts_with("grpc.") {
-        apihostname = apihostname[5..].to_string();
-    }
 
     let mut hasher = md5::Context::new();
     match hasher.write_all(apihostname.as_bytes()) {

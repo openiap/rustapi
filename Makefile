@@ -1,7 +1,7 @@
 .PHONY: clean build build-all package package-all publish publish-all
 
 # Variables
-VERSION = 0.0.15
+VERSION = 0.0.17
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 export CROSS_CONTAINER_ENGINE_NO_BUILDKIT = 1
 
