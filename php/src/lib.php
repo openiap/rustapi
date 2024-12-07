@@ -200,5 +200,129 @@ class Client {
         $this->ffi->free_insert_or_update_one_response($response);
         return $result;
     }
+
+    public function insertMany($collectionname, $items, $options = array()) {
+        $request = $this->ffi->new('struct InsertManyRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Convert items array to JSON string
+        $json_items = json_encode($items);
+        $items_str = $this->ffi->new("char[" . strlen($json_items) + 1 . "]", false);
+        FFI::memcpy($items_str, $json_items, strlen($json_items));
+        $request->items = FFI::cast("char *", FFI::addr($items_str));
+
+        // Set default values and options
+        $request->w = isset($options['w']) ? $options['w'] : 0;
+        $request->j = isset($options['j']) ? $options['j'] : false;
+        $request->skipresults = isset($options['skipresults']) ? $options['skipresults'] : false;
+        $request->request_id = 0;
+
+        // Make the call
+        $response = $this->ffi->insert_many($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($items_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_insert_many_response($response);
+            throw new Exception($error_message);
+        }
+
+        $result = null;
+        if ($response->results) {
+            $result = json_decode(FFI::string($response->results), true);
+        }
+
+        $this->ffi->free_insert_many_response($response);
+        return $result;
+    }
+
+    public function deleteOne($collectionname, $id, $recursive = false) {
+        $request = $this->ffi->new('struct DeleteOneRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Set id
+        $id_str = $this->ffi->new("char[" . strlen($id) + 1 . "]", false);
+        FFI::memcpy($id_str, $id, strlen($id));
+        $request->id = FFI::cast("char *", FFI::addr($id_str));
+
+        $request->recursive = $recursive;
+        $request->request_id = 0;
+
+        // Make the call
+        $response = $this->ffi->delete_one($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($id_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_delete_one_response($response);
+            throw new Exception($error_message);
+        }
+
+        $affected_rows = $response->affectedrows;
+        $this->ffi->free_delete_one_response($response);
+        return $affected_rows;
+    }
+
+    public function deleteMany($collectionname, $query, $recursive = false) {
+        $request = $this->ffi->new('struct DeleteManyRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Initialize ids as a pointer to an array with a single null element
+        // Create a persistent CData array that won't be freed
+        $ids_array = FFI::new("char*[1]", false);
+        $ids_array[0] = null;
+        $request->ids = $ids_array;
+        
+        // Set query if provided
+        if ($query !== null) {
+            $json_query = json_encode($query);
+            $query_str = $this->ffi->new("char[" . strlen($json_query) + 1 . "]", false);
+            FFI::memcpy($query_str, $json_query, strlen($json_query));
+            $request->query = FFI::cast("char *", FFI::addr($query_str));
+        } else {
+            $request->query = null;
+        }
+
+        $request->recursive = $recursive;
+        $request->request_id = 0;
+
+        // Make the call
+        $response = $this->ffi->delete_many($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        // Remove FFI::free($ids_array) since it's not needed and causes the error
+        if ($query !== null && isset($query_str)) {
+            FFI::free($query_str);
+        }
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_delete_many_response($response);
+            throw new Exception($error_message);
+        }
+
+        $affected_rows = $response->affectedrows;
+        $this->ffi->free_delete_many_response($response);
+        return $affected_rows;
+    }
 }
 
