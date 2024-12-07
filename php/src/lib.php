@@ -4,7 +4,6 @@ namespace openiap;
 use \Exception;
 use \FFI;
 
-// Load the shared library and define FFI functionality
 if (!extension_loaded('FFI')) {
     throw new Exception("FFI extension is not loaded");
 }
@@ -41,7 +40,6 @@ class Client {
     }
     public function  enable_tracing($rust_log, $tracing) {
         print_r("enabling tracing with rust_log=$rust_log, tracing=$tracing\n");
-        // void enable_tracing(const char *rust_log, const char *tracing);
         $this->ffi->enable_tracing($rust_log, $tracing);
     }
     public function  connect($url) {
@@ -59,7 +57,6 @@ class Client {
         $collections = [];
         if ($response->success) {
             $collections = json_decode(FFI::string($response->results), true);
-            // echo "Collections: " . $collections . "\n";
         } else {
             echo "Error: " . FFI::string($response->error) . "\n";
         }
@@ -107,17 +104,6 @@ class Client {
     }
 
     public function dropCollection($collectionname) {
-        /*
-typedef struct DropCollectionResponseWrapper {
-  bool success;
-  const char *error;
-  int32_t request_id;
-} DropCollectionResponseWrapper;
-
-struct DropCollectionResponseWrapper *drop_collection(struct ClientWrapper *client,
-                                                      const char *collectionname);
-void free_drop_collection_response(struct DropCollectionResponseWrapper *response);
-        */
         $response = $this->ffi->drop_collection($this->client, $collectionname);
         if (!$response->success) {
             $error_message = FFI::string($response->error);
