@@ -1,0 +1,14 @@
+{
+    "name": "openiap/client",
+    "autoload": {
+        "psr-4": {
+            "openiap\\client\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Allan Zimmermann",
+            "email": "allan@openrpa.dk"
+        }
+    ]
+}

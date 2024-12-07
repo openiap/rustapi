@@ -67,6 +67,77 @@ impl Default for WatchEventWrapper {
         }
      }
 }
+#[repr(C)]
+pub struct UserWrapper {
+    id: *const c_char,
+    name: *const c_char,
+    username: *const c_char,
+    email: *const c_char,
+    roles: *mut *const c_char,
+}
+
+/// Return currentlly signed in user
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn client_user(
+    client: *mut ClientWrapper
+) -> *const UserWrapper {
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            return std::ptr::null();
+        }
+    };
+    let b = client_wrapper.client.clone().unwrap();
+    let user = b.get_user();
+    match user {
+        None => {
+            return std::ptr::null();
+        }
+        Some(user) => {
+            let response = UserWrapper {
+                id: CString::new(user.id).unwrap().into_raw(),
+                name: CString::new(user.name).unwrap().into_raw(),
+                username: CString::new(user.username).unwrap().into_raw(),
+                email: CString::new(user.email).unwrap().into_raw(),
+                roles: user.roles.iter().map(|role| CString::new(role.name.clone()).unwrap().into_raw() as *const c_char).collect::<Vec<*const c_char>>().as_mut_ptr()
+            };
+            return Box::into_raw(Box::new(response)) as *mut UserWrapper;
+        }
+    }
+}
+/// Free the user wrapper
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_user(user: *mut UserWrapper) {
+    if user.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*user).id.is_null() {
+            let _ = CString::from_raw((*user).id as *mut c_char);
+        }
+        if !(*user).name.is_null() {
+            let _ = CString::from_raw((*user).name as *mut c_char);
+        }
+        if !(*user).username.is_null() {
+            let _ = CString::from_raw((*user).username as *mut c_char);
+        }
+        if !(*user).email.is_null() {
+            let _ = CString::from_raw((*user).email as *mut c_char);
+        }
+        if !(*user).roles.is_null() {
+            let roles = (*user).roles;
+            let mut i = 0;
+            while !roles.offset(i).is_null() {
+                let _ = CString::from_raw(roles.offset(i) as *mut c_char);
+                i += 1;
+            }
+        }
+        let _ = Box::from_raw(user);
+    }
+}
+
 /// QueryRequestWrapper is a wrapper for the QuQueryResponseWrappereryRequest struct.
 #[repr(C)]
 pub struct QueryRequestWrapper {

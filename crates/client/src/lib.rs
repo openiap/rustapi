@@ -76,6 +76,8 @@ pub struct Client {
     task_handles: Arc<std::sync::Mutex<Vec<JoinHandle<()>>>>,
     /// The inner client object
     pub client: Arc<std::sync::Mutex<ClientEnum>>,
+    /// The signed in user.
+    user: Arc<std::sync::Mutex<Option<User>>>,
     /// The inner client.
     pub inner: Arc<Mutex<ClientInner>>,
     /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
@@ -102,6 +104,7 @@ pub struct Client {
     pub msgcount: Arc<std::sync::Mutex<i32>>,
     /// Reconnect interval in milliseconds, this will slowly increase if we keep getting disconnected.
     pub reconnect_ms: Arc<std::sync::Mutex<i32>>,
+    
 }
 /// The `ClientStatistics` struct provides the statistics for usage of the client
 #[derive(Clone, Default)]
@@ -153,8 +156,6 @@ pub struct ClientStatistics {
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
-    /// The signed in user.
-    pub user: Option<User>,
     /// list of queries ( messages sent to server we are waiting on a response for )
     pub queries: Arc<Mutex<std::collections::HashMap<String, QuerySender>>>,
     /// Active streams the server (or client) has opened
@@ -286,14 +287,13 @@ impl Client {
         Self {
             task_handles: Arc::new(std::sync::Mutex::new(Vec::new())),
             stats: Arc::new(std::sync::Mutex::new(ClientStatistics::default())),
-
+            user: Arc::new(std::sync::Mutex::new(None)),
             client: Arc::new(std::sync::Mutex::new(ClientEnum::None)),
             connect_called: Arc::new(std::sync::Mutex::new(false)),
             runtime: Arc::new(std::sync::Mutex::new(None)),
             msgcount: Arc::new(std::sync::Mutex::new(-1)),
             reconnect_ms: Arc::new(std::sync::Mutex::new(1000)),
             inner: Arc::new(Mutex::new(ClientInner {
-                user: None,
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 watches: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -1118,6 +1118,26 @@ impl Client {
         let client = self.client.lock().unwrap();
         client.clone()
     }
+    /// Set the user flag to true or false
+    #[tracing::instrument(skip_all)]
+    pub fn set_user(&self, user: Option<User>) {
+        let mut current = self.user.lock().unwrap();
+        *current = user;
+    }
+    /// Return value of the user
+    #[tracing::instrument(skip_all)]
+    pub fn get_user(&self) -> Option<User> {
+        let user = self.user.lock().unwrap();
+        user.clone()
+    }
+    // /// Return the signed in user, if we are signed in.
+    // #[tracing::instrument(skip_all)]
+    // pub fn get_user(&self) -> Option<User> {
+    //     // let inner = self.inner.lock().await;
+    //     // inner.user.clone()
+    //     self.user.clone()
+    // }
+    
     /// Set the runtime flag to true or false
     #[tracing::instrument(skip_all)]
     pub fn set_runtime(&self, runtime: Option<tokio::runtime::Runtime>) {
@@ -1380,12 +1400,6 @@ impl Client {
             error!("Received unhandled {} message: {:?}", command, received);
         }    
     }    
-    /// Return the signed in user, if we are signed in.
-    #[tracing::instrument(skip_all)]
-    async fn user(&self) -> Option<User> {
-        let inner = self.inner.lock().await;
-        inner.user.clone()
-    }
     /// Internal function, used to send a fake getelement to the OpenIAP server.
     #[tracing::instrument(skip_all)]
     async fn get_element(&self) -> Result<(), OpenIAPError> {
@@ -1481,7 +1495,6 @@ impl Client {
         match &result {
             Ok(m) => {
                 debug!("Sign-in reply received");
-                let mut inner = self.inner.lock().await;
                 if m.command == "error" {
                     let e: ErrorResponse =
                         prost::Message::decode(m.data.as_ref().unwrap().value.as_ref())
@@ -1494,7 +1507,7 @@ impl Client {
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                 if !config.validateonly {
                     self.set_connected(ClientState::Signedin, None);
-                    inner.user = Some(response.user.as_ref().unwrap().clone());
+                    self.set_user(Some(response.user.as_ref().unwrap().clone()));
                 }
                 Ok(response)
             }
@@ -1502,9 +1515,7 @@ impl Client {
                 debug!("Sending Sign-in request failed {:?}", result);
                 debug!("Sign-in failed: {}", e.to_string());
                 if !config.validateonly {
-                    let mut inner = self.inner.lock().await;
-                    // self.set_signedin(false);
-                    inner.user = None;
+                    self.set_user(None);
                 }
                 Err(OpenIAPError::ClientError(e.to_string()))
             }

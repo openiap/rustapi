@@ -1400,7 +1400,7 @@ mod tests {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let signedin = client.get_state();
-        let user = client.user().await.unwrap();
+        let user = client.get_user();
         println!("signed in {:?} as: {:?}", signedin, user);
 
         let response = client
