@@ -9,4 +9,3 @@ node_modules
 package-lock.json
 test.txt
 .aider*
-clib_openiap.h
