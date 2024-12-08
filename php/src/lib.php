@@ -83,7 +83,7 @@ class Client {
 
         print_r("Using library: $libPath\n");
         $this->ffi = FFI::cdef(
-            file_get_contents(__DIR__ . "/../../clib_openiap.h"),
+            file_get_contents(__DIR__ . "/clib_openiap.h"),
             $libPath
         );
     }
