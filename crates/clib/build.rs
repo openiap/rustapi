@@ -13,5 +13,5 @@ fn main() {
 ")
       .generate()
       .expect("Unable to generate bindings")
-      .write_to_file("../../clib_openiap.h");
+      .write_to_file("../../php/src/clib_openiap.h");
 }

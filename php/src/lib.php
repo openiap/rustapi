@@ -13,12 +13,78 @@ class Client {
     private $ffi;
 
     private function loadLibrary() {
-        print_r("loading library header from " . __DIR__ . "/../../clib_openiap.h\n");
-        print_r("loading library from /home/allan/code/rust/openiap/target/debug/libopeniap_clib.so\n");
+        $platform = PHP_OS_FAMILY;
+        $arch = php_uname('m');
+        $libDir = __DIR__ . '/lib';
+        $libPath = null;
+
+        print_r("Platform: $platform, Arch: $arch\n");
+
+        switch (strtolower($platform)) {
+            case 'windows':
+                switch ($arch) {
+                    case 'x86_64':
+                        $libPath = $libDir . '/openiap-windows-x64.dll';
+                        break;
+                    case 'x86':
+                        $libPath = $libDir . '/openiap-windows-i686.dll';
+                        break;
+                    case 'aarch64':
+                        $libPath = $libDir . '/openiap-windows-arm64.dll';
+                        break;
+                    default:
+                        throw new Exception("Unsupported architecture on Windows: $arch");
+                }
+                break;
+            case 'darwin':
+                switch ($arch) {
+                    case 'x86_64':
+                        $libPath = $libDir . '/libopeniap-macos-x64.dylib';
+                        break;
+                    case 'arm64':
+                        $libPath = $libDir . '/libopeniap-macos-arm64.dylib';
+                        break;
+                    default:
+                        throw new Exception("Unsupported architecture on Darwin: $arch");
+                }
+                break;
+            case 'linux':
+                switch ($arch) {
+                    case 'x86_64':
+                        // Note: PHP doesn't have a direct way to detect musl vs glibc
+                        // You might want to add additional detection logic if needed
+                        $libPath = $libDir . '/libopeniap-linux-x64.so';
+                        break;
+                    case 'aarch64':
+                        $libPath = $libDir . '/libopeniap-linux-arm64.so';
+                        break;
+                    default:
+                        throw new Exception("Unsupported architecture on Linux: $arch");
+                }
+                break;
+            default:
+                throw new Exception("Unsupported platform: $platform");
+        }
+
+        if (!file_exists($libPath)) {
+            $libDir = __DIR__ . '/../../target/debug/';
+            switch (strtolower($platform)) {
+                case 'windows':
+                    $libPath = $libDir . 'openiap_clib.dll';
+                    break;
+                case 'darwin':
+                    $libPath = $libDir . 'libopeniap_clib.dylib';
+                    break;
+                default:
+                    $libPath = $libDir . 'libopeniap_clib.so';
+                    break;
+            }
+        }
+
+        print_r("Using library: $libPath\n");
         $this->ffi = FFI::cdef(
             file_get_contents(__DIR__ . "/../../clib_openiap.h"),
-            // __DIR__ . "/lib.so"
-            "/home/allan/code/rust/openiap/target/debug/libopeniap_clib.so"
+            $libPath
         );
     }
     private function createClient() {
