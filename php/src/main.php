@@ -33,6 +33,7 @@ try {
         $affected = $client->deleteOne("testphpcollection", $result[0]['_id']);
         echo "Deleted document count: $affected\n";
     }
+    
 
     // Fix the MongoDB query operator syntax
     $query = ['age' => ['$gt' => 30]]; // Note the quotes around '$gt'

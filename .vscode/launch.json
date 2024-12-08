@@ -21,9 +21,9 @@
             "console":"integratedTerminal"
         },
         {
+            "name": "Node: debug test.js",
             "type": "node",
             "request": "launch",
-            "name": "Node: debug test.js",
             "skipFiles": [
                 "<node_internals>/**"
             ],
@@ -33,9 +33,9 @@
             "program": "${workspaceFolder}/node/test.js"
         },
         {
+            "name": "Node: debug cli.js",
             "type": "node",
             "request": "launch",
-            "name": "Node: debug cli.js",
             "skipFiles": [
                 "<node_internals>/**"
             ],
@@ -59,9 +59,25 @@
             "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll",
         },
         {
+            "name": "PHP: debug main.php",
+            "type": "php",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/php/src/main.php",
+            "cwd": "${fileDirname}",
+            "port": 0,
+            "runtimeArgs": [
+                "-dxdebug.start_with_request=yes"
+            ],
+            "env": {
+                "XDEBUG_MODE": "debug,develop",
+                "XDEBUG_CONFIG": "client_port=${port}"
+            }
+        },
+        {
+            "name": "Rust: debug binary",
             "type": "lldb",
             "request": "launch",
-            "name": "Rust: debug binary",
             "envFile": "${workspaceFolder}/.env",
             "cargo": {
                 "args": [
@@ -78,9 +94,9 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            "name": "Rust: attach",
             "type": "lldb",
             "request": "attach",
-            "name": "Rust: attach",
             "pid": "${command:pickMyProcess}"
         }
 
