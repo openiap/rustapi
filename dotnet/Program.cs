@@ -96,6 +96,18 @@ class Program
                 case "4":
                     client.enabletracing("trace", "new");
                     break;
+                case "push":
+                    var pushwi = new Workitem { name = "test from dotnet", payload = "{\"_type\": \"test\"}"};
+                    await client.PushWorkitem("q2", pushwi,new string[] {"2023_State of the Union address_multilingual.pdf"});
+                    break;
+                case "pop":
+                    var popwi = await client.PopWorkitem("q2", downloadfolder: "downloads");
+                    if(popwi != null) {
+                        Console.WriteLine("Popped workitem: ", popwi.id, popwi.name);
+                    } else {
+                        Console.WriteLine("No workitem to pop.");
+                    }
+                    break;
                 case "dis":
                     try {
                         var t = System.Threading.Tasks.Task.Run(() => {
