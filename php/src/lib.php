@@ -11,6 +11,11 @@ if (!extension_loaded('FFI')) {
 class Client {
     private $client;
     private $ffi;
+    private $clientevents = array();
+    // private $next_watch_interval = 1000000; // microseconds (1 second)
+    private $next_watch_interval = 1; // microseconds (1 second)
+    private $eventProcesses = array();
+    private $watches = array();
 
     private function loadLibrary() {
         $platform = PHP_OS_FAMILY;
@@ -102,6 +107,15 @@ class Client {
     }
 
     public function __destruct() {
+        // Terminate all child processes before destroying the client
+        foreach ($this->eventProcesses as $pid) {
+            posix_kill($pid, SIGTERM);
+            pcntl_waitpid($pid, $status);
+        }
+        foreach ($this->watches as $pid) {
+            posix_kill($pid, SIGTERM);
+            pcntl_waitpid($pid, $status);
+        }
         $this->ffi->free_client($this->client);
     }
     public function  enable_tracing($rust_log, $tracing) {
@@ -109,7 +123,7 @@ class Client {
         $this->ffi->enable_tracing($rust_log, $tracing);
     }
     public function  connect($url) {
-        print_r("connecting to $url\n");
+        print_r("connecting...\n");
         $response = $this->ffi->client_connect($this->client, $url);
         if ($response->success) {
             echo "Connected successfully!\n";
@@ -390,5 +404,217 @@ class Client {
         $this->ffi->free_delete_many_response($response);
         return $affected_rows;
     }
+
+    // so pparently, php does not like callbacks, according to
+    // https://www.php.net/manual/en/ffi.examples-callback.php
+    // so we have to use pcntl_fork to handle events in a separate process
+    // and poll for events in the child process
+    public function on_client_event($callback) {
+        if (!extension_loaded('pcntl')) {
+            throw new Exception("pcntl extension is not loaded. Required for non-blocking event handling.");
+        }
+
+        $response = $this->ffi->on_client_event($this->client);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_event_response($response);
+            throw new Exception($error_message);
+        }
+        $eventid = FFI::string($response->eventid);
+        $this->ffi->free_event_response($response);
+
+        $this->clientevents[$eventid] = true;
+        
+        // Fork a new process to handle events
+        $pid = pcntl_fork();
+        if ($pid == -1) {
+            throw new Exception("Could not fork process");
+        } else if ($pid) {
+            // Parent process
+            $this->eventProcesses[$eventid] = $pid;
+            return $eventid;
+        } else {
+            // Child process
+            $event_counter = 0;
+            while ($this->clientevents[$eventid]) {
+                $hadone = false;
+                do {
+                    // print("next_client_event\n");
+                    $responsePtr = $this->ffi->next_client_event($eventid);
+                    if ($responsePtr === null) {
+                        print("responsePtr is null\n");
+                        $hadone = false;
+                        continue;
+                    }
+
+                    if ($responsePtr->event === null) {
+                        // print("responsePtr->event is null\n");
+                        $hadone = false;
+                    } else if (strlen(FFI::string($responsePtr->event)) == 0) {
+                        print("responsePtr->event is empty string\n");
+                        $hadone = false;
+                    } else if ($responsePtr->event !== null && strlen(FFI::string($responsePtr->event)) > 0) {
+                        print("************************************\n");
+                        print("Event\n");
+                        print("************************************\n");
+                        $hadone = true;
+                        $event_counter++;
+                        $event = array(
+                            'event' => FFI::string($responsePtr->event),
+                            'reason' => ""
+                            // 'reason' => FFI::string($responsePtr->reason)
+                        );
+                        try {
+                            $callback($event, $event_counter);
+                        } catch (Exception $error) {
+                            print_r("Error in client event callback: " . $error->getMessage() . "\n");
+                        }
+                    } else {
+                        print("ELSE!!!! responsePtr->event is null\n");
+                        $hadone = false;
+                    }
+                    $this->ffi->free_client_event($responsePtr);
+                } while ($hadone);
+                // usleep($this->next_watch_interval);
+                sleep($this->next_watch_interval);
+            }
+            print("***************************\n");
+            print("Exiting child process\n");
+            print("***************************\n");
+            exit(0); // End child process
+        }
+    }
+
+    public function off_client_event($eventid) {
+        print_r("off_client_event\n");
+        $response = $this->ffi->off_client_event($eventid);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_off_event_response($response);
+            throw new Exception($error_message);
+        }
+        $this->ffi->free_off_event_response($response);
+        
+        // Stop the event loop in child process
+        if (isset($this->clientevents[$eventid])) {
+            $this->clientevents[$eventid] = false;
+            unset($this->clientevents[$eventid]);
+        }
+
+        // Terminate the child process
+        if (isset($this->eventProcesses[$eventid])) {
+            posix_kill($this->eventProcesses[$eventid], SIGTERM);
+            pcntl_waitpid($this->eventProcesses[$eventid], $status);
+            unset($this->eventProcesses[$eventid]);
+        }
+    }
+
+    public function watch($collectionname, $paths, $callback) {
+        $request = $this->ffi->new('struct WatchRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Set paths
+        if (is_array($paths)) {
+            $paths = json_encode($paths);
+        }
+        $paths_str = $this->ffi->new("char[" . strlen($paths) + 1 . "]", false);
+        FFI::memcpy($paths_str, $paths, strlen($paths));
+        $request->paths = FFI::cast("char *", FFI::addr($paths_str));
+
+        // Make the call
+        $response = $this->ffi->watch($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($paths_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_watch_response($response);
+            throw new Exception($error_message);
+        }
+
+        $watchid = FFI::string($response->watchid);
+        $this->ffi->free_watch_response($response);
+
+        // Fork a new process to handle watch events
+        $pid = pcntl_fork();
+        if ($pid == -1) {
+            throw new Exception("Could not fork process");
+        } else if ($pid) {
+            // Parent process
+            $this->watches[$watchid] = $pid;
+            return $watchid;
+        } else {
+            // Child process
+            $event_counter = 0;
+            while (true) {
+                $hadone = false;
+                do {
+                    $responsePtr = $this->ffi->next_watch_event($watchid);
+                    if ($responsePtr === null) {
+                        print_r("responsePtr is null\n");
+                        $hadone = false;
+                        continue;
+                    }
+
+                    try {
+                        $id = "";
+                        $operation = "";
+                        $document = "{}";
+                        if ($responsePtr->id !== null) { $id = FFI::string($responsePtr->id); }
+                        if ($responsePtr->operation !== null) { $operation = FFI::string($responsePtr->operation); }
+                        if ($responsePtr->document !== null) { $document = FFI::string($responsePtr->document); }
+
+                        print_r("************************************\n");
+                        print_r("Watch Event\n");
+                        print_r("************************************\n");
+                        $hadone = true;
+                        $event_counter++;
+                        $event = array(
+                            'id' => $id,
+                            'operation' => $operation,
+                            'document' => json_decode($document, true)
+                        );
+                        print_r("event: " . json_encode($event) . "\n");
+                        try {
+                            $callback($event, $event_counter);
+                        } catch (Exception $error) {
+                            print_r("Error in watch callback: " . $error->getMessage() . "\n");
+                        }
+                    // }
+                    } catch (\Throwable $th) {
+                        print_r("Error in watch callback: " . $th->getMessage() . "\n");
+                    }
+
+                    $this->ffi->free_watch_event($responsePtr);
+                } while ($hadone);
+                sleep($this->next_watch_interval);
+            }
+        }
+    }
+
+    public function unwatch($watchid) {
+        print_r("unwatch\n");
+        $response = $this->ffi->unwatch($watchid);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_unwatch_response($response);
+            throw new Exception($error_message);
+        }
+        $this->ffi->free_unwatch_response($response);
+        
+        // Terminate the child process
+        if (isset($this->watches[$watchid])) {
+            posix_kill($this->watches[$watchid], SIGTERM);
+            pcntl_waitpid($this->watches[$watchid], $status);
+            unset($this->watches[$watchid]);
+        }
+    }
+
 }
 
