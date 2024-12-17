@@ -96,14 +96,25 @@ class Program
                 case "4":
                     client.enabletracing("trace", "new");
                     break;
-                case "push":
+                case "pp":
                     var pushwi = new Workitem { name = "test from dotnet", payload = "{\"_type\": \"test\"}"};
-                    await client.PushWorkitem("q2", pushwi,new string[] {"2023_State of the Union address_multilingual.pdf"});
+                    // var pushwires = await client.PushWorkitem("q2", pushwi,new string[] {"2023_State of the Union address_multilingual.pdf"});
+                    var pushwires = await client.PushWorkitem("q2", pushwi,new string[] {"assistant-linux-x86_64.AppImage"});
+                    // var pushwires = await client.PushWorkitem("q2", pushwi,new string[] {"../testfile.csv"});
+                    Console.WriteLine("Pushed workitem: {0} {1}", pushwires.id, pushwires.name);
                     break;
-                case "pop":
+                case "p":
+                    if(System.IO.Directory.Exists("downloads")) {
+                        System.IO.Directory.Delete("downloads", true);
+                    }
+                    System.IO.Directory.CreateDirectory("downloads");
                     var popwi = await client.PopWorkitem("q2", downloadfolder: "downloads");
                     if(popwi != null) {
                         Console.WriteLine("Popped workitem: ", popwi.id, popwi.name);
+                        for(var i = 0; i < popwi.files.Length; i++) {
+                            Console.WriteLine("File: ", popwi.files[i]);
+                            System.IO.File.Copy("downloads/" + popwi.files[i].filename, "downloads/" + popwi.files[i].filename + ".copy");
+                        }
                     } else {
                         Console.WriteLine("No workitem to pop.");
                     }

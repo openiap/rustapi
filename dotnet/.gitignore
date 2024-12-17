@@ -5,3 +5,5 @@ program.cs
 packages
 *.csv
 *.pdf
+*.AppImage
+downloads

@@ -584,7 +584,7 @@ public partial class Client : IDisposable
     }
     public delegate void QueueEventCallback(IntPtr eventStr);
     public delegate void ExchangeEventCallback(IntPtr eventStr);
-   
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RegisterQueueRequestWrapper
     {
@@ -2125,7 +2125,7 @@ public partial class Client : IDisposable
         try
         {
             var response = Marshal.PtrToStructure<InsertManyResponseWrapper>(responsePtr);
-            
+
             int requestId = response.request_id;
             var count = CallbackRegistry.Count;
             if (count == 0)
@@ -2811,7 +2811,7 @@ public partial class Client : IDisposable
         try
         {
             var eventObj = Marshal.PtrToStructure<WatchEventWrapper>(WatchEventWrapper);
-            if(eventObj.request_id == 0)
+            if (eventObj.request_id == 0)
             {
                 return;
             }
@@ -2832,8 +2832,10 @@ public partial class Client : IDisposable
         }
         catch (System.Exception)
         {
-        } finally {
-        free_watch_event(WatchEventWrapper);
+        }
+        finally
+        {
+            free_watch_event(WatchEventWrapper);
         }
     }
 
@@ -2886,11 +2888,12 @@ public partial class Client : IDisposable
             Marshal.FreeHGlobal(watchidPtr);
         }
     }
-    void _QueueEventCallback (IntPtr QueueEventWrapperptr) {
+    void _QueueEventCallback(IntPtr QueueEventWrapperptr)
+    {
         try
         {
             var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
-            if(eventObj.request_id == 0)
+            if (eventObj.request_id == 0)
             {
                 return;
             }
@@ -2910,14 +2913,18 @@ public partial class Client : IDisposable
                     data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                 };
                 eventHandler(watchEvent);
-            } else {
+            }
+            else
+            {
                 Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
             }
         }
         catch (System.Exception ex)
         {
             Console.WriteLine(ex.Message);
-        } finally {
+        }
+        finally
+        {
             free_queue_event(QueueEventWrapperptr);
         }
     }
@@ -2959,11 +2966,12 @@ public partial class Client : IDisposable
             Marshal.FreeHGlobal(queuenamePtr);
         }
     }
-    void _ExchangeEventCallback (IntPtr QueueEventWrapperptr) {
+    void _ExchangeEventCallback(IntPtr QueueEventWrapperptr)
+    {
         try
         {
             var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
-            if(eventObj.request_id == 0)
+            if (eventObj.request_id == 0)
             {
                 return;
             }
@@ -2983,14 +2991,18 @@ public partial class Client : IDisposable
                     data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                 };
                 eventHandler(watchEvent);
-            } else {
+            }
+            else
+            {
                 Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
             }
         }
         catch (System.Exception ex)
         {
             Console.WriteLine(ex.Message);
-        } finally {
+        }
+        finally
+        {
             free_queue_event(QueueEventWrapperptr);
         }
     }
@@ -3023,7 +3035,7 @@ public partial class Client : IDisposable
             }
             else
             {
-                if(eventHandler != null) DelegateRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
+                if (eventHandler != null) DelegateRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
                 return result_queuename;
             }
         }
@@ -3169,6 +3181,27 @@ public partial class Client : IDisposable
                     var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
                     var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
                     var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    var files = new List<WorkitemFile>();
+                    if (workitem_rsp.files != IntPtr.Zero && workitem_rsp.files_len > 0)
+                    {
+                        IntPtr[] filePointers = new IntPtr[workitem_rsp.files_len];
+                        Marshal.Copy(workitem_rsp.files, filePointers, 0, workitem_rsp.files_len);
+
+                        for (int i = 0; i < workitem_rsp.files_len; i++)
+                        {
+                            if (filePointers[i] != IntPtr.Zero)
+                            {
+                                var file = Marshal.PtrToStructure<WorkitemFileWrapper>(filePointers[i]);
+                                files.Add(new WorkitemFile
+                                {
+                                    filename = Marshal.PtrToStringAnsi(file.filename) ?? string.Empty,
+                                    id = Marshal.PtrToStringAnsi(file.id) ?? string.Empty,
+                                    compressed = file.compressed
+                                });
+                            }
+                        }
+                    }
+
                     workitem = new Workitem
                     {
                         id = id,
@@ -3189,6 +3222,7 @@ public partial class Client : IDisposable
                         errormessage = errormessage,
                         errorsource = errorsource,
                         errortype = errortype,
+                        files = files.ToArray()
                     };
                 }
 
@@ -3350,6 +3384,27 @@ public partial class Client : IDisposable
                     var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
                     var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
                     var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    var files = new List<WorkitemFile>();
+                    if (workitem_rsp.files != IntPtr.Zero && workitem_rsp.files_len > 0)
+                    {
+                        IntPtr[] filePointers = new IntPtr[workitem_rsp.files_len];
+                        Marshal.Copy(workitem_rsp.files, filePointers, 0, workitem_rsp.files_len);
+
+                        for (int i = 0; i < workitem_rsp.files_len; i++)
+                        {
+                            if (filePointers[i] != IntPtr.Zero)
+                            {
+                                var file = Marshal.PtrToStructure<WorkitemFileWrapper>(filePointers[i]);
+                                files.Add(new WorkitemFile
+                                {
+                                    filename = Marshal.PtrToStringAnsi(file.filename) ?? string.Empty,
+                                    id = Marshal.PtrToStringAnsi(file.id) ?? string.Empty,
+                                    compressed = file.compressed
+                                });
+                            }
+                        }
+                    }
+
                     workitem = new Workitem
                     {
                         id = id,
@@ -3370,6 +3425,7 @@ public partial class Client : IDisposable
                         errormessage = errormessage,
                         errorsource = errorsource,
                         errortype = errortype,
+                        files = files.ToArray()
                     };
                 }
 
@@ -3469,6 +3525,27 @@ public partial class Client : IDisposable
                     var errormessage = Marshal.PtrToStringAnsi(workitem_rsp.errormessage) ?? string.Empty;
                     var errorsource = Marshal.PtrToStringAnsi(workitem_rsp.errorsource) ?? string.Empty;
                     var errortype = Marshal.PtrToStringAnsi(workitem_rsp.errortype) ?? string.Empty;
+                    var files = new List<WorkitemFile>();
+                    if (workitem_rsp.files != IntPtr.Zero && workitem_rsp.files_len > 0)
+                    {
+                        IntPtr[] filePointers = new IntPtr[workitem_rsp.files_len];
+                        Marshal.Copy(workitem_rsp.files, filePointers, 0, workitem_rsp.files_len);
+
+                        for (int i = 0; i < workitem_rsp.files_len; i++)
+                        {
+                            if (filePointers[i] != IntPtr.Zero)
+                            {
+                                var file = Marshal.PtrToStructure<WorkitemFileWrapper>(filePointers[i]);
+                                files.Add(new WorkitemFile
+                                {
+                                    filename = Marshal.PtrToStringAnsi(file.filename) ?? string.Empty,
+                                    id = Marshal.PtrToStringAnsi(file.id) ?? string.Empty,
+                                    compressed = file.compressed
+                                });
+                            }
+                        }
+                    }
+
                     workitem = new Workitem
                     {
                         id = id,
@@ -3489,6 +3566,7 @@ public partial class Client : IDisposable
                         errormessage = errormessage,
                         errorsource = errorsource,
                         errortype = errortype,
+                        files = files.ToArray()
                     };
 
                 }
