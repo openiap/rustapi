@@ -6788,7 +6788,7 @@ pub extern "C" fn on_client_event_async(
     client: *mut ClientWrapper,
     event_callback: ClientEventCallback,
 )  -> *mut ClientEventResponseWrapper {
-
+    debug!("on_client_event_async::begin");
     let client_wrapper = match safe_wrapper(client) {
         Some(client) => client,
         None => {
@@ -6813,6 +6813,7 @@ pub extern "C" fn on_client_event_async(
     }
     let client = client.as_mut().unwrap();
     let eventid = Client::get_uniqueid();
+    debug!("on_client_event_async::eventid: {:?}", eventid);
     let _eventid = eventid.clone();
     tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
@@ -6851,10 +6852,12 @@ pub extern "C" fn on_client_event_async(
     let _eventid = eventid.clone();
     let queue = events.get_mut(&_eventid);
     if queue.is_none() {
+        debug!("create event queue, for eventid: {:?}", eventid);
         let q = std::collections::VecDeque::new();
         let k = String::from(&eventid);
         events.insert(k, q);
     };
+    debug!("on_client_event_async::end");
     let response = ClientEventResponseWrapper {
         success: true,
         eventid: CString::new(eventid).unwrap().into_raw(),
