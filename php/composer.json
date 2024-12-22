@@ -2,7 +2,7 @@
     "name": "openiap/client",
     "autoload": {
         "psr-4": {
-            "openiap\\client\\": "src/"
+            "openiap\\": "src/"
         }
     },
     "authors": [
@@ -10,5 +10,10 @@
             "name": "Allan Zimmermann",
             "email": "allan@openrpa.dk"
         }
-    ]
+    ],
+    "require": {
+        "revolt/event-loop": "^1.0",
+        "react/event-loop": "^1.5",
+        "evenement/evenement": "^3.0"
+    }
 }

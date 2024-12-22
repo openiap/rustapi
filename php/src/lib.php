@@ -3,14 +3,15 @@ namespace openiap;
 
 use \Exception;
 use \FFI;
+use React\EventLoop\Loop;
 
 if (!extension_loaded('FFI')) {
     throw new Exception("FFI extension is not loaded");
 }
-
+  
 class Client {
     private $client;
-    private $ffi;
+    public $ffi;
     private $clientevents = array();
     // private $next_watch_interval = 1000000; // microseconds (1 second)
     private $next_watch_interval = 1; // microseconds (1 second)
@@ -93,7 +94,6 @@ class Client {
         );
     }
     private function createClient() {
-        print_r("creating client\n");
         $client = $this->ffi->create_client();
         if ($client === null) {
             throw new Exception("Failed to create client");
@@ -112,10 +112,6 @@ class Client {
             posix_kill($pid, SIGTERM);
             pcntl_waitpid($pid, $status);
         }
-        foreach ($this->watches as $pid) {
-            posix_kill($pid, SIGTERM);
-            pcntl_waitpid($pid, $status);
-        }
         $this->ffi->free_client($this->client);
     }
     public function  enable_tracing($rust_log, $tracing) {
@@ -123,10 +119,9 @@ class Client {
         $this->ffi->enable_tracing($rust_log, $tracing);
     }
     public function  connect($url) {
-        print_r("connecting...\n");
         $response = $this->ffi->client_connect($this->client, $url);
         if ($response->success) {
-            echo "Connected successfully!\n";
+            // echo "Connected successfully!\n";
         } else {
             echo "Error: " . FFI::string($response->error) . "\n";
         }
@@ -508,7 +503,60 @@ class Client {
             unset($this->eventProcesses[$eventid]);
         }
     }
+    private static function watch_worker(Client $me, string $watchid, \Closure $callback){
+        $event_counter = 0;
+        $hadone = true;
+        while ($hadone) {
+            $hadone = false;
+            do {
+                $responsePtr = $me->ffi->next_watch_event($watchid);
+                if ($responsePtr === null) {
+                    print_r("responsePtr is null\n");
+                    $hadone = false;
+                    continue;
+                }
 
+                try {
+                    $id = "";
+                    $operation = "";
+                    $document = "{}";
+                    if ($responsePtr->id !== null) { $id = FFI::string($responsePtr->id); }
+                    if ($responsePtr->operation !== null) { $operation = FFI::string($responsePtr->operation); }
+                    if ($responsePtr->document !== null) { $document = FFI::string($responsePtr->document); }
+
+                    if($id == "") {
+                        $hadone = false;
+                        continue;
+                    }
+
+                    print_r("************************************\n");
+                    print_r("Watch Event\n");
+                    print_r("************************************\n");
+                    $hadone = true;
+                    $event_counter++;
+                    $event = array(
+                        'id' => $id,
+                        'operation' => $operation,
+                        'document' => json_decode($document, true)
+                    );
+                    print_r("event: " . json_encode($event) . "\n");
+                    try {
+                        if(is_callable($callback)) {
+                            $callback($event, $event_counter);
+                        }
+                    } catch (Exception $error) {
+                        print_r("Error in watch callback: " . $error->getMessage() . "\n");
+                    }
+                } catch (\Throwable $th) {
+                    print_r("Error in watch callback: " . $th->getMessage() . "\n");
+                }
+
+                $me->ffi->free_watch_event($responsePtr);
+            } while ($hadone);
+            sleep($me->next_watch_interval);
+        }
+
+    }
     public function watch($collectionname, $paths, $callback) {
         $request = $this->ffi->new('struct WatchRequestWrapper');
         
@@ -541,61 +589,11 @@ class Client {
         $watchid = FFI::string($response->watchid);
         $this->ffi->free_watch_response($response);
 
-        // Fork a new process to handle watch events
-        $pid = pcntl_fork();
-        if ($pid == -1) {
-            throw new Exception("Could not fork process");
-        } else if ($pid) {
-            // Parent process
-            $this->watches[$watchid] = $pid;
-            return $watchid;
-        } else {
-            // Child process
-            $event_counter = 0;
-            while (true) {
-                $hadone = false;
-                do {
-                    $responsePtr = $this->ffi->next_watch_event($watchid);
-                    if ($responsePtr === null) {
-                        print_r("responsePtr is null\n");
-                        $hadone = false;
-                        continue;
-                    }
-
-                    try {
-                        $id = "";
-                        $operation = "";
-                        $document = "{}";
-                        if ($responsePtr->id !== null) { $id = FFI::string($responsePtr->id); }
-                        if ($responsePtr->operation !== null) { $operation = FFI::string($responsePtr->operation); }
-                        if ($responsePtr->document !== null) { $document = FFI::string($responsePtr->document); }
-
-                        print_r("************************************\n");
-                        print_r("Watch Event\n");
-                        print_r("************************************\n");
-                        $hadone = true;
-                        $event_counter++;
-                        $event = array(
-                            'id' => $id,
-                            'operation' => $operation,
-                            'document' => json_decode($document, true)
-                        );
-                        print_r("event: " . json_encode($event) . "\n");
-                        try {
-                            $callback($event, $event_counter);
-                        } catch (Exception $error) {
-                            print_r("Error in watch callback: " . $error->getMessage() . "\n");
-                        }
-                    // }
-                    } catch (\Throwable $th) {
-                        print_r("Error in watch callback: " . $th->getMessage() . "\n");
-                    }
-
-                    $this->ffi->free_watch_event($responsePtr);
-                } while ($hadone);
-                sleep($this->next_watch_interval);
-            }
-        }
+        $timer = Loop::addPeriodicTimer(0.1, function () use ($watchid, $callback) {
+            Client::watch_worker($this, $watchid, $callback);
+        });
+        $this->watches[$watchid] = $timer;
+        return $watchid;
     }
 
     public function unwatch($watchid) {
@@ -607,11 +605,8 @@ class Client {
             throw new Exception($error_message);
         }
         $this->ffi->free_unwatch_response($response);
-        
-        // Terminate the child process
         if (isset($this->watches[$watchid])) {
-            posix_kill($this->watches[$watchid], SIGTERM);
-            pcntl_waitpid($this->watches[$watchid], $status);
+            Loop::cancelTimer($this->watches[$watchid]);
             unset($this->watches[$watchid]);
         }
     }
