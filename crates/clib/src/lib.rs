@@ -422,8 +422,8 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
     info!("connect::complete");
     if res.is_err() {
         let e = res.err().unwrap();
-        info!("error_msg = {:?}", format!("Connaction failed: {:?}", e));
-        let error_msg = CString::new(format!("Connaction failed: {:?}", e))
+        info!("error_msg = {:?}", format!("Connection failed: {:?}", e));
+        let error_msg = CString::new(format!("Connection failed: {:?}", e))
             .unwrap()
             .into_raw();
         
