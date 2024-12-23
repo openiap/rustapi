@@ -59,11 +59,27 @@
             "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll",
         },
         {
-            "name": "PHP: debug main.php",
+            "name": "PHP: debug test.php",
             "type": "php",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/php/src/main.php",
+            "program": "${workspaceFolder}/php/examples/test.php",
+            "cwd": "${fileDirname}",
+            "port": 0,
+            "runtimeArgs": [
+                "-dxdebug.start_with_request=yes"
+            ],
+            "env": {
+                "XDEBUG_MODE": "debug,develop",
+                "XDEBUG_CONFIG": "client_port=${port}"
+            }
+        },
+        {
+            "name": "PHP: debug cli.php",
+            "type": "php",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/php/examples/cli.php",
             "cwd": "${fileDirname}",
             "port": 0,
             "runtimeArgs": [

@@ -11,9 +11,10 @@
             "email": "allan@openrpa.dk"
         }
     ],
-    "require": {
-        "revolt/event-loop": "^1.0",
-        "react/event-loop": "^1.5",
-        "evenement/evenement": "^3.0"
+    "suggest": {
+        "react/event-loop": "^1.5"
+    },
+    "require-dev": {
+        "react/event-loop": "^1.5"
     }
 }

@@ -15,7 +15,6 @@ class Client {
     private $clientevents = array();
     // private $next_watch_interval = 1000000; // microseconds (1 second)
     private $next_watch_interval = 1; // microseconds (1 second)
-    private $eventProcesses = array();
     private $watches = array();
 
     private function loadLibrary() {
@@ -104,30 +103,137 @@ class Client {
     public function __construct() {
         $this->loadLibrary();
         $this->client = $this->createClient();
+        $this->set_agent_name("php");
+    }
+
+    public function free() {
+        $this->disconnect();
+        $this->__destruct();
     }
 
     public function __destruct() {
-        // Terminate all child processes before destroying the client
-        foreach ($this->eventProcesses as $pid) {
-            posix_kill($pid, SIGTERM);
-            pcntl_waitpid($pid, $status);
+        foreach ($this->watches as $watch) {
+            // print_r("unwatching $watchid\n");
+            // Loop::cancelTimer($this->watches[$watchid]);
+            Loop::cancelTimer($watch);
         }
         $this->ffi->free_client($this->client);
     }
-    public function  enable_tracing($rust_log, $tracing) {
+    public function set_next_watch_interval($interval) {
+        $this->next_watch_interval = $interval;
+    }
+    public static function load_dotenv(string $envfile = null) {
+        if($envfile == null) {
+            $envfile = __DIR__ . '/.env';
+            if (file_exists($envfile) == false) $envfile = null;
+        }
+        if($envfile == null) {
+            $envfile = __DIR__ . '/../.env';
+            if (file_exists($envfile) == false) $envfile = null;
+        }
+        if($envfile == null) {
+            $envfile = __DIR__ . '/../../.env';
+        }
+        if (file_exists($envfile) == false) return false;
+        $content = file_get_contents($envfile);
+        $lines = explode("\n", $content);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+            $parts = explode("=", $line);
+            if (count($parts) == 2) {
+                $key = $parts[0];
+                $value = $parts[1];
+                $t = strpos($key, "#");
+                if($t == false && $t !== 0) {
+                    print ("Setting env: $key\n");
+                    putenv("$key=$value");
+                }
+            }
+        }
+        $apiurl = getenv('apiurl');
+        print ("****************************************************\n");
+        print ("apiurl: $apiurl\n");
+        print ("****************************************************\n");
+        return true;
+    }
+    public function enable_tracing($rust_log, $tracing) {
         print_r("enabling tracing with rust_log=$rust_log, tracing=$tracing\n");
         $this->ffi->enable_tracing($rust_log, $tracing);
     }
-    public function  connect($url) {
+    public function disable_tracing() {
+        $this->ffi->disable_tracing();
+    }
+
+    private function set_agent_name($agent_name) {
+        $this->ffi->client_set_agent_name($this->client, $agent_name);
+    }
+
+    private function set_agent_version($agent_version) {
+        $this->ffi->client_set_agent_version($this->client, $agent_version);
+    }
+
+    private function strToCharP($str) {
+        if ($str === null) return null;
+        $len = strlen($str);
+        $tmp = $this->ffi->new("char[$len + 1]", false);
+        FFI::memcpy($tmp, $str, $len);
+        return FFI::cast("char *", FFI::addr($tmp));
+    }
+    
+    public function signin($options = array()) {
+        $request = $this->ffi->new('struct SigninRequestWrapper');
+        
+        // Helper function to convert string to char*
+        
+        // Set optional parameters with proper casting
+        $request->username = $this->strToCharP($options['username'] ?? null);
+        $request->password = $this->strToCharP($options['password'] ?? null);
+        $request->jwt = $this->strToCharP($options['jwt'] ?? null);
+        $request->agent = $this->strToCharP($options['agent'] ?? null);
+        $request->version = $this->strToCharP($options['version'] ?? null);
+        
+        // Set boolean flags
+        $request->longtoken = isset($options['longtoken']) ? $options['longtoken'] : false;
+        $request->validateonly = isset($options['validateonly']) ? $options['validateonly'] : false;
+        $request->ping = isset($options['ping']) ? $options['ping'] : false;
+        $request->request_id = 0;
+
+        $response = $this->ffi->signin($this->client, FFI::addr($request));
+        
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_signin_response($response);
+            throw new Exception($error_message);
+        }
+
+        $jwt = null;
+        if ($response->jwt) {
+            $jwt = FFI::string($response->jwt);
+        }
+
+        $this->ffi->free_signin_response($response);
+        return $jwt;
+    }
+
+    public function connect($url) {
         $response = $this->ffi->client_connect($this->client, $url);
         if ($response->success) {
             // echo "Connected successfully!\n";
         } else {
-            echo "Error: " . FFI::string($response->error) . "\n";
+            throw new Exception(FFI::string($response->error));
+            // echo "Error: " . FFI::string($response->error) . "\n";
         }
         $this->ffi->free_connect_response($response);
     }
-    public function  listCollections() {
+
+    public function disconnect() {
+        $this->ffi->client_disconnect($this->client);
+    }
+
+    public function listCollections() {
         $response = $this->ffi->list_collections($this->client, false);
         $collections = [];
         if ($response->success) {
@@ -186,6 +292,76 @@ class Client {
             throw new Exception($error_message);
         }
         $this->ffi->free_drop_collection_response($response);
+    }
+
+    public function getIndexes($collectionname) {
+        $response = $this->ffi->get_indexes($this->client, $collectionname);
+        $indexes = [];
+        if ($response->success) {
+            $indexes = json_decode(FFI::string($response->results), true);
+        } else {
+            throw new Exception(FFI::string($response->error));
+        }
+        $this->ffi->free_get_indexes_response($response);
+        return $indexes;
+    }
+
+    public function createIndex($collectionname, $index, $options = null, $name = null) {
+        $request = $this->ffi->new('struct CreateIndexRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Convert index to JSON string
+        $json_index = json_encode($index);
+        $index_str = $this->ffi->new("char[" . strlen($json_index) + 1 . "]", false);
+        FFI::memcpy($index_str, $json_index, strlen($json_index));
+        $request->index = FFI::cast("char *", FFI::addr($index_str));
+
+        // Set options if provided
+        if ($options !== null) {
+            $json_options = json_encode($options);
+            $options_str = $this->ffi->new("char[" . strlen($json_options) + 1 . "]", false);
+            FFI::memcpy($options_str, $json_options, strlen($json_options));
+            $request->options = FFI::cast("char *", FFI::addr($options_str));
+        }
+
+        // Set name if provided
+        if ($name !== null) {
+            $name_str = $this->ffi->new("char[" . strlen($name) + 1 . "]", false);
+            FFI::memcpy($name_str, $name, strlen($name));
+            $request->name = FFI::cast("char *", FFI::addr($name_str));
+        }
+
+        $request->request_id = 0;
+
+        $response = $this->ffi->create_index($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($index_str);
+        if ($options !== null) FFI::free($options_str);
+        if ($name !== null) FFI::free($name_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_create_index_response($response);
+            throw new Exception($error_message);
+        }
+
+        $this->ffi->free_create_index_response($response);
+    }
+
+    public function dropIndex($collectionname, $name) {
+        $response = $this->ffi->drop_index($this->client, $collectionname, $name);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_drop_index_response($response);
+            throw new Exception($error_message);
+        }
+        $this->ffi->free_drop_index_response($response);
     }
 
     public function insertOne($collectionname, $item) {
@@ -368,7 +544,7 @@ class Client {
         
         // Set query if provided
         if ($query !== null) {
-            $json_query = json_encode($query);
+            $json_query = json_encode((object)$query);
             $query_str = $this->ffi->new("char[" . strlen($json_query) + 1 . "]", false);
             FFI::memcpy($query_str, $json_query, strlen($json_query));
             $request->query = FFI::cast("char *", FFI::addr($query_str));
@@ -609,6 +785,273 @@ class Client {
             Loop::cancelTimer($this->watches[$watchid]);
             unset($this->watches[$watchid]);
         }
+    }
+
+    public function query($collectionname, $query = null, $projection = null, $orderby = null, $top = 0, $skip = 0, $explain = false, $queryas = null) {
+        $request = $this->ffi->new('struct QueryRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        if ($query === null) {
+            $query = array();
+        }
+        $json_query = json_encode((object)$query);
+        $query_str = $this->ffi->new("char[" . strlen($json_query) + 1 . "]", false);
+        FFI::memcpy($query_str, $json_query, strlen($json_query));
+        $request->query = FFI::cast("char *", FFI::addr($query_str));
+
+        // Set projection if provided
+        if ($projection !== null) {
+            $json_proj = json_encode($projection);
+            $proj_str = $this->ffi->new("char[" . strlen($json_proj) + 1 . "]", false);
+            FFI::memcpy($proj_str, $json_proj, strlen($json_proj));
+            $request->projection = FFI::cast("char *", FFI::addr($proj_str));
+        } else {
+            $request->projection = null;
+        }
+
+        // Set orderby if provided
+        if ($orderby !== null) {
+            $json_order = json_encode($orderby);
+            $order_str = $this->ffi->new("char[" . strlen($json_order) + 1 . "]", false);
+            FFI::memcpy($order_str, $json_order, strlen($json_order));
+            $request->orderby = FFI::cast("char *", FFI::addr($order_str));
+        } else {
+            $request->orderby = null;
+        }
+
+        // Set queryas if provided
+        if ($queryas !== null) {
+            $queryas_str = $this->ffi->new("char[" . strlen($queryas) + 1 . "]", false);
+            FFI::memcpy($queryas_str, $queryas, strlen($queryas));
+            $request->queryas = FFI::cast("char *", FFI::addr($queryas_str));
+        } else {
+            $request->queryas = null;
+        }
+
+        $request->top = $top;
+        $request->skip = $skip;
+        $request->explain = $explain;
+        $request->request_id = 0;
+
+        // Make the call
+        $response = $this->ffi->query($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        if ($query !== null && isset($query_str)) {
+            FFI::free($query_str);
+        }
+        if ($projection !== null && isset($proj_str)) {
+            FFI::free($proj_str);
+        }
+        if ($orderby !== null && isset($order_str)) {
+            FFI::free($order_str);
+        }
+        if ($queryas !== null && isset($queryas_str)) {
+            FFI::free($queryas_str);
+        }
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_query_response($response);
+            throw new Exception($error_message);
+        }
+
+        $results = null;
+        if ($response->results) {
+            $results = json_decode(FFI::string($response->results), true);
+        }
+
+        $this->ffi->free_query_response($response);
+        return $results;
+    }
+
+    public function aggregate($collectionname, $aggregates, $hint = null, $queryas = null, $explain = false) {
+        $request = $this->ffi->new('struct AggregateRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Convert aggregates to JSON string
+        $json_agg = json_encode($aggregates);
+        $agg_str = $this->ffi->new("char[" . strlen($json_agg) + 1 . "]", false);
+        FFI::memcpy($agg_str, $json_agg, strlen($json_agg));
+        $request->aggregates = FFI::cast("char *", FFI::addr($agg_str));
+
+        // Set hint if provided
+        if ($hint !== null) {
+            $json_hint = json_encode($hint);
+            $hint_str = $this->ffi->new("char[" . strlen($json_hint) + 1 . "]", false);
+            FFI::memcpy($hint_str, $json_hint, strlen($json_hint));
+            $request->hint = FFI::cast("char *", FFI::addr($hint_str));
+        } else {
+            $request->hint = null;
+        }
+
+        // Set queryas if provided
+        if ($queryas !== null) {
+            $queryas_str = $this->ffi->new("char[" . strlen($queryas) + 1 . "]", false);
+            FFI::memcpy($queryas_str, $queryas, strlen($queryas));
+            $request->queryas = FFI::cast("char *", FFI::addr($queryas_str));
+        } else {
+            $request->queryas = null;
+        }
+
+        $request->explain = $explain;
+        $request->request_id = 0;
+
+        // Make the call
+        $response = $this->ffi->aggregate($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($agg_str);
+        if ($hint !== null && isset($hint_str)) {
+            FFI::free($hint_str);
+        }
+        if ($queryas !== null && isset($queryas_str)) {
+            FFI::free($queryas_str);
+        }
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_aggregate_response($response);
+            throw new Exception($error_message);
+        }
+
+        $results = null;
+        if ($response->results) {
+            $results = json_decode(FFI::string($response->results), true);
+        }
+
+        $this->ffi->free_aggregate_response($response);
+        return $results;
+    }
+
+    public function count($collectionname, $query = null, $queryas = null, $explain = false) {
+        $request = $this->ffi->new('struct CountRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        if ($query === null) {
+            $query = array();
+        }
+        $json_query = json_encode((object)$query);
+        $query_str = $this->ffi->new("char[" . strlen($json_query) + 1 . "]", false);
+        FFI::memcpy($query_str, $json_query, strlen($json_query));
+        $request->query = FFI::cast("char *", FFI::addr($query_str));
+
+        // Set queryas if provided
+        if ($queryas !== null) {
+            $queryas_str = $this->ffi->new("char[" . strlen($queryas) + 1 . "]", false);
+            FFI::memcpy($queryas_str, $queryas, strlen($queryas));
+            $request->queryas = FFI::cast("char *", FFI::addr($queryas_str));
+        }
+
+        $request->explain = $explain;
+        $request->request_id = 0;
+
+        $response = $this->ffi->count($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        if ($query !== null && isset($query_str)) FFI::free($query_str);
+        if ($queryas !== null && isset($queryas_str)) FFI::free($queryas_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_count_response($response);
+            throw new Exception($error_message);
+        }
+
+        $result = $response->result;
+        $this->ffi->free_count_response($response);
+        return $result;
+    }
+
+    public function distinct($collectionname, $field, $query = null, $queryas = null, $explain = false) {
+        $request = $this->ffi->new('struct DistinctRequestWrapper');
+        
+        // Set collectionname
+        $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
+        FFI::memcpy($str, $collectionname, strlen($collectionname));
+        $request->collectionname = FFI::cast("char *", FFI::addr($str));
+
+        // Set field
+        $field_str = $this->ffi->new("char[" . strlen($field) + 1 . "]", false);
+        FFI::memcpy($field_str, $field, strlen($field));
+        $request->field = FFI::cast("char *", FFI::addr($field_str));
+
+        if ($query === null) {
+            $query = array();
+        }
+        $json_query = json_encode((object)$query);
+        $query_str = $this->ffi->new("char[" . strlen($json_query) + 1 . "]", false);
+        FFI::memcpy($query_str, $json_query, strlen($json_query));
+        $request->query = FFI::cast("char *", FFI::addr($query_str));
+
+        // Set queryas if provided
+        if ($queryas !== null) {
+            $queryas_str = $this->ffi->new("char[" . strlen($queryas) + 1 . "]", false);
+            FFI::memcpy($queryas_str, $queryas, strlen($queryas));
+            $request->queryas = FFI::cast("char *", FFI::addr($queryas_str));
+        }
+
+        $request->explain = $explain;
+        $request->request_id = 0;
+
+        $response = $this->ffi->distinct($this->client, FFI::addr($request));
+
+        // Free allocated memory
+        FFI::free($str);
+        FFI::free($field_str);
+        // if ($query !== null && isset($query_str)) FFI::free($query_str);
+        // if ($queryas !== null && isset($queryas_str)) FFI::free($queryas_str);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_distinct_response($response);
+            throw new Exception($error_message);
+        }
+        $results = array();
+        $len = $response->results_len;
+        for ($i = 0; $i < $len; $i++) {
+            $value = $response->results[$i];
+            if ($value !== null) {
+                print("test6 $value\n");
+                $results[] = FFI::string($response->results[$i]);
+            }
+        }
+        print("test7\n");
+        print_r($results);
+
+        $this->ffi->free_distinct_response($response);
+        return $results;
+    }
+
+    public function client_user() {
+        $userPtr = $this->ffi->client_user($this->client);
+        if ($userPtr === null) {
+            return null;
+        }
+
+        $user = array(
+            'id' => $userPtr->id ? FFI::string($userPtr->id) : null,
+            'name' => $userPtr->name ? FFI::string($userPtr->name) : null,
+            'username' => $userPtr->username ? FFI::string($userPtr->username) : null,
+            'email' => $userPtr->email ? FFI::string($userPtr->email) : null
+        );
+
+        # $this->ffi->free_user($userPtr);
+        return $user;
     }
 
 }
