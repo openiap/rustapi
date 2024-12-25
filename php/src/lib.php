@@ -1,5 +1,7 @@
 <?php
 namespace openiap;
+// so pparently, php does not like callbacks, according to
+// https://www.php.net/manual/en/ffi.examples-callback.php
 
 use \Exception;
 use \FFI;
@@ -13,11 +15,12 @@ class Client {
     private $client;
     public $ffi;
     private $clientevents = array();
-    // private $next_watch_interval = 1000000; // microseconds (1 second)
     private $next_watch_interval = 1; // microseconds (1 second)
     private $next_queue_interval = 1; // microseconds (1 second)
+    private $next_event_interval = 1;
     private $watches = array();
     private $queues = array();
+    private $events = array();
 
     private function loadLibrary() {
         $platform = PHP_OS_FAMILY;
@@ -119,6 +122,9 @@ class Client {
         }
         foreach ($this->queues as $queue) {
             Loop::cancelTimer($queue);
+        }
+        foreach ($this->events as $event) {
+            Loop::cancelTimer($event);
         }
         $this->ffi->free_client($this->client);
     }
@@ -239,7 +245,7 @@ class Client {
         $this->ffi->client_disconnect($this->client);
     }
 
-    public function listCollections() {
+    public function list_collections() {
         $response = $this->ffi->list_collections($this->client, false);
         $collections = [];
         if ($response->success) {
@@ -251,7 +257,7 @@ class Client {
         return $collections;
     }
 
-    public function createCollection($collectionname, $options = array()) {
+    public function create_collection($collectionname, $options = array()) {
         $request = $this->ffi->new('struct CreateCollectionRequestWrapper');
         
         $str = $this->ffi->new("char[" . strlen($collectionname) + 1 . "]", false);
@@ -290,7 +296,7 @@ class Client {
         $this->ffi->free_create_collection_response($response);
     }
 
-    public function dropCollection($collectionname) {
+    public function drop_collection($collectionname) {
         $response = $this->ffi->drop_collection($this->client, $collectionname);
         if (!$response->success) {
             $error_message = FFI::string($response->error);
@@ -300,7 +306,7 @@ class Client {
         $this->ffi->free_drop_collection_response($response);
     }
 
-    public function getIndexes($collectionname) {
+    public function get_indexes($collectionname) {
         $response = $this->ffi->get_indexes($this->client, $collectionname);
         $indexes = [];
         if ($response->success) {
@@ -312,7 +318,7 @@ class Client {
         return $indexes;
     }
 
-    public function createIndex($collectionname, $index, $options = null, $name = null) {
+    public function create_index($collectionname, $index, $options = null, $name = null) {
         $request = $this->ffi->new('struct CreateIndexRequestWrapper');
         
         // Set collectionname
@@ -360,7 +366,7 @@ class Client {
         $this->ffi->free_create_index_response($response);
     }
 
-    public function dropIndex($collectionname, $name) {
+    public function drop_index($collectionname, $name) {
         $response = $this->ffi->drop_index($this->client, $collectionname, $name);
         if (!$response->success) {
             $error_message = FFI::string($response->error);
@@ -370,7 +376,7 @@ class Client {
         $this->ffi->free_drop_index_response($response);
     }
 
-    public function insertOne($collectionname, $item) {
+    public function insert_one($collectionname, $item) {
         $request = $this->ffi->new('struct InsertOneRequestWrapper');
 
         // Set collectionname
@@ -411,7 +417,7 @@ class Client {
         return $result;
     }
 
-    public function insertOrUpdateOne($collectionname, $item, $uniqeness) {
+    public function insert_or_update_one($collectionname, $item, $uniqeness) {
         $request = $this->ffi->new('struct InsertOrUpdateOneRequestWrapper');
 
         // Set collectionname
@@ -458,7 +464,7 @@ class Client {
         return $result;
     }
 
-    public function insertMany($collectionname, $items, $options = array()) {
+    public function insert_many($collectionname, $items, $options = array()) {
         $request = $this->ffi->new('struct InsertManyRequestWrapper');
         
         // Set collectionname
@@ -500,7 +506,7 @@ class Client {
         return $result;
     }
 
-    public function deleteOne($collectionname, $id, $recursive = false) {
+    public function delete_one($collectionname, $id, $recursive = false) {
         $request = $this->ffi->new('struct DeleteOneRequestWrapper');
         
         // Set collectionname
@@ -534,7 +540,7 @@ class Client {
         return $affected_rows;
     }
 
-    public function deleteMany($collectionname, $query, $recursive = false) {
+    public function delete_many($collectionname, $query, $recursive = false) {
         $request = $this->ffi->new('struct DeleteManyRequestWrapper');
         
         // Set collectionname
@@ -582,88 +588,70 @@ class Client {
         return $affected_rows;
     }
 
-    // so pparently, php does not like callbacks, according to
-    // https://www.php.net/manual/en/ffi.examples-callback.php
-    // so we have to use pcntl_fork to handle events in a separate process
-    // and poll for events in the child process
-    public function on_client_event($callback) {
-        if (!extension_loaded('pcntl')) {
-            throw new Exception("pcntl extension is not loaded. Required for non-blocking event handling.");
-        }
+    private static function event_worker(Client $me, string $eventid, \Closure $callback) {
+        $event_counter = 0;
+        $hadone = true;
+        while ($hadone) {
+            $hadone = false;
+            do {
+                $responsePtr = $me->ffi->next_client_event($eventid);
+                if ($responsePtr === null) {
+                    $hadone = false;
+                    continue;
+                }
 
+                try {
+                    if ($responsePtr->event === null) {
+                        $hadone = false;
+                    } else if (strlen(FFI::string($responsePtr->event)) == 0) {
+                        $hadone = false;
+                    } else if ($responsePtr->event !== null && strlen(FFI::string($responsePtr->event)) > 0) {
+                        $hadone = true;
+                        $event_counter++;
+                        $event = array(
+                            'event' => FFI::string($responsePtr->event),
+                            'reason' => $responsePtr->reason ? FFI::string($responsePtr->reason) : ""
+                        );
+                        try {
+                            if(is_callable($callback)) {
+                                $callback($event, $event_counter);
+                            }
+                        } catch (Exception $error) {
+                            print_r("Error in client event callback: " . $error->getMessage() . "\n");
+                        }
+                    } else {
+                        $hadone = false;
+                    }
+                } catch (\Throwable $th) {
+                    print_r("Error in event callback: " . $th->getMessage() . "\n");
+                    $hadone = false;
+                }
+                $me->ffi->free_client_event($responsePtr);
+            } while ($hadone);
+            sleep($me->next_event_interval);
+        }
+    }
+
+    public function on_client_event($callback) {
         $response = $this->ffi->on_client_event($this->client);
         if (!$response->success) {
             $error_message = FFI::string($response->error);
             $this->ffi->free_event_response($response);
             throw new Exception($error_message);
         }
+        
         $eventid = FFI::string($response->eventid);
         $this->ffi->free_event_response($response);
 
-        $this->clientevents[$eventid] = true;
+        $timer = Loop::addPeriodicTimer(0.1, function () use ($eventid, $callback) {
+            Client::event_worker($this, $eventid, $callback);
+        });
+        $this->events[$eventid] = $timer;
         
-        // Fork a new process to handle events
-        $pid = pcntl_fork();
-        if ($pid == -1) {
-            throw new Exception("Could not fork process");
-        } else if ($pid) {
-            // Parent process
-            $this->eventProcesses[$eventid] = $pid;
-            return $eventid;
-        } else {
-            // Child process
-            $event_counter = 0;
-            while ($this->clientevents[$eventid]) {
-                $hadone = false;
-                do {
-                    // print("next_client_event\n");
-                    $responsePtr = $this->ffi->next_client_event($eventid);
-                    if ($responsePtr === null) {
-                        print("responsePtr is null\n");
-                        $hadone = false;
-                        continue;
-                    }
-
-                    if ($responsePtr->event === null) {
-                        // print("responsePtr->event is null\n");
-                        $hadone = false;
-                    } else if (strlen(FFI::string($responsePtr->event)) == 0) {
-                        print("responsePtr->event is empty string\n");
-                        $hadone = false;
-                    } else if ($responsePtr->event !== null && strlen(FFI::string($responsePtr->event)) > 0) {
-                        print("************************************\n");
-                        print("Event\n");
-                        print("************************************\n");
-                        $hadone = true;
-                        $event_counter++;
-                        $event = array(
-                            'event' => FFI::string($responsePtr->event),
-                            'reason' => ""
-                            // 'reason' => FFI::string($responsePtr->reason)
-                        );
-                        try {
-                            $callback($event, $event_counter);
-                        } catch (Exception $error) {
-                            print_r("Error in client event callback: " . $error->getMessage() . "\n");
-                        }
-                    } else {
-                        print("ELSE!!!! responsePtr->event is null\n");
-                        $hadone = false;
-                    }
-                    $this->ffi->free_client_event($responsePtr);
-                } while ($hadone);
-                // usleep($this->next_watch_interval);
-                sleep($this->next_watch_interval);
-            }
-            print("***************************\n");
-            print("Exiting child process\n");
-            print("***************************\n");
-            exit(0); // End child process
-        }
+        return $eventid;
     }
 
     public function off_client_event($eventid) {
-        print_r("off_client_event\n");
         $response = $this->ffi->off_client_event($eventid);
         if (!$response->success) {
             $error_message = FFI::string($response->error);
@@ -672,17 +660,9 @@ class Client {
         }
         $this->ffi->free_off_event_response($response);
         
-        // Stop the event loop in child process
-        if (isset($this->clientevents[$eventid])) {
-            $this->clientevents[$eventid] = false;
-            unset($this->clientevents[$eventid]);
-        }
-
-        // Terminate the child process
-        if (isset($this->eventProcesses[$eventid])) {
-            posix_kill($this->eventProcesses[$eventid], SIGTERM);
-            pcntl_waitpid($this->eventProcesses[$eventid], $status);
-            unset($this->eventProcesses[$eventid]);
+        if (isset($this->events[$eventid])) {
+            Loop::cancelTimer($this->events[$eventid]);
+            unset($this->events[$eventid]);
         }
     }
     private static function watch_worker(Client $me, string $watchid, \Closure $callback){
@@ -711,9 +691,6 @@ class Client {
                         continue;
                     }
 
-                    print_r("************************************\n");
-                    print_r("Watch Event\n");
-                    print_r("************************************\n");
                     $hadone = true;
                     $event_counter++;
                     $event = array(
@@ -721,7 +698,6 @@ class Client {
                         'operation' => $operation,
                         'document' => json_decode($document, true)
                     );
-                    print_r("event: " . json_encode($event) . "\n");
                     try {
                         if(is_callable($callback)) {
                             $callback($event, $event_counter);
@@ -1060,7 +1036,7 @@ class Client {
         return $user;
     }
 
-    public function updateOne($collectionname, $item) {
+    public function update_one($collectionname, $item) {
         $request = $this->ffi->new('struct UpdateOneRequestWrapper');
         
         // Set collectionname
@@ -1559,9 +1535,6 @@ class Client {
                         continue;
                     }
 
-                    print_r("************************************\n");
-                    print_r("Queue Event\n");
-                    print_r("************************************\n");
                     $hadone = true;
                     $event_counter++;
                     $event = array(
@@ -1572,7 +1545,6 @@ class Client {
                         'exchangename' => $exchangename,
                         'data' => $data                        
                     );
-                    print_r("event: " . json_encode($event) . "\n");
                     try {
                         if(is_callable($callback)) {
                             $callback($event, $event_counter);
