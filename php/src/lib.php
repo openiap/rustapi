@@ -15,7 +15,9 @@ class Client {
     private $clientevents = array();
     // private $next_watch_interval = 1000000; // microseconds (1 second)
     private $next_watch_interval = 1; // microseconds (1 second)
+    private $next_queue_interval = 1; // microseconds (1 second)
     private $watches = array();
+    private $queues = array();
 
     private function loadLibrary() {
         $platform = PHP_OS_FAMILY;
@@ -113,14 +115,18 @@ class Client {
 
     public function __destruct() {
         foreach ($this->watches as $watch) {
-            // print_r("unwatching $watchid\n");
-            // Loop::cancelTimer($this->watches[$watchid]);
             Loop::cancelTimer($watch);
+        }
+        foreach ($this->queues as $queue) {
+            Loop::cancelTimer($queue);
         }
         $this->ffi->free_client($this->client);
     }
     public function set_next_watch_interval($interval) {
         $this->next_watch_interval = $interval;
+    }
+    public function set_next_queue_interval($interval) {
+        $this->next_queue_interval = $interval;
     }
     public static function load_dotenv(string $envfile = null) {
         if($envfile == null) {
@@ -1498,7 +1504,7 @@ class Client {
         return $result;
     }
 
-    public function delete_workitem($id) {
+    public function delete_workitem(string $id) {
         $request = $this->ffi->new('struct DeleteWorkitemRequestWrapper');
         
         // Set id
@@ -1521,8 +1527,70 @@ class Client {
 
         $this->ffi->free_delete_workitem_response($response);
     }
+    private static function queue_worker(Client $me, string $queuename, \Closure $callback){
+        $event_counter = 0;
+        $hadone = true;
+        while ($hadone) {
+            $hadone = false;
+            do {
+                $responsePtr = $me->ffi->next_queue_event($queuename);
+                if ($responsePtr === null) {
+                    print_r("responsePtr is null\n");
+                    $hadone = false;
+                    continue;
+                }
 
-    public function register_queue($queuename) {
+                try {
+                    $queuename = "";
+                    $correlation_id = "";
+                    $replyto = "";
+                    $routingkey = "";
+                    $exchangename = "";
+                    $data = "";
+                    if ($responsePtr->queuename !== null) { $queuename = FFI::string($responsePtr->queuename); }
+                    if ($responsePtr->correlation_id !== null) { $correlation_id = FFI::string($responsePtr->correlation_id); }
+                    if ($responsePtr->replyto !== null) { $replyto = FFI::string($responsePtr->replyto); }
+                    if ($responsePtr->routingkey !== null) { $routingkey = FFI::string($responsePtr->routingkey); }
+                    if ($responsePtr->exchangename !== null) { $exchangename = FFI::string($responsePtr->exchangename); }
+                    if ($responsePtr->data !== null) { $data = FFI::string($responsePtr->data); }
+
+                    if($queuename == "") {
+                        $hadone = false;
+                        continue;
+                    }
+
+                    print_r("************************************\n");
+                    print_r("Queue Event\n");
+                    print_r("************************************\n");
+                    $hadone = true;
+                    $event_counter++;
+                    $event = array(
+                        'queuename' => $queuename,
+                        'correlation_id' => $correlation_id,
+                        'replyto' => $replyto,
+                        'routingkey' => $routingkey,
+                        'exchangename' => $exchangename,
+                        'data' => $data                        
+                    );
+                    print_r("event: " . json_encode($event) . "\n");
+                    try {
+                        if(is_callable($callback)) {
+                            $callback($event, $event_counter);
+                        }
+                    } catch (Exception $error) {
+                        print_r("Error in queue callback: " . $error->getMessage() . "\n");
+                    }
+                } catch (\Throwable $th) {
+                    print_r("Error in queue callback: " . $th->getMessage() . "\n");
+                }
+
+                $me->ffi->free_queue_event($responsePtr);
+            } while ($hadone);
+            sleep($me->next_queue_interval);
+        }
+
+    }
+    public function register_queue(string $queuename, \Closure $callback) {
         $request = $this->ffi->new('struct RegisterQueueRequestWrapper');
         
         // Set queuename
@@ -1543,16 +1611,21 @@ class Client {
             throw new Exception($error_message);
         }
 
-        $result = null;
+        $queuename = null;
         if ($response->queuename) {
-            $result = FFI::string($response->queuename);
+            $queuename = FFI::string($response->queuename);
+
+            $timer = Loop::addPeriodicTimer(0.1, function () use ($queuename, $callback) {
+                Client::queue_worker($this, $queuename, $callback);
+            });
+            $this->queues[$queuename] = $timer;
         }
 
         $this->ffi->free_register_queue_response($response);
-        return $result;
+        return $queuename;
     }
 
-    public function register_exchange($exchangename, $algorithm = "", $routingkey = "", $addqueue = true) {
+    public function register_exchange(string $exchangename, string $algorithm = "", string $routingkey = "",bool $addqueue = true, \Closure $callback) {
         $request = $this->ffi->new('struct RegisterExchangeRequestWrapper');
         
         // Set exchangename
@@ -1591,13 +1664,18 @@ class Client {
             throw new Exception($error_message);
         }
 
-        $result = null;
+        $queuename = null;
         if ($response->queuename) {
-            $result = FFI::string($response->queuename);
+            $queuename = FFI::string($response->queuename);
+
+            $timer = Loop::addPeriodicTimer(0.1, function () use ($queuename, $callback) {
+                Client::queue_worker($this, $queuename, $callback);
+            });
+            $this->queues[$queuename] = $timer;
         }
 
         $this->ffi->free_register_exchange_response($response);
-        return $result;
+        return $queuename;
     }
 
     public function unregister_queue($queuename) {
@@ -1607,6 +1685,10 @@ class Client {
             $error_message = FFI::string($response->error);
             $this->ffi->free_unregister_queue_response($response);
             throw new Exception($error_message);
+        }
+        if (isset($this->queues[$queuename])) {
+            Loop::cancelTimer($this->queues[$queuename]);
+            unset($this->queues[$queuename]);
         }
 
         $this->ffi->free_unregister_queue_response($response);

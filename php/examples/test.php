@@ -64,17 +64,21 @@ try {
     $client->delete_workitem($result['id']);
 
 
-    $result = $client->register_queue("testqueue");
+    $result = $client->register_queue("test2queue", function($message) {
+        print("Received message: " . json_encode($message) . "\n");
+    });
     print("Registered queue as: " . $result . "\n");
 
-    $queuename = $client->register_exchange("test2exchange", "fanout");
+    $queuename = $client->register_exchange("test2exchange", "fanout", "", true, function($message) {
+        print("Received message: " . json_encode($message) . "\n");
+    });
     print("Registered exchange with queue: " . $result . "\n");
 
-    $client->queue_message("testqueue", ['test' => "test message"], ['striptoken' => true]);
-    $client->queue_message("", ['test' => "test message"], ['exchangename' => 'test2exchange', 'striptoken' => true]);
+    // $client->queue_message("testqueue", ['test' => "test message"], ['striptoken' => true]);
+    // $client->queue_message("", ['test' => "test message"], ['exchangename' => 'test2exchange', 'striptoken' => true]);
 
-    $client->unregister_queue("queuename");
-    $client->unregister_queue("testqueue");
+    // $client->unregister_queue("queuename");
+    // $client->unregister_queue("testqueue");
 
     // Test count function
     print("\nTesting Count function:\n");
@@ -205,6 +209,6 @@ try {
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
 }
-$client->free();
-unset($client);
+// $client->free();
+// unset($client);
 ?>
