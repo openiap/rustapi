@@ -52,6 +52,29 @@ try {
 
     // Disable tracing when done debugging
     $client->disable_tracing();
+    // $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php without file");
+    $workitemfile = [__DIR__ . "/../../testfile.csv"];
+    $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php with file", null, $workitemfile);
+    $downloadfolder = __DIR__ . "/downloads";
+    if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
+    $result = $client->pop_workitem("q2", $downloadfolder);
+    $result['name'] = "test workitem updated";
+    $result['state'] = "successful";
+    $result = $client->update_workitem($result);
+    $client->delete_workitem($result['id']);
+
+
+    $result = $client->register_queue("testqueue");
+    print("Registered queue as: " . $result . "\n");
+
+    $queuename = $client->register_exchange("test2exchange", "fanout");
+    print("Registered exchange with queue: " . $result . "\n");
+
+    $client->queue_message("testqueue", ['test' => "test message"], ['striptoken' => true]);
+    $client->queue_message("", ['test' => "test message"], ['exchangename' => 'test2exchange', 'striptoken' => true]);
+
+    $client->unregister_queue("queuename");
+    $client->unregister_queue("testqueue");
 
     // Test count function
     print("\nTesting Count function:\n");
@@ -129,10 +152,20 @@ try {
     //     print("sleeping for 1 second, $i of $seconds\n");
     //     sleep(1);
     // }
+    $uploadfilename = __DIR__ . "/../../testfile.csv";
+    $downloadfolder = __DIR__ . "/downloads";
+    if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
+    $result = $client->upload($uploadfilename, "phptestfile.csv");
+    print("Upload result: " . $result . "\n");
+    $result = $client->download($result, "", $downloadfolder, "downloadedfile.csv");
 
     print("create collections\n");
     $client->createCollection("testphpexpcollection", [ "expire_after_seconds" => 10 ]);
-    $client->insertOne("testphpexpcollection", [ "name" => "testphpexpcollection" ]);
+    $result = $client->insertOne("testphpexpcollection", [ "name" => "testphpexpcollection" ]);
+    // update name on $result
+    $result['name'] = "testphpexpcollection updated";
+    $client->updateOne("testphpexpcollection", $result);
+
     $client->createCollection("testphpcollection");
 
     print("insert or update 3 times\n");
