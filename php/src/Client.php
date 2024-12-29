@@ -25,8 +25,9 @@ class Client {
     private function loadLibrary() {
         $platform = PHP_OS_FAMILY;
         $arch = php_uname('m');
-        $libDir = __DIR__ . '/lib';
+        $libDir = __DIR__ . '/../lib';
         $libPath = null;
+        print_r("libDir: $libDir\n");
 
         print_r("Platform: $platform, Arch: $arch\n");
 
@@ -61,8 +62,6 @@ class Client {
             case 'linux':
                 switch ($arch) {
                     case 'x86_64':
-                        // Note: PHP doesn't have a direct way to detect musl vs glibc
-                        // You might want to add additional detection logic if needed
                         $libPath = $libDir . '/libopeniap-linux-x64.so';
                         break;
                     case 'aarch64':
@@ -72,10 +71,20 @@ class Client {
                         throw new Exception("Unsupported architecture on Linux: $arch");
                 }
                 break;
+            case 'freebsd':
+                switch ($arch) {
+                    case 'x86_64':
+                        $libPath = $libDir . '/libopeniap-freebsd-x64.so';
+                        break;
+                    default:
+                        throw new Exception("Unsupported architecture on FreeBSD: $arch");
+                }
+                break;
             default:
                 throw new Exception("Unsupported platform: $platform");
         }
 
+        // If library not found in standard location, check debug location
         if (!file_exists($libPath)) {
             $libDir = __DIR__ . '/../../target/debug/';
             switch (strtolower($platform)) {

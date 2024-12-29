@@ -42,6 +42,7 @@ try {
             case 'q':
                 $entities = $client->Query("testphpcollection", []);
                 print_r($entities);
+                break;
             case 'quit':
                 $client->free();
                 unset($client);                
