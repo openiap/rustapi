@@ -18,5 +18,8 @@
     },
     "require-dev": {
         "react/event-loop": "^1.5"
+    },
+    "require": {
+        "ext-ffi": "*"
     }
 }
