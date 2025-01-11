@@ -7,7 +7,7 @@ if (file_exists("./../vendor/autoload.php")) {
     echo "vendor missing, cannot use watch/on_event \n";
 }
 
-require_once __DIR__ . '/../src/lib.php';
+require_once __DIR__ . '/../src/Client.php';
 use openiap\Client;
 if (Client::load_dotenv() == false) {
     echo "env missing, please create .env file \n";
@@ -24,9 +24,9 @@ try {
     
     // Connect and then signin
     $client->connect("");
-    $client->on_client_event(function($event, $counter) {
-        echo "Client Event: " . $event['event'] . ", Counter: " . $counter . "\n";
-    });
+    // $client->on_client_event(function($event, $counter) {
+    //     echo "Client Event: " . $event['event'] . ", Counter: " . $counter . "\n";
+    // });
     
     // // Example of signin with username/password
     // $jwt = $client->signin([
@@ -68,7 +68,7 @@ try {
     $client->delete_workitem($result['id']);
 
 
-    $result = $client->register_queue("test2queue", function($message) {
+    $result = $client->register_queue("testqueue", function($message) {
         print("Received message: " . json_encode($message) . "\n");
     });
     print("Registered queue as: " . $result . "\n");
@@ -143,7 +143,7 @@ try {
     $aggregateResults = $client->aggregate("testphpcollection", []);
     print_r("Aggregate returned: " . count($aggregateResults) . " documents\n");
 
-    $watchid = $client->watch("testphpcollection", "[]", function($event, $event_counter) use ($events_triggered) {
+    $watchid = $client->watch("testphpcollection", "[]", function($event, $event_counter)  {
         echo "Watch: " . $event['id'] . ", Operation: " . $event['operation'] . ", " . $event['document']['name'] . "\n";
         // echo "Watch: " . $event['id'] . ", Operation: " . $event['operation'] . "\n";
     });
@@ -205,6 +205,6 @@ try {
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
 }
-// $client->free();
+$client->free();
 // unset($client);
 ?>

@@ -15,7 +15,7 @@ if (!defined('STDIN') || stream_set_blocking(STDIN, false) !== true) {
     exit(1);
 }
 
-require_once __DIR__ . '/../src/lib.php';
+require_once __DIR__ . '/../src/Client.php';
 use openiap\Client;
 if (Client::load_dotenv() == false) {
     echo "env missing, please create .env file \n";
