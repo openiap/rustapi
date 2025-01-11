@@ -494,7 +494,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let s = client
                     .watch(
-                        WatchRequest::new("", vec!["".to_string()]),
+                        WatchRequest::new("entities", vec!["".to_string()]),
                         Box::new(onwatch),
                     )
                     .await;

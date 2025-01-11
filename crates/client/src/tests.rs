@@ -636,7 +636,7 @@ mod tests {
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
         let response: std::result::Result<String, OpenIAPError> = client
-            .watch(WatchRequest::new("", vec!["".to_string()]), {
+            .watch(WatchRequest::new("entities", vec!["".to_string()]), {
                 let tx = Arc::clone(&tx);
                 Box::new(move |event| {
                     println!("Watch event: {:?}", event);
@@ -1559,6 +1559,19 @@ mod tests {
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
+        let wf = client
+            .get_one(QueryRequest {
+                collectionname: "workflow".to_string(),
+                query: "{\"name\": \"Mileage allowance\"}".to_string(),
+                ..Default::default()
+            })
+            .await;
+        let wfid = match wf {
+            Some(_wf) => _wf["_id"].as_str().unwrap().to_string(),
+            None => {
+                panic!("Failed finding workflow `Mileage allowance`");
+            }
+        };
         let workflow_consumer = client
             .register_queue(RegisterQueueRequest::byqueuename("workflow_consumer"), {
                 let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
@@ -1574,7 +1587,7 @@ mod tests {
 
         let response = client
             .create_workflow_instance(CreateWorkflowInstanceRequest {
-                workflowid: "66d434b753218675491931c5".to_string(),
+                workflowid: wfid.to_string(),
                 data: "{\"test\": \"message\"}".to_string(),
                 initialrun: true,
                 name: "Rust initialed workflow".to_string(),
