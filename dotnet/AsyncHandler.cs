@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using static Client;
+using static OpenIAP.Client;
 
 public static class AsyncContinuationHelper
 {

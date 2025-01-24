@@ -466,17 +466,30 @@ use opentelemetry_sdk::{runtime::Tokio};
 use opentelemetry::metrics::MeterProvider;
 
 struct ProviderWrapper {
-    provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>
+    provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>,
+    tracer: Option<opentelemetry_sdk::trace::TracerProvider>,
 }
 use lazy_static::lazy_static;
 lazy_static! {
     static ref provider1: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
-        provider: None
+        provider: None,
+        tracer: None
     });
     static ref provider2: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
-        provider: None
+        provider: None,
+        tracer: None
     });
 }
+
+
+// use opentelemetry_appender_log::OpenTelemetryLogBridge;
+// use opentelemetry_appender_tracing::layer;
+
+
+// use opentelemetry_sdk::logs::{BatchLogProcessor, LoggerProvider};
+
+// use opentelemetry_stdout::LogExporter;
+
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
 pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -526,6 +539,30 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
     if !otlpurl.is_empty() {
         debug!("Adding {} for telemetry", otlpurl);
         let mut providers2 = provider2.lock().unwrap();
+        // if providers2.tracer.is_none() {
+        //     let exporter3 = new_exporter()
+        //     .tonic()
+        //     .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+        //     .with_endpoint(otlpurl);
+
+        //     let provider = opentelemetry_otlp::new_pipeline()
+        //     .logging()
+        //     .with_exporter(exporter3)
+        //     .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
+        //         KeyValue::new("service.version", version.to_string() ), 
+        //         KeyValue::new("agent.name", agent_name.to_string() ),
+        //         KeyValue::new("agent.version", agent_version.to_string() )]))
+        //     .install_simple().unwrap();
+
+        //     let layer = layer::OpenTelemetryTracingBridge::new(&provider);
+        //     tracing_subscriber::registry().with(layer).init();
+        
+
+        //     // let logger_provider = LoggerProvider::builder()
+        //     // .with_log_processor(BatchLogProcessor::builder(exporter3).build())
+        //     // .build();
+            
+        // }
         if providers2.provider.is_none() {
             let exporter2 = new_exporter()
                 .tonic()
