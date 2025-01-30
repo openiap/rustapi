@@ -215,9 +215,17 @@ class Program
                         Console.WriteLine("Task canceled.");
                     }, token);
                     break;
-                case "s":
+                case "s1":
                     try {
                         var (jwt, error, success) = await client.Signin();
+                        Console.WriteLine("Signin JWT: " + jwt);
+                    } catch (Exception e) {
+                        Console.WriteLine("Error signing in: " + e.Message);
+                    }
+                    break;
+                case "s2":
+                    try {
+                        var (jwt, error, success) = await client.Signin("testuser", "testuser");
                         Console.WriteLine("Signin JWT: " + jwt);
                     } catch (Exception e) {
                         Console.WriteLine("Error signing in: " + e.Message);

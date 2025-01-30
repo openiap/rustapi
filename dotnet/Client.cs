@@ -1651,7 +1651,7 @@ namespace OpenIAP
                     }
                     else
                     {
-                        CallbackRegistry.TrySetResult(requestId, jwt);
+                        CallbackRegistry.TrySetResult<(string jwt, string error, bool success)>(requestId, (jwt, error, success));
                     }
                 }
             }
