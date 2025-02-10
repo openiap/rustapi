@@ -55,6 +55,8 @@ build-linux:
 	cross build --target aarch64-unknown-linux-gnu --release
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
+	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
+	cp crates/clib/clib_openiap.h java/src/clib_openiap.h
 
 build-macos:
 	cross build --target aarch64-apple-darwin --release
