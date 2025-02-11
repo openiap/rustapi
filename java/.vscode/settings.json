@@ -1,6 +1,9 @@
 {
     "java.project.referencedLibraries": [
-      "jna-5.16.0.jar"
+      "jna-5.16.0.jar",
+      "jackson-core-2.18.2.jar",
+      "jackson-databind-2.18.2.jar",
+      "jackson-annotations-2.18.2.jar",
     ]
   }
   

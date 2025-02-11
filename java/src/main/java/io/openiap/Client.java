@@ -3,29 +3,35 @@ package io.openiap;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.Function;
 import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
-import java.util.Arrays;
-import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import java.lang.reflect.Type;
 
 public class Client {
     private final NativeLibrary lib;
+    private final ObjectMapper objectMapper;
     private final Function createClientFunc;
     private final Function clientConnectFunc;
     private final Function setAgentNameFunc;
     private final Function freeConnectResponseFunc;
     private final Function disconnectFunc;
     private final Function freeClientFunc;
+    private final Function listCollectionsFunc;
+    private final Function freeListCollectionsResponseFunc;
     private Pointer clientPtr;
 
     public Client(String fullLibPath) {
         System.out.println("GetInstance of: " + fullLibPath);
         this.lib = NativeLibrary.getInstance(fullLibPath);
+        this.objectMapper = new ObjectMapper();
         createClientFunc = lib.getFunction("create_client");
         clientConnectFunc = lib.getFunction("client_connect");
         setAgentNameFunc = lib.getFunction("client_set_agent_name");
         freeConnectResponseFunc = lib.getFunction("free_connect_response");
         disconnectFunc = lib.getFunction("client_disconnect");
         freeClientFunc = lib.getFunction("free_client");
+        listCollectionsFunc = lib.getFunction("list_collections");
+        freeListCollectionsResponseFunc = lib.getFunction("free_list_collections_response");
     }
 
     public void start() {
@@ -38,21 +44,6 @@ public class Client {
         }
     }
 
-    public static class ConnectResponseWrapper extends Structure {
-        public boolean success;
-        public String error;
-        public int request_id;
-        
-        public ConnectResponseWrapper(Pointer p) {
-            super(p);
-            read(); // Read the data from native memory
-        }
-        
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("success", "error", "request_id");
-        }
-    }
 
     public void setAgentName(String agentName) {
         if (clientPtr == null) {
@@ -74,7 +65,7 @@ public class Client {
             throw new RuntimeException("Connection attempt returned null response");
         }
 
-        ConnectResponseWrapper response = new ConnectResponseWrapper(responsePtr);
+        Wrappers.ConnectResponseWrapper response = new Wrappers.ConnectResponseWrapper(responsePtr);
         try {
             if (!response.success) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -83,6 +74,45 @@ public class Client {
             System.out.println("Successfully connected to server: " + serverUrl);
         } finally {
             freeConnectResponseFunc.invoke(void.class, new Object[]{responsePtr});
+        }
+    }
+
+    // Handle both simple types and generic types
+    public <T> T listCollections(Type type, boolean includeHist) throws Exception {
+        String jsonResponse = listCollectionsAsJson(includeHist);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    // Convenience method for simple types
+    public <T> T listCollections(Class<T> returnType, boolean includeHist) throws Exception {
+        return listCollections((Type) returnType, includeHist);
+    }
+
+    // Raw JSON response for advanced users
+    public String listCollectionsAsJson(boolean includeHist) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        
+        Pointer responsePtr = (Pointer) listCollectionsFunc.invoke(Pointer.class, 
+            new Object[]{clientPtr, includeHist});
+        
+        if (responsePtr == null) {
+            throw new RuntimeException("List collections returned null response");
+        }
+
+        Wrappers.ListCollectionsResponseWrapper response = new Wrappers.ListCollectionsResponseWrapper(responsePtr);
+        try {
+            if (!response.success) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException("Failed to list collections: " + errorMsg);
+            }
+            return response.results;
+        } finally {
+            freeListCollectionsResponseFunc.invoke(void.class, new Object[]{responsePtr});
         }
     }
 
@@ -113,6 +143,7 @@ public class Client {
         }
     }
 
+    @SuppressWarnings("removal")
     @Override
     protected void finalize() throws Throwable {
         try {
