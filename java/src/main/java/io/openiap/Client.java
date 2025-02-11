@@ -8,13 +8,14 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Client {
+    private final NativeLibrary lib;
     private final Function createClientFunc;
     private final Function clientConnectFunc;
     private Pointer clientPtr;
 
     public Client(String fullLibPath) {
         System.out.println("GetInstance of: " + fullLibPath);
-        NativeLibrary lib = NativeLibrary.getInstance(fullLibPath);
+        this.lib = NativeLibrary.getInstance(fullLibPath);
         createClientFunc = lib.getFunction("create_client");
         clientConnectFunc = lib.getFunction("client_connect");
     }
@@ -65,6 +66,16 @@ public class Client {
         }
 
         System.out.println("Successfully connected to server: " + serverUrl);
+    }
+
+    public void enableTracing(String rustLog, String tracing) {
+        lib.getFunction("enable_tracing")
+            .invoke(void.class, new Object[]{rustLog, tracing});
+    }
+
+    public void disableTracing() {
+        lib.getFunction("disable_tracing")
+            .invoke(void.class, new Object[]{});
     }
 
     public void hello() {
