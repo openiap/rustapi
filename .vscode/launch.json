@@ -5,15 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Java: run cli.java",
             "type": "java",
-            "name": "Launch Java Program",
             "request": "launch",
             "mainClass": "io.openiap.cli",
-            "projectName": "openiap_7cf5c429",
-            "cwd": "${workspaceFolder}/java",
-            "console": "integratedTerminal",
-            "preLaunchTask": "Build Java",
-            "classPaths": ["${workspaceFolder}/java/out"]
+            "projectName": "openiap-java"
         },
         {
             "name": "Python: debug test.py",
