@@ -6,12 +6,15 @@ public class cli {
         String libpath = NativeLoader.loadLibrary("openiap");
 
         Client client = new Client(libpath);
-        client.enableTracing("openiap=debug", "");
-        client.connect("");
-        client.start();
-        client.hello();
-
-        client.disableTracing();
-        System.out.println("CLI executed successfully!");
+        try {
+            client.enableTracing("openiap=debug", "");
+            client.start();
+            client.connect("");
+            client.hello();
+        } finally {
+            client.disconnect();
+            // client.disableTracing();
+            System.out.println("CLI executed successfully!");
+        }
     }
 }
