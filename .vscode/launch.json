@@ -5,20 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name":"Python: debug test.py",
-            "type":"debugpy",
-            "request":"launch",
-            "envFile": "${workspaceFolder}/.env",
-            "program":"${workspaceFolder}/python/test.py",
-            "console":"integratedTerminal"
+            "type": "java",
+            "name": "Launch Java Program",
+            "request": "launch",
+            "mainClass": "io.openiap.cli",
+            "projectName": "openiap_7cf5c429",
+            "cwd": "${workspaceFolder}/java",
+            "console": "integratedTerminal",
+            "preLaunchTask": "Build Java",
+            "classPaths": ["${workspaceFolder}/java/out"]
         },
         {
-            "name":"Python: debug cli.py",
-            "type":"debugpy",
-            "request":"launch",
+            "name": "Python: debug test.py",
+            "type": "debugpy",
+            "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program":"${workspaceFolder}/python/cli.py",
-            "console":"integratedTerminal"
+            "program": "${workspaceFolder}/python/test.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: debug cli.py",
+            "type": "debugpy",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/python/cli.py",
+            "console": "integratedTerminal"
         },
         {
             "name": "Node: debug test.js",
@@ -27,7 +38,9 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "args": ["--trace-warnings"],
+            "args": [
+                "--trace-warnings"
+            ],
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/node/test.js"
@@ -39,12 +52,13 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "args": ["--trace-warnings"],
+            "args": [
+                "--trace-warnings"
+            ],
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/node/cli.js"
         },
-       
         {
             "name": "C#: debug Program",
             "type": "coreclr",
@@ -56,7 +70,7 @@
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}/dotnet",
-            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll",
+            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll"
         },
         {
             "name": "PHP: debug test.php",
@@ -115,6 +129,5 @@
             "request": "attach",
             "pid": "${command:pickMyProcess}"
         }
-
     ]
 }

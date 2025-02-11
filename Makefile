@@ -3,6 +3,8 @@
 # Variables
 VERSION = 0.0.19
 NUGET_API_KEY ?= $(NUGET_API_KEY)
+MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
+
 export CROSS_CONTAINER_ENGINE_NO_BUILDKIT = 1
 
 # Bump version in all relevant files
@@ -56,7 +58,7 @@ build-linux:
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
-	cp crates/clib/clib_openiap.h java/src/clib_openiap.h
+	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
 
 build-macos:
 	cross build --target aarch64-apple-darwin --release
@@ -76,22 +78,30 @@ build-windows:
 
 # Package language bindings
 package-node:
-	echo "Building Node.js package"
+	@echo "Building Node.js package"
 	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
 	(cd node && npm pack)
 
 package-dotnet:
-	echo "Building .NET package"
+	@echo "Building .NET package"
 	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/lib/* dotnet/lib
 	(cd dotnet && dotnet build --configuration Release openiap.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap.csproj)
 	(cd dotnet && dotnet build --configuration Release openiap-slim.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap-slim.csproj)
 
 package-python:
-	echo "Building Python package"
+	@echo "Building Python package"
 	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib
 	(cd python && python setup.py sdist)
 
-# Publish language bindings
+package-java:
+	@echo "Building java jar"
+	@echo "user: $(MAVEN_USERNAME)"
+	@echo "pass: $(MAVEN_PASSWORD)"
+	@echo "pass: $(MAVEN_AUTH)"
+
+	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
+	(cd java && rm -rf out target openiap.jar && javac -cp jna-5.16.0.jar -d out src/main/java/io/openiap/*.java && jar cfm openiap.jar META-INF/MANIFEST.MF -C target/classes .)
+
 publish-node:
 	(cd node && npm publish)
 
@@ -101,6 +111,12 @@ publish-dotnet:
 
 publish-python:
 	(cd python && python3 -m twine upload dist/*)
+publish-java:
+	# (cd java && curl --request POST \
+	# 	--verbose \
+	# 	--header 'Authorization: Bearer $(MAVEN_AUTH)' \
+	# 	--form bundle=@openiap.jar \
+	# 	https://central.sonatype.com/api/v1/publisher/upload)
 
 publish-cargo:
 	cargo publish -p openiap-proto --allow-dirty
@@ -110,11 +126,11 @@ publish-cargo:
 
 # Combined tasks
 build-all: clean prepare build-linux build-macos build-windows
-package-all: package-node package-dotnet package-python
-publish-all: publish-node publish-dotnet publish-python publish-cargo
+package-all: package-node package-dotnet package-python package-java
+publish-all: publish-node publish-dotnet publish-python publish-java publish-cargo
 
 build-and-package-all: build-all package-all
 build-and-publish-all: build-all package-all publish-all
 
 echo-done:
-	echo "Build and publish process completed!"
+	@echo "Build and publish process completed!"

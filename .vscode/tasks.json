@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Java",
+            "type": "shell",
+            "command": "cd java && javac -cp jna-5.16.0.jar -d out src/main/java/io/openiap/*.java && jar cfm openiap.jar META-INF/MANIFEST.MF -C target/classes .",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

@@ -1,3 +1,10 @@
 {
-    "makefile.configureOnOpen": false
+  "makefile.configureOnOpen": false,
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.project.referencedLibraries": [
+    "java/jna-5.16.0.jar"
+  ],
+  "java.project.sourcePaths": [
+    "java/src/main/java"
+  ]
 }
