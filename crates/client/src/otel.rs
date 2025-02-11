@@ -465,6 +465,7 @@ use opentelemetry_otlp::{new_exporter, new_pipeline};
 use opentelemetry_sdk::{runtime::Tokio};
 use opentelemetry::metrics::MeterProvider;
 
+#[allow(dead_code)]
 struct ProviderWrapper {
     provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>,
     tracer: Option<opentelemetry_sdk::trace::TracerProvider>,
