@@ -5,8 +5,6 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Native;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.Map;
 
 import com.sun.jna.Library;
 
