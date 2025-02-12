@@ -2,8 +2,17 @@ package io.openiap;
 
 import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 public class cli {
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Entity {
+        public String _type;
+        public String _id;
+        public String name;
+    }
+
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
         String libpath = NativeLoader.loadLibrary("openiap");
@@ -14,9 +23,28 @@ public class cli {
             client.start();
             client.connect("");
 
+            QueryParameters queryParams = new QueryParameters.Builder()
+                .collectionname("entities")
+                .query("{\"_type\":\"test\"}")
+                .top(10)
+                .request_id(123)
+                .build();
 
-            var str_collections = client.listCollections(false);
-            System.out.println("Collections: " + str_collections);
+            // Query and deserialize to a list of MyClass objects
+            List<Entity> results = client.query(new TypeReference<List<Entity>>() {}.getType(), queryParams);
+
+            for (Entity item : results) {
+                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            }
+
+            // Example of querying and getting the raw JSON string
+            // queryParams.query = "{}";
+            queryParams.query = "{\"_type\":\"test\"}";
+            String jsonResult = client.query(String.class, queryParams);
+            System.out.println("Raw JSON Result: " + jsonResult);
+
+            // var str_collections = client.listCollections(false);
+            // System.out.println("Collections: " + str_collections);
             // Get as List of Collection objects
             // List<Collection> collections = client.listCollections(
             //     new TypeReference<List<Collection>>(){}.getType(), 
@@ -37,21 +65,21 @@ public class cli {
             //     System.out.println("---");
             // }
 
-            User user = client.getUser();
-            if (user != null) {
-                System.out.println("User ID: " + user.id);
-                System.out.println("User Name: " + user.name);
-                System.out.println("User Username: " + user.username);
-                System.out.println("User Email: " + user.email);
-                System.out.println("User Roles Pointer: " + user.roles);
-                var roles = user.getRoleList();
-                for (int i = 0; i < roles.size(); i++) {
-                    System.out.println("Role[" + i + "]: " + roles.get(i));
-                }
+            // User user = client.getUser();
+            // if (user != null) {
+            //     System.out.println("User ID: " + user.id);
+            //     System.out.println("User Name: " + user.name);
+            //     System.out.println("User Username: " + user.username);
+            //     System.out.println("User Email: " + user.email);
+            //     System.out.println("User Roles Pointer: " + user.roles);
+            //     var roles = user.getRoleList();
+            //     for (int i = 0; i < roles.size(); i++) {
+            //         System.out.println("Role[" + i + "]: " + roles.get(i));
+            //     }
         
-            } else {
-                System.out.println("No user found.");
-            }
+            // } else {
+            //     System.out.println("No user found.");
+            // }
             
             client.hello();
         } catch (Exception e) {

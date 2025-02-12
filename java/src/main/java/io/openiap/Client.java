@@ -7,7 +7,6 @@ import java.lang.reflect.Type;
 import com.sun.jna.Library;
 
 interface CLib extends Library {
-    // CLib INSTANCE = (CLib) Native.load("openiap", CLib.class);
     CLib INSTANCE = (CLib) Native.load("openiap", CLib.class);
 
     Pointer client_user(Pointer client);
@@ -22,7 +21,8 @@ interface CLib extends Library {
     void free_list_collections_response(Pointer response);
     void enable_tracing(String rustLog, String tracing);
     void disable_tracing();
-    // void free_collections_result(Pointer response);
+    Pointer query(Pointer client, QueryParameters options);
+    void free_query_response(Pointer response);
 }
 
 public class Client {
@@ -32,13 +32,11 @@ public class Client {
 
     public Client(String fullLibPath) {
         System.out.println("GetInstance of: " + fullLibPath);
-        // this.lib = NativeLibrary.getInstance(fullLibPath);
         this.objectMapper = new ObjectMapper();
         clibInstance = (CLib) Native.load(fullLibPath, CLib.class);
     }
 
     public void start() {
-        // Call the create_client function
         clientPtr = clibInstance.create_client();
         if (clientPtr != null) {
             System.out.println("Client created successfully: " + clientPtr);
@@ -102,11 +100,7 @@ public class Client {
         }
     }
 
-    // public void freeCollectionsResult(Pointer response) {
-    //     clibInstance.free_collections_result(response);
-    // }
-
-    @SuppressWarnings("unchecked")
+   @SuppressWarnings("unchecked")
     public <T> T listCollections(Type type, boolean includeHist) throws Exception {
         String jsonResponse = listCollections(includeHist);
         if (type instanceof Class && type == String.class) {
@@ -154,6 +148,35 @@ public class Client {
         User user = new User(userPtr);
         // clibInstance.free_user(userPtr);
         return user;
+    }
+
+    public String query(QueryParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.query(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("Query returned null response");
+        }
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
+        try {
+            if (!response.success) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException("Query failed: " + errorMsg);
+            }
+            return response.results;
+        } finally {
+            clibInstance.free_query_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T query(Type type, QueryParameters options) throws Exception {
+        String jsonResponse = query(options);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
     }
 
     @SuppressWarnings("removal")
