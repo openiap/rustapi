@@ -15,7 +15,10 @@ public class cli {
             client.connect("");
             
             // Get raw JSON
-            String collectionsJson = client.listCollectionsAsJson(false);
+            // String collectionsJson = client.listCollectionsAsJson(false);
+
+            // Get as JSON string
+            String collectionsJson = client.listCollections(false);
             System.out.println("Collections (JSON): " + collectionsJson);
             
             // Get as List of Collection objects

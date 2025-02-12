@@ -77,22 +77,7 @@ public class Client {
         }
     }
 
-    // Handle both simple types and generic types
-    public <T> T listCollections(Type type, boolean includeHist) throws Exception {
-        String jsonResponse = listCollectionsAsJson(includeHist);
-        if (type instanceof Class && type == String.class) {
-            return (T) jsonResponse;
-        }
-        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
-    }
-
-    // Convenience method for simple types
-    public <T> T listCollections(Class<T> returnType, boolean includeHist) throws Exception {
-        return listCollections((Type) returnType, includeHist);
-    }
-
-    // Raw JSON response for advanced users
-    public String listCollectionsAsJson(boolean includeHist) {
+    public String listCollections(boolean includeHist) throws Exception {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
@@ -114,6 +99,14 @@ public class Client {
         } finally {
             freeListCollectionsResponseFunc.invoke(void.class, new Object[]{responsePtr});
         }
+    }
+
+    public <T> T listCollections(Type type, boolean includeHist) throws Exception {
+        String jsonResponse = listCollections(includeHist);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
     }
 
     public void enableTracing(String rustLog, String tracing) {
