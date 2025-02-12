@@ -7,16 +7,36 @@ public class NativeLoader {
         String arch = System.getProperty("os.arch");
         String os = System.getProperty("os.name").toLowerCase();
         String libPath = "";
-        // System.out.println("Current path" + System.getProperty("user.dir"));
+        System.out.println("Current path" + System.getProperty("user.dir"));
         // if System.getProperty("user.dir") does not ends with "java" then we are in the root directory, then add "java" to the path
-        String base = System.getProperty("user.dir").endsWith("java") ? "" : "java/";
+        String base = System.getProperty("user.dir").endsWith("java") ? "lib/" : "java/lib/";
 
-        if (os.contains("win")) {
-            libPath = base + "lib/openiap-windows-" + (arch.contains("64") ? "x64" : "i686") + ".dll";
+        File localDir1 = new File("target/debug");
+        File localDir2 = new File("../target/debug");
+        if(localDir1.exists()) {
+            base = "target/debug/";
+            if (os.contains("win")) {
+                libPath = base + "libopeniap_clib.dll";
+            } else if (os.contains("mac")) {
+                libPath = base + "libopeniap_clib.dylib";
+            } else if (os.contains("linux")) {
+                libPath = base + "libopeniap_clib.so";
+            }
+        } else if(localDir2.exists()) {
+            base = "../target/debug/";
+            if (os.contains("win")) {
+                libPath = base + "libopeniap_clib.dll";
+            } else if (os.contains("mac")) {
+                libPath = base + "libopeniap_clib.dylib";
+            } else if (os.contains("linux")) {
+                libPath = base + "libopeniap_clib.so";
+            }
+        } else if (os.contains("win")) {
+            libPath = base + "openiap-windows-" + (arch.contains("64") ? "x64" : "i686") + ".dll";
         } else if (os.contains("mac")) {
-            libPath = base + "lib/libopeniap-macos-" + (arch.contains("64") ? "x64" : "arm64") + ".dylib";
+            libPath = base + "libopeniap-macos-" + (arch.contains("64") ? "x64" : "arm64") + ".dylib";
         } else if (os.contains("linux")) {
-            libPath = base + "lib/libopeniap-linux-" + (arch.contains("64") ? "x64" : "arm64") + ".so";
+            libPath = base + "libopeniap-linux-" + (arch.contains("64") ? "x64" : "arm64") + ".so";
         }
 
         File localLib = new File(libPath);

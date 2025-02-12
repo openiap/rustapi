@@ -20,19 +20,19 @@ public class cli {
                 false
             );
             
-            // Print collection details
-            for (Collection collection : collections) {
-                System.out.println("Collection name: " + collection.name);
-                System.out.println("Type: " + collection.type);
-                if (collection.info != null && collection.idIndex != null) {
-                    System.out.println("UUID: " + collection.info.uuid + " ReadOnly: " + collection.info.readOnly + " _id index: " + collection.idIndex.name);
-                } else if (collection.info != null) {
-                    System.out.println("UUID: " + collection.info.uuid + " ReadOnly: " + collection.info.readOnly);
-                } else if (collection.idIndex != null) {
-                    System.out.println("_id index: " + collection.idIndex.name);
-                }
-                System.out.println("---");
-            }
+            // // Print collection details
+            // for (Collection collection : collections) {
+            //     System.out.println("Collection name: " + collection.name);
+            //     System.out.println("Type: " + collection.type);
+            //     if (collection.info != null && collection.idIndex != null) {
+            //         System.out.println("UUID: " + collection.info.uuid + " ReadOnly: " + collection.info.readOnly + " _id index: " + collection.idIndex.name);
+            //     } else if (collection.info != null) {
+            //         System.out.println("UUID: " + collection.info.uuid + " ReadOnly: " + collection.info.readOnly);
+            //     } else if (collection.idIndex != null) {
+            //         System.out.println("_id index: " + collection.idIndex.name);
+            //     }
+            //     System.out.println("---");
+            // }
 
             User user = client.getUser();
             if (user != null) {

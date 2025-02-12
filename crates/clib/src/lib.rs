@@ -73,7 +73,7 @@ pub struct UserWrapper {
     name: *const c_char,
     username: *const c_char,
     email: *const c_char,
-    roles: *const *const c_char,
+    roles: *mut *const c_char,
 }
 
 /// Return currentlly signed in user
@@ -104,7 +104,7 @@ pub extern "C" fn client_user(
             let role_ptrs: Vec<*const c_char> =
                 role_strings.iter().map(|cs| cs.as_ptr()).collect();
             let roles_buf = role_ptrs.into_boxed_slice();
-            let roles_ptr = roles_buf.as_ptr();
+            let roles_ptr = roles_buf.as_ptr() as *mut *const c_char;
             // let roles_len = roles_buf.len();
 
 
@@ -5634,7 +5634,7 @@ pub extern "C" fn push_workitem(
                 success: false,
                 error: error_msg,
                 workitem: std::ptr::null(),
-                request_id: 0
+                request_id: options.request_id
             };
             return Box::into_raw(Box::new(response));
         }
