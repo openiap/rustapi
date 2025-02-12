@@ -23,6 +23,8 @@ interface CLib extends Library {
     void disable_tracing();
     Pointer query(Pointer client, QueryParameters options);
     void free_query_response(Pointer response);
+    Pointer aggregate(Pointer client, AggregateParameters options);
+    void free_aggregate_response(Pointer response);
 }
 
 public class Client {
@@ -173,6 +175,35 @@ public class Client {
     @SuppressWarnings("unchecked")
     public <T> T query(Type type, QueryParameters options) throws Exception {
         String jsonResponse = query(options);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public String aggregate(AggregateParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.aggregate(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("Aggregate returned null response");
+        }
+        Wrappers.AggregateResponseWrapper response = new Wrappers.AggregateResponseWrapper(responsePtr);
+        try {
+            if (!response.success) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException("Aggregate failed: " + errorMsg);
+            }
+            return response.results;
+        } finally {
+            clibInstance.free_aggregate_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T aggregate(Type type, AggregateParameters options) throws Exception {
+        String jsonResponse = aggregate(options);
         if (type instanceof Class && type == String.class) {
             return (T) jsonResponse;
         }

@@ -41,6 +41,19 @@ public class cli {
             String jsonResult = client.query(String.class, queryParams);
             System.out.println("Raw JSON Result: " + jsonResult);
 
+            AggregateParameters aggregateParams = new AggregateParameters.Builder()
+                .collectionname("entities")
+                .aggregates("[{\"$match\": {\"_type\": \"test\"}}, {\"$limit\": 10}]")
+                .request_id(456)
+                .build();
+
+            String aggregateJsonResult = client.aggregate(String.class, aggregateParams);
+            System.out.println("Raw JSON Aggregate Result: " + aggregateJsonResult);
+            List<Entity> aggregate = client.aggregate(new TypeReference<List<Entity>>() {}.getType(), aggregateParams);
+            for (Entity item : aggregate) {
+                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            }
+
             // var str_collections = client.listCollections(false);
             // System.out.println("Collections: " + str_collections);
             // Get as List of Collection objects

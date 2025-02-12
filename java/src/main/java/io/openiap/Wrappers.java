@@ -38,4 +38,21 @@ public class Wrappers {
             return Arrays.asList("success", "results", "error", "request_id");
         }
     }
+
+    public static class AggregateResponseWrapper extends Structure {
+        public boolean success;
+        public String results;
+        public String error;
+        public int request_id;
+
+        public AggregateResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "results", "error", "request_id");
+        }
+    }
 }
