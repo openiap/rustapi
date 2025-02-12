@@ -1,17 +1,9 @@
 package io.openiap;
 
-import com.sun.jna.NativeLibrary;
-import com.sun.jna.Function;
 import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
 import com.sun.jna.Native;
-import java.util.Arrays;
-import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
 import java.lang.reflect.Type;
-import com.sun.jna.Memory;
-import com.sun.jna.ptr.PointerByReference;
 import com.sun.jna.Library;
 
 interface CLib extends Library {
@@ -30,19 +22,11 @@ interface CLib extends Library {
     void free_list_collections_response(Pointer response);
     void enable_tracing(String rustLog, String tracing);
     void disable_tracing();
+    // void free_collections_result(Pointer response);
 }
 
 public class Client {
-    // private final NativeLibrary lib;
     private final ObjectMapper objectMapper;
-    // private final Function createClientFunc;
-    // private final Function clientConnectFunc;
-    // private final Function setAgentNameFunc;
-    // private final Function freeConnectResponseFunc;
-    // private final Function disconnectFunc;
-    // private final Function freeClientFunc;
-    // private final Function listCollectionsFunc;
-    // private final Function freeListCollectionsResponseFunc;
     private Pointer clientPtr;
     private CLib clibInstance;
 
@@ -51,14 +35,6 @@ public class Client {
         // this.lib = NativeLibrary.getInstance(fullLibPath);
         this.objectMapper = new ObjectMapper();
         clibInstance = (CLib) Native.load(fullLibPath, CLib.class);
-        // createClientFunc = lib.getFunction("create_client");
-        // clientConnectFunc = lib.getFunction("client_connect");
-        // setAgentNameFunc = lib.getFunction("client_set_agent_name");
-        // freeConnectResponseFunc = lib.getFunction("free_connect_response");
-        // disconnectFunc = lib.getFunction("client_disconnect");
-        // freeClientFunc = lib.getFunction("free_client");
-        // listCollectionsFunc = lib.getFunction("list_collections");
-        // freeListCollectionsResponseFunc = lib.getFunction("free_list_collections_response");
     }
 
     public void start() {
@@ -114,7 +90,7 @@ public class Client {
             throw new RuntimeException("List collections returned null response");
         }
 
-        Wrappers.ListCollectionsResponseWrapper response = new Wrappers.ListCollectionsResponseWrapper(responsePtr);
+        Collection.ListCollectionsResponseWrapper response = new Collection.ListCollectionsResponseWrapper(responsePtr);
         try {
             if (!response.success) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -125,6 +101,10 @@ public class Client {
             clibInstance.free_list_collections_response(responsePtr);
         }
     }
+
+    // public void freeCollectionsResult(Pointer response) {
+    //     clibInstance.free_collections_result(response);
+    // }
 
     @SuppressWarnings("unchecked")
     public <T> T listCollections(Type type, boolean includeHist) throws Exception {

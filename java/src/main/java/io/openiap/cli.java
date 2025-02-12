@@ -13,22 +13,15 @@ public class cli {
             client.enableTracing("openiap=debug", "");
             client.start();
             client.connect("");
-            
-            // Get raw JSON
-            // String collectionsJson = client.listCollectionsAsJson(false);
 
-            // Get as JSON string
-            String collectionsJson = client.listCollections(false);
-            System.out.println("Collections (JSON): " + collectionsJson);
-            
             // Get as List of Collection objects
-            List<Wrappers.Collection> collections = client.listCollections(
-                new TypeReference<List<Wrappers.Collection>>(){}.getType(), 
+            List<Collection> collections = client.listCollections(
+                new TypeReference<List<Collection>>(){}.getType(), 
                 false
             );
             
             // Print collection details
-            for (Wrappers.Collection collection : collections) {
+            for (Collection collection : collections) {
                 System.out.println("Collection name: " + collection.name);
                 System.out.println("Type: " + collection.type);
                 if (collection.info != null && collection.idIndex != null) {
