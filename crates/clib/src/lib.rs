@@ -73,7 +73,8 @@ pub struct UserWrapper {
     name: *const c_char,
     username: *const c_char,
     email: *const c_char,
-    roles: *mut *const c_char,
+    roles: *const *const c_char,
+    roles_len: i32,
 }
 
 /// Return currentlly signed in user
@@ -104,16 +105,16 @@ pub extern "C" fn client_user(
             let role_ptrs: Vec<*const c_char> =
                 role_strings.iter().map(|cs| cs.as_ptr()).collect();
             let roles_buf = role_ptrs.into_boxed_slice();
-            let roles_ptr = roles_buf.as_ptr() as *mut *const c_char;
-            // let roles_len = roles_buf.len();
-
+            let roles_ptr = roles_buf.as_ptr();
+            let roles_len = role_strings.len();
 
             let response = UserWrapper {
                 id: CString::new(user.id).unwrap().into_raw(),
                 name: CString::new(user.name).unwrap().into_raw(),
                 username: CString::new(user.username).unwrap().into_raw(),
                 email: CString::new(user.email).unwrap().into_raw(),
-                roles: roles_ptr
+                roles: roles_ptr,
+                roles_len: roles_len as i32,
             };
             return Box::into_raw(Box::new(response)) as *mut UserWrapper;
         }
