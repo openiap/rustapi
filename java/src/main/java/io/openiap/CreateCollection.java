@@ -18,8 +18,8 @@ public class CreateCollection extends Structure {
 
     public CreateCollection(String collectionname) {
         this.collectionname = collectionname;
-        this.collation = new ColCollationWrapper().getPointer();
-        this.timeseries = new ColTimeseriesWrapper().getPointer();
+        this.collation = null;
+        this.timeseries = null;
         this.expire_after_seconds = 0;
         this.change_stream_pre_and_post_images = false;
         this.capped = false;

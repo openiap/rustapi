@@ -100,8 +100,6 @@ public class cli {
             // } else {
             //     System.out.println("No user found.");
             // }
-            
-            client.hello();
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

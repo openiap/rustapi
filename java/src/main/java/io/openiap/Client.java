@@ -39,7 +39,6 @@ public class Client {
     private CLib clibInstance;
 
     public Client(String fullLibPath) {
-        System.out.println("GetInstance of: " + fullLibPath);
         this.objectMapper = new ObjectMapper();
         // Map<String, Object> options = new HashMap<>();
         // options.put(Library.OPTION_TYPE_MAPPER, new BooleanTypeMapper());
@@ -50,8 +49,6 @@ public class Client {
     public void start() {
         clientPtr = clibInstance.create_client();
         if (clientPtr != null) {
-            System.out.println("Client created successfully: " + clientPtr);
-        } else {
             System.out.println("Failed to create client.");
         }
     }
@@ -82,7 +79,6 @@ public class Client {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
                 throw new RuntimeException(errorMsg);
             }
-            System.out.println("Successfully connected to server: " + serverUrl);
         } finally {
             clibInstance.free_connect_response(responsePtr);
         }
@@ -126,10 +122,6 @@ public class Client {
 
     public void disableTracing() {
         clibInstance.disable_tracing();
-    }
-
-    public void hello() {
-        System.out.println("Hello from Client!");
     }
 
     public void disconnect() {
@@ -230,9 +222,6 @@ public class Client {
 
         Wrappers.CreateCollectionResponseWrapper response = new Wrappers.CreateCollectionResponseWrapper(responsePtr);
         try {
-            System.out.println("java: response.success: " + response.success);
-            System.out.println("java: response.getSuccess: " + response.getSuccess());
-            System.out.println("java: response.error: " + response.error);
             if(!response.getSuccess() || response.error != null) {
                 throw new RuntimeException(response.error);
             }

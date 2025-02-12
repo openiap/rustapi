@@ -38,7 +38,6 @@ public class BooleanTypeMapper implements TypeMapper {
 
     @Override
     public FromNativeConverter getFromNativeConverter(Class<?> javaType) {
-        System.out.println("getFromNativeConverter: " + javaType);
         if (javaType == Boolean.class || javaType == boolean.class) {
             return FROM_NATIVE;
         }
@@ -47,7 +46,6 @@ public class BooleanTypeMapper implements TypeMapper {
 
     @Override
     public ToNativeConverter getToNativeConverter(Class<?> javaType) {
-        System.out.println("getToNativeConverter: " + javaType);
         if (javaType == Boolean.class || javaType == boolean.class) {
             return TO_NATIVE;
         }

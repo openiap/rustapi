@@ -7,7 +7,7 @@ public class NativeLoader {
         String arch = System.getProperty("os.arch");
         String os = System.getProperty("os.name").toLowerCase();
         String libPath = "";
-        System.out.println("Current path" + System.getProperty("user.dir"));
+        // System.out.println("Current path" + System.getProperty("user.dir"));
         String base = System.getProperty("user.dir").endsWith("java") ? "lib/" : "java/lib/";
 
         File localDir1 = new File("target/debug");
