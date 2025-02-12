@@ -53,13 +53,14 @@ public class Client {
 
         Wrappers.UserStructure userStruct = new Wrappers.UserStructure(userPtr);
         Wrappers.User user = new Wrappers.User();
-        // Copy values to avoid accessing freed memory
-        user.id = userStruct.id != null ? new String(userStruct.id) : null;
-        user.name = userStruct.name != null ? new String(userStruct.name) : null;
-        user.username = userStruct.username != null ? new String(userStruct.username) : null;
-        user.email = userStruct.email != null ? new String(userStruct.email) : null;
-        // Skipping roles for now
+        user.id = userStruct.id;
+        user.name = userStruct.name;
+        user.username = userStruct.username;
+        user.email = userStruct.email;
+        // Skipping roles for now due to memory issues
         user.roles = new String[0];
+        
+        // lib.getFunction("free_user").invoke(void.class, new Object[]{userPtr});
         
         return user;
     }
