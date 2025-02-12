@@ -8,7 +8,6 @@ public class NativeLoader {
         String os = System.getProperty("os.name").toLowerCase();
         String libPath = "";
         System.out.println("Current path" + System.getProperty("user.dir"));
-        // if System.getProperty("user.dir") does not ends with "java" then we are in the root directory, then add "java" to the path
         String base = System.getProperty("user.dir").endsWith("java") ? "lib/" : "java/lib/";
 
         File localDir1 = new File("target/debug");

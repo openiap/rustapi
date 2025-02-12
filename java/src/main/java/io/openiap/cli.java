@@ -30,9 +30,7 @@ public class cli {
                 .request_id(123)
                 .build();
 
-            // Query and deserialize to a list of MyClass objects
             List<Entity> results = client.query(new TypeReference<List<Entity>>() {}.getType(), queryParams);
-
             for (Entity item : results) {
                 System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
             }

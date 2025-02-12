@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class QueryParameters extends Structure {
-    // Fields that map to the native struct.
     public String collectionname;
     public String query;
     public String projection;
@@ -16,12 +15,17 @@ public class QueryParameters extends Structure {
     public int top;
     public int request_id;
 
-    // Default constructor (required by JNA)
     public QueryParameters() {
-        // Optionally, initialize default values here
+        query = "{}";
+        projection = "{}";
+        orderby = "";
+        queryas = "";
+        explain = false;
+        skip = 0;
+        top = 0;
+        request_id = 0;
     }
 
-    // Ensure the field order is exactly as expected by the native struct.
     @Override
     protected List<String> getFieldOrder() {
         return Arrays.asList(
@@ -30,9 +34,7 @@ public class QueryParameters extends Structure {
         );
     }
 
-    // A builder for easier construction.
     public static class Builder {
-        // Create an instance to be built.
         private QueryParameters instance = new QueryParameters();
 
         public Builder collectionname(String collectionname) {
@@ -81,7 +83,6 @@ public class QueryParameters extends Structure {
         }
 
         public QueryParameters build() {
-            // Write the field values into the native memory if needed.
             instance.write();
             return instance;
         }

@@ -13,12 +13,9 @@ public class User extends Structure {
     public String name;
     public String username;
     public String email;
-    // This field is the pointer to the native array of role pointers.
     public Pointer roles;
-    // The number of roles stored.
     public int roles_len;
 
-    // A new field to store the roles as a Java list.
     private transient List<String> roleList;
     public List<String> getRoleList() {
         return roleList;
@@ -26,21 +23,15 @@ public class User extends Structure {
     
     public User(Pointer p) {
         super(p);
-        read();      // reads the fields (id, name, etc.) from native memory
-        readRoles(); // now read and store the roles into a Java list
+        read();
+        readRoles();
     }
 
-    /**
-     * Reads the roles from the native memory and stores them in roleList.
-     */
     private void readRoles() {
         roleList = new ArrayList<>();
         if (roles != null) {
-            // Iterate based on the roles_len field
             for (int i = 0; i < roles_len; i++) {
-                // Calculate the pointer for the i-th role pointer
                 Pointer ptr = roles.getPointer(i * Native.POINTER_SIZE);
-                // Get the Java string from the native pointer.
                 String role = ptr.getString(0);
                 roleList.add(role);
             }
