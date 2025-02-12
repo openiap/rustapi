@@ -101,6 +101,7 @@ public class Client {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T listCollections(Type type, boolean includeHist) throws Exception {
         String jsonResponse = listCollections(includeHist);
         if (type instanceof Class && type == String.class) {
