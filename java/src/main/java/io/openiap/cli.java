@@ -1,7 +1,5 @@
 package io.openiap;
 
-import java.util.List;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 public class cli {
@@ -23,35 +21,46 @@ public class cli {
             client.start();
             client.connect("");
 
-            QueryParameters queryParams = new QueryParameters.Builder()
-                .collectionname("entities")
-                .query("{\"_type\":\"test\"}")
-                .top(10)
-                .request_id(123)
+            // QueryParameters queryParams = new QueryParameters.Builder()
+            //     .collectionname("entities")
+            //     .query("{\"_type\":\"test\"}")
+            //     .top(10)
+            //     .request_id(123)
+            //     .build();
+
+            // List<Entity> results = client.query(new TypeReference<List<Entity>>() {}.getType(), queryParams);
+            // for (Entity item : results) {
+            //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            // }
+
+            // // Example of querying and getting the raw JSON string
+            // // queryParams.query = "{}";
+            // queryParams.query = "{\"_type\":\"test\"}";
+            // String jsonResult = client.query(String.class, queryParams);
+            // System.out.println("Raw JSON Result: " + jsonResult);
+
+            // AggregateParameters aggregateParams = new AggregateParameters.Builder()
+            //     .collectionname("entities")
+            //     .aggregates("[{\"$match\": {\"_type\": \"test\"}}, {\"$limit\": 10}]")
+            //     .request_id(456)
+            //     .build();
+
+            // String aggregateJsonResult = client.aggregate(String.class, aggregateParams);
+            // System.out.println("Raw JSON Aggregate Result: " + aggregateJsonResult);
+            // List<Entity> aggregate = client.aggregate(new TypeReference<List<Entity>>() {}.getType(), aggregateParams);
+            // for (Entity item : aggregate) {
+            //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            // }
+
+            CreateCollection createParams = new CreateCollection.Builder("newCollection")
+                // .collation(new ColCollationWrapper()) // Initialize ColCollationWrapper
+                // .timeseries(new ColTimeseriesWrapper()) // Initialize ColTimeseriesWrapper
                 .build();
-
-            List<Entity> results = client.query(new TypeReference<List<Entity>>() {}.getType(), queryParams);
-            for (Entity item : results) {
-                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
-            }
-
-            // Example of querying and getting the raw JSON string
-            // queryParams.query = "{}";
-            queryParams.query = "{\"_type\":\"test\"}";
-            String jsonResult = client.query(String.class, queryParams);
-            System.out.println("Raw JSON Result: " + jsonResult);
-
-            AggregateParameters aggregateParams = new AggregateParameters.Builder()
-                .collectionname("entities")
-                .aggregates("[{\"$match\": {\"_type\": \"test\"}}, {\"$limit\": 10}]")
-                .request_id(456)
-                .build();
-
-            String aggregateJsonResult = client.aggregate(String.class, aggregateParams);
-            System.out.println("Raw JSON Aggregate Result: " + aggregateJsonResult);
-            List<Entity> aggregate = client.aggregate(new TypeReference<List<Entity>>() {}.getType(), aggregateParams);
-            for (Entity item : aggregate) {
-                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            boolean created = client.createCollection(createParams);
+            if (created) {
+                System.out.println("Collection created successfully!");
+            } else {
+                System.err.println("Failed to create collection!");
             }
 
             // var str_collections = client.listCollections(false);

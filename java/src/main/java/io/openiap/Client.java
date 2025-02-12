@@ -1,9 +1,13 @@
 package io.openiap;
 
+
 import com.sun.jna.Pointer;
 import com.sun.jna.Native;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
+
 import com.sun.jna.Library;
 
 interface CLib extends Library {
@@ -25,6 +29,8 @@ interface CLib extends Library {
     void free_query_response(Pointer response);
     Pointer aggregate(Pointer client, AggregateParameters options);
     void free_aggregate_response(Pointer response);
+    Pointer create_collection(Pointer client, CreateCollection options);
+    void free_create_collection_response(Pointer response);
 }
 
 public class Client {
@@ -35,6 +41,9 @@ public class Client {
     public Client(String fullLibPath) {
         System.out.println("GetInstance of: " + fullLibPath);
         this.objectMapper = new ObjectMapper();
+        // Map<String, Object> options = new HashMap<>();
+        // options.put(Library.OPTION_TYPE_MAPPER, new BooleanTypeMapper());
+        // clibInstance = (CLib) Native.load(fullLibPath, CLib.class, options);
         clibInstance = (CLib) Native.load(fullLibPath, CLib.class);
     }
 
@@ -69,9 +78,9 @@ public class Client {
 
         Wrappers.ConnectResponseWrapper response = new Wrappers.ConnectResponseWrapper(responsePtr);
         try {
-            if (!response.success) {
+            if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
-                throw new RuntimeException("Failed to connect to server: " + errorMsg);
+                throw new RuntimeException(errorMsg);
             }
             System.out.println("Successfully connected to server: " + serverUrl);
         } finally {
@@ -92,9 +101,9 @@ public class Client {
 
         Collection.ListCollectionsResponseWrapper response = new Collection.ListCollectionsResponseWrapper(responsePtr);
         try {
-            if (!response.success) {
+            if (!response.success || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
-                throw new RuntimeException("Failed to list collections: " + errorMsg);
+                throw new RuntimeException(errorMsg);
             }
             return response.results;
         } finally {
@@ -162,9 +171,9 @@ public class Client {
         }
         Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
-            if (!response.success) {
+            if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
-                throw new RuntimeException("Query failed: " + errorMsg);
+                throw new RuntimeException(errorMsg);
             }
             return response.results;
         } finally {
@@ -191,9 +200,9 @@ public class Client {
         }
         Wrappers.AggregateResponseWrapper response = new Wrappers.AggregateResponseWrapper(responsePtr);
         try {
-            if (!response.success) {
+            if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
-                throw new RuntimeException("Aggregate failed: " + errorMsg);
+                throw new RuntimeException(errorMsg);
             }
             return response.results;
         } finally {
@@ -208,6 +217,29 @@ public class Client {
             return (T) jsonResponse;
         }
         return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public boolean createCollection(CreateCollection options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.create_collection(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("createCollection returned null response");
+        }
+
+        Wrappers.CreateCollectionResponseWrapper response = new Wrappers.CreateCollectionResponseWrapper(responsePtr);
+        try {
+            System.out.println("java: response.success: " + response.success);
+            System.out.println("java: response.getSuccess: " + response.getSuccess());
+            System.out.println("java: response.error: " + response.error);
+            if(!response.getSuccess() || response.error != null) {
+                throw new RuntimeException(response.error);
+            }
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_create_collection_response(responsePtr);
+        }
     }
 
     @SuppressWarnings("removal")
