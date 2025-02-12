@@ -14,22 +14,6 @@ public class cli {
             client.start();
             client.connect("");
             
-            // Get current user info
-            Wrappers.User currentUser = client.getUser();
-            if (currentUser != null) {
-                System.out.println("\nCurrent user:");
-                System.out.println("ID: " + currentUser.id);
-                System.out.println("Name: " + currentUser.name);
-                System.out.println("Username: " + currentUser.username);
-                System.out.println("Email: " + currentUser.email);
-                if (currentUser.roles != null) {
-                    System.out.println("Roles: " + String.join(", ", currentUser.roles));
-                }
-                System.out.println("---");
-            } else {
-                System.out.println("No user information available");
-            }
-
             // Get raw JSON
             // String collectionsJson = client.listCollectionsAsJson(false);
 
@@ -55,6 +39,18 @@ public class cli {
                     System.out.println("_id index: " + collection.idIndex.name);
                 }
                 System.out.println("---");
+            }
+
+            User user = client.getUser();
+            if (user != null) {
+                System.out.println("User ID: " + user.id);
+                System.out.println("User Name: " + user.name);
+                System.out.println("User Username: " + user.username);
+                System.out.println("User Email: " + user.email);
+                System.out.println("User Roles Pointer: " + user.roles);
+                // client.freeUser(user.getPointer());
+            } else {
+                System.out.println("No user found.");
             }
             
             client.hello();

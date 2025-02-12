@@ -63,29 +63,4 @@ public class Wrappers {
         }
     }
 
-    public static class User {
-        public String id;
-        public String name;
-        public String username;
-        public String email;
-        public String[] roles;
-    }
-
-    public static class UserStructure extends Structure {
-        public String id;
-        public String name;
-        public String username;
-        public String email;
-        public Pointer roles;
-        
-        public UserStructure(Pointer p) {
-            super(p);
-            read();
-        }
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("id", "name", "username", "email", "roles");
-        }
-    }
 }
