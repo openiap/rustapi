@@ -14,6 +14,22 @@ public class cli {
             client.start();
             client.connect("");
             
+            // Get current user info
+            Wrappers.User currentUser = client.getUser();
+            if (currentUser != null) {
+                System.out.println("\nCurrent user:");
+                System.out.println("ID: " + currentUser.id);
+                System.out.println("Name: " + currentUser.name);
+                System.out.println("Username: " + currentUser.username);
+                System.out.println("Email: " + currentUser.email);
+                if (currentUser.roles != null) {
+                    System.out.println("Roles: " + String.join(", ", currentUser.roles));
+                }
+                System.out.println("---");
+            } else {
+                System.out.println("No user information available");
+            }
+
             // Get raw JSON
             // String collectionsJson = client.listCollectionsAsJson(false);
 

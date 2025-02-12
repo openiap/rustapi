@@ -3,9 +3,14 @@ package io.openiap;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.Function;
 import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
+import com.sun.jna.Native;
+import java.util.Arrays;
+import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.lang.reflect.Type;
+import com.sun.jna.Memory;
 
 public class Client {
     private final NativeLibrary lib;
@@ -32,6 +37,31 @@ public class Client {
         freeClientFunc = lib.getFunction("free_client");
         listCollectionsFunc = lib.getFunction("list_collections");
         freeListCollectionsResponseFunc = lib.getFunction("free_list_collections_response");
+    }
+
+    public Wrappers.User getUser() {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        
+        Function getUserFunc = lib.getFunction("client_user");
+        Pointer userPtr = (Pointer) getUserFunc.invoke(Pointer.class, new Object[]{clientPtr});
+        
+        if (userPtr == null) {
+            return null;
+        }
+
+        Wrappers.UserStructure userStruct = new Wrappers.UserStructure(userPtr);
+        Wrappers.User user = new Wrappers.User();
+        // Copy values to avoid accessing freed memory
+        user.id = userStruct.id != null ? new String(userStruct.id) : null;
+        user.name = userStruct.name != null ? new String(userStruct.name) : null;
+        user.username = userStruct.username != null ? new String(userStruct.username) : null;
+        user.email = userStruct.email != null ? new String(userStruct.email) : null;
+        // Skipping roles for now
+        user.roles = new String[0];
+        
+        return user;
     }
 
     public void start() {
