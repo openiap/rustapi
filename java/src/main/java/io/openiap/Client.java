@@ -152,13 +152,8 @@ public class Client {
         }
 
         User user = new User(userPtr);
-        user.read();
-
+        // clibInstance.free_user(userPtr);
         return user;
-    }
-
-    public void freeUser(Pointer user) {
-        clibInstance.free_user(user);
     }
 
     @SuppressWarnings("removal")

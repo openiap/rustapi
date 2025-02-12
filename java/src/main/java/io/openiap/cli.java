@@ -14,11 +14,14 @@ public class cli {
             client.start();
             client.connect("");
 
+
+            var str_collections = client.listCollections(false);
+            System.out.println("Collections: " + str_collections);
             // Get as List of Collection objects
-            List<Collection> collections = client.listCollections(
-                new TypeReference<List<Collection>>(){}.getType(), 
-                false
-            );
+            // List<Collection> collections = client.listCollections(
+            //     new TypeReference<List<Collection>>(){}.getType(), 
+            //     false
+            // );
             
             // // Print collection details
             // for (Collection collection : collections) {
@@ -41,7 +44,11 @@ public class cli {
                 System.out.println("User Username: " + user.username);
                 System.out.println("User Email: " + user.email);
                 System.out.println("User Roles Pointer: " + user.roles);
-                // client.freeUser(user.getPointer());
+                var roles = user.getRoleList();
+                for (int i = 0; i < roles.size(); i++) {
+                    System.out.println("Role[" + i + "]: " + roles.get(i));
+                }
+        
             } else {
                 System.out.println("No user found.");
             }

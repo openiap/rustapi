@@ -96,17 +96,19 @@ pub extern "C" fn client_user(
             return std::ptr::null();
         }
         Some(user) => {
-            let role_strings: Vec<CString> = user
-                .roles
-                .iter()
-                .map(|role| CString::new(role.name.clone()).unwrap())
-                .collect();
+            // Immediately leak each CString for each role, casting to *const c_char.
+            let role_ptrs: Vec<*const c_char> = user.roles.iter()
+            .map(|role| {
+                CString::new(role.name.clone())
+                    .unwrap()
+                    .into_raw() as *const c_char  // Cast here to get *const c_char
+            })
+            .collect();
 
-            let role_ptrs: Vec<*const c_char> =
-                role_strings.iter().map(|cs| cs.as_ptr()).collect();
+            // Leak the boxed slice that holds the role pointers.
+            let roles_len = role_ptrs.len();  // Use the length of the vector
             let roles_buf = role_ptrs.into_boxed_slice();
-            let roles_ptr = roles_buf.as_ptr();
-            let roles_len = role_strings.len();
+            let roles_ptr = Box::into_raw(roles_buf) as *const *const c_char;
 
             let response = UserWrapper {
                 id: CString::new(user.id).unwrap().into_raw(),
