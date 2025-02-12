@@ -57,8 +57,6 @@ public class Client {
         user.name = userStruct.name;
         user.username = userStruct.username;
         user.email = userStruct.email;
-        // Skipping roles for now due to memory issues
-        user.roles = new String[0];
         
         // lib.getFunction("free_user").invoke(void.class, new Object[]{userPtr});
         

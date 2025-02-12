@@ -76,7 +76,7 @@ public class Wrappers {
         public String name;
         public String username;
         public String email;
-        public Pointer roles;      // const char *const *roles - pointer to array of const char*
+        public Pointer roles;
         
         public UserStructure(Pointer p) {
             super(p);
