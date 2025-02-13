@@ -22,7 +22,7 @@ public class cli {
 
         Client client = new Client(libpath);
         try {
-            client.enableTracing("openiap=debug", "");
+            client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
 
@@ -181,6 +181,24 @@ public class cli {
 
             Entity updatedEntity = client.updateOne(Entity.class, updateOneParams2);
             System.out.println("UpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
+
+            InsertOrUpdateOneParameters insertOrUpdateOneParams = new InsertOrUpdateOneParameters.Builder()
+                .collectionname("entities")
+                .uniqeness("name")
+                .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
+                .build();
+
+            String insertOrUpdateOneResult = client.insertOrUpdateOne(insertOrUpdateOneParams);
+            System.out.println("InsertOrUpdateOne Result (JSON): " + insertOrUpdateOneResult);
+
+            InsertOrUpdateOneParameters insertOrUpdateOneParams2 = new InsertOrUpdateOneParameters.Builder()
+                .collectionname("entities")
+                .uniqeness("name")
+                .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
+                .build();
+
+            updatedEntity = client.insertOrUpdateOne(Entity.class, insertOrUpdateOneParams2);
+            System.out.println("InsertOrUpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
 
         } catch (Exception e) {
             e.printStackTrace();

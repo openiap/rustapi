@@ -35,6 +35,8 @@ interface CLib extends Library {
     void free_insert_one_response(Pointer response);
     Pointer update_one(Pointer client, UpdateOneParameters options);
     void free_update_one_response(Pointer response);
+    Pointer insert_or_update_one(Pointer client, InsertOrUpdateOneParameters options);
+    void free_insert_or_update_one_response(Pointer response);
 }
 
 public class Client {
@@ -308,6 +310,35 @@ public class Client {
     @SuppressWarnings("unchecked")
     public <T> T updateOne(Type type, UpdateOneParameters options) throws Exception {
         String jsonResponse = updateOne(options);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public String insertOrUpdateOne(InsertOrUpdateOneParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.insert_or_update_one(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("InsertOrUpdateOne returned null response");
+        }
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.results;
+        } finally {
+            clibInstance.free_query_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T insertOrUpdateOne(Type type, InsertOrUpdateOneParameters options) throws Exception {
+        String jsonResponse = insertOrUpdateOne(options);
         if (type instanceof Class && type == String.class) {
             return (T) jsonResponse;
         }
