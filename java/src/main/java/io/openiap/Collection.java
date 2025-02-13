@@ -27,20 +27,4 @@ public class Collection {
         public int _id;
     }
 
-    public static class ListCollectionsResponseWrapper extends Structure {
-        public boolean success;
-        public String results;
-        public String error;
-        public int request_id;
-        
-        public ListCollectionsResponseWrapper(Pointer p) {
-            super(p);
-            read();
-        }
-        
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("success", "results", "error", "request_id");
-        }
-    }
 }

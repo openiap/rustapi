@@ -29,6 +29,8 @@ interface CLib extends Library {
     void free_aggregate_response(Pointer response);
     Pointer create_collection(Pointer client, CreateCollection options);
     void free_create_collection_response(Pointer response);
+    Pointer drop_collection(Pointer client, String collectionName);
+    void free_drop_collection_response(Pointer response);
 }
 
 public class Client {
@@ -95,7 +97,7 @@ public class Client {
 
         Collection.ListCollectionsResponseWrapper response = new Collection.ListCollectionsResponseWrapper(responsePtr);
         try {
-            if (!response.success || response.error != null) {
+            if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
                 throw new RuntimeException(errorMsg);
             }
@@ -226,6 +228,27 @@ public class Client {
             return response.getSuccess();
         } finally {
             clibInstance.free_create_collection_response(responsePtr);
+        }
+    }
+
+    public boolean dropCollection(String collectionName) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.drop_collection(clientPtr, collectionName);
+        if (responsePtr == null) {
+            throw new RuntimeException("dropCollection returned null response");
+        }
+
+        Collection.DropCollectionResponseWrapper response = new Collection.DropCollectionResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_drop_collection_response(responsePtr);
         }
     }
 

@@ -5,6 +5,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import io.openiap.ColTimeseriesWrapper.TimeUnit;
+
 public class cli {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -23,6 +25,7 @@ public class cli {
             client.enableTracing("openiap=debug", "");
             client.start();
             client.connect("");
+
 
             // QueryParameters queryParams = new QueryParameters.Builder()
             //     .collectionname("entities")
@@ -55,16 +58,36 @@ public class cli {
             //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
             // }
 
-            // CreateCollection createParams = new CreateCollection.Builder("newCollection")
-            //     // .collation(new ColCollationWrapper()) // Initialize ColCollationWrapper
-            //     // .timeseries(new ColTimeseriesWrapper()) // Initialize ColTimeseriesWrapper
+            // CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
             //     .build();
-            // boolean created = client.createCollection(createParams);
-            // if (created) {
+            // boolean Colcreated = client.createCollection(createColParams);
+            // if (Colcreated) {
             //     System.out.println("Collection created successfully!");
             // } else {
             //     System.err.println("Failed to create collection!");
             // }
+            // client.dropCollection("testjavacollection");
+
+            CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
+                .expire(60)                
+                .build();
+            boolean ExpColcreated = client.createCollection(createExpColParams);
+            if (ExpColcreated) {
+                System.out.println("Collection created successfully!");
+            } else {
+                System.err.println("Failed to create collection!");
+            }
+
+            CreateCollection createTSColParams = new CreateCollection.Builder("testjavatscollection")
+                .timeseries(new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts"))
+                .build();
+            boolean TSColcreated = client.createCollection(createTSColParams);
+            if (TSColcreated) {
+                System.out.println("Collection created successfully!");
+            } else {
+                System.err.println("Failed to create collection!");
+            }
+            // client.dropCollection("testjavaexpcollection");
 
             // var str_collections = client.listCollections(false);
             // System.out.println("Collections: " + str_collections);
@@ -87,21 +110,21 @@ public class cli {
             //     System.out.println("---");
             // }
 
-            User user = client.getUser();
-            if (user != null) {
-                System.out.println("User ID: " + user.id);
-                System.out.println("User Name: " + user.name);
-                System.out.println("User Username: " + user.username);
-                System.out.println("User Email: " + user.email);
-                System.out.println("User Roles Pointer: " + user.roles);
-                var roles = user.getRoleList();
-                for (int i = 0; i < roles.size(); i++) {
-                    System.out.println("Role[" + i + "]: " + roles.get(i));
-                }
+            // User user = client.getUser();
+            // if (user != null) {
+            //     System.out.println("User ID: " + user.id);
+            //     System.out.println("User Name: " + user.name);
+            //     System.out.println("User Username: " + user.username);
+            //     System.out.println("User Email: " + user.email);
+            //     System.out.println("User Roles Pointer: " + user.roles);
+            //     var roles = user.getRoleList();
+            //     for (int i = 0; i < roles.size(); i++) {
+            //         System.out.println("Role[" + i + "]: " + roles.get(i));
+            //     }
         
-            } else {
-                System.out.println("No user found.");
-            }
+            // } else {
+            //     System.out.println("No user found.");
+            // }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
