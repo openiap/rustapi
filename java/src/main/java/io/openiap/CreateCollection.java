@@ -48,6 +48,10 @@ public class CreateCollection extends Structure {
             instance.collectionname = collectionname;
             return this;
         }
+        public Builder expire(int expire_after_seconds) {
+            instance.expire_after_seconds = expire_after_seconds;
+            return this;
+        }
 
         public Builder collation(ColCollationWrapper collation) {
             instance.collation = collation.getPointer();
