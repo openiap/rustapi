@@ -5,14 +5,14 @@ import java.util.Arrays;
 import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class InsertOneParameters extends Structure {
+public class UpdateOneParameters extends Structure {
     public String collectionname;
     public String item;
     public int w;
     public boolean j;
     public int request_id;
 
-    public InsertOneParameters() {
+    public UpdateOneParameters() {
         this.collectionname = null;
         this.item = null;
         this.w = 0;
@@ -28,7 +28,7 @@ public class InsertOneParameters extends Structure {
     }
 
     public static class Builder {
-        private InsertOneParameters instance = new InsertOneParameters();
+        private UpdateOneParameters instance = new UpdateOneParameters();
         private static final ObjectMapper objectMapper = new ObjectMapper();
 
         public Builder collectionname(String collectionname) {
@@ -65,7 +65,7 @@ public class InsertOneParameters extends Structure {
             return this;
         }
 
-        public InsertOneParameters build() {
+        public UpdateOneParameters build() {
             instance.write();
             return instance;
         }

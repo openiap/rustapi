@@ -154,6 +154,33 @@ public class cli {
 
             Entity insertedEntity = client.insertOne(Entity.class, insertOneParams2);
             System.out.println("InsertOne Result (Entity): " + insertedEntity.name + " id: " + insertedEntity._id);
+            
+            insertedEntity._id = null;
+            InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
+                .collectionname("entities")
+                .itemFromObject(insertedEntity)
+                .build();
+
+            Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
+            System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
+
+
+            UpdateOneParameters updateOneParams = new UpdateOneParameters.Builder()
+                .collectionname("entities")
+                .item("{\"_id\":\"" + insertedEntity3._id + "\", \"name\":\"test02-updated\"}")
+                .build();
+
+            String updateOneResult = client.updateOne(updateOneParams);
+            System.out.println("UpdateOne Result (JSON): " + updateOneResult);
+
+            insertedEntity3.name = "test02-updated-again";
+            UpdateOneParameters updateOneParams2 = new UpdateOneParameters.Builder()
+                .collectionname("entities")
+                .itemFromObject(insertedEntity3)
+                .build();
+
+            Entity updatedEntity = client.updateOne(Entity.class, updateOneParams2);
+            System.out.println("UpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
 
         } catch (Exception e) {
             e.printStackTrace();
