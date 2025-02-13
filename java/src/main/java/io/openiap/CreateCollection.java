@@ -17,6 +17,7 @@ public class CreateCollection extends Structure {
     public int request_id;
 
     public CreateCollection(String collectionname) {
+        super();
         this.collectionname = collectionname;
         this.collation = null;
         this.timeseries = null;
@@ -26,7 +27,19 @@ public class CreateCollection extends Structure {
         this.max = 0;
         this.size = 0;
         this.request_id = 0;
-        write();
+    }
+
+    public CreateCollection() {
+        super();
+        this.collectionname = null;
+        this.collation = null;
+        this.timeseries = null;
+        this.expire_after_seconds = 0;
+        this.change_stream_pre_and_post_images = false;
+        this.capped = false;
+        this.max = 0;
+        this.size = 0;
+        this.request_id = 0;
     }
 
     @Override
@@ -38,10 +51,10 @@ public class CreateCollection extends Structure {
     }
     
     public static class Builder {
-        private CreateCollection instance;
+        private CreateCollection instance = new CreateCollection();
 
         public Builder(String collectionname) {
-            instance = new CreateCollection(collectionname);
+            instance.collectionname = collectionname;
         }
 
         public Builder collectionname(String collectionname) {
@@ -54,12 +67,18 @@ public class CreateCollection extends Structure {
         }
 
         public Builder collation(ColCollationWrapper collation) {
-            instance.collation = collation.getPointer();
+            instance.collation = collation != null ? collation.getPointer() : null;
             return this;
         }
 
         public Builder timeseries(ColTimeseriesWrapper timeseries) {
-            instance.timeseries = timeseries.getPointer();
+            if(timeseries != null) {
+                timeseries.write();
+                instance.timeseries = timeseries.getPointer();
+            } else {
+                instance.timeseries = null;
+            }
+            // instance.timeseries = timeseries != null ? timeseries.getPointer() : null;
             return this;
         }
 

@@ -69,17 +69,19 @@ public class cli {
             // client.dropCollection("testjavacollection");
 
             CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
-                .expire(60)                
-                .build();
+            .expire(60)                
+            .build();
             boolean ExpColcreated = client.createCollection(createExpColParams);
             if (ExpColcreated) {
                 System.out.println("Collection created successfully!");
             } else {
                 System.err.println("Failed to create collection!");
             }
+            // client.dropCollection("testjavaexpcollection");
 
+            ColTimeseriesWrapper timeseries = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts");
             CreateCollection createTSColParams = new CreateCollection.Builder("testjavatscollection")
-                .timeseries(new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts"))
+                .timeseries(timeseries)
                 .build();
             boolean TSColcreated = client.createCollection(createTSColParams);
             if (TSColcreated) {
@@ -87,7 +89,18 @@ public class cli {
             } else {
                 System.err.println("Failed to create collection!");
             }
-            // client.dropCollection("testjavaexpcollection");
+            // client.dropCollection("testjavatscollection");
+            ColTimeseriesWrapper timeseries2 = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts", "metadata");
+            CreateCollection createTSColParams2 = new CreateCollection.Builder("testjavats2collection")
+                .timeseries(timeseries2)
+                .build();
+            boolean TSColcreated2 = client.createCollection(createTSColParams2);
+            if (TSColcreated2) {
+                System.out.println("Collection created successfully!");
+            } else {
+                System.err.println("Failed to create collection!");
+            }
+            // client.dropCollection("testjavats2collection");
 
             // var str_collections = client.listCollections(false);
             // System.out.println("Collections: " + str_collections);

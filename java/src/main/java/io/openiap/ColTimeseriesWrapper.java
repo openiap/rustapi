@@ -10,49 +10,42 @@ public class ColTimeseriesWrapper extends Structure {
     public String granularity;
 
     public ColTimeseriesWrapper() {
-        time_field = "";
-        meta_field = "";
-        granularity = "";
+        this.time_field = "";
+        this.meta_field = "";
+        this.granularity = "";
     }
-    public ColTimeseriesWrapper(TimeUnit granularity) {
+
+    public ColTimeseriesWrapper(TimeUnit granularity, String timeField) {
+        this.time_field = timeField;
+        this.meta_field = null; // or an actual value if needed
         this.granularity = granularity.label;
-        time_field = "";
-        meta_field = "";
     }
-    public ColTimeseriesWrapper(TimeUnit granularity, String time_field) {
+    public ColTimeseriesWrapper(TimeUnit granularity, String timeField, String metaField) {
+        this.time_field = timeField;
+        this.meta_field = metaField;
         this.granularity = granularity.label;
-        this.time_field = time_field;
-        meta_field = "";
-    }
-    public ColTimeseriesWrapper(TimeUnit granularity, String time_field, String meta_field) {
-        this.granularity = granularity.label;
-        this.time_field = time_field;
-        this.meta_field = meta_field;
     }
 
     @Override
     protected List<String> getFieldOrder() {
-        return Arrays.asList(
-            "time_field", "meta_field", "granularity"
-        );
+        return Arrays.asList("time_field", "meta_field", "granularity");
     }
-
 
     public enum TimeUnit {
         SECONDS("seconds"),
         MINUTES("minutes"),
         HOURS("hours");
-    
+
         private final String label;
-    
+
         TimeUnit(String label) {
             this.label = label;
         }
-    
+
         public String getLabel() {
             return label;
         }
-    
+
         @Override
         public String toString() {
             return label;
