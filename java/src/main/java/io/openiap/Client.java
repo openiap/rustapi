@@ -95,7 +95,7 @@ public class Client {
             throw new RuntimeException("List collections returned null response");
         }
 
-        Collection.ListCollectionsResponseWrapper response = new Collection.ListCollectionsResponseWrapper(responsePtr);
+        Wrappers.ListCollectionsResponseWrapper response = new Wrappers.ListCollectionsResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -240,7 +240,7 @@ public class Client {
             throw new RuntimeException("dropCollection returned null response");
         }
 
-        Collection.DropCollectionResponseWrapper response = new Collection.DropCollectionResponseWrapper(responsePtr);
+        Wrappers.DropCollectionResponseWrapper response = new Wrappers.DropCollectionResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";

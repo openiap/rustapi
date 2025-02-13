@@ -1,10 +1,5 @@
 package io.openiap;
 
-import java.util.Arrays;
-import java.util.List;
-import com.sun.jna.Structure;
-import com.sun.jna.Pointer;
-
 public class Collection {
     public String name;
     public String type;
