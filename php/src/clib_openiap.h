@@ -16,6 +16,7 @@ typedef struct UserWrapper {
   const char *username;
   const char *email;
   const char *const *roles;
+  int32_t roles_len;
 } UserWrapper;
 
 /**

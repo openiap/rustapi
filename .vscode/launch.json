@@ -9,7 +9,7 @@
             "type": "java",
             "request": "launch",
             "mainClass": "io.openiap.cli",
-            "projectName": "openiap-java"
+            "projectName": "client"
         },
         {
             "name": "Python: debug test.py",

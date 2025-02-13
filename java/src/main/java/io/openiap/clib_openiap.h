@@ -197,24 +197,6 @@ typedef struct AggregateRequestWrapper {
 
 typedef void (*AggregateCallback)(struct AggregateResponseWrapper *wrapper);
 
-typedef struct AggregateResponseWrapper {
-  bool success;
-  const char *results;
-  const char *error;
-  int32_t request_id;
-} AggregateResponseWrapper;
-
-typedef struct AggregateRequestWrapper {
-  const char *collectionname;
-  const char *aggregates;
-  const char *queryas;
-  const char *hint;
-  bool explain;
-  int32_t request_id;
-} AggregateRequestWrapper;
-
-typedef void (*AggregateCallback)(struct AggregateResponseWrapper *wrapper);
-
 typedef struct CountResponseWrapper {
   bool success;
   int32_t result;

@@ -12,30 +12,35 @@ bump:
 	@echo "Bumping version to $(VERSION) recursively..."
 
 	# Update Cargo.toml files (enforce version format X.Y.Z)
-	@find crates -name "Cargo.toml" -exec sed -i.bak 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
+	@find crates -name "Cargo.toml" -exec sed -i 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
 
 	# Update version in lib.rs files (Rust source files)
-	@find crates -name "*.rs" -exec sed -i.bak -E "s/(^[[:space:]]*const VERSION: &str = )\"[0-9]+\.[0-9]+\.[0-9]+\";/\1\"$(VERSION)\";/g" {} \;
+	@find crates -name "*.rs" -exec sed -i -E "s/(^[[:space:]]*const VERSION: &str = )\"[0-9]+\.[0-9]+\.[0-9]+\";/\1\"$(VERSION)\";/g" {} \;
 
 
 
 	# Update version in .csproj files (C# project files)
-	@find dotnet -name "*.csproj" -exec sed -i.bak 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
+	@find dotnet -name "*.csproj" -exec sed -i 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
 
 	# Update version in JSON files (e.g., package.json)
-	@find node -name "package.json" -exec sed -i.bak 's/"version": "[0-9]\+\.[0-9]\+\.[0-9]\+"/"version": "$(VERSION)"/' {} \;
+	@find node -name "package.json" -exec sed -i 's/"version": "[0-9]\+\.[0-9]\+\.[0-9]\+"/"version": "$(VERSION)"/' {} \;
 
 	# Update version in .toml files (e.g., pyproject.toml)
-	@find python -name "*.toml" -exec sed -i.bak 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
+	@find python -name "*.toml" -exec sed -i 's/^version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
 
 	# Update version in Python setup files (setup.py)
-	@find python -name "setup.py" -exec sed -i.bak 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="$(VERSION)"/' {} \;
+	@find python -name "setup.py" -exec sed -i 's/version="[0-9]\+\.[0-9]\+\.[0-9]\+"/version="$(VERSION)"/' {} \;
 
 	# Update version in Markdown files (e.g., README.md)
-	@find . -name "*.md" -exec sed -i.bak 's/\b[0-9]\+\.[0-9]\+\.[0-9]\+\b/$(VERSION)/g' {} \;
+	@find . -name "*.md" -exec sed -i 's/\b[0-9]\+\.[0-9]\+\.[0-9]\+\b/$(VERSION)/g' {} \;
 
 	# Clean up backup files created by sed
 	@find . -name "*.bak" -type f -delete
+
+	# Update version in pom.xml files (C# project files)
+	# @find java -name "pom.xml" -exec sed -i 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
+	@find java -name "pom.xml" -exec sed -i '/<artifactId>client<\/artifactId>/{n;s/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>${VERSION}<\/version>/}' {} \;
+
 
 	@echo "Version bump completed to $(VERSION)"
 
@@ -76,6 +81,9 @@ build-windows:
 	cp target/i686-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-i686.dll
 	cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openiap.exe
 
+build-java:
+	(cd java && mvn clean package)
+
 # Package language bindings
 package-node:
 	@echo "Building Node.js package"
@@ -100,8 +108,7 @@ package-java:
 	@echo "pass: $(MAVEN_AUTH)"
 
 	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
-	(cd java && rm -rf out target openiap.jar && javac -cp jna-5.16.0.jar -d out src/main/java/io/openiap/*.java && jar cfm openiap.jar META-INF/MANIFEST.MF -C target/classes .)
-
+	(cd java && mvn clean package)
 publish-node:
 	(cd node && npm publish)
 
@@ -112,11 +119,11 @@ publish-dotnet:
 publish-python:
 	(cd python && python3 -m twine upload dist/*)
 publish-java:
-	# (cd java && curl --request POST \
-	# 	--verbose \
-	# 	--header 'Authorization: Bearer $(MAVEN_AUTH)' \
-	# 	--form bundle=@openiap.jar \
-	# 	https://central.sonatype.com/api/v1/publisher/upload)
+	(cd java/target/central-publishing && curl --request POST \
+		--verbose \
+		--header 'Authorization: Bearer $(MAVEN_AUTH)' \
+		--form bundle=@central-bundle.zip \
+		https://central.sonatype.com/api/v1/publisher/upload)
 
 publish-cargo:
 	cargo publish -p openiap-proto --allow-dirty
@@ -125,7 +132,7 @@ publish-cargo:
 	cargo publish -p openiap-clib --allow-dirty
 
 # Combined tasks
-build-all: clean prepare build-linux build-macos build-windows
+build-all: clean prepare build-linux build-macos build-windows build-java
 package-all: package-node package-dotnet package-python package-java
 publish-all: publish-node publish-dotnet publish-python publish-java publish-cargo
 

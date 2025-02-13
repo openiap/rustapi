@@ -1,6 +1,9 @@
 package io.openiap;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 public class cli {
 
@@ -52,20 +55,19 @@ public class cli {
             //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
             // }
 
-            CreateCollection createParams = new CreateCollection.Builder("newCollection")
-                // .collation(new ColCollationWrapper()) // Initialize ColCollationWrapper
-                // .timeseries(new ColTimeseriesWrapper()) // Initialize ColTimeseriesWrapper
-                .build();
-            boolean created = client.createCollection(createParams);
-            if (created) {
-                System.out.println("Collection created successfully!");
-            } else {
-                System.err.println("Failed to create collection!");
-            }
+            // CreateCollection createParams = new CreateCollection.Builder("newCollection")
+            //     // .collation(new ColCollationWrapper()) // Initialize ColCollationWrapper
+            //     // .timeseries(new ColTimeseriesWrapper()) // Initialize ColTimeseriesWrapper
+            //     .build();
+            // boolean created = client.createCollection(createParams);
+            // if (created) {
+            //     System.out.println("Collection created successfully!");
+            // } else {
+            //     System.err.println("Failed to create collection!");
+            // }
 
             // var str_collections = client.listCollections(false);
             // System.out.println("Collections: " + str_collections);
-            // Get as List of Collection objects
             // List<Collection> collections = client.listCollections(
             //     new TypeReference<List<Collection>>(){}.getType(), 
             //     false
@@ -85,21 +87,21 @@ public class cli {
             //     System.out.println("---");
             // }
 
-            // User user = client.getUser();
-            // if (user != null) {
-            //     System.out.println("User ID: " + user.id);
-            //     System.out.println("User Name: " + user.name);
-            //     System.out.println("User Username: " + user.username);
-            //     System.out.println("User Email: " + user.email);
-            //     System.out.println("User Roles Pointer: " + user.roles);
-            //     var roles = user.getRoleList();
-            //     for (int i = 0; i < roles.size(); i++) {
-            //         System.out.println("Role[" + i + "]: " + roles.get(i));
-            //     }
+            User user = client.getUser();
+            if (user != null) {
+                System.out.println("User ID: " + user.id);
+                System.out.println("User Name: " + user.name);
+                System.out.println("User Username: " + user.username);
+                System.out.println("User Email: " + user.email);
+                System.out.println("User Roles Pointer: " + user.roles);
+                var roles = user.getRoleList();
+                for (int i = 0; i < roles.size(); i++) {
+                    System.out.println("Role[" + i + "]: " + roles.get(i));
+                }
         
-            // } else {
-            //     System.out.println("No user found.");
-            // }
+            } else {
+                System.out.println("No user found.");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

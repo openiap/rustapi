@@ -5,9 +5,29 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.openiap</groupId>
-    <artifactId>openiap-java</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-
+    <artifactId>client</artifactId>
+    <version>0.0.2</version>
+    <url>https://github.com/openiap/rustapi/tree/main/java</url>
+    <description>Java SDK for OpenIAP core</description>
+    <scm>
+        <connection>scm:git:git://github.com/openiap/rustapi.git</connection>
+        <developerConnection>scm:git:ssh://github.com:openiap/rustapi.git</developerConnection>
+        <url>https://github.com/openiap/rustapi</url>
+    </scm>
+    <developers>
+        <developer>
+            <id>io.openiap</id>
+            <name>Allan Zimmermann</name>
+            <email>info@openiap.io</email>
+        </developer>
+    </developers>
+    <licenses>
+        <license>
+            <name>MPL-2.0 license</name>
+            <url>https://github.com/openiap/rustapi?tab=MPL-2.0-1-ov-file#readme</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
@@ -45,6 +65,15 @@
     </dependencies>
 
     <build>
+        <resources>        
+            <resource>
+                <directory>${project.basedir}/lib</directory>
+                <targetPath>lib</targetPath>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -80,10 +109,71 @@
                         <goals>
                             <goal>single</goal>
                         </goals>
+                         <configuration>
+                            <!-- Do not attach the assembly artifact for deployment -->
+                            <attach>false</attach>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
+
+
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.2.1</version>
+                <executions>
+                    <execution>
+                    <id>attach-sources</id>
+                    <phase>verify</phase>
+                    <goals>
+                        <goal>jar</goal>
+                    </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.3.2</version>
+                <executions>
+                    <execution>
+                    <id>attach-javadocs</id>
+                    <phase>verify</phase>
+                    <goals>
+                        <goal>jar</goal>
+                    </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.0.1</version>
+                <executions>
+                    <execution>
+                    <id>sign-artifacts</id>
+                    <phase>verify</phase>
+                    <goals>
+                        <goal>sign</goal>
+                    </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.7.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
+
+
 
 </project>

@@ -5,10 +5,21 @@ To build the project:
 mvn clean package
 ```
 
-To run the application:
-```bash
-# This will run the jar that includes all dependencies
-java -jar target/openiap-java-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+in pom.xml, add:
+```
+io.openiap:client:0.0.2
 ```
 
-Note: Make sure to use the `-jar-with-dependencies.jar` version of the jar file, as this contains all required dependencies. The regular jar file will not work correctly.
+or for Gradle uses, add:
+```bash
+dependencies {
+    implementation 'io.openiap:client:0.0.2'
+}
+```
+
+To run the test application:
+```bash
+mvn package
+java -jar target/client-0.0.2-jar-with-dependencies.jar
+```
+
