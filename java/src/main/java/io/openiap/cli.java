@@ -68,39 +68,39 @@ public class cli {
             // }
             // client.dropCollection("testjavacollection");
 
-            CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
-            .expire(60)                
-            .build();
-            boolean ExpColcreated = client.createCollection(createExpColParams);
-            if (ExpColcreated) {
-                System.out.println("Collection created successfully!");
-            } else {
-                System.err.println("Failed to create collection!");
-            }
-            // client.dropCollection("testjavaexpcollection");
+            // CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
+            // .expire(60)                
+            // .build();
+            // boolean ExpColcreated = client.createCollection(createExpColParams);
+            // if (ExpColcreated) {
+            //     System.out.println("Collection created successfully!");
+            // } else {
+            //     System.err.println("Failed to create collection!");
+            // }
+            // // client.dropCollection("testjavaexpcollection");
 
-            ColTimeseriesWrapper timeseries = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts");
-            CreateCollection createTSColParams = new CreateCollection.Builder("testjavatscollection")
-                .timeseries(timeseries)
-                .build();
-            boolean TSColcreated = client.createCollection(createTSColParams);
-            if (TSColcreated) {
-                System.out.println("Collection created successfully!");
-            } else {
-                System.err.println("Failed to create collection!");
-            }
-            // client.dropCollection("testjavatscollection");
-            ColTimeseriesWrapper timeseries2 = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts", "metadata");
-            CreateCollection createTSColParams2 = new CreateCollection.Builder("testjavats2collection")
-                .timeseries(timeseries2)
-                .build();
-            boolean TSColcreated2 = client.createCollection(createTSColParams2);
-            if (TSColcreated2) {
-                System.out.println("Collection created successfully!");
-            } else {
-                System.err.println("Failed to create collection!");
-            }
-            // client.dropCollection("testjavats2collection");
+            // ColTimeseriesWrapper timeseries = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts");
+            // CreateCollection createTSColParams = new CreateCollection.Builder("testjavatscollection")
+            //     .timeseries(timeseries)
+            //     .build();
+            // boolean TSColcreated = client.createCollection(createTSColParams);
+            // if (TSColcreated) {
+            //     System.out.println("Collection created successfully!");
+            // } else {
+            //     System.err.println("Failed to create collection!");
+            // }
+            // // client.dropCollection("testjavatscollection");
+            // ColTimeseriesWrapper timeseries2 = new ColTimeseriesWrapper(TimeUnit.MINUTES, "ts", "metadata");
+            // CreateCollection createTSColParams2 = new CreateCollection.Builder("testjavats2collection")
+            //     .timeseries(timeseries2)
+            //     .build();
+            // boolean TSColcreated2 = client.createCollection(createTSColParams2);
+            // if (TSColcreated2) {
+            //     System.out.println("Collection created successfully!");
+            // } else {
+            //     System.err.println("Failed to create collection!");
+            // }
+            // // client.dropCollection("testjavats2collection");
 
             // var str_collections = client.listCollections(false);
             // System.out.println("Collections: " + str_collections);
@@ -138,6 +138,23 @@ public class cli {
             // } else {
             //     System.out.println("No user found.");
             // }
+
+            InsertOneParameters insertOneParams = new InsertOneParameters.Builder()
+                .collectionname("entities")
+                .item("{\"_type\":\"test\", \"name\":\"test01\"}")
+                .build();
+
+            String insertOneResult = client.insertOne(insertOneParams);
+            System.out.println("InsertOne Result (JSON): " + insertOneResult);
+
+            InsertOneParameters insertOneParams2 = new InsertOneParameters.Builder()
+                .collectionname("entities")
+                .item("{\"_type\":\"test\", \"name\":\"test02\"}")
+                .build();
+
+            Entity insertedEntity = client.insertOne(Entity.class, insertOneParams2);
+            System.out.println("InsertOne Result (Entity): " + insertedEntity.name + " id: " + insertedEntity._id);
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

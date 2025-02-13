@@ -31,6 +31,8 @@ interface CLib extends Library {
     void free_create_collection_response(Pointer response);
     Pointer drop_collection(Pointer client, String collectionName);
     void free_drop_collection_response(Pointer response);
+    Pointer insert_one(Pointer client, InsertOneParameters options);
+    void free_insert_one_response(Pointer response);
 }
 
 public class Client {
@@ -250,6 +252,35 @@ public class Client {
         } finally {
             clibInstance.free_drop_collection_response(responsePtr);
         }
+    }
+
+    public String insertOne(InsertOneParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.insert_one(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("InsertOne returned null response");
+        }
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.results;
+        } finally {
+            clibInstance.free_query_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T insertOne(Type type, InsertOneParameters options) throws Exception {
+        String jsonResponse = insertOne(options);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
     }
 
     @SuppressWarnings("removal")
