@@ -1,5 +1,6 @@
 package io.openiap;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -139,67 +140,92 @@ public class cli {
             //     System.out.println("No user found.");
             // }
 
-            InsertOneParameters insertOneParams = new InsertOneParameters.Builder()
-                .collectionname("entities")
-                .item("{\"_type\":\"test\", \"name\":\"test01\"}")
-                .build();
+            // InsertOneParameters insertOneParams = new InsertOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .item("{\"_type\":\"test\", \"name\":\"test01\"}")
+            //     .build();
 
-            String insertOneResult = client.insertOne(insertOneParams);
-            System.out.println("InsertOne Result (JSON): " + insertOneResult);
+            // String insertOneResult = client.insertOne(insertOneParams);
+            // System.out.println("InsertOne Result (JSON): " + insertOneResult);
 
-            InsertOneParameters insertOneParams2 = new InsertOneParameters.Builder()
-                .collectionname("entities")
-                .item("{\"_type\":\"test\", \"name\":\"test02\"}")
-                .build();
+            // InsertOneParameters insertOneParams2 = new InsertOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .item("{\"_type\":\"test\", \"name\":\"test02\"}")
+            //     .build();
 
-            Entity insertedEntity = client.insertOne(Entity.class, insertOneParams2);
-            System.out.println("InsertOne Result (Entity): " + insertedEntity.name + " id: " + insertedEntity._id);
+            // Entity insertedEntity = client.insertOne(Entity.class, insertOneParams2);
+            // System.out.println("InsertOne Result (Entity): " + insertedEntity.name + " id: " + insertedEntity._id);
             
-            insertedEntity._id = null;
-            InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
+            // insertedEntity._id = null;
+            // InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .itemFromObject(insertedEntity)
+            //     .build();
+
+            // Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
+            // System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
+
+
+            // UpdateOneParameters updateOneParams = new UpdateOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .item("{\"_id\":\"" + insertedEntity3._id + "\", \"name\":\"test02-updated\"}")
+            //     .build();
+
+            // String updateOneResult = client.updateOne(updateOneParams);
+            // System.out.println("UpdateOne Result (JSON): " + updateOneResult);
+
+            // insertedEntity3.name = "test02-updated-again";
+            // UpdateOneParameters updateOneParams2 = new UpdateOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .itemFromObject(insertedEntity3)
+            //     .build();
+
+            // Entity updatedEntity = client.updateOne(Entity.class, updateOneParams2);
+            // System.out.println("UpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
+
+            // InsertOrUpdateOneParameters insertOrUpdateOneParams = new InsertOrUpdateOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .uniqeness("name")
+            //     .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
+            //     .build();
+
+            // String insertOrUpdateOneResult = client.insertOrUpdateOne(insertOrUpdateOneParams);
+            // System.out.println("InsertOrUpdateOne Result (JSON): " + insertOrUpdateOneResult);
+
+            // InsertOrUpdateOneParameters insertOrUpdateOneParams2 = new InsertOrUpdateOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .uniqeness("name")
+            //     .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
+            //     .build();
+
+            // updatedEntity = client.insertOrUpdateOne(Entity.class, insertOrUpdateOneParams2);
+            // System.out.println("InsertOrUpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
+
+
+            List<Object> entities = new ArrayList<>();
+            entities.add(new Entity(){{name = "insertmany1"; _type = "test";}});
+            entities.add(new Entity(){{name = "insertmany2"; _type = "test";}});
+
+            InsertManyParameters insertManyParams = new InsertManyParameters.Builder()
                 .collectionname("entities")
-                .itemFromObject(insertedEntity)
+                .itemsFromObjects(entities)
                 .build();
 
-            Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
-            System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
+            String insertManyResult = client.insertMany(insertManyParams);
+            System.out.println("InsertMany Result (JSON): " + insertManyResult);
 
-
-            UpdateOneParameters updateOneParams = new UpdateOneParameters.Builder()
+            String jsonItems = "[{\"_type\":\"test\", \"name\":\"insertmany3\"}, {\"_type\":\"test\", \"name\":\"insertmany4\"}]";
+            InsertManyParameters insertManyParams2 = new InsertManyParameters.Builder()
                 .collectionname("entities")
-                .item("{\"_id\":\"" + insertedEntity3._id + "\", \"name\":\"test02-updated\"}")
+                .items(jsonItems)
                 .build();
 
-            String updateOneResult = client.updateOne(updateOneParams);
-            System.out.println("UpdateOne Result (JSON): " + updateOneResult);
-
-            insertedEntity3.name = "test02-updated-again";
-            UpdateOneParameters updateOneParams2 = new UpdateOneParameters.Builder()
-                .collectionname("entities")
-                .itemFromObject(insertedEntity3)
-                .build();
-
-            Entity updatedEntity = client.updateOne(Entity.class, updateOneParams2);
-            System.out.println("UpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
-
-            InsertOrUpdateOneParameters insertOrUpdateOneParams = new InsertOrUpdateOneParameters.Builder()
-                .collectionname("entities")
-                .uniqeness("name")
-                .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
-                .build();
-
-            String insertOrUpdateOneResult = client.insertOrUpdateOne(insertOrUpdateOneParams);
-            System.out.println("InsertOrUpdateOne Result (JSON): " + insertOrUpdateOneResult);
-
-            InsertOrUpdateOneParameters insertOrUpdateOneParams2 = new InsertOrUpdateOneParameters.Builder()
-                .collectionname("entities")
-                .uniqeness("name")
-                .item("{\"_type\":\"test\", \"name\":\"test01-uniqene\", \"now\":\"" + System.currentTimeMillis() + "\"}")
-                .build();
-
-            updatedEntity = client.insertOrUpdateOne(Entity.class, insertOrUpdateOneParams2);
-            System.out.println("InsertOrUpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
-
+            List<Entity> insertedEntities = client.insertMany(new TypeReference<List<Entity>>() {}.getType(), insertManyParams2);
+            System.out.println("InsertMany Result (Entity List):");
+            for (Entity entity : insertedEntities) {
+                System.out.println("  " + entity.name + " id: " + entity._id);
+            }
+            
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
