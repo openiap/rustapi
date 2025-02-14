@@ -1,10 +1,10 @@
 package io.openiap;
 
-
 import com.sun.jna.Pointer;
 import com.sun.jna.Native;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Type;
+import com.sun.jna.Memory;
 
 import com.sun.jna.Library;
 
@@ -41,6 +41,8 @@ interface CLib extends Library {
     void free_insert_many_response(Pointer response);
     Pointer delete_one(Pointer client, DeleteOneParameters options);
     void free_delete_one_response(Pointer response);
+    Pointer delete_many(Pointer client, DeleteManyParameters options);
+    void free_delete_many_response(Pointer response);
 }
 
 public class Client {
@@ -395,6 +397,53 @@ public class Client {
             return response.affectedrows;
         } finally {
             clibInstance.free_delete_one_response(responsePtr);
+        }
+    }
+
+    public int deleteMany(DeleteManyParameters options, String[] ids) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+
+        Pointer idsPtr = null;
+        try {
+            if (ids != null && ids.length > 0) {
+                long size = Native.POINTER_SIZE * ids.length;
+                idsPtr = new Memory(size);
+                Pointer[] pointers = new Pointer[ids.length];
+                for (int i = 0; i < ids.length; i++) {
+                    Memory strBuf = new Memory(Native.toByteArray(ids[i]).length + 1);
+                    strBuf.setString(0, ids[i]);
+                    pointers[i] = strBuf;
+                    idsPtr.setPointer(i * Native.POINTER_SIZE, strBuf);
+                }
+                options.ids = idsPtr;
+            } else {
+                options.ids = null;
+            }
+
+            Pointer responsePtr = clibInstance.delete_many(clientPtr, options);
+            if (responsePtr == null) {
+                throw new RuntimeException("DeleteMany returned null response");
+            }
+            Wrappers.DeleteManyResponseWrapper response = new Wrappers.DeleteManyResponseWrapper(responsePtr);
+            try {
+                if (!response.getSuccess() || response.error != null) {
+                    String errorMsg = response.error != null ? response.error : "Unknown error";
+                    throw new RuntimeException(errorMsg);
+                }
+                return response.affectedrows;
+            } finally {
+                clibInstance.free_delete_many_response(responsePtr);
+            }
+        } finally {
+            if (idsPtr != null) {
+                for (int i = 0; i < ids.length; i++) {
+                    Pointer p = idsPtr.getPointer(i * Native.POINTER_SIZE);
+                    // release memory for each string
+                }
+                // release memory for the array of pointers
+            }
         }
     }
 

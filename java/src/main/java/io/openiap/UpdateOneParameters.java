@@ -60,11 +60,6 @@ public class UpdateOneParameters extends Structure {
             return this;
         }
 
-        public Builder request_id(int request_id) {
-            instance.request_id = request_id;
-            return this;
-        }
-
         public UpdateOneParameters build() {
             instance.write();
             return instance;

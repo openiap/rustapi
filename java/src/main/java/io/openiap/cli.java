@@ -15,6 +15,7 @@ public class cli {
         public String _type;
         public String _id;
         public String name;
+        public String java;
     }
 
     public static void main(String[] args) {
@@ -203,8 +204,8 @@ public class cli {
 
 
             List<Object> entities = new ArrayList<>();
-            entities.add(new Entity(){{name = "insertmany1"; _type = "test";}});
-            entities.add(new Entity(){{name = "insertmany2"; _type = "test";}});
+            entities.add(new Entity(){{name = "insertmany1"; _type = "test"; java = "many"; }});
+            entities.add(new Entity(){{name = "insertmany2"; _type = "test"; java = "many"; }});
 
             InsertManyParameters insertManyParams = new InsertManyParameters.Builder()
                 .collectionname("entities")
@@ -214,7 +215,7 @@ public class cli {
             String insertManyResult = client.insertMany(insertManyParams);
             System.out.println("InsertMany Result (JSON): " + insertManyResult);
 
-            String jsonItems = "[{\"_type\":\"test\", \"name\":\"insertmany3\"}, {\"_type\":\"test\", \"name\":\"insertmany4\"}]";
+            String jsonItems = "[{\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany3\"}, {\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany4\"}]";
             InsertManyParameters insertManyParams2 = new InsertManyParameters.Builder()
                 .collectionname("entities")
                 .items(jsonItems)
@@ -230,6 +231,19 @@ public class cli {
                         .id(entity._id)
                         .build()
                 );
+            }
+
+            var deletecount = client.deleteMany(
+                new DeleteManyParameters.Builder()
+                    .collectionname("entities")
+                    .query("{\"java\":\"many\"}")
+                    .build(),
+                null // or an array of ids
+            );
+            if(deletecount == 0) {
+                System.out.println("No entities deleted.");
+            } else {
+                System.out.println("Deleted " + deletecount + " entities.");
             }
             
         } catch (Exception e) {
