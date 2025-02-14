@@ -172,4 +172,23 @@ public class Wrappers {
             return success != 0;
         }
     }
+
+    public static class UploadResponseWrapper extends Structure {
+        public byte success;
+        public String id;
+        public String error;
+        public int request_id;
+
+        public UploadResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "id", "error", "request_id");
+        }
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
 }

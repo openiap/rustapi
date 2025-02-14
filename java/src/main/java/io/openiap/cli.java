@@ -246,13 +246,23 @@ public class cli {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
             
-
-            client.download(
-                new DownloadParameters.Builder()
+            var id = client.upload(
+                new UploadParameters.Builder()
+                    .filepath("testfile.csv")   
+                    .filename("testfile.csv")
+                    .metadata("{\"_type\":\"test\"}")
                     .collectionname("fs.files")
-                    .id("666c4793e7ccba0e85b8a2b0")
                     .build()
             );
+            System.out.println("testfile.csv uploaded as " + id);
+            var filename = client.download(
+                new DownloadParameters.Builder()
+                    .collectionname("fs.files")
+                    .filename("train.csv")
+                    .id(id)
+                    .build()
+            );
+            System.out.println(id + " downloaded as " + filename);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
