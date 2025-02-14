@@ -252,7 +252,7 @@ public class cli {
                     .collectionname("entities")
                     .build(),
                 (result) -> {
-                    System.out.println("Watch result: " + result);
+                    System.out.println("Watch result: " + result.operation + " on " + result.id + " " + result.document);
                 }
             );
 

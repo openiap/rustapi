@@ -444,7 +444,6 @@ public class Client {
             } finally {
                 if (idsPtr != null) {
                     for (int i = 0; i < ids.length; i++) {
-                        Pointer p = idsPtr.getPointer(i * Native.POINTER_SIZE);
                         // release memory for each string
                     }
                     // release memory for the array of pointers
@@ -519,12 +518,13 @@ public class Client {
                     System.out.println("No more events");
                     return;
                 }
-                // Wrappers.WatchEventWrapper eventWrapper = new Wrappers.WatchEventWrapper(eventPtr);
+                Wrappers.WatchEventWrapper eventWrapper = new Wrappers.WatchEventWrapper(eventPtr);
+                eventWrapper.read(); // Read the struct's data from memory
                 try {
                     WatchEvent event = new WatchEvent();
-                    // event.id = eventWrapper.id;
-                    // event.operation = eventWrapper.operation;
-                    // event.document = eventWrapper.document;
+                    event.id = eventWrapper.id;
+                    event.operation = eventWrapper.operation;
+                    event.document = eventWrapper.document;
                     eventCallback.onEvent(event);
                 } finally {
                     clibInstance.free_watch_event(eventPtr);

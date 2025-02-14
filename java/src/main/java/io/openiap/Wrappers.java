@@ -220,6 +220,22 @@ public class Wrappers {
         void invoke(WatchResponseWrapper response);
     }
 
+    public static class WatchEventWrapper extends Structure {
+        public String id;
+        public String operation;
+        public String document;
+        public int request_id;
+
+        public WatchEventWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("id", "operation", "document", "request_id");
+        }
+    }
+
     public interface WatchEventCallback extends Callback {
         void invoke(Pointer eventPtr);
     }
