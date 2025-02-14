@@ -761,7 +761,7 @@ public class Client {
         return "OK";
     }
 
-    public String queueMessage(QueueMessageParameters options) {
+    public void queueMessage(QueueMessageParameters options) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
@@ -775,7 +775,6 @@ public class Client {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
                 throw new RuntimeException(errorMsg);
             }
-            return response.results;
         } finally {
             clibInstance.free_queue_message_response(responsePtr);
         }

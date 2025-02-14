@@ -7,7 +7,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Callback;
 
 public class RegisterQueueResponseWrapper {
-        public static class Response extends Structure {
+    public static class Response extends Structure {
         public byte success;
         public String queuename;
         public String error;
@@ -55,4 +55,7 @@ public class RegisterQueueResponseWrapper {
         void invoke(Pointer eventPtr);
     }
 
+    public interface RegisterQueueCallback extends Callback {
+        void invoke(Pointer responsePtr);
+    }
 }

@@ -11,7 +11,7 @@ public class QueueMessageParameters extends Structure {
     public String routingkey;
     public String exchangename;
     public String message;
-    public int request_id;
+    public byte striptoken;
 
     public QueueMessageParameters() {}
 
@@ -22,7 +22,7 @@ public class QueueMessageParameters extends Structure {
         private String routingkey;
         private String exchangename;
         private String message;
-        private int request_id;
+        private byte striptoken;
 
         public Builder() {}
 
@@ -56,6 +56,15 @@ public class QueueMessageParameters extends Structure {
             return this;
         }
 
+        public Builder striptoken(Boolean striptoken) {
+            if(striptoken == true) {
+                this.striptoken = 1;
+            } else {
+                this.striptoken = 0;
+            }
+            return this;
+        }        
+
         public QueueMessageParameters build() {
             QueueMessageParameters params = new QueueMessageParameters();
             params.queuename = this.queuename;
@@ -64,13 +73,13 @@ public class QueueMessageParameters extends Structure {
             params.routingkey = this.routingkey;
             params.exchangename = this.exchangename;
             params.message = this.message;
-            params.request_id = this.request_id;
+            params.striptoken = this.striptoken;
             return params;
         }
     }
 
     @Override
     protected List<String> getFieldOrder() {
-        return Arrays.asList("queuename", "correlation_id", "replyto", "routingkey", "exchangename", "message", "request_id");
+        return Arrays.asList("queuename", "correlation_id", "replyto", "routingkey", "exchangename", "message", "striptoken");
     }
 }

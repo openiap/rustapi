@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.CompletableFuture;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -13,7 +15,7 @@ import io.openiap.ColTimeseriesWrapper.TimeUnit;
 
 public class cli {
     private static volatile boolean gotwatchevent = false;
-    private static volatile boolean gotqueuemessage = false;
+    private static volatile int queuemessagecount = 0;
     private static volatile boolean gotexchangemessage = false;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -293,33 +295,33 @@ public class cli {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
 
-            gotwatchevent = false;
-            Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
-                @Override
-                public void onEvent(WatchEvent event) {
-                    System.out.println("Received watch event:");
-                    System.out.println("  Operation: " + event.operation);
-                    System.out.println("  Document: " + event.document);
-                    gotwatchevent = true;
-                }
-            };
+            // gotwatchevent = false;
+            // Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
+            //     @Override
+            //     public void onEvent(WatchEvent event) {
+            //         System.out.println("Received watch event:");
+            //         System.out.println("  Operation: " + event.operation);
+            //         System.out.println("  Document: " + event.document);
+            //         gotwatchevent = true;
+            //     }
+            // };
 
-            WatchParameters watchParams = new WatchParameters.Builder()
-                .collectionname("entities")
-                .build();
+            // WatchParameters watchParams = new WatchParameters.Builder()
+            //     .collectionname("entities")
+            //     .build();
 
-            String watchId = client.watchAsync(watchParams, eventCallback);
-            System.out.println("Watch started with id: " + watchId);
+            // String watchId = client.watchAsync(watchParams, eventCallback);
+            // System.out.println("Watch started with id: " + watchId);
 
-            client.insertOne(Entity.class, 
-                new InsertOneParameters.Builder()
-                    .collectionname("entities")
-                    .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
-                    .build()
-            );
-            do {
-                Thread.sleep(1000);
-            } while (gotwatchevent == false);
+            // client.insertOne(Entity.class, 
+            //     new InsertOneParameters.Builder()
+            //         .collectionname("entities")
+            //         .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
+            //         .build()
+            // );
+            // do {
+            //     Thread.sleep(1000);
+            // } while (gotwatchevent == false);
 
             // watchId = client.watchAsync(
             //     new WatchParameters.Builder()
@@ -375,29 +377,39 @@ public class cli {
             // );
             // System.out.println("Distinct: " + distinct);
 
-            gotqueuemessage = false;
             var queuename = client.registerQueueAsync(            
                 new RegisterQueueParameters.Builder()
                     .queuename("test2queue")
                     .build(),
                 (result) -> {
                     System.out.println("Queue result: " + result.data + " on " + result.queuename);
-                    gotqueuemessage = true;
+                    queuemessagecount++;
                 }           
            );
            System.out.println("Wait for message sent to queue " + queuename);
 
-           String queueMessageResult = client.queueMessage(
-            new QueueMessageParameters.Builder()
-                .queuename("test2queue")
-                .message("{\"find\":\"me\"}")
-                .build()
-        );
-        System.out.println("Queue Message Result: " + queueMessageResult);
+           Timer timer = new Timer(true);
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    client.queueMessage(
+                        new QueueMessageParameters.Builder()
+                            .queuename("test2queue")
+                            .striptoken(true)
+                            .message("{\"find\":\"me\"}")
+                            .build()
+                    );
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }, 0, 3000); // delay in milliseconds
+
 
            do {
                 Thread.sleep(1000);
-           } while (gotqueuemessage == false);
+           } while (queuemessagecount < 3);
            System.out.println("Quere message received");
 
            gotexchangemessage = false;
@@ -418,13 +430,13 @@ public class cli {
             System.out.println("Exchange register failed " + excqueuename);
           }
 
-          String queueMessage2Result = client.queueMessage(
+          client.queueMessage(
             new QueueMessageParameters.Builder()
                 .exchangename("test2exchange")
+                .striptoken(true)
                 .message("{\"find\":\"me\"}")
                 .build()
         );
-        System.out.println("Queue Message Result: " + queueMessage2Result);
 
           do {
                Thread.sleep(1000);
