@@ -2,6 +2,9 @@ package io.openiap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -247,14 +250,31 @@ public class cli {
             // }
 
 
-            client.watchAsync(
+            Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
+                @Override
+                public void onEvent(WatchEvent event) {
+                    System.out.println("Received watch event:");
+                    System.out.println("  Operation: " + event.operation);
+                    System.out.println("  Document: " + event.document);
+                }
+            };
+
+            WatchParameters watchParams = new WatchParameters.Builder()
+                .collectionname("entities")
+                .build();
+
+            String watchId = client.watchAsync(watchParams, eventCallback);
+            System.out.println("Watch started with id: " + watchId);
+
+            watchId = client.watchAsync(
                 new WatchParameters.Builder()
                     .collectionname("entities")
                     .build(),
                 (result) -> {
-                    System.out.println("Watch result: " + result.operation + " on " + result.id + " " + result.document);
+                    System.out.println("Watch2 result: " + result.operation + " on " + result.id + " " + result.document);
                 }
             );
+            System.out.println("Watch2 started with id: " + watchId);
 
             InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
                 .collectionname("entities")

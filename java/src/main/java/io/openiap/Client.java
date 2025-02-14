@@ -5,6 +5,8 @@ import com.sun.jna.Native;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Type;
 import com.sun.jna.Memory;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.sun.jna.Library;
 
@@ -60,16 +62,13 @@ public class Client {
 
     public Client(String fullLibPath) {
         this.objectMapper = new ObjectMapper();
-        // Map<String, Object> options = new HashMap<>();
-        // options.put(Library.OPTION_TYPE_MAPPER, new BooleanTypeMapper());
-        // clibInstance = (CLib) Native.load(fullLibPath, CLib.class, options);
         clibInstance = (CLib) Native.load(fullLibPath, CLib.class);
     }
 
     public void start() {
         clientPtr = clibInstance.create_client();
         if (clientPtr != null) {
-            System.out.println("Failed to create client.");
+            throw new RuntimeException("Failed to create client.");
         }
     }
 
@@ -442,12 +441,6 @@ public class Client {
                 }
                 return response.affectedrows;
             } finally {
-                if (idsPtr != null) {
-                    for (int i = 0; i < ids.length; i++) {
-                        // release memory for each string
-                    }
-                    // release memory for the array of pointers
-                }
                 clibInstance.free_delete_many_response(responsePtr);
             }
         } finally {
@@ -495,10 +488,13 @@ public class Client {
         }
     }
 
-    public void watchAsync(WatchParameters options, final WatchEventCallback eventCallback) {
+    public String watchAsync(WatchParameters options, final WatchEventCallback eventCallback) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
+
+        final String[] watchIdResult = new String[1];
+        final CountDownLatch latch = new CountDownLatch(1);
 
         Wrappers.WatchCallback watchCallback = new Wrappers.WatchCallback() {
             @Override
@@ -507,7 +503,8 @@ public class Client {
                     System.err.println("Watch failed: " + response.error);
                     return;
                 }
-                System.out.println("Watch started with id: " + response.watchid);
+                watchIdResult[0] = response.watchid;
+                latch.countDown();
             }
         };
 
@@ -515,11 +512,10 @@ public class Client {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
-                    System.out.println("No more events");
                     return;
                 }
                 Wrappers.WatchEventWrapper eventWrapper = new Wrappers.WatchEventWrapper(eventPtr);
-                eventWrapper.read(); // Read the struct's data from memory
+                eventWrapper.read();
                 try {
                     WatchEvent event = new WatchEvent();
                     event.id = eventWrapper.id;
@@ -533,6 +529,13 @@ public class Client {
         };
 
         clibInstance.watch_async_async(clientPtr, options, watchCallback, nativeEventCallback);
+        try {
+            latch.await(10, TimeUnit.SECONDS); // Wait for the watchid or timeout
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null; // Or throw an exception
+        }
+        return watchIdResult[0];
     }
 
     public interface WatchEventCallback {
