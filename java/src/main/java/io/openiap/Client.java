@@ -51,7 +51,7 @@ interface CLib extends Library {
     void free_download_response(Pointer response);
     Pointer upload(Pointer client, UploadParameters options);
     void free_upload_response(Pointer response);
-    void watch_async_async(Pointer client, WatchParameters options, WatchResponseWrapper.WatchCallback callback, WatchResponseWrapper.WatchEventCallback event_callback);
+    void watch_async_async(Pointer client, WatchParameters options, Wrappers.WatchCallback callback, Wrappers.WatchEventCallback event_callback);
     void free_watch_response(Pointer response);
     Pointer next_watch_event(String watchid);
     void free_watch_event(Pointer event);
@@ -69,8 +69,8 @@ interface CLib extends Library {
     void free_count_response(Pointer response);
     Pointer distinct(Pointer client, DistinctParameters options);
     void free_distinct_response(Pointer response);
-    void register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
-    void register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    void register_queue_async(Pointer client, RegisterQueueParameters options, Wrappers.QueueEventCallback event_callback);
+    void register_exchange_async(Pointer client, RegisterExchangeParameters options, Wrappers.QueueEventCallback event_callback);
 }
 
 public class Client {
@@ -110,7 +110,7 @@ public class Client {
             throw new RuntimeException("Connection attempt returned null response");
         }
 
-        ConnectResponseWrapper.Response response = new ConnectResponseWrapper.Response(responsePtr);
+        Wrappers.ConnectResponseWrapper response = new Wrappers.ConnectResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -132,7 +132,7 @@ public class Client {
             throw new RuntimeException("List collections returned null response");
         }
 
-        ListCollectionsResponseWrapper.Response response = new ListCollectionsResponseWrapper.Response(responsePtr);
+        Wrappers.ListCollectionsResponseWrapper response = new Wrappers.ListCollectionsResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -198,7 +198,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("Query returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -227,7 +227,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("Aggregate returned null response");
         }
-        AggregateResponseWrapper.Response response = new AggregateResponseWrapper.Response(responsePtr);
+        Wrappers.AggregateResponseWrapper response = new Wrappers.AggregateResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -257,7 +257,7 @@ public class Client {
             throw new RuntimeException("createCollection returned null response");
         }
 
-        CreateCollectionResponseWrapper.Response response = new CreateCollectionResponseWrapper.Response(responsePtr);
+        Wrappers.CreateCollectionResponseWrapper response = new Wrappers.CreateCollectionResponseWrapper(responsePtr);
         try {
             if(!response.getSuccess() || response.error != null) {
                 throw new RuntimeException(response.error);
@@ -277,7 +277,7 @@ public class Client {
             throw new RuntimeException("dropCollection returned null response");
         }
 
-        DropCollectionResponseWrapper.Response response = new DropCollectionResponseWrapper.Response(responsePtr);
+        Wrappers.DropCollectionResponseWrapper response = new Wrappers.DropCollectionResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -297,7 +297,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("InsertOne returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -326,7 +326,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("UpdateOne returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -355,7 +355,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("InsertOrUpdateOne returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -384,7 +384,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("InsertMany returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        Wrappers.QueryResponseWrapper response = new Wrappers.QueryResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -413,7 +413,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("DeleteOne returned null response");
         }
-        DeleteOneResponseWrapper.Response response = new DeleteOneResponseWrapper.Response(responsePtr);
+        Wrappers.DeleteOneResponseWrapper response = new Wrappers.DeleteOneResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -451,7 +451,7 @@ public class Client {
             if (responsePtr == null) {
                 throw new RuntimeException("DeleteMany returned null response");
             }
-            DeleteManyResponseWrapper.Response response = new DeleteManyResponseWrapper.Response(responsePtr);
+            Wrappers.DeleteManyResponseWrapper response = new Wrappers.DeleteManyResponseWrapper(responsePtr);
             try {
                 if (!response.getSuccess() || response.error != null) {
                     String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -474,7 +474,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("Download returned null response");
         }
-        DownloadResponseWrapper.Response response = new DownloadResponseWrapper.Response(responsePtr);
+        Wrappers.DownloadResponseWrapper response = new Wrappers.DownloadResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -494,7 +494,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("Upload returned null response");
         }
-        UploadResponseWrapper.Response response = new UploadResponseWrapper.Response(responsePtr);
+        Wrappers.UploadResponseWrapper response = new Wrappers.UploadResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -514,9 +514,9 @@ public class Client {
         final String[] watchIdResult = new String[1];
         final CountDownLatch latch = new CountDownLatch(1);
 
-        WatchResponseWrapper.WatchCallback watchCallback = new WatchResponseWrapper.WatchCallback() {
+        Wrappers.WatchCallback watchCallback = new Wrappers.WatchCallback() {
             @Override
-            public void invoke(WatchResponseWrapper.Response response) {
+            public void invoke(Wrappers.WatchResponseWrapper response) {
                 if (!response.getSuccess()) {
                     System.err.println("Watch failed: " + response.error);
                     return;
@@ -526,13 +526,13 @@ public class Client {
             }
         };
 
-        WatchResponseWrapper.WatchEventCallback nativeEventCallback = new WatchResponseWrapper.WatchEventCallback() {
+        Wrappers.WatchEventCallback nativeEventCallback = new Wrappers.WatchEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
                     return;
                 }
-                WatchResponseWrapper.WatchEventWrapper eventWrapper = new WatchResponseWrapper.WatchEventWrapper(eventPtr);
+                Wrappers.WatchEventWrapper eventWrapper = new Wrappers.WatchEventWrapper(eventPtr);
                 eventWrapper.read();
                 try {
                     WatchEvent event = new WatchEvent();
@@ -565,7 +565,7 @@ public class Client {
              throw new RuntimeException("Unwatch returned null response");
          }
 
-         UnWatchResponseWrapper.Response response = new UnWatchResponseWrapper.Response(responsePtr);
+        Wrappers.UnWatchResponseWrapper response = new Wrappers.UnWatchResponseWrapper(responsePtr);
         try {
             return response.getSuccess();
         } finally {
@@ -582,7 +582,7 @@ public class Client {
             throw new RuntimeException("Signin returned null response");
         }
 
-        SigninResponseWrapper.Response response = new SigninResponseWrapper.Response(responsePtr);
+        Wrappers.SigninResponseWrapper response = new Wrappers.SigninResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -627,7 +627,7 @@ public class Client {
             throw new RuntimeException("dropIndex returned null response");
         }
 
-        DropIndexResponseWrapper.Response response = new DropIndexResponseWrapper.Response(responsePtr);
+        Wrappers.DropIndexResponseWrapper response = new Wrappers.DropIndexResponseWrapper(responsePtr);
         try {
             return response.getSuccess();
         } finally {
@@ -644,7 +644,7 @@ public class Client {
             throw new RuntimeException("createIndex returned null response");
         }
 
-        CreateIndexResponseWrapper.Response response = new CreateIndexResponseWrapper.Response(responsePtr);
+        Wrappers.CreateIndexResponseWrapper response = new Wrappers.CreateIndexResponseWrapper(responsePtr);
         try {
             return response.getSuccess();
         } finally {
@@ -661,7 +661,7 @@ public class Client {
             throw new RuntimeException("count returned null response");
         }
 
-        CountResponseWrapper.Response response = new CountResponseWrapper.Response(responsePtr);
+        Wrappers.CountResponseWrapper response = new Wrappers.CountResponseWrapper(responsePtr);
         try {
             return response.result;
         } finally {
@@ -678,7 +678,7 @@ public class Client {
             throw new RuntimeException("distinct returned null response");
         }
 
-        DistinctResponseWrapper.Response response = new DistinctResponseWrapper.Response(responsePtr);
+        Wrappers.DistinctResponseWrapper response = new Wrappers.DistinctResponseWrapper(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
@@ -699,13 +699,13 @@ public class Client {
         // final String[] queueNameResult = new String[1]; // Removed: Not used
         // final CountDownLatch latch = new CountDownLatch(1); // Removed: Not used
 
-        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
+        Wrappers.QueueEventCallback nativeEventCallback = new Wrappers.QueueEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
                     return;
                 }
-                RegisterQueueResponseWrapper.QueueEventWrapper eventWrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
+                Wrappers.QueueEventWrapper eventWrapper = new Wrappers.QueueEventWrapper(eventPtr);
                 eventWrapper.read();
                 try {
                     QueueEvent event = new QueueEvent();
@@ -738,13 +738,13 @@ public class Client {
             throw new RuntimeException("Client not initialized");
         }
 
-        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
+        Wrappers.QueueEventCallback nativeEventCallback = new Wrappers.QueueEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
                     return;
                 }
-                RegisterQueueResponseWrapper.QueueEventWrapper eventWrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
+                Wrappers.QueueEventWrapper eventWrapper = new Wrappers.QueueEventWrapper(eventPtr);
                 eventWrapper.read();
                 try {
                     QueueEvent event = new QueueEvent();
