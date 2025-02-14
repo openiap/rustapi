@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import com.sun.jna.Structure;
 import com.sun.jna.Pointer;
+import com.sun.jna.Callback;
 
 public class Wrappers {
 
@@ -190,5 +191,36 @@ public class Wrappers {
         public boolean getSuccess() {
             return success != 0;
         }
+    }
+
+    public static class WatchResponseWrapper extends Structure {
+        public byte success;
+        public String watchid;
+        public String error;
+        public int request_id;
+
+        public WatchResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public WatchResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "watchid", "error", "request_id");
+        }
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
+
+    public interface WatchCallback extends Callback {
+        void invoke(WatchResponseWrapper response);
+    }
+
+    public interface WatchEventCallback extends Callback {
+        void invoke(Pointer eventPtr);
     }
 }

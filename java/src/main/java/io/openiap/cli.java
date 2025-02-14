@@ -245,6 +245,25 @@ public class cli {
             // } else {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
+
+
+            client.watchAsync(
+                new WatchParameters.Builder()
+                    .collectionname("entities")
+                    .build(),
+                (result) -> {
+                    System.out.println("Watch result: " + result);
+                }
+            );
+
+            InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
+                .collectionname("entities")
+                .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
+                .build();
+
+            Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
+            System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
+
             
             var id = client.upload(
                 new UploadParameters.Builder()
@@ -263,6 +282,9 @@ public class cli {
                     .build()
             );
             System.out.println(id + " downloaded as " + filename);
+
+            // wait for 10 seconds
+            Thread.sleep(10000);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

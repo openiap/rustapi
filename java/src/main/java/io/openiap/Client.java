@@ -47,6 +47,10 @@ interface CLib extends Library {
     void free_download_response(Pointer response);
     Pointer upload(Pointer client, UploadParameters options);
     void free_upload_response(Pointer response);
+    void watch_async_async(Pointer client, WatchParameters options, Wrappers.WatchCallback callback, Wrappers.WatchEventCallback event_callback);
+    void free_watch_response(Pointer response);
+    Pointer next_watch_event(String watchid);
+    void free_watch_event(Pointer event);
 }
 
 public class Client {
@@ -438,16 +442,17 @@ public class Client {
                 }
                 return response.affectedrows;
             } finally {
+                if (idsPtr != null) {
+                    for (int i = 0; i < ids.length; i++) {
+                        Pointer p = idsPtr.getPointer(i * Native.POINTER_SIZE);
+                        // release memory for each string
+                    }
+                    // release memory for the array of pointers
+                }
                 clibInstance.free_delete_many_response(responsePtr);
             }
         } finally {
-            if (idsPtr != null) {
-                for (int i = 0; i < ids.length; i++) {
-                    Pointer p = idsPtr.getPointer(i * Native.POINTER_SIZE);
-                    // release memory for each string
-                }
-                // release memory for the array of pointers
-            }
+            
         }
     }
 
@@ -489,6 +494,49 @@ public class Client {
         } finally {
             clibInstance.free_upload_response(responsePtr);
         }
+    }
+
+    public void watchAsync(WatchParameters options, final WatchEventCallback eventCallback) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+
+        Wrappers.WatchCallback watchCallback = new Wrappers.WatchCallback() {
+            @Override
+            public void invoke(Wrappers.WatchResponseWrapper response) {
+                if (!response.getSuccess()) {
+                    System.err.println("Watch failed: " + response.error);
+                    return;
+                }
+                System.out.println("Watch started with id: " + response.watchid);
+            }
+        };
+
+        Wrappers.WatchEventCallback nativeEventCallback = new Wrappers.WatchEventCallback() {
+            @Override
+            public void invoke(Pointer eventPtr) {
+                if (eventPtr == null) {
+                    System.out.println("No more events");
+                    return;
+                }
+                // Wrappers.WatchEventWrapper eventWrapper = new Wrappers.WatchEventWrapper(eventPtr);
+                try {
+                    WatchEvent event = new WatchEvent();
+                    // event.id = eventWrapper.id;
+                    // event.operation = eventWrapper.operation;
+                    // event.document = eventWrapper.document;
+                    eventCallback.onEvent(event);
+                } finally {
+                    clibInstance.free_watch_event(eventPtr);
+                }
+            }
+        };
+
+        clibInstance.watch_async_async(clientPtr, options, watchCallback, nativeEventCallback);
+    }
+
+    public interface WatchEventCallback {
+        void onEvent(WatchEvent event);
     }
 
     @SuppressWarnings("removal")
