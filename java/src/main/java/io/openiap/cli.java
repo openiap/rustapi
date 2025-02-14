@@ -352,6 +352,14 @@ public class cli {
             );
             System.out.println("Count: " + count);
 
+            var distinct = client.distinct(
+                new DistinctParameters.Builder()
+                    .collectionname("entities")
+                    .field("_type")
+                    .build()
+            );
+            System.out.println("Distinct: " + distinct);
+
 
         } catch (Exception e) {
             e.printStackTrace();

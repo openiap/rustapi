@@ -67,6 +67,8 @@ interface CLib extends Library {
     void free_create_index_response(Pointer response);
     Pointer count(Pointer client, CountParameters options);
     void free_count_response(Pointer response);
+    Pointer distinct(Pointer client, DistinctParameters options);
+    void free_distinct_response(Pointer response);
 }
 
 public class Client {
@@ -662,6 +664,28 @@ public class Client {
             return response.result;
         } finally {
             clibInstance.free_count_response(responsePtr);
+        }
+    }
+
+    public List<String> distinct(DistinctParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.distinct(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("distinct returned null response");
+        }
+
+        Wrappers.DistinctResponseWrapper response = new Wrappers.DistinctResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            List<String> results = response.getResults();
+            return results;
+        } finally {
+            clibInstance.free_distinct_response(responsePtr);
         }
     }
 
