@@ -12,6 +12,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.openiap.ColTimeseriesWrapper.TimeUnit;
 
 public class cli {
+    private static volatile boolean gotqueuemessage = false;
+    private static volatile boolean gotwatchevent = false;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Entity {
@@ -289,12 +291,14 @@ public class cli {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
 
+            // gotwatchevent = false;
             // Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
             //     @Override
             //     public void onEvent(WatchEvent event) {
             //         System.out.println("Received watch event:");
             //         System.out.println("  Operation: " + event.operation);
             //         System.out.println("  Document: " + event.document);
+            //         gotwatchevent = true;
             //     }
             // };
 
@@ -304,6 +308,9 @@ public class cli {
 
             // String watchId = client.watchAsync(watchParams, eventCallback);
             // System.out.println("Watch started with id: " + watchId);
+            // do {
+            //     Thread.sleep(1000);
+            // } while (gotwatchevent == false);
 
             // watchId = client.watchAsync(
             //     new WatchParameters.Builder()
@@ -343,22 +350,36 @@ public class cli {
             // );
             // System.out.println(id + " downloaded as " + filename);
 
+            // var count = client.count(
+            //     new CountParameters.Builder()
+            //         .collectionname("entities")
+            //         .query("{\"_type\":\"test\"}")
+            //         .build()                
+            // );
+            // System.out.println("Count: " + count);
 
-            var count = client.count(
-                new CountParameters.Builder()
-                    .collectionname("entities")
-                    .query("{\"_type\":\"test\"}")
-                    .build()                
-            );
-            System.out.println("Count: " + count);
+            // var distinct = client.distinct(
+            //     new DistinctParameters.Builder()
+            //         .collectionname("entities")
+            //         .field("_type")
+            //         .build()
+            // );
+            // System.out.println("Distinct: " + distinct);
 
-            var distinct = client.distinct(
-                new DistinctParameters.Builder()
-                    .collectionname("entities")
-                    .field("_type")
-                    .build()
-            );
-            System.out.println("Distinct: " + distinct);
+            gotqueuemessage = false;
+            client.registerQueueAsync(            
+                new RegisterQueueParameters.Builder()
+                    .queuename("test2queue")
+                    .build(),
+                (result) -> {
+                    System.out.println("Queue result: " + result.data + " on " + result.queuename);
+                    gotqueuemessage = true;
+                }           
+           );
+
+           do {
+                Thread.sleep(1000);
+           } while (gotqueuemessage == false);
 
 
         } catch (Exception e) {

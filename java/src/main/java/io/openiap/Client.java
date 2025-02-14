@@ -69,6 +69,7 @@ interface CLib extends Library {
     void free_count_response(Pointer response);
     Pointer distinct(Pointer client, DistinctParameters options);
     void free_distinct_response(Pointer response);
+    void register_queue_async(Pointer client, RegisterQueueParameters options, Wrappers.QueueEventCallback event_callback);
 }
 
 public class Client {
@@ -689,8 +690,54 @@ public class Client {
         }
     }
 
+    public String registerQueueAsync(RegisterQueueParameters options, final QueueEventCallback eventCallback) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+
+        // final String[] queueNameResult = new String[1]; // Removed: Not used
+        // final CountDownLatch latch = new CountDownLatch(1); // Removed: Not used
+
+        Wrappers.QueueEventCallback nativeEventCallback = new Wrappers.QueueEventCallback() {
+            @Override
+            public void invoke(Pointer eventPtr) {
+                if (eventPtr == null) {
+                    return;
+                }
+                Wrappers.QueueEventWrapper eventWrapper = new Wrappers.QueueEventWrapper(eventPtr);
+                eventWrapper.read();
+                try {
+                    QueueEvent event = new QueueEvent();
+                    event.queuename = eventWrapper.queuename;
+                    event.correlation_id = eventWrapper.correlation_id;
+                    event.replyto = eventWrapper.replyto;
+                    event.routingkey = eventWrapper.routingkey;
+                    event.exchangename = eventWrapper.exchangename;
+                    event.data = eventWrapper.data;
+                    eventCallback.onEvent(event);
+                } finally {
+                    // Assuming there's a free_queue_event function in the C library
+                    // clibInstance.free_queue_event(eventPtr);
+                }
+            }
+        };
+
+        clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
+        // try { // Removed: Not used
+        //     latch.await(10, TimeUnit.SECONDS); // Wait for the queue name or timeout
+        // } catch (InterruptedException e) {
+        //     Thread.currentThread().interrupt();
+        //     return null; // Or throw an exception
+        // }
+        return "OK"; //queueNameResult[0]; // Modified: Return a default value
+    }
+
     public interface WatchEventCallback {
         void onEvent(WatchEvent event);
+    }
+
+    public interface QueueEventCallback {
+        void onEvent(QueueEvent event);
     }
 
     @SuppressWarnings("removal")
