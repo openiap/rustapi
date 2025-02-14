@@ -203,49 +203,56 @@ public class cli {
             // System.out.println("InsertOrUpdateOne Result (Entity): " + updatedEntity.name + " id: " + updatedEntity._id);
 
 
-            List<Object> entities = new ArrayList<>();
-            entities.add(new Entity(){{name = "insertmany1"; _type = "test"; java = "many"; }});
-            entities.add(new Entity(){{name = "insertmany2"; _type = "test"; java = "many"; }});
+            // List<Object> entities = new ArrayList<>();
+            // entities.add(new Entity(){{name = "insertmany1"; _type = "test"; java = "many"; }});
+            // entities.add(new Entity(){{name = "insertmany2"; _type = "test"; java = "many"; }});
 
-            InsertManyParameters insertManyParams = new InsertManyParameters.Builder()
-                .collectionname("entities")
-                .itemsFromObjects(entities)
-                .build();
+            // InsertManyParameters insertManyParams = new InsertManyParameters.Builder()
+            //     .collectionname("entities")
+            //     .itemsFromObjects(entities)
+            //     .build();
 
-            String insertManyResult = client.insertMany(insertManyParams);
-            System.out.println("InsertMany Result (JSON): " + insertManyResult);
+            // String insertManyResult = client.insertMany(insertManyParams);
+            // System.out.println("InsertMany Result (JSON): " + insertManyResult);
 
-            String jsonItems = "[{\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany3\"}, {\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany4\"}]";
-            InsertManyParameters insertManyParams2 = new InsertManyParameters.Builder()
-                .collectionname("entities")
-                .items(jsonItems)
-                .build();
+            // String jsonItems = "[{\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany3\"}, {\"_type\":\"test\", \"java\":\"many\", \"name\":\"insertmany4\"}]";
+            // InsertManyParameters insertManyParams2 = new InsertManyParameters.Builder()
+            //     .collectionname("entities")
+            //     .items(jsonItems)
+            //     .build();
 
-            List<Entity> insertedEntities = client.insertMany(new TypeReference<List<Entity>>() {}.getType(), insertManyParams2);
-            System.out.println("InsertMany Result (Entity List):");
-            for (Entity entity : insertedEntities) {
-                System.out.println("  " + entity.name + " id: " + entity._id);
-                client.deleteOne(
-                    new DeleteOneParameters.Builder()
-                        .collectionname("entities")
-                        .id(entity._id)
-                        .build()
-                );
-            }
+            // List<Entity> insertedEntities = client.insertMany(new TypeReference<List<Entity>>() {}.getType(), insertManyParams2);
+            // System.out.println("InsertMany Result (Entity List):");
+            // for (Entity entity : insertedEntities) {
+            //     System.out.println("  " + entity.name + " id: " + entity._id);
+            //     client.deleteOne(
+            //         new DeleteOneParameters.Builder()
+            //             .collectionname("entities")
+            //             .id(entity._id)
+            //             .build()
+            //     );
+            // }
 
-            var deletecount = client.deleteMany(
-                new DeleteManyParameters.Builder()
-                    .collectionname("entities")
-                    .query("{\"java\":\"many\"}")
-                    .build(),
-                null // or an array of ids
-            );
-            if(deletecount == 0) {
-                System.out.println("No entities deleted.");
-            } else {
-                System.out.println("Deleted " + deletecount + " entities.");
-            }
+            // var deletecount = client.deleteMany(
+            //     new DeleteManyParameters.Builder()
+            //         .collectionname("entities")
+            //         .query("{\"java\":\"many\"}")
+            //         .build(),
+            //     null // or an array of ids
+            // );
+            // if(deletecount == 0) {
+            //     System.out.println("No entities deleted.");
+            // } else {
+            //     System.out.println("Deleted " + deletecount + " entities.");
+            // }
             
+
+            client.download(
+                new DownloadParameters.Builder()
+                    .collectionname("fs.files")
+                    .id("666c4793e7ccba0e85b8a2b0")
+                    .build()
+            );
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

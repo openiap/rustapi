@@ -43,6 +43,8 @@ interface CLib extends Library {
     void free_delete_one_response(Pointer response);
     Pointer delete_many(Pointer client, DeleteManyParameters options);
     void free_delete_many_response(Pointer response);
+    Pointer download(Pointer client, DownloadParameters options);
+    void free_download_response(Pointer response);
 }
 
 public class Client {
@@ -444,6 +446,26 @@ public class Client {
                 }
                 // release memory for the array of pointers
             }
+        }
+    }
+
+    public String download(DownloadParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.download(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("Download returned null response");
+        }
+        Wrappers.DownloadResponseWrapper response = new Wrappers.DownloadResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.filename;
+        } finally {
+            clibInstance.free_download_response(responsePtr);
         }
     }
 
