@@ -39,6 +39,8 @@ interface CLib extends Library {
     void free_insert_or_update_one_response(Pointer response);
     Pointer insert_many(Pointer client, InsertManyParameters options);
     void free_insert_many_response(Pointer response);
+    Pointer delete_one(Pointer client, DeleteOneParameters options);
+    void free_delete_one_response(Pointer response);
 }
 
 public class Client {
@@ -374,6 +376,26 @@ public class Client {
             return (T) jsonResponse;
         }
         return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public int deleteOne(DeleteOneParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.delete_one(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("DeleteOne returned null response");
+        }
+        Wrappers.DeleteOneResponseWrapper response = new Wrappers.DeleteOneResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.affectedrows;
+        } finally {
+            clibInstance.free_delete_one_response(responsePtr);
+        }
     }
 
     @SuppressWarnings("removal")

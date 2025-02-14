@@ -224,6 +224,12 @@ public class cli {
             System.out.println("InsertMany Result (Entity List):");
             for (Entity entity : insertedEntities) {
                 System.out.println("  " + entity.name + " id: " + entity._id);
+                client.deleteOne(
+                    new DeleteOneParameters.Builder()
+                        .collectionname("entities")
+                        .id(entity._id)
+                        .build()
+                );
             }
             
         } catch (Exception e) {
