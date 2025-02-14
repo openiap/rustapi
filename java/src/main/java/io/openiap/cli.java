@@ -249,62 +249,60 @@ public class cli {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
 
+            // Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
+            //     @Override
+            //     public void onEvent(WatchEvent event) {
+            //         System.out.println("Received watch event:");
+            //         System.out.println("  Operation: " + event.operation);
+            //         System.out.println("  Document: " + event.document);
+            //     }
+            // };
 
-            Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
-                @Override
-                public void onEvent(WatchEvent event) {
-                    System.out.println("Received watch event:");
-                    System.out.println("  Operation: " + event.operation);
-                    System.out.println("  Document: " + event.document);
-                }
-            };
+            // WatchParameters watchParams = new WatchParameters.Builder()
+            //     .collectionname("entities")
+            //     .build();
 
-            WatchParameters watchParams = new WatchParameters.Builder()
-                .collectionname("entities")
-                .build();
+            // String watchId = client.watchAsync(watchParams, eventCallback);
+            // System.out.println("Watch started with id: " + watchId);
 
-            String watchId = client.watchAsync(watchParams, eventCallback);
-            System.out.println("Watch started with id: " + watchId);
+            // watchId = client.watchAsync(
+            //     new WatchParameters.Builder()
+            //         .collectionname("entities")
+            //         .build(),
+            //     (result) -> {
+            //         System.out.println("Watch2 result: " + result.operation + " on " + result.id + " " + result.document);
+            //     }
+            // );
+            // System.out.println("Watch2 started with id: " + watchId);
+            // client.unwatch(watchId);
 
-            watchId = client.watchAsync(
-                new WatchParameters.Builder()
-                    .collectionname("entities")
-                    .build(),
-                (result) -> {
-                    System.out.println("Watch2 result: " + result.operation + " on " + result.id + " " + result.document);
-                }
-            );
-            System.out.println("Watch2 started with id: " + watchId);
+            // InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
+            //     .collectionname("entities")
+            //     .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
+            //     .build();
 
-            InsertOneParameters insertOneParams3 = new InsertOneParameters.Builder()
-                .collectionname("entities")
-                .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
-                .build();
-
-            Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
-            System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
+            // Entity insertedEntity3 = client.insertOne(Entity.class, insertOneParams3);
+            // System.out.println("InsertOne Result (Entity): " + insertedEntity3.name + " id: " + insertedEntity3._id);
 
             
-            var id = client.upload(
-                new UploadParameters.Builder()
-                    .filepath("testfile.csv")   
-                    .filename("testfile.csv")
-                    .metadata("{\"_type\":\"test\"}")
-                    .collectionname("fs.files")
-                    .build()
-            );
-            System.out.println("testfile.csv uploaded as " + id);
-            var filename = client.download(
-                new DownloadParameters.Builder()
-                    .collectionname("fs.files")
-                    .filename("train.csv")
-                    .id(id)
-                    .build()
-            );
-            System.out.println(id + " downloaded as " + filename);
+            // var id = client.upload(
+            //     new UploadParameters.Builder()
+            //         .filepath("testfile.csv")   
+            //         .filename("testfile.csv")
+            //         .metadata("{\"_type\":\"test\"}")
+            //         .collectionname("fs.files")
+            //         .build()
+            // );
+            // System.out.println("testfile.csv uploaded as " + id);
+            // var filename = client.download(
+            //     new DownloadParameters.Builder()
+            //         .collectionname("fs.files")
+            //         .filename("train.csv")
+            //         .id(id)
+            //         .build()
+            // );
+            // System.out.println(id + " downloaded as " + filename);
 
-            // wait for 10 seconds
-            Thread.sleep(10000);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

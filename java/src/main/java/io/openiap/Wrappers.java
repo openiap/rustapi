@@ -239,4 +239,28 @@ public class Wrappers {
     public interface WatchEventCallback extends Callback {
         void invoke(Pointer eventPtr);
     }
+
+    public static class UnWatchResponseWrapper extends Structure {
+        public byte success;
+        public String error;
+        public int request_id;
+
+        public UnWatchResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public UnWatchResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "error", "request_id");
+        }
+
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
 }

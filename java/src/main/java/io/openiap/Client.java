@@ -53,6 +53,8 @@ interface CLib extends Library {
     void free_watch_response(Pointer response);
     Pointer next_watch_event(String watchid);
     void free_watch_event(Pointer event);
+    Pointer unwatch(Pointer client, String watchid);
+    void free_unwatch_response(Pointer response);
 }
 
 public class Client {
@@ -67,7 +69,7 @@ public class Client {
 
     public void start() {
         clientPtr = clibInstance.create_client();
-        if (clientPtr != null) {
+        if (clientPtr == null) {
             throw new RuntimeException("Failed to create client.");
         }
     }
@@ -536,6 +538,23 @@ public class Client {
             return null; // Or throw an exception
         }
         return watchIdResult[0];
+    }
+
+    public boolean unwatch(String watchid) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.unwatch(clientPtr, watchid);
+         if (responsePtr == null) {
+             throw new RuntimeException("Unwatch returned null response");
+         }
+
+        Wrappers.UnWatchResponseWrapper response = new Wrappers.UnWatchResponseWrapper(responsePtr);
+        try {
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_unwatch_response(responsePtr);
+        }
     }
 
     public interface WatchEventCallback {
