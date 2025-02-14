@@ -344,6 +344,13 @@ public class cli {
             // System.out.println(id + " downloaded as " + filename);
 
 
+            var count = client.count(
+                new CountParameters.Builder()
+                    .collectionname("entities")
+                    .query("{\"_type\":\"test\"}")
+                    .build()                
+            );
+            System.out.println("Count: " + count);
 
 
         } catch (Exception e) {

@@ -65,6 +65,8 @@ interface CLib extends Library {
     void free_drop_index_response(Pointer response);
     Pointer create_index(Pointer client, CreateIndexParameters options);
     void free_create_index_response(Pointer response);
+    Pointer count(Pointer client, CountParameters options);
+    void free_count_response(Pointer response);
 }
 
 public class Client {
@@ -643,6 +645,23 @@ public class Client {
             return response.getSuccess();
         } finally {
             clibInstance.free_create_index_response(responsePtr);
+        }
+    }
+
+    public int count(CountParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.count(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("count returned null response");
+        }
+
+        Wrappers.CountResponseWrapper response = new Wrappers.CountResponseWrapper(responsePtr);
+        try {
+            return response.result;
+        } finally {
+            clibInstance.free_count_response(responsePtr);
         }
     }
 
