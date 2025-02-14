@@ -288,4 +288,29 @@ public class Wrappers {
             return success != 0;
         }
     }
+
+    public static class GetIndexesResponseWrapper extends Structure {
+        public byte success;
+        public String results;
+        public String error;
+        public int request_id;
+
+        public GetIndexesResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public GetIndexesResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "results", "error", "request_id");
+        }
+
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
 }

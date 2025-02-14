@@ -7,6 +7,8 @@ import java.lang.reflect.Type;
 import com.sun.jna.Memory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.sun.jna.Library;
 
@@ -57,6 +59,8 @@ interface CLib extends Library {
     void free_unwatch_response(Pointer response);
     Pointer signin(Pointer client, SigninParameters options);
     void free_signin_response(Pointer response);
+    Pointer get_indexes(Pointer client, String collectionName);
+    void free_get_indexes_response(Pointer response);
 }
 
 public class Client {
@@ -577,6 +581,30 @@ public class Client {
             return response.jwt;
         } finally {
             clibInstance.free_signin_response(responsePtr);
+        }
+    }
+
+    public List<Index> getIndexes(String collectionName) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.get_indexes(clientPtr, collectionName);
+        if (responsePtr == null) {
+            throw new RuntimeException("getIndexes returned null response");
+        }
+
+        Wrappers.GetIndexesResponseWrapper response = new Wrappers.GetIndexesResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(response.results, new TypeReference<List<Index>>(){});
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            clibInstance.free_get_indexes_response(responsePtr);
         }
     }
 
