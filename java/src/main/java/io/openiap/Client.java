@@ -516,12 +516,14 @@ public class Client {
 
         WatchResponseWrapper.WatchCallback watchCallback = new WatchResponseWrapper.WatchCallback() {
             @Override
-            public void invoke(WatchResponseWrapper.Response response) {
-                if (!response.getSuccess()) {
-                    System.err.println("Watch failed: " + response.error);
+            public void invoke(Pointer responsePtr) {
+                WatchResponseWrapper.Response r = new WatchResponseWrapper.Response(responsePtr);
+                r.read();
+                if (!r.getSuccess()) {
+                    System.err.println("Watch failed: " + r.error);
                     return;
                 }
-                watchIdResult[0] = response.watchid;
+                watchIdResult[0] = r.watchid;
                 latch.countDown();
             }
         };
@@ -603,7 +605,7 @@ public class Client {
             throw new RuntimeException("getIndexes returned null response");
         }
 
-        Wrappers.GetIndexesResponseWrapper response = new Wrappers.GetIndexesResponseWrapper(responsePtr);
+        GetIndexesResponseWrapper.Response response = new GetIndexesResponseWrapper.Response(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";

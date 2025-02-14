@@ -4,7 +4,6 @@ import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
 
 public class InsertManyParameters extends Structure {
     public String collectionname;

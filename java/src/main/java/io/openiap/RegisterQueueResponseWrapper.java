@@ -1,7 +1,5 @@
 package io.openiap;
 
-import java.lang.annotation.Native;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import com.sun.jna.Structure;

@@ -292,26 +292,33 @@ public class cli {
             //     System.out.println("Deleted " + deletecount + " entities.");
             // }
 
-            // gotwatchevent = false;
-            // Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
-            //     @Override
-            //     public void onEvent(WatchEvent event) {
-            //         System.out.println("Received watch event:");
-            //         System.out.println("  Operation: " + event.operation);
-            //         System.out.println("  Document: " + event.document);
-            //         gotwatchevent = true;
-            //     }
-            // };
+            gotwatchevent = false;
+            Client.WatchEventCallback eventCallback = new Client.WatchEventCallback() {
+                @Override
+                public void onEvent(WatchEvent event) {
+                    System.out.println("Received watch event:");
+                    System.out.println("  Operation: " + event.operation);
+                    System.out.println("  Document: " + event.document);
+                    gotwatchevent = true;
+                }
+            };
 
-            // WatchParameters watchParams = new WatchParameters.Builder()
-            //     .collectionname("entities")
-            //     .build();
+            WatchParameters watchParams = new WatchParameters.Builder()
+                .collectionname("entities")
+                .build();
 
-            // String watchId = client.watchAsync(watchParams, eventCallback);
-            // System.out.println("Watch started with id: " + watchId);
-            // do {
-            //     Thread.sleep(1000);
-            // } while (gotwatchevent == false);
+            String watchId = client.watchAsync(watchParams, eventCallback);
+            System.out.println("Watch started with id: " + watchId);
+
+            client.insertOne(Entity.class, 
+                new InsertOneParameters.Builder()
+                    .collectionname("entities")
+                    .itemFromObject(new Entity(){{name = "watchtest"; _type = "test"; java = "many"; }})
+                    .build()
+            );
+            do {
+                Thread.sleep(1000);
+            } while (gotwatchevent == false);
 
             // watchId = client.watchAsync(
             //     new WatchParameters.Builder()

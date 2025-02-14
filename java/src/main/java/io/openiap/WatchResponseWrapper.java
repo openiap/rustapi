@@ -1,7 +1,5 @@
 package io.openiap;
 
-import java.lang.annotation.Native;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import com.sun.jna.Structure;
@@ -32,7 +30,7 @@ public class WatchResponseWrapper {
         }
     }
     public interface WatchCallback extends Callback {
-        void invoke(WatchResponseWrapper response);
+        void invoke(Pointer response);
     }
 
     public static class WatchEventWrapper extends Structure {
