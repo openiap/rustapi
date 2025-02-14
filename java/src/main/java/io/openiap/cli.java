@@ -12,8 +12,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.openiap.ColTimeseriesWrapper.TimeUnit;
 
 public class cli {
-    private static volatile boolean gotqueuemessage = false;
     private static volatile boolean gotwatchevent = false;
+    private static volatile boolean gotqueuemessage = false;
+    private static volatile boolean gotexchangemessage = false;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Entity {
@@ -29,7 +30,7 @@ public class cli {
 
         Client client = new Client(libpath);
         try {
-            client.enableTracing("openiap=info", "");
+            client.enableTracing("openiap=trace", "");
             client.start();
             client.connect("");
             // User user = client.getUser();
@@ -101,34 +102,34 @@ public class cli {
             //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
             // }
 
-            CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
-                .build();
-            boolean Colcreated = client.createCollection(createColParams);
-            if (Colcreated) {
-                System.out.println("Collection created successfully!");
-            } else {
-                System.err.println("Failed to create collection!");
-            }
-            List<Index> indexes = client.getIndexes("testjavacollection");
-            if (indexes != null) {
-                for (Index index : indexes) {
-                    System.out.println("  Index Name: " + index.name);
-                    System.out.println("  Index Key: " + index.key.toString());
-                    System.out.println("  Index Unique: " + index.unique);
-                    System.out.println("  Index Sparse: " + index.sparse);
-                    System.out.println("  Index Background: " + index.background);
-                    System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
-                    if(index.name.equals("_type_1")) {
-                        client.dropIndex("testjavacollection", index.name);
-                    }
-                }
-            }
-            client.createIndex(
-                new CreateIndexParameters.Builder()
-                    .collectionname("testjavacollection")
-                    .index("{\"_type\":1}")
-                    .build()
-            );
+            // CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
+            //     .build();
+            // boolean Colcreated = client.createCollection(createColParams);
+            // if (Colcreated) {
+            //     System.out.println("Collection created successfully!");
+            // } else {
+            //     System.err.println("Failed to create collection!");
+            // }
+            // List<Index> indexes = client.getIndexes("testjavacollection");
+            // if (indexes != null) {
+            //     for (Index index : indexes) {
+            //         System.out.println("  Index Name: " + index.name);
+            //         System.out.println("  Index Key: " + index.key.toString());
+            //         System.out.println("  Index Unique: " + index.unique);
+            //         System.out.println("  Index Sparse: " + index.sparse);
+            //         System.out.println("  Index Background: " + index.background);
+            //         System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
+            //         if(index.name.equals("_type_1")) {
+            //             client.dropIndex("testjavacollection", index.name);
+            //         }
+            //     }
+            // }
+            // client.createIndex(
+            //     new CreateIndexParameters.Builder()
+            //         .collectionname("testjavacollection")
+            //         .index("{\"_type\":1}")
+            //         .build()
+            // );
             // client.dropCollection("testjavacollection");
 
             // CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
@@ -366,21 +367,45 @@ public class cli {
             // );
             // System.out.println("Distinct: " + distinct);
 
-            gotqueuemessage = false;
-            client.registerQueueAsync(            
-                new RegisterQueueParameters.Builder()
-                    .queuename("test2queue")
-                    .build(),
-                (result) -> {
-                    System.out.println("Queue result: " + result.data + " on " + result.queuename);
-                    gotqueuemessage = true;
-                }           
-           );
+        //     gotqueuemessage = false;
+        //     var queuename = client.registerQueueAsync(            
+        //         new RegisterQueueParameters.Builder()
+        //             .queuename("test2queue")
+        //             .build(),
+        //         (result) -> {
+        //             System.out.println("Queue result: " + result.data + " on " + result.queuename);
+        //             gotqueuemessage = true;
+        //         }           
+        //    );
+        //    System.out.println("Wait for message sent to queue " + queuename);
 
-           do {
-                Thread.sleep(1000);
-           } while (gotqueuemessage == false);
+        //    do {
+        //         Thread.sleep(1000);
+        //    } while (gotqueuemessage == false);
+        //    System.out.println("Quere message received");
 
+           gotexchangemessage = false;
+           var excqueuename = client.registerExchangeAsync(            
+               new RegisterExchangeParameters.Builder()
+                   .exchangename("testexc44")
+                   .algorithm("fanout")
+                   .addqueue(true)
+                   .build(),
+               (result) -> {
+                   System.out.println("Exchange result: " + result.data + " on " + result.queuename);
+                   gotexchangemessage = true;
+               }           
+          );
+          if(excqueuename.equals("OK")) {
+            System.out.println("Wait for message sent to exchange queue " + excqueuename);
+          } else {
+            System.out.println("Exchange register failed " + excqueuename);
+          }
+
+          do {
+               Thread.sleep(1000);
+          } while (gotexchangemessage == false);
+          System.out.println("Exchange message received");
 
         } catch (Exception e) {
             e.printStackTrace();

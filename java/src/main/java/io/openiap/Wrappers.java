@@ -291,6 +291,31 @@ public class Wrappers {
         void invoke(Pointer eventPtr);
     }
 
+    public static class RegisterExchangeResponseWrapper extends Structure {
+        public byte success;
+        public String queuename;
+        public String error;
+        public int request_id;
+
+        public RegisterExchangeResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public RegisterExchangeResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "queuename", "error", "request_id");
+        }
+
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
+
     public static class UnWatchResponseWrapper extends Structure {
         public byte success;
         public String error;
