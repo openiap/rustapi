@@ -8,6 +8,7 @@
             "name": "Java: run cli.java",
             "type": "java",
             "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
             "mainClass": "io.openiap.cli",
             "projectName": "client"
         },

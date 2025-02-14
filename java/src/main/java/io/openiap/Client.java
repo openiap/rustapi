@@ -55,6 +55,8 @@ interface CLib extends Library {
     void free_watch_event(Pointer event);
     Pointer unwatch(Pointer client, String watchid);
     void free_unwatch_response(Pointer response);
+    Pointer signin(Pointer client, SigninParameters options);
+    void free_signin_response(Pointer response);
 }
 
 public class Client {
@@ -554,6 +556,27 @@ public class Client {
             return response.getSuccess();
         } finally {
             clibInstance.free_unwatch_response(responsePtr);
+        }
+    }
+
+    public String signin(SigninParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.signin(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("Signin returned null response");
+        }
+
+        Wrappers.SigninResponseWrapper response = new Wrappers.SigninResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.jwt;
+        } finally {
+            clibInstance.free_signin_response(responsePtr);
         }
     }
 

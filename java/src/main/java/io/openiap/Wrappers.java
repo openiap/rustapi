@@ -263,4 +263,29 @@ public class Wrappers {
             return success != 0;
         }
     }
+
+    public static class SigninResponseWrapper extends Structure {
+        public byte success;
+        public String jwt;
+        public String error;
+        public int request_id;
+
+        public SigninResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public SigninResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "jwt", "error", "request_id");
+        }
+
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
 }

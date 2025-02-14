@@ -30,7 +30,43 @@ public class cli {
             client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
+            // User user = client.getUser();
+            // if (user != null) {
+            //     System.out.println("User ID: " + user.id);
+            //     System.out.println("User Name: " + user.name);
+            //     System.out.println("User Username: " + user.username);
+            //     System.out.println("User Email: " + user.email);
+            //     System.out.println("User Roles Pointer: " + user.roles);
+            //     var roles = user.getRoleList();
+            //     for (int i = 0; i < roles.size(); i++) {
+            //         System.out.println("Role[" + i + "]: " + roles.get(i));
+            //     }
+            // } else {
+            //     System.out.println("No user found.");
+            // }
+            // var jwt = client.signin(
+            //     new SigninParameters.Builder()
+            //         .username(System.getenv("testusername"))
+            //         .password(System.getenv("testpassword"))
+            //         .validateonly(true)
+            //         .build()
+            // );
+            // System.out.println("Signin: " + jwt);
 
+            // user = client.getUser();
+            // if (user != null) {
+            //     System.out.println("User ID: " + user.id);
+            //     System.out.println("User Name: " + user.name);
+            //     System.out.println("User Username: " + user.username);
+            //     System.out.println("User Email: " + user.email);
+            //     System.out.println("User Roles Pointer: " + user.roles);
+            //     var roles = user.getRoleList();
+            //     for (int i = 0; i < roles.size(); i++) {
+            //         System.out.println("Role[" + i + "]: " + roles.get(i));
+            //     }
+            // } else {
+            //     System.out.println("No user found.");
+            // }
 
             // QueryParameters queryParams = new QueryParameters.Builder()
             //     .collectionname("entities")
@@ -126,22 +162,6 @@ public class cli {
             //         System.out.println("_id index: " + collection.idIndex.name);
             //     }
             //     System.out.println("---");
-            // }
-
-            // User user = client.getUser();
-            // if (user != null) {
-            //     System.out.println("User ID: " + user.id);
-            //     System.out.println("User Name: " + user.name);
-            //     System.out.println("User Username: " + user.username);
-            //     System.out.println("User Email: " + user.email);
-            //     System.out.println("User Roles Pointer: " + user.roles);
-            //     var roles = user.getRoleList();
-            //     for (int i = 0; i < roles.size(); i++) {
-            //         System.out.println("Role[" + i + "]: " + roles.get(i));
-            //     }
-        
-            // } else {
-            //     System.out.println("No user found.");
             // }
 
             // InsertOneParameters insertOneParams = new InsertOneParameters.Builder()
