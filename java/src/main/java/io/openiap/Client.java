@@ -63,6 +63,8 @@ interface CLib extends Library {
     void free_get_indexes_response(Pointer response);
     Pointer drop_index(Pointer client, String collectionName, String indexName);
     void free_drop_index_response(Pointer response);
+    Pointer create_index(Pointer client, CreateIndexParameters options);
+    void free_create_index_response(Pointer response);
 }
 
 public class Client {
@@ -624,6 +626,23 @@ public class Client {
             return response.getSuccess();
         } finally {
             clibInstance.free_drop_index_response(responsePtr);
+        }
+    }
+
+    public boolean createIndex(CreateIndexParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.create_index(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("createIndex returned null response");
+        }
+
+        Wrappers.CreateIndexResponseWrapper response = new Wrappers.CreateIndexResponseWrapper(responsePtr);
+        try {
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_create_index_response(responsePtr);
         }
     }
 

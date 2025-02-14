@@ -99,14 +99,34 @@ public class cli {
             //     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
             // }
 
-            // CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
-            //     .build();
-            // boolean Colcreated = client.createCollection(createColParams);
-            // if (Colcreated) {
-            //     System.out.println("Collection created successfully!");
-            // } else {
-            //     System.err.println("Failed to create collection!");
-            // }
+            CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
+                .build();
+            boolean Colcreated = client.createCollection(createColParams);
+            if (Colcreated) {
+                System.out.println("Collection created successfully!");
+            } else {
+                System.err.println("Failed to create collection!");
+            }
+            List<Index> indexes = client.getIndexes("testjavacollection");
+            if (indexes != null) {
+                for (Index index : indexes) {
+                    System.out.println("  Index Name: " + index.name);
+                    System.out.println("  Index Key: " + index.key.toString());
+                    System.out.println("  Index Unique: " + index.unique);
+                    System.out.println("  Index Sparse: " + index.sparse);
+                    System.out.println("  Index Background: " + index.background);
+                    System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
+                    if(index.name.equals("_type_1")) {
+                        client.dropIndex("testjavacollection", index.name);
+                    }
+                }
+            }
+            client.createIndex(
+                new CreateIndexParameters.Builder()
+                    .collectionname("testjavacollection")
+                    .index("{\"_type\":1}")
+                    .build()
+            );
             // client.dropCollection("testjavacollection");
 
             // CreateCollection createExpColParams = new CreateCollection.Builder("testjavaexpcollection")
@@ -324,19 +344,7 @@ public class cli {
             // System.out.println(id + " downloaded as " + filename);
 
 
-            List<Index> indexes = client.getIndexes("openrpa_instances");
-            if (indexes != null) {
-                for (Index index : indexes) {
-                    System.out.println("  Index Name: " + index.name);
-                    System.out.println("  Index Key: " + index.key.toString());
-                    System.out.println("  Index Unique: " + index.unique);
-                    System.out.println("  Index Sparse: " + index.sparse);
-                    System.out.println("  Index Background: " + index.background);
-                    System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
-                    if(index.name.equals("_type_1")) {
-                        client.dropIndex("openrpa_instances", index.name);
-                    }
-            }
+
 
         } catch (Exception e) {
             e.printStackTrace();
