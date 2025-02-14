@@ -324,8 +324,7 @@ public class cli {
             // System.out.println(id + " downloaded as " + filename);
 
 
-            List<Index> indexes = client.getIndexes("entities");
-            System.out.println("Indexes: " + indexes);
+            List<Index> indexes = client.getIndexes("openrpa_instances");
             if (indexes != null) {
                 for (Index index : indexes) {
                     System.out.println("  Index Name: " + index.name);
@@ -334,30 +333,9 @@ public class cli {
                     System.out.println("  Index Sparse: " + index.sparse);
                     System.out.println("  Index Background: " + index.background);
                     System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
-                }
-            }
-            indexes = client.getIndexes("openrpa");
-            if (indexes != null) {
-                for (Index index : indexes) {
-                    System.out.println("  Index Name: " + index.name);
-                    System.out.println("  Index Key: " + index.key.toString());
-                    System.out.println("  Index Unique: " + index.unique);
-                    System.out.println("  Index Sparse: " + index.sparse);
-                    System.out.println("  Index Background: " + index.background);
-                    System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
-                }
-            }
-
-            indexes = client.getIndexes("openrpa_instances");
-            if (indexes != null) {
-                for (Index index : indexes) {
-                    System.out.println("  Index Name: " + index.name);
-                    System.out.println("  Index Key: " + index.key.toString());
-                    System.out.println("  Index Unique: " + index.unique);
-                    System.out.println("  Index Sparse: " + index.sparse);
-                    System.out.println("  Index Background: " + index.background);
-                    System.out.println("  Index ExpireAfterSeconds: " + index.expireAfterSeconds);
-                }
+                    if(index.name.equals("_type_1")) {
+                        client.dropIndex("openrpa_instances", index.name);
+                    }
             }
 
         } catch (Exception e) {

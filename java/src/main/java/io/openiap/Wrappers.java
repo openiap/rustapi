@@ -313,4 +313,28 @@ public class Wrappers {
             return success != 0;
         }
     }
+
+    public static class DropIndexResponseWrapper extends Structure {
+        public byte success;
+        public String error;
+        public int request_id;
+
+        public DropIndexResponseWrapper() {
+            // Default constructor is required for JNA
+        }
+
+        public DropIndexResponseWrapper(Pointer p) {
+            super(p);
+            read();
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "error", "request_id");
+        }
+
+        public boolean getSuccess() {
+            return success != 0;
+        }
+    }
 }
