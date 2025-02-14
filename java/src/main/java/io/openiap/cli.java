@@ -31,6 +31,7 @@ public class cli {
         Client client = new Client(libpath);
         try {
             client.enableTracing("openiap=trace", "");
+            client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
             // User user = client.getUser();
@@ -374,27 +375,35 @@ public class cli {
             // );
             // System.out.println("Distinct: " + distinct);
 
-        //     gotqueuemessage = false;
-        //     var queuename = client.registerQueueAsync(            
-        //         new RegisterQueueParameters.Builder()
-        //             .queuename("test2queue")
-        //             .build(),
-        //         (result) -> {
-        //             System.out.println("Queue result: " + result.data + " on " + result.queuename);
-        //             gotqueuemessage = true;
-        //         }           
-        //    );
-        //    System.out.println("Wait for message sent to queue " + queuename);
+            gotqueuemessage = false;
+            var queuename = client.registerQueueAsync(            
+                new RegisterQueueParameters.Builder()
+                    .queuename("test2queue")
+                    .build(),
+                (result) -> {
+                    System.out.println("Queue result: " + result.data + " on " + result.queuename);
+                    gotqueuemessage = true;
+                }           
+           );
+           System.out.println("Wait for message sent to queue " + queuename);
 
-        //    do {
-        //         Thread.sleep(1000);
-        //    } while (gotqueuemessage == false);
-        //    System.out.println("Quere message received");
+           String queueMessageResult = client.queueMessage(
+            new QueueMessageParameters.Builder()
+                .queuename("test2queue")
+                .message("{\"find\":\"me\"}")
+                .build()
+        );
+        System.out.println("Queue Message Result: " + queueMessageResult);
+
+           do {
+                Thread.sleep(1000);
+           } while (gotqueuemessage == false);
+           System.out.println("Quere message received");
 
            gotexchangemessage = false;
            var excqueuename = client.registerExchangeAsync(            
                new RegisterExchangeParameters.Builder()
-                   .exchangename("testexc44")
+                   .exchangename("test2exchange")
                    .algorithm("fanout")
                    .addqueue(true)
                    .build(),
@@ -409,10 +418,19 @@ public class cli {
             System.out.println("Exchange register failed " + excqueuename);
           }
 
+          String queueMessage2Result = client.queueMessage(
+            new QueueMessageParameters.Builder()
+                .exchangename("test2exchange")
+                .message("{\"find\":\"me\"}")
+                .build()
+        );
+        System.out.println("Queue Message Result: " + queueMessage2Result);
+
           do {
                Thread.sleep(1000);
           } while (gotexchangemessage == false);
           System.out.println("Exchange message received");
+
 
         } catch (Exception e) {
             e.printStackTrace();

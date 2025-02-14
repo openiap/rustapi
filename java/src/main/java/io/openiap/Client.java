@@ -71,6 +71,8 @@ interface CLib extends Library {
     void free_distinct_response(Pointer response);
     void register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     void register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    Pointer queue_message(Pointer client, QueueMessageParameters options);
+    void free_queue_message_response(Pointer response);
 }
 
 public class Client {
@@ -698,9 +700,6 @@ public class Client {
             throw new RuntimeException("Client not initialized");
         }
 
-        // final String[] queueNameResult = new String[1]; // Removed: Not used
-        // final CountDownLatch latch = new CountDownLatch(1); // Removed: Not used
-
         RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
@@ -726,13 +725,7 @@ public class Client {
         };
 
         clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
-        // try { // Removed: Not used
-        //     latch.await(10, TimeUnit.SECONDS); // Wait for the queue name or timeout
-        // } catch (InterruptedException e) {
-        //     Thread.currentThread().interrupt();
-        //     return null; // Or throw an exception
-        // }
-        return "OK"; //queueNameResult[0]; // Modified: Return a default value
+        return "OK";
     }
 
     public String registerExchangeAsync(RegisterExchangeParameters options, final QueueEventCallback eventCallback) {
@@ -766,6 +759,26 @@ public class Client {
 
         clibInstance.register_exchange_async(clientPtr, options, nativeEventCallback);
         return "OK";
+    }
+
+    public String queueMessage(QueueMessageParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.queue_message(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("QueueMessage returned null response");
+        }
+        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.results;
+        } finally {
+            clibInstance.free_queue_message_response(responsePtr);
+        }
     }
 
     public interface WatchEventCallback {
