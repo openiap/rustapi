@@ -3535,14 +3535,16 @@ pub extern "C" fn delete_many(
         recursive: options.recursive,
         ids: {
             let mut ids = vec![];
-            let mut i = 0;
-            loop {
-                let id = unsafe { *options.ids.add(i) };
-                if id.is_null() {
-                    break;
+            if !options.ids.is_null() {
+                let mut i = 0;
+                loop {
+                    let id = unsafe { *options.ids.add(i) };
+                    if id.is_null() {
+                        break;
+                    }
+                    ids.push(c_char_to_str(id));
+                    i += 1;
                 }
-                ids.push(c_char_to_str(id));
-                i += 1;
             }
             ids
         }
