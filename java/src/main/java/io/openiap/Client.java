@@ -87,6 +87,8 @@ interface CLib extends Library {
     void free_off_event_response(Pointer response);
     Pointer push_workitem(Pointer client, PushWorkitem options);
     void free_push_workitem_response(Pointer response);
+    Pointer pop_workitem(Pointer client, PopWorkitem options, String downloadFolder);
+    void free_pop_workitem_response(Pointer response);
 }
 
 public class Client {
@@ -886,6 +888,38 @@ public class Client {
     @SuppressWarnings("unchecked")
     public <T> T pushWorkitem(Type type, PushWorkitem options) throws Exception {
         String jsonResponse = pushWorkitem(options);
+        if (jsonResponse == null) {
+            return null;
+        }
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public String popWorkitem(PopWorkitem options, String downloadFolder) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.pop_workitem(clientPtr, options, downloadFolder);
+        if (responsePtr == null) {
+            throw new RuntimeException("PopWorkitem returned null response");
+        }
+
+        PopWorkitemResponseWrapper.Response response = new PopWorkitemResponseWrapper.Response(responsePtr);
+        try {
+            if (response.error != null) {
+                throw new RuntimeException(response.error);
+            }
+            return response.workitem != null ? new WorkitemWrapper(response.workitem).toJson() : null;
+        } finally {
+            clibInstance.free_pop_workitem_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T popWorkitem(Type type, PopWorkitem options, String downloadFolder) throws Exception {
+        String jsonResponse = popWorkitem(options, downloadFolder);
         if (jsonResponse == null) {
             return null;
         }

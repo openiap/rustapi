@@ -2,6 +2,7 @@ package io.openiap;
 
 import java.util.Scanner;
 import java.util.List;
+import java.io.File;
 import java.util.Arrays;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,6 +68,9 @@ public class cli {
                 handleDistinct();
                 break;
             case "p":
+                handlePopWorkitem();
+                break;
+            case "p1":
                 handlePushWorkitem();
                 break;
             case "p2":
@@ -104,20 +108,21 @@ public class cli {
 
     private static void showHelp() {
         System.out.println("Available commands:");
-        System.out.println("  ?  - Show this help");
-        System.out.println("  t  - Run all tests");
-        System.out.println("  q  - Query with filter");
-        System.out.println("  qq - Query all");
-        System.out.println("  di - Distinct types");
-        System.out.println("  p  - PushWorkitem");
-        System.out.println("  p2  - PushWorkitem second test");
-        System.out.println("  s  - Sign in as guest");
-        System.out.println("  s2 - Sign in as testuser");
-        System.out.println("  i  - Insert one");
-        System.out.println("  im - Insert many");
-        System.out.println("  w  - Watch collection");
-        System.out.println("  st  - Start/stop task (workitem processing)");
-        System.out.println("  st2 - Start/stop task (continuous testing)");
+        System.out.println("  ?    - Show this help");
+        System.out.println("  t    - Run all tests");
+        System.out.println("  q    - Query with filter");
+        System.out.println("  qq   - Query all");
+        System.out.println("  di   - Distinct types");
+        System.out.println("  p    - Pop workitem from queue");
+        System.out.println("  p1   - PushWorkitem");
+        System.out.println("  p2   - PushWorkitem second test");
+        System.out.println("  s    - Sign in as guest");
+        System.out.println("  s2   - Sign in as testuser");
+        System.out.println("  i    - Insert one");
+        System.out.println("  im   - Insert many");
+        System.out.println("  w    - Watch collection");
+        System.out.println("  st   - Start/stop task (workitem processing)");
+        System.out.println("  st2  - Start/stop task (continuous testing)");
         System.out.println("  quit - Exit program");
     }
 
@@ -368,6 +373,33 @@ public class cli {
             }
             System.out.println("Task canceled.");
         });
+    }
+
+    private static void handlePopWorkitem() {
+        try {
+            // ensure folder downloads exits
+            File downloadsFolder = new File("downloads");
+            if (!downloadsFolder.exists()) {
+                downloadsFolder.mkdir();
+            }
+            PopWorkitem popRequest = new PopWorkitem.Builder("q2").build();
+            Workitem result = client.popWorkitem(Workitem.class, popRequest, "downloads");
+            
+            if (result != null) {
+                System.out.println("Popped workitem: " + result.id + " name: " + result.name);
+                if (result.files != null) {
+                    System.out.println("Files: " + result.files.size());
+                    for (WorkitemFile f : result.files) {
+                        System.out.println("  - " + f.filename + " (id: " + f.id + ")");
+                    }
+                }
+            } else {
+                System.out.println("No workitem available");
+            }
+        } catch (Exception e) {
+            System.out.println("PopWorkitem error: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
 
