@@ -18,6 +18,8 @@ public class test {
     private static volatile boolean gotwatchevent = false;
     private static volatile int queuemessagecount = 0;
     private static volatile int exchangemessagecount = 0;
+    private static Timer queuetimer;
+    private static Timer exctimer;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Entity {
@@ -87,8 +89,10 @@ public class test {
 
             List<Entity> results = client.query(new TypeReference<List<Entity>>() {
             }.getType(), queryParams);
-            for (Entity item : results) {
-                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            if (results != null) {
+                for (Entity item : results) {
+                    System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+                }
             }
 
             // Example of querying and getting the raw JSON string
@@ -106,8 +110,10 @@ public class test {
             System.out.println("Raw JSON Aggregate Result: " + aggregateJsonResult);
             List<Entity> aggregate = client.aggregate(new TypeReference<List<Entity>>() {
             }.getType(), aggregateParams);
-            for (Entity item : aggregate) {
-                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            if (aggregate != null) {
+                for (Entity item : aggregate) {
+                    System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+                }
             }
 
             CreateCollection createColParams = new CreateCollection.Builder("testjavacollection")
@@ -418,7 +424,7 @@ public class test {
                     });
             System.out.println("Wait for message sent to queue " + queuename);
 
-            Timer queuetimer = new Timer(true);
+            queuetimer = new Timer(true);
             queuetimer.scheduleAtFixedRate(new TimerTask() {
                 @Override
                 public void run() {
@@ -430,10 +436,15 @@ public class test {
                                         .message("{\"find\":\"me\"}")
                                         .build());
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        // Silently cancel timer if client is disconnected
+                        if (e.getMessage().contains("Not connected")) {
+                            queuetimer.cancel();
+                        } else {
+                            e.printStackTrace();
+                        }
                     }
                 }
-            }, 0, 3000); // delay in milliseconds
+            }, 0, 3000);
 
             do {
                 Thread.sleep(1000);
@@ -453,7 +464,7 @@ public class test {
                     });
             System.out.println("Wait for message sent to exchange queue " + excqueuename);
 
-            Timer exctimer = new Timer(true);
+            exctimer = new Timer(true);
             exctimer.scheduleAtFixedRate(new TimerTask() {
                 @Override
                 public void run() {
@@ -466,10 +477,15 @@ public class test {
                                         .build());
 
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        // Silently cancel timer if client is disconnected
+                        if (e.getMessage().contains("Not connected")) {
+                            exctimer.cancel();
+                        } else {
+                            e.printStackTrace();
+                        }
                     }
                 }
-            }, 0, 3000); // delay in milliseconds
+            }, 0, 3000);
 
             do {
                 Thread.sleep(1000);
@@ -480,6 +496,12 @@ public class test {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
+            if (queuetimer != null) {
+                queuetimer.cancel();
+            }
+            if (exctimer != null) {
+                exctimer.cancel();
+            }
             client.disconnect();
             System.out.println("CLI executed successfully!");
         }

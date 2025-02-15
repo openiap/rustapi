@@ -1,18 +1,27 @@
 package io.openiap;
 
 import java.util.Scanner;
+import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class cli {
     private static Client client;
     private static volatile boolean running = true;
     private static Scanner scanner;
+    private static ExecutorService executor;
+    private static Future<?> runningTask;
+    private static AtomicBoolean taskRunning = new AtomicBoolean(false);
 
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
         String libpath = NativeLoader.loadLibrary("openiap");
         client = new Client(libpath);
         scanner = new Scanner(System.in);
+        executor = Executors.newSingleThreadExecutor();
 
         try {
             client.enableTracing("openiap=info", "");
@@ -29,6 +38,9 @@ public class cli {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
+            if (executor != null) {
+                executor.shutdownNow();
+            }
             if (client != null) {
                 client.disconnect();
             }
@@ -42,6 +54,9 @@ public class cli {
         switch (command) {
             case "?":
                 showHelp();
+                break;
+            case "t":
+                test.RunAll();
                 break;
             case "q":
                 handleQuery();
@@ -67,6 +82,12 @@ public class cli {
             case "w":
                 handleWatch();
                 break;
+            case "st":
+                handleStartTask();
+                break;
+            case "st2":
+                handleStartTask2();
+                break;
             case "quit":
                 running = false;
                 break;
@@ -79,6 +100,7 @@ public class cli {
     private static void showHelp() {
         System.out.println("Available commands:");
         System.out.println("  ?  - Show this help");
+        System.out.println("  t  - Run all tests");
         System.out.println("  q  - Query with filter");
         System.out.println("  qq - Query all");
         System.out.println("  di - Distinct types");
@@ -87,19 +109,23 @@ public class cli {
         System.out.println("  i  - Insert one");
         System.out.println("  im - Insert many");
         System.out.println("  w  - Watch collection");
+        System.out.println("  st  - Start/stop task (workitem processing)");
+        System.out.println("  st2 - Start/stop task (continuous testing)");
         System.out.println("  quit - Exit program");
     }
 
     private static void handleQuery() {
         try {
-            var results = client.query(new TypeReference<java.util.List<test.Entity>>() {}.getType(),
+            List<test.Entity> results = client.query(new TypeReference<List<test.Entity>>() {}.getType(),
                 new QueryParameters.Builder()
                     .collectionname("entities")
                     .query("{\"_type\":\"test\"}")
                     .top(10)
                     .build());
-            for (test.Entity item : results) {
-                System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+            if (results != null) {
+                for (test.Entity item : results) {
+                    System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
+                }
             }
         } catch (Exception e) {
             System.out.println("Query error: " + e.getMessage());
@@ -162,7 +188,7 @@ public class cli {
             entity.name = "CLI Test";
             entity._type = "test";
             
-            var result = client.insertOne(test.Entity.class,
+            test.Entity result = client.insertOne(test.Entity.class,
                 new InsertOneParameters.Builder()
                     .collectionname("entities")
                     .itemFromObject(entity)
@@ -176,13 +202,15 @@ public class cli {
     private static void handleInsertMany() {
         try {
             String jsonItems = "[{\"_type\":\"test\", \"name\":\"cli-many-1\"}, {\"_type\":\"test\", \"name\":\"cli-many-2\"}]";
-            var results = client.insertMany(new TypeReference<java.util.List<test.Entity>>() {}.getType(),
+            List<test.Entity> results = client.insertMany(new TypeReference<List<test.Entity>>() {}.getType(),
                 new InsertManyParameters.Builder()
                     .collectionname("entities")
                     .items(jsonItems)
                     .build());
-            for (test.Entity entity : results) {
-                System.out.println("Inserted: " + entity._id + " - " + entity.name);
+            if (results != null) {
+                for (test.Entity entity : results) {
+                    System.out.println("Inserted: " + entity._id + " - " + entity.name);
+                }
             }
         } catch (Exception e) {
             System.out.println("Insert many error: " + e.getMessage());
@@ -204,5 +232,75 @@ public class cli {
         } catch (Exception e) {
             System.out.println("Watch error: " + e.getMessage());
         }
+    }
+
+    private static void handleStartTask() {
+        if (taskRunning.get()) {
+            System.out.println("Stopping running task.");
+            if (runningTask != null) {
+                runningTask.cancel(true);
+            }
+            taskRunning.set(false);
+            return;
+        }
+
+        taskRunning.set(true);
+        runningTask = executor.submit(() -> {
+            System.out.println("Task started, begin loop...");
+            int x = 0;
+            while (taskRunning.get() && !Thread.currentThread().isInterrupted()) {
+                try {
+                    x++;
+                    // var workitem = client.popWorkitem(new PopWorkitemParameters.Builder()
+                    //         .workqueue("q2")
+                    //         .build());
+                    // Thread.sleep(1);
+                    // if (workitem != null) {
+                    //     System.out.println("Updating " + workitem.id + " " + workitem.name);
+                    //     workitem.state = "successful";
+                    //     workitem = client.updateWorkitem(workitem);
+                    // } else {
+                    //     if (x % 500 == 0) {
+                    //         System.out.println("No new workitem " + new java.util.Date());
+                    //         System.gc();
+                    //     }
+                    // }
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.toString());
+                }
+            }
+            System.out.println("Task canceled.");
+        });
+    }
+
+    private static void handleStartTask2() {
+        if (taskRunning.get()) {
+            System.out.println("Stopping running task.");
+            if (runningTask != null) {
+                runningTask.cancel(true);
+            }
+            taskRunning.set(false);
+            return;
+        }
+
+        taskRunning.set(true);
+        runningTask = executor.submit(() -> {
+            System.out.println("Task started, begin loop...");
+            int x = 0;
+            while (taskRunning.get() && !Thread.currentThread().isInterrupted()) {
+                try {
+                    x++;
+                    Thread.sleep(1);
+                    test.RunAll();
+                    if (x % 500 == 0) {
+                        System.out.println("No new workitem " + new java.util.Date());
+                        System.gc();
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.toString());
+                }
+            }
+            System.out.println("Task canceled.");
+        });
     }
 }
