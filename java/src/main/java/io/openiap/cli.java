@@ -437,6 +437,7 @@ public class cli {
                 Thread.sleep(1000);
             } while (queuemessagecount < 3);
             System.out.println("Quere message received");
+            client.unregisterQueue(queuename);
 
             var excqueuename = client.registerExchangeAsync(
                     new RegisterExchangeParameters.Builder()
@@ -448,11 +449,7 @@ public class cli {
                         System.out.println("Exchange result: " + result.data + " on " + result.queuename);
                         exchangemessagecount++;
                     });
-            if (excqueuename.equals("OK")) {
-                System.out.println("Wait for message sent to exchange queue " + excqueuename);
-            } else {
-                System.out.println("Exchange register failed " + excqueuename);
-            }
+            System.out.println("Wait for message sent to exchange queue " + excqueuename);
 
             Timer exctimer = new Timer(true);
             exctimer.scheduleAtFixedRate(new TimerTask() {
@@ -476,6 +473,7 @@ public class cli {
                 Thread.sleep(1000);
             } while (exchangemessagecount < 3);
             System.out.println("Exchange message received");
+            client.unregisterQueue(excqueuename);
 
         } catch (Exception e) {
             e.printStackTrace();

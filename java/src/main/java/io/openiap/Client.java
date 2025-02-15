@@ -73,7 +73,8 @@ interface CLib extends Library {
     void free_distinct_response(Pointer response);
     Pointer register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     void free_register_queue_response(Pointer response);
-    void register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    Pointer register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    void free_register_exchange_response(Pointer response);
     Pointer queue_message(Pointer client, QueueMessageParameters options);
     void free_queue_message_response(Pointer response);
     Pointer unregister_queue(Pointer client, String queuename);
@@ -773,9 +774,7 @@ public class Client {
         RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
-                if (eventPtr == null) {
-                    return;
-                }
+                if (eventPtr == null) return;
                 RegisterQueueResponseWrapper.QueueEventWrapper eventWrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
                 eventWrapper.read();
                 try {
@@ -788,15 +787,30 @@ public class Client {
                     event.data = eventWrapper.data;
                     eventCallback.onEvent(event);
                 } finally {
-                    // Assuming there's a free_queue_event function in the C library
-                    // clibInstance.free_queue_event(eventPtr);
+                    // Free event if needed
                 }
             }
         };
 
-        clibInstance.register_exchange_async(clientPtr, options, nativeEventCallback);
-        exchangeCallbacks.put(options.exchangename, eventCallback); // Store callback
-        return options.exchangename;
+        Pointer responsePtr = clibInstance.register_exchange_async(clientPtr, options, nativeEventCallback);
+        if (responsePtr == null) {
+            throw new RuntimeException("RegisterExchange returned null response");
+        }
+
+        RegisterQueueResponseWrapper.Response response = new RegisterQueueResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            String exchangeId = response.queuename;
+            if (exchangeId != null) {
+                exchangeCallbacks.put(exchangeId, eventCallback);
+            }
+            return exchangeId;
+        } finally {
+            clibInstance.free_register_exchange_response(responsePtr);
+        }
     }
 
     public boolean unregisterQueue(String queuename) {
