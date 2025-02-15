@@ -70,6 +70,9 @@ public class cli {
             case "p":
                 handlePushWorkitem();
                 break;
+            case "p2":
+                handlePushWorkitem2();
+                break;
             case "s":
                 handleSignInGuest();
                 break;
@@ -108,6 +111,7 @@ public class cli {
         System.out.println("  qq - Query all");
         System.out.println("  di - Distinct types");
         System.out.println("  p  - PushWorkitem");
+        System.out.println("  p2  - PushWorkitem second test");
         System.out.println("  s  - Sign in as guest");
         System.out.println("  s2 - Sign in as testuser");
         System.out.println("  i  - Insert one");
@@ -178,6 +182,30 @@ public class cli {
             System.out.println("Pushed workitem: " + result);
         } catch (Exception e) {
             System.out.println("PushWorkitem error: " + e.getMessage());
+        }
+    }
+
+    private static void handlePushWorkitem2() {
+        try {
+            // Create workitem using the builder
+            Workitem workitem = new Workitem.Builder()
+                .name("Test Workitem")
+                .payload("{\"test\": \"value\"}")
+                .priority(1)
+                .wiq("q2")
+                .build();
+
+            // Push the workitem and get back a typed response
+            Workitem result = client.pushWorkitem(Workitem.class, new PushWorkitem.Builder("q2")
+                .name(workitem.name)
+                .itemFromObject(workitem)
+                .priority(workitem.priority)
+                .build());
+                
+            System.out.println("Pushed workitem: " + result.id + " name: " + result.name);
+        } catch (Exception e) {
+            System.out.println("PushWorkitem error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

@@ -877,7 +877,6 @@ public class Client {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
                 throw new RuntimeException(errorMsg);
             }
-            // Convert workitem pointer to JSON string (implementation depends on your needs)
             return response.workitem != null ? new WorkitemWrapper(response.workitem).toJson() : null;
         } finally {
             clibInstance.free_push_workitem_response(responsePtr);
@@ -887,6 +886,9 @@ public class Client {
     @SuppressWarnings("unchecked")
     public <T> T pushWorkitem(Type type, PushWorkitem options) throws Exception {
         String jsonResponse = pushWorkitem(options);
+        if (jsonResponse == null) {
+            return null;
+        }
         if (type instanceof Class && type == String.class) {
             return (T) jsonResponse;
         }
