@@ -24,7 +24,8 @@ public class cli {
         executor = Executors.newSingleThreadExecutor();
 
         try {
-            client.enableTracing("openiap=info", "");
+            client.enableTracing("openiap=trace", "");
+            // client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
 
@@ -66,6 +67,8 @@ public class cli {
                 break;
             case "di":
                 handleDistinct();
+            case "p":
+                handlePushWorkitem();
                 break;
             case "s":
                 handleSignInGuest();
@@ -104,6 +107,7 @@ public class cli {
         System.out.println("  q  - Query with filter");
         System.out.println("  qq - Query all");
         System.out.println("  di - Distinct types");
+        System.out.println("  p  - PushWorkitem");
         System.out.println("  s  - Sign in as guest");
         System.out.println("  s2 - Sign in as testuser");
         System.out.println("  i  - Insert one");
@@ -155,6 +159,25 @@ public class cli {
             System.out.println("Distinct types: " + distinct);
         } catch (Exception e) {
             System.out.println("Distinct error: " + e.getMessage());
+        }
+    }
+
+    private static void handlePushWorkitem() {
+        try {
+            test.Entity entity = new test.Entity();
+            entity.name = "CLI Test";
+            entity._type = "test";
+
+            var result = client.pushWorkitem(new PushWorkitem.Builder("q2")  // Changed this line
+                .name("CLI Test")
+                //.payload("{\"_type\":\"test\"}")
+                .itemFromObject(entity )
+                // .nextrun(System.currentTimeMillis() + 10000)
+                .priority(1)
+                .build());
+            System.out.println("Pushed workitem: " + result);
+        } catch (Exception e) {
+            System.out.println("PushWorkitem error: " + e.getMessage());
         }
     }
 

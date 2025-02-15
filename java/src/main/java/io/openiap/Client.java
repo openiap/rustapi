@@ -85,6 +85,8 @@ interface CLib extends Library {
     void free_event_response(Pointer response);
     Pointer off_client_event(String eventid);
     void free_off_event_response(Pointer response);
+    Pointer push_workitem(Pointer client, PushWorkitem options);
+    void free_push_workitem_response(Pointer response);
 }
 
 public class Client {
@@ -858,6 +860,37 @@ public class Client {
         } finally {
             clibInstance.free_queue_message_response(responsePtr);
         }
+    }
+
+    public String pushWorkitem(PushWorkitem options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.push_workitem(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("PushWorkitem returned null response");
+        }
+
+        PushWorkitemResponseWrapper.Response response = new PushWorkitemResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            // Convert workitem pointer to JSON string (implementation depends on your needs)
+            return response.workitem != null ? new WorkitemWrapper(response.workitem).toJson() : null;
+        } finally {
+            clibInstance.free_push_workitem_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T pushWorkitem(Type type, PushWorkitem options) throws Exception {
+        String jsonResponse = pushWorkitem(options);
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
     }
 
     public interface WatchEventCallback {
