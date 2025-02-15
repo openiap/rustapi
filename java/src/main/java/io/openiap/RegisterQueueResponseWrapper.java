@@ -8,29 +8,25 @@ import com.sun.jna.Callback;
 
 public class RegisterQueueResponseWrapper {
     public static class Response extends Structure {
-        public byte success;
+        public boolean success;
         public String queuename;
         public String error;
-        public int request_id;
-
-        public Response() {
-            // Default constructor is required for JNA
-        }
 
         public Response(Pointer p) {
             super(p);
             read();
         }
 
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("success", "queuename", "error", "request_id");
+        public boolean getSuccess() {
+            return success;
         }
 
-        public boolean getSuccess() {
-            return success != 0;
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("success", "queuename", "error");
         }
     }
+
     public static class QueueEventWrapper extends Structure {
         public String queuename;
         public String correlation_id;
@@ -56,6 +52,6 @@ public class RegisterQueueResponseWrapper {
     }
 
     public interface RegisterQueueCallback extends Callback {
-        void invoke(Pointer responsePtr);
+        void invoke(Pointer response);
     }
 }

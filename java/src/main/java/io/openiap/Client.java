@@ -71,7 +71,8 @@ interface CLib extends Library {
     void free_count_response(Pointer response);
     Pointer distinct(Pointer client, DistinctParameters options);
     void free_distinct_response(Pointer response);
-    void register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    Pointer register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    void free_register_queue_response(Pointer response);
     void register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     Pointer queue_message(Pointer client, QueueMessageParameters options);
     void free_queue_message_response(Pointer response);
@@ -739,9 +740,29 @@ public class Client {
             }
         };
 
-        clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
-        queueCallbacks.put(options.queuename, eventCallback); // Store callback
-        return options.queuename;
+        // clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
+        // queueCallbacks.put(options.queuename, eventCallback); // Store callback
+        // Call register_queue_async and get immediate response
+        // Pointer responsePtr = clibInstance.register_queue_async(clientPtr, options, null, nativeEventCallback);
+        Pointer responsePtr = clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
+        if (responsePtr == null) {
+            throw new RuntimeException("RegisterQueue returned null response");
+        }
+
+        RegisterQueueResponseWrapper.Response response = new RegisterQueueResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            String queueId = response.queuename;
+            if (queueId != null) {
+                queueCallbacks.put(queueId, eventCallback);
+            }
+            return queueId;
+        } finally {
+            clibInstance.free_register_queue_response(responsePtr);
+        }
     }
 
     public String registerExchangeAsync(RegisterExchangeParameters options, final QueueEventCallback eventCallback) {
