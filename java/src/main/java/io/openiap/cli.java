@@ -2,6 +2,7 @@ package io.openiap;
 
 import java.util.Scanner;
 import java.util.List;
+import java.util.Arrays;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
@@ -22,20 +23,17 @@ public class cli {
         client = new Client(libpath);
         scanner = new Scanner(System.in);
         executor = Executors.newSingleThreadExecutor();
-
         try {
             client.enableTracing("openiap=trace", "");
             // client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
-
             System.out.println("? for help");
             while (running) {
                 System.out.print("> ");
                 String command = scanner.nextLine().trim().toLowerCase();
                 handleCommand(command);
             }
-
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -67,6 +65,7 @@ public class cli {
                 break;
             case "di":
                 handleDistinct();
+                break;
             case "p":
                 handlePushWorkitem();
                 break;
@@ -171,11 +170,10 @@ public class cli {
             test.Entity entity = new test.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
-
-            var result = client.pushWorkitem(new PushWorkitem.Builder("q2")  // Changed this line
+            var result = client.pushWorkitem(new PushWorkitem.Builder("q2")
                 .name("CLI Test")
                 //.payload("{\"_type\":\"test\"}")
-                .itemFromObject(entity )
+                .itemFromObject(entity)
                 // .nextrun(System.currentTimeMillis() + 10000)
                 .priority(1)
                 .build());
@@ -194,15 +192,19 @@ public class cli {
                 .priority(1)
                 .wiq("q2")
                 .build();
-
             // Push the workitem and get back a typed response
             Workitem result = client.pushWorkitem(Workitem.class, new PushWorkitem.Builder("q2")
                 .name(workitem.name)
                 .itemFromObject(workitem)
                 .priority(workitem.priority)
                 .build());
-                
             System.out.println("Pushed workitem: " + result.id + " name: " + result.name);
+            if (result.files != null) {
+                System.out.println("Files: " + result.files.size());
+                for (WorkitemFile f : result.files) {
+                    System.out.println("  - " + f.filename + " (id: " + f.id + ")");
+                }
+            }
         } catch (Exception e) {
             System.out.println("PushWorkitem error: " + e.getMessage());
             e.printStackTrace();
@@ -238,7 +240,6 @@ public class cli {
             test.Entity entity = new test.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
-            
             test.Entity result = client.insertOne(test.Entity.class,
                 new InsertOneParameters.Builder()
                     .collectionname("entities")
@@ -285,6 +286,7 @@ public class cli {
         }
     }
 
+    @SuppressWarnings("unused")
     private static void handleStartTask() {
         if (taskRunning.get()) {
             System.out.println("Stopping running task.");
@@ -355,3 +357,4 @@ public class cli {
         });
     }
 }
+

@@ -1,6 +1,7 @@
 package io.openiap;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)  // Add this to handle unknown properties
 public class Workitem {
@@ -22,6 +23,7 @@ public class Workitem {
     public String errormessage;
     public String errorsource;
     public String errortype;
+    public List<WorkitemFile> files;
     
     public static class Builder {
         private final Workitem instance = new Workitem();
@@ -43,6 +45,11 @@ public class Workitem {
         
         public Builder wiq(String wiq) {
             instance.wiq = wiq;
+            return this;
+        }
+        
+        public Builder files(List<WorkitemFile> files) {
+            instance.files = files;
             return this;
         }
         

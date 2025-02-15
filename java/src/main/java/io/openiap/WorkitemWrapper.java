@@ -2,8 +2,10 @@ package io.openiap;
 
 import com.sun.jna.Structure;
 import com.sun.jna.Pointer;
+import com.sun.jna.Native;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.HashMap;
@@ -17,7 +19,7 @@ public class WorkitemWrapper extends Structure {
     public long nextrun;
     public long lastrun;
     
-    @JsonIgnore  // Add this annotation to exclude the Pointer from serialization
+    @JsonIgnore
     public Pointer files;
     
     public int files_len;
@@ -49,6 +51,25 @@ public class WorkitemWrapper extends Structure {
         );
     }
 
+    @JsonIgnore
+    private List<WorkitemFile> parseFiles() {
+        List<WorkitemFile> result = new ArrayList<>();
+        if (files != null && files_len > 0) {
+            for (int i = 0; i < files_len; i++) {
+                Pointer filePtr = files.getPointer(i * Native.POINTER_SIZE);
+                if (filePtr != null) {
+                    WorkitemFileWrapper fileWrapper = new WorkitemFileWrapper(filePtr);
+                    WorkitemFile file = new WorkitemFile();
+                    file.filename = fileWrapper.filename;
+                    file.id = fileWrapper.id;
+                    file.compressed = fileWrapper.compressed != 0;  // Convert byte to boolean
+                    result.add(file);
+                }
+            }
+        }
+        return result;
+    }
+
     public String toJson() {
         try {
             Map<String, Object> map = new HashMap<>();
@@ -70,8 +91,7 @@ public class WorkitemWrapper extends Structure {
             map.put("errormessage", errormessage);
             map.put("errorsource", errorsource);
             map.put("errortype", errortype);
-            // TODO: Handle files array if needed
-            
+            map.put("files", parseFiles());
             return new ObjectMapper().writeValueAsString(map);
         } catch (Exception e) {
             throw new RuntimeException("Failed to convert workitem to JSON", e);
