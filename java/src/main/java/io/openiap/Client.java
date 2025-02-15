@@ -79,6 +79,11 @@ interface CLib extends Library {
     void free_queue_message_response(Pointer response);
     Pointer unregister_queue(Pointer client, String queuename);
     void free_unregister_queue_response(Pointer response);
+    
+    // Add these new methods:
+    Pointer on_client_event_async(Pointer client, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    void free_client_event(Pointer event);
+    void free_event_response(Pointer response);
 }
 
 public class Client {
@@ -863,6 +868,51 @@ public class Client {
 
     public interface QueueEventCallback {
         void onEvent(QueueEvent event);
+    }
+
+    public interface ClientEventCallback {
+        void onEvent(ClientEvent event);
+    }
+
+    public String onClientEventAsync(final ClientEventCallback eventCallback) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+
+        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
+            @Override
+            public void invoke(Pointer eventPtr) {
+                if (eventPtr == null) {
+                    return;
+                }
+                ClientEventWrapper.ClientEventStruct eventWrapper = new ClientEventWrapper.ClientEventStruct(eventPtr);
+                eventWrapper.read();
+                try {
+                    ClientEvent event = new ClientEvent();
+                    event.event = eventWrapper.event;
+                    event.reason = eventWrapper.reason;
+                    eventCallback.onEvent(event);
+                } finally {
+                    clibInstance.free_client_event(eventPtr);
+                }
+            }
+        };
+
+        Pointer responsePtr = clibInstance.on_client_event_async(clientPtr, nativeEventCallback);
+        if (responsePtr == null) {
+            throw new RuntimeException("OnClientEvent returned null response");
+        }
+
+        ClientEventResponseWrapper.Response response = new ClientEventResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.eventid;
+        } finally {
+            clibInstance.free_event_response(responsePtr);
+        }
     }
 
     @SuppressWarnings("removal")

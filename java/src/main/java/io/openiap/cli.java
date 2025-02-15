@@ -37,6 +37,11 @@ public class cli {
             client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
+
+            client.onClientEventAsync(
+                (event) -> {
+                    System.out.println("Event: " + event.event + " Reason: " + event.reason);
+                });
             // User user = client.getUser();
             // if (user != null) {
             // System.out.println("User ID: " + user.id);
