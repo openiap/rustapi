@@ -36,6 +36,10 @@ public class WorkitemWrapper extends Structure {
     public String errorsource;
     public String errortype;
 
+    public WorkitemWrapper() {
+        super();
+    }
+
     public WorkitemWrapper(Pointer p) {
         super(p);
         read();

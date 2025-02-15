@@ -89,6 +89,8 @@ interface CLib extends Library {
     void free_push_workitem_response(Pointer response);
     Pointer pop_workitem(Pointer client, PopWorkitem options, String downloadFolder);
     void free_pop_workitem_response(Pointer response);
+    Pointer update_workitem(Pointer client, UpdateWorkitem options);
+    void free_update_workitem_response(Pointer response);
 }
 
 public class Client {
@@ -920,6 +922,39 @@ public class Client {
     @SuppressWarnings("unchecked")
     public <T> T popWorkitem(Type type, PopWorkitem options, String downloadFolder) throws Exception {
         String jsonResponse = popWorkitem(options, downloadFolder);
+        if (jsonResponse == null) {
+            return null;
+        }
+        if (type instanceof Class && type == String.class) {
+            return (T) jsonResponse;
+        }
+        return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public String updateWorkitem(UpdateWorkitem options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.update_workitem(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("UpdateWorkitem returned null response");
+        }
+
+        UpdateWorkitemResponseWrapper.Response response = new UpdateWorkitemResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.workitem != null ? new WorkitemWrapper(response.workitem).toJson() : null;
+        } finally {
+            clibInstance.free_update_workitem_response(responsePtr);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T updateWorkitem(Type type, UpdateWorkitem options) throws Exception {
+        String jsonResponse = updateWorkitem(options);
         if (jsonResponse == null) {
             return null;
         }

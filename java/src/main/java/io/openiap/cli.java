@@ -113,9 +113,9 @@ public class cli {
         System.out.println("  q    - Query with filter");
         System.out.println("  qq   - Query all");
         System.out.println("  di   - Distinct types");
-        System.out.println("  p    - Pop workitem from queue");
         System.out.println("  p1   - PushWorkitem");
         System.out.println("  p2   - PushWorkitem second test");
+        System.out.println("  p    - Pop/Update workitem state");
         System.out.println("  s    - Sign in as guest");
         System.out.println("  s2   - Sign in as testuser");
         System.out.println("  i    - Insert one");
@@ -193,18 +193,14 @@ public class cli {
             List<String> files = Arrays.asList("testfile.csv"
             // , "/home/allan/Documents/assistant-linux-x86_64.AppImage"
             );
-            Workitem workitem = new Workitem.Builder()
-                .name("Test Workitem")
-                .payload("{\"test\": \"value\"}")
-                .priority(1)
-                .wiq("q2")
-                .build();
+            test.Entity entity = new test.Entity();
+            entity.name = "CLI Test";
+            entity._type = "test";
 
             // Create builder and build workitem
             PushWorkitem.Builder builder = new PushWorkitem.Builder("q2")
-                .name(workitem.name)
-                .itemFromObject(workitem)
-                .priority(workitem.priority)
+                .name(entity.name)
+                .itemFromObject(entity)
                 .files(files);
 
             PushWorkitem pushWorkitem = builder.build();
@@ -383,21 +379,35 @@ public class cli {
                 downloadsFolder.mkdir();
             }
             PopWorkitem popRequest = new PopWorkitem.Builder("q2").build();
-            Workitem result = client.popWorkitem(Workitem.class, popRequest, "downloads");
+            Workitem workitem = client.popWorkitem(Workitem.class, popRequest, "downloads");
             
-            if (result != null) {
-                System.out.println("Popped workitem: " + result.id + " name: " + result.name);
-                if (result.files != null) {
-                    System.out.println("Files: " + result.files.size());
-                    for (WorkitemFile f : result.files) {
-                        System.out.println("  - " + f.filename + " (id: " + f.id + ")");
-                    }
+            if (workitem != null) {
+                System.out.println("Updating workitem: " + workitem.id);
+                
+                // Update the workitem state
+                workitem.state = "successful";
+                workitem.name = "Updated by CLI";
+                
+                // Create update request
+                UpdateWorkitem.Builder builder = new UpdateWorkitem.Builder(workitem);
+                builder.files(
+                    Arrays.asList("/home/allan/Documents/export.csv")
+                    // Arrays.asList("/home/allan/Documents/export.csv", "downloads/testfile.csv")
+                );
+                UpdateWorkitem updateRequest = builder.build();
+                
+                try {
+                    // Send update
+                    workitem = client.updateWorkitem(Workitem.class, updateRequest);
+                    System.out.println("Updated workitem state to: " + workitem.state);
+                } finally {
+                    builder.cleanup();
                 }
             } else {
-                System.out.println("No workitem available");
+                System.out.println("No workitem available to update");
             }
         } catch (Exception e) {
-            System.out.println("PopWorkitem error: " + e.getMessage());
+            System.out.println("UpdateWorkitem error: " + e.getMessage());
             e.printStackTrace();
         }
     }
