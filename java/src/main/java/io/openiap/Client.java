@@ -72,6 +72,7 @@ interface CLib extends Library {
     Pointer distinct(Pointer client, DistinctParameters options);
     void free_distinct_response(Pointer response);
     Pointer register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    void free_queue_event(Pointer event);
     void free_register_queue_response(Pointer response);
     Pointer register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     void free_register_exchange_response(Pointer response);
@@ -79,11 +80,11 @@ interface CLib extends Library {
     void free_queue_message_response(Pointer response);
     Pointer unregister_queue(Pointer client, String queuename);
     void free_unregister_queue_response(Pointer response);
-    
-    // Add these new methods:
     Pointer on_client_event_async(Pointer client, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     void free_client_event(Pointer event);
     void free_event_response(Pointer response);
+    Pointer off_client_event(String eventid);
+    void free_off_event_response(Pointer response);
 }
 
 public class Client {
@@ -93,6 +94,7 @@ public class Client {
     private final Map<String, WatchEventCallback> watchCallbacks = new ConcurrentHashMap<>();
     private final Map<String, QueueEventCallback> queueCallbacks = new ConcurrentHashMap<>();
     private final Map<String, QueueEventCallback> exchangeCallbacks = new ConcurrentHashMap<>();
+    private final Map<String, ClientEventCallback> clientEventCallbacks = new ConcurrentHashMap<>();
 
     public Client(String fullLibPath) {
         this.objectMapper = new ObjectMapper();
@@ -182,6 +184,7 @@ public class Client {
             queueCallbacks.clear();
             exchangeCallbacks.clear();
             watchCallbacks.clear();
+            clientEventCallbacks.clear();
             clibInstance.client_disconnect(clientPtr);
         }
     }
@@ -740,16 +743,11 @@ public class Client {
                     event.data = eventWrapper.data;
                     eventCallback.onEvent(event);
                 } finally {
-                    // Assuming there's a free_queue_event function in the C library
-                    // clibInstance.free_queue_event(eventPtr);
+                    clibInstance.free_queue_event(eventPtr);
                 }
             }
         };
 
-        // clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
-        // queueCallbacks.put(options.queuename, eventCallback); // Store callback
-        // Call register_queue_async and get immediate response
-        // Pointer responsePtr = clibInstance.register_queue_async(clientPtr, options, null, nativeEventCallback);
         Pointer responsePtr = clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
         if (responsePtr == null) {
             throw new RuntimeException("RegisterQueue returned null response");
@@ -909,9 +907,38 @@ public class Client {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
                 throw new RuntimeException(errorMsg);
             }
-            return response.eventid;
+            String eventId = response.eventid;
+            if (eventId != null) {
+                clientEventCallbacks.put(eventId, eventCallback);
+            }
+            return eventId;
         } finally {
             clibInstance.free_event_response(responsePtr);
+        }
+    }
+
+    public boolean offClientEvent(String eventid) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        if (eventid != null) {
+            clientEventCallbacks.remove(eventid);
+        }
+        
+        Pointer responsePtr = clibInstance.off_client_event(eventid);
+        if (responsePtr == null) {
+            throw new RuntimeException("OffClientEvent returned null response");
+        }
+
+        OffClientEventResponseWrapper.Response response = new OffClientEventResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_off_event_response(responsePtr);
         }
     }
 
