@@ -2,8 +2,6 @@ package io.openiap;
 
 import com.sun.jna.Structure;
 import com.sun.jna.Pointer;
-import java.util.Arrays;
-import java.util.List;
 
 @Structure.FieldOrder({"filename", "id", "compressed"})
 public class WorkitemFileWrapper extends Structure {
