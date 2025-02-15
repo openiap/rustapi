@@ -49,6 +49,7 @@ clean:
 	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj
 	rm -rf python/openiap/lib python/*.csv python/build python/dist
 	rm -rf target/lib target/cli
+	rm -rf java/lib java/target
 
 # Create target directories
 prepare:
@@ -82,7 +83,7 @@ build-windows:
 	cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openiap.exe
 
 build-java:
-	(cd java && mvn clean package)
+	# (cd java && mvn clean package)
 
 # Package language bindings
 package-node:
@@ -103,7 +104,6 @@ package-python:
 
 package-java:
 	@echo "Building java jar"
-	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	(cd java && mvn clean package)
 publish-node:
 	(cd node && npm publish)
@@ -115,7 +115,7 @@ publish-dotnet:
 publish-python:
 	(cd python && python3 -m twine upload dist/*)
 publish-java:
-	# no longer needed we can simply use mvn
+	# no longer needed, we can simply use mvn
 	# (cd java/target/central-publishing && curl --request POST \
 	# 	--verbose \
 	# 	--header 'Authorization: Bearer $(MAVEN_AUTH)' \
