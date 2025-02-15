@@ -9,6 +9,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.sun.jna.Library;
 
@@ -73,12 +75,17 @@ interface CLib extends Library {
     void register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     Pointer queue_message(Pointer client, QueueMessageParameters options);
     void free_queue_message_response(Pointer response);
+    Pointer unregister_queue(Pointer client, String queuename);
+    void free_unregister_queue_response(Pointer response);
 }
 
 public class Client {
     private final ObjectMapper objectMapper;
     private Pointer clientPtr;
     private CLib clibInstance;
+    private final Map<String, WatchEventCallback> watchCallbacks = new ConcurrentHashMap<>();
+    private final Map<String, QueueEventCallback> queueCallbacks = new ConcurrentHashMap<>();
+    private final Map<String, QueueEventCallback> exchangeCallbacks = new ConcurrentHashMap<>();
 
     public Client(String fullLibPath) {
         this.objectMapper = new ObjectMapper();
@@ -165,6 +172,9 @@ public class Client {
 
     public void disconnect() {
         if (clientPtr != null) {
+            queueCallbacks.clear();
+            exchangeCallbacks.clear();
+            watchCallbacks.clear();
             clibInstance.client_disconnect(clientPtr);
         }
     }
@@ -557,12 +567,17 @@ public class Client {
             Thread.currentThread().interrupt();
             return null; // Or throw an exception
         }
-        return watchIdResult[0];
+        String watchId = watchIdResult[0];
+        watchCallbacks.put(watchId, eventCallback); // Store the callback
+        return watchId;
     }
 
     public boolean unwatch(String watchid) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
+        }
+        if (watchid != null) {
+            watchCallbacks.remove(watchid); // Remove the callback first
         }
         Pointer responsePtr = clibInstance.unwatch(clientPtr, watchid);
          if (responsePtr == null) {
@@ -725,7 +740,8 @@ public class Client {
         };
 
         clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
-        return "OK";
+        queueCallbacks.put(options.queuename, eventCallback); // Store callback
+        return options.queuename;
     }
 
     public String registerExchangeAsync(RegisterExchangeParameters options, final QueueEventCallback eventCallback) {
@@ -758,7 +774,33 @@ public class Client {
         };
 
         clibInstance.register_exchange_async(clientPtr, options, nativeEventCallback);
-        return "OK";
+        exchangeCallbacks.put(options.exchangename, eventCallback); // Store callback
+        return options.exchangename;
+    }
+
+    public boolean unregisterQueue(String queuename) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        if (queuename != null) {
+            queueCallbacks.remove(queuename);
+            Pointer responsePtr = clibInstance.unregister_queue(clientPtr, queuename);
+            if (responsePtr == null) {
+                throw new RuntimeException("UnregisterQueue returned null response");
+            }
+
+            UnRegisterQueueResponseWrapper.Response response = new UnRegisterQueueResponseWrapper.Response(responsePtr);
+            try {
+                if (!response.getSuccess() || response.error != null) {
+                    String errorMsg = response.error != null ? response.error : "Unknown error";
+                    throw new RuntimeException(errorMsg);
+                }
+                return response.getSuccess();
+            } finally {
+                clibInstance.free_unregister_queue_response(responsePtr);
+            }
+        }
+        return false;
     }
 
     public void queueMessage(QueueMessageParameters options) {
@@ -769,7 +811,7 @@ public class Client {
         if (responsePtr == null) {
             throw new RuntimeException("QueueMessage returned null response");
         }
-        QueryResponseWrapper.Response response = new QueryResponseWrapper.Response(responsePtr);
+        QueueMessageResponseWrapper.Response response = new QueueMessageResponseWrapper.Response(responsePtr);
         try {
             if (!response.getSuccess() || response.error != null) {
                 String errorMsg = response.error != null ? response.error : "Unknown error";
