@@ -91,6 +91,8 @@ interface CLib extends Library {
     void free_pop_workitem_response(Pointer response);
     Pointer update_workitem(Pointer client, UpdateWorkitem options);
     void free_update_workitem_response(Pointer response);
+    Pointer delete_workitem(Pointer client, DeleteWorkitem options);
+    void free_delete_workitem_response(Pointer response);
 }
 
 public class Client {
@@ -962,6 +964,27 @@ public class Client {
             return (T) jsonResponse;
         }
         return objectMapper.readValue(jsonResponse, objectMapper.constructType(type));
+    }
+
+    public boolean deleteWorkitem(DeleteWorkitem options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.delete_workitem(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("DeleteWorkitem returned null response");
+        }
+
+        DeleteWorkitemResponseWrapper.Response response = new DeleteWorkitemResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.getSuccess();
+        } finally {
+            clibInstance.free_delete_workitem_response(responsePtr);
+        }
     }
 
     public interface WatchEventCallback {

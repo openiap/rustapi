@@ -97,6 +97,9 @@ public class cli {
             case "st2":
                 handleStartTask2();
                 break;
+            case "pd":
+                handleDeleteWorkitem();
+                break;
             case "quit":
                 running = false;
                 break;
@@ -116,6 +119,7 @@ public class cli {
         System.out.println("  p1   - PushWorkitem");
         System.out.println("  p2   - PushWorkitem second test");
         System.out.println("  p    - Pop/Update workitem state");
+        System.out.println("  pd   - Pop/Delete workitem");
         System.out.println("  s    - Sign in as guest");
         System.out.println("  s2   - Sign in as testuser");
         System.out.println("  i    - Insert one");
@@ -408,6 +412,34 @@ public class cli {
             }
         } catch (Exception e) {
             System.out.println("UpdateWorkitem error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static void handleDeleteWorkitem() {
+        try {
+            // First pop a workitem to delete
+            PopWorkitem popRequest = new PopWorkitem.Builder("q2").build();
+            Workitem workitem = client.popWorkitem(Workitem.class, popRequest, "downloads");
+            
+            if (workitem != null) {
+                System.out.println("Deleting workitem: " + workitem.id);
+                
+                // Create delete request
+                DeleteWorkitem deleteRequest = new DeleteWorkitem.Builder(workitem.id).build();
+                
+                // Send delete
+                boolean success = client.deleteWorkitem(deleteRequest);
+                if (success) {
+                    System.out.println("Workitem deleted successfully");
+                } else {
+                    System.out.println("Failed to delete workitem");
+                }
+            } else {
+                System.out.println("No workitem available to delete");
+            }
+        } catch (Exception e) {
+            System.out.println("DeleteWorkitem error: " + e.getMessage());
             e.printStackTrace();
         }
     }
