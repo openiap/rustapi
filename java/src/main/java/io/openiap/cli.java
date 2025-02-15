@@ -185,25 +185,38 @@ public class cli {
 
     private static void handlePushWorkitem2() {
         try {
-            // Create workitem using the builder
+            List<String> files = Arrays.asList("testfile.csv"
+            // , "/home/allan/Documents/assistant-linux-x86_64.AppImage"
+            );
             Workitem workitem = new Workitem.Builder()
                 .name("Test Workitem")
                 .payload("{\"test\": \"value\"}")
                 .priority(1)
                 .wiq("q2")
                 .build();
-            // Push the workitem and get back a typed response
-            Workitem result = client.pushWorkitem(Workitem.class, new PushWorkitem.Builder("q2")
+
+            // Create builder and build workitem
+            PushWorkitem.Builder builder = new PushWorkitem.Builder("q2")
                 .name(workitem.name)
                 .itemFromObject(workitem)
                 .priority(workitem.priority)
-                .build());
-            System.out.println("Pushed workitem: " + result.id + " name: " + result.name);
-            if (result.files != null) {
-                System.out.println("Files: " + result.files.size());
-                for (WorkitemFile f : result.files) {
-                    System.out.println("  - " + f.filename + " (id: " + f.id + ")");
+                .files(files);
+
+            PushWorkitem pushWorkitem = builder.build();
+            try {
+                // Push the workitem and get back a typed response
+                Workitem result = client.pushWorkitem(Workitem.class, pushWorkitem);
+                
+                System.out.println("Pushed workitem: " + result.id + " name: " + result.name);
+                if (result.files != null) {
+                    System.out.println("Files: " + result.files.size());
+                    for (WorkitemFile f : result.files) {
+                        System.out.println("  - " + f.filename + " (id: " + f.id + ")");
+                    }
                 }
+            } finally {
+                // Clean up after push is complete
+                builder.cleanup();
             }
         } catch (Exception e) {
             System.out.println("PushWorkitem error: " + e.getMessage());

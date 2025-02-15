@@ -5,18 +5,20 @@ import com.sun.jna.Pointer;
 import java.util.Arrays;
 import java.util.List;
 
+@Structure.FieldOrder({"filename", "id", "compressed"})
 public class WorkitemFileWrapper extends Structure {
     public String filename;
     public String id;
-    public byte compressed;  // Using byte for boolean
+    public byte compressed;
+
+    public WorkitemFileWrapper() {
+        super();
+        setAutoWrite(false);  // Prevent automatic writes
+    }
 
     public WorkitemFileWrapper(Pointer p) {
         super(p);
+        setAutoWrite(false);  // Prevent automatic writes
         read();
-    }
-
-    @Override
-    protected List<String> getFieldOrder() {
-        return Arrays.asList("filename", "id", "compressed");
     }
 }
