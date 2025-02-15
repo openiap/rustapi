@@ -103,10 +103,6 @@ package-python:
 
 package-java:
 	@echo "Building java jar"
-	@echo "user: $(MAVEN_USERNAME)"
-	@echo "pass: $(MAVEN_PASSWORD)"
-	@echo "pass: $(MAVEN_AUTH)"
-
 	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	(cd java && mvn clean package)
 publish-node:
@@ -119,11 +115,13 @@ publish-dotnet:
 publish-python:
 	(cd python && python3 -m twine upload dist/*)
 publish-java:
-	(cd java/target/central-publishing && curl --request POST \
-		--verbose \
-		--header 'Authorization: Bearer $(MAVEN_AUTH)' \
-		--form bundle=@central-bundle.zip \
-		https://central.sonatype.com/api/v1/publisher/upload)
+	# no longer needed we can simply use mvn
+	# (cd java/target/central-publishing && curl --request POST \
+	# 	--verbose \
+	# 	--header 'Authorization: Bearer $(MAVEN_AUTH)' \
+	# 	--form bundle=@central-bundle.zip \
+	# 	https://central.sonatype.com/api/v1/publisher/upload)
+	(cd java && mvn deploy)
 
 publish-cargo:
 	cargo publish -p openiap-proto --allow-dirty
