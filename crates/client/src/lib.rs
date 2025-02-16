@@ -454,6 +454,18 @@ impl Client {
         }
         let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
+        let mut username = "".to_string();
+        let mut password = "".to_string();
+        if let Some(p) = url.password() {
+            password = p.to_string();
+        }
+        if !url.username().is_empty() {
+            username = url.username().to_string();
+        }
+        if !username.is_empty() && !password.is_empty() {
+            self.set_username(&username);
+            self.set_password(&password);
+        }
         let usegprc = url.scheme() == "grpc" || url.domain().unwrap_or("localhost").to_lowercase().starts_with("grpc.") || url.port() == Some(50051);
         if url.scheme() != "http"
             && url.scheme() != "https"
@@ -470,23 +482,8 @@ impl Client {
                 strurl = format!("http://{}:{}", url.host_str().unwrap_or("app.openiap.io"), url.port().unwrap_or(80));
             }
         }
-        let mut url = url::Url::parse(strurl.as_str())
+        let url = url::Url::parse(strurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-        let mut username = "".to_string();
-        let mut password = "".to_string();
-        if let Some(p) = url.password() {
-            password = p.to_string();
-        }
-        if !url.username().is_empty() {
-            username = url.username().to_string();
-        }
-        if !username.is_empty() && !password.is_empty() {
-            self.set_username(&username);
-            self.set_password(&password);
-        }
-        url = url::Url::parse(strurl.as_str())
-            .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e)))?;
-
         if url.port().is_none() {
             strurl = format!(
                 "{}://{}",
