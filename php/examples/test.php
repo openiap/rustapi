@@ -26,6 +26,11 @@ try {
     $client->connect("");
     // $client->on_client_event(function($event, $counter) {
     //     echo "Client Event: " . $event['event'] . ", Counter: " . $counter . "\n";
+        // if($event['event'] == "SignedIn") {
+        //     print("Signed in, cleanup and disconnect again\n");
+        //     $client->free();
+        //     unset($client);
+        // }
     // });
     
     // // Example of signin with username/password
