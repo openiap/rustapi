@@ -97,8 +97,15 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     //         return Ok(());
     //     }        
     // };
-    let user = b.get_user().unwrap();
-    println!("signed in as: {:} {:}", user.name, user.username);
+    let user = b.get_user();
+    match user {
+        Some(user) => {
+            println!("signed in as: {:} {:}", user.name, user.username);
+        }
+        None => {
+            println!("not signed in, or signed in as guest");
+        }
+    }
 
     let watchid = Arc::new(Mutex::new(String::new()));
     let mut input = String::from("bum");
