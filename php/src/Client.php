@@ -154,6 +154,14 @@ class Client {
         }
         if($envfile == null) {
             $envfile = __DIR__ . '/../../.env';
+            if (file_exists($envfile) == false) $envfile = null;
+        }
+        if($envfile == null) {
+            $envfile = __DIR__ . '/../../../.env';
+            if (file_exists($envfile) == false) $envfile = null;
+        }
+        if($envfile == null) {
+            $envfile = __DIR__ . '/../../../../.env';
         }
         if (file_exists($envfile) == false) return false;
         $content = file_get_contents($envfile);
