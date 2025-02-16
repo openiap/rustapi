@@ -307,7 +307,6 @@ public class cli {
         }
     }
 
-    @SuppressWarnings("unused")
     private static void handleStartTask() {
         if (taskRunning.get()) {
             System.out.println("Stopping running task.");
