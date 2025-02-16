@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
-Main-Class: io.openiap.cli
+Main-Class: io.openiap.rustsidecli
 Implementation-Title: OpenIAP Client
 Implementation-Version: 1.0.0
 Implementation-Vendor: OpenIAP ApS

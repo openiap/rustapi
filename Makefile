@@ -104,6 +104,7 @@ package-python:
 
 package-java:
 	@echo "Building java jar"
+	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	(cd java && mvn clean package)
 publish-node:
 	(cd node && npm publish)

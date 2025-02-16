@@ -14,7 +14,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.openiap.ColTimeseriesWrapper.TimeUnit;
 
 @SuppressWarnings("unused")
-public class test {
+public class rustsidetest {
     private static volatile boolean gotwatchevent = false;
     private static volatile int queuemessagecount = 0;
     private static volatile int exchangemessagecount = 0;

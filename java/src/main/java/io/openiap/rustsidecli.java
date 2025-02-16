@@ -10,7 +10,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class cli {
+public class rustsidecli {
     private static Client client;
     private static volatile boolean running = true;
     private static Scanner scanner;
@@ -59,7 +59,7 @@ public class cli {
                 showHelp();
                 break;
             case "t":
-                test.RunAll();
+                rustsidetest.RunAll();
                 break;
             case "q":
                 handleQuery();
@@ -135,14 +135,14 @@ public class cli {
 
     private static void handleQuery() {
         try {
-            List<test.Entity> results = client.query(new TypeReference<List<test.Entity>>() {}.getType(),
+            List<rustsidetest.Entity> results = client.query(new TypeReference<List<rustsidetest.Entity>>() {}.getType(),
                 new QueryParameters.Builder()
                     .collectionname("entities")
                     .query("{\"_type\":\"test\"}")
                     .top(10)
                     .build());
             if (results != null) {
-                for (test.Entity item : results) {
+                for (rustsidetest.Entity item : results) {
                     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
                 }
             }
@@ -179,7 +179,7 @@ public class cli {
 
     private static void handlePushWorkitem() {
         try {
-            test.Entity entity = new test.Entity();
+            rustsidetest.Entity entity = new rustsidetest.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
             var result = client.pushWorkitem(new PushWorkitem.Builder("q2")
@@ -200,7 +200,7 @@ public class cli {
             List<String> files = Arrays.asList("testfile.csv"
             // , "/home/allan/Documents/assistant-linux-x86_64.AppImage"
             );
-            test.Entity entity = new test.Entity();
+            rustsidetest.Entity entity = new rustsidetest.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
 
@@ -258,10 +258,10 @@ public class cli {
 
     private static void handleInsertOne() {
         try {
-            test.Entity entity = new test.Entity();
+            rustsidetest.Entity entity = new rustsidetest.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
-            test.Entity result = client.insertOne(test.Entity.class,
+            rustsidetest.Entity result = client.insertOne(rustsidetest.Entity.class,
                 new InsertOneParameters.Builder()
                     .collectionname("entities")
                     .itemFromObject(entity)
@@ -275,13 +275,13 @@ public class cli {
     private static void handleInsertMany() {
         try {
             String jsonItems = "[{\"_type\":\"test\", \"name\":\"cli-many-1\"}, {\"_type\":\"test\", \"name\":\"cli-many-2\"}]";
-            List<test.Entity> results = client.insertMany(new TypeReference<List<test.Entity>>() {}.getType(),
+            List<rustsidetest.Entity> results = client.insertMany(new TypeReference<List<rustsidetest.Entity>>() {}.getType(),
                 new InsertManyParameters.Builder()
                     .collectionname("entities")
                     .items(jsonItems)
                     .build());
             if (results != null) {
-                for (test.Entity entity : results) {
+                for (rustsidetest.Entity entity : results) {
                     System.out.println("Inserted: " + entity._id + " - " + entity.name);
                 }
             }
@@ -381,7 +381,7 @@ public class cli {
                 try {
                     x++;
                     Thread.sleep(1);
-                    test.RunAll();
+                    rustsidetest.RunAll();
                     if (x % 500 == 0) {
                         System.out.println("No new workitem " + new java.util.Date());
                         System.gc();
