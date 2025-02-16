@@ -30,6 +30,9 @@ public class cli {
             client.start();
             client.connect("");
             System.out.println("? for help");
+            if(System.getenv("oidc_config") != null && System.getenv("oidc_config") != "") {
+                handleStartTask();
+            }
             while (running) {
                 System.out.print("> ");
                 String command = scanner.nextLine().trim().toLowerCase();
@@ -314,30 +317,47 @@ public class cli {
             taskRunning.set(false);
             return;
         }
-
+        System.out.println("Starting task...");
         taskRunning.set(true);
         runningTask = executor.submit(() -> {
             System.out.println("Task started, begin loop...");
+            Runtime runtime = Runtime.getRuntime();
             int x = 0;
             while (taskRunning.get() && !Thread.currentThread().isInterrupted()) {
                 try {
                     x++;
-                    // var workitem = client.popWorkitem(new PopWorkitemParameters.Builder()
-                    //         .workqueue("q2")
-                    //         .build());
-                    // Thread.sleep(1);
-                    // if (workitem != null) {
-                    //     System.out.println("Updating " + workitem.id + " " + workitem.name);
-                    //     workitem.state = "successful";
-                    //     workitem = client.updateWorkitem(workitem);
-                    // } else {
-                    //     if (x % 500 == 0) {
-                    //         System.out.println("No new workitem " + new java.util.Date());
-                    //         System.gc();
-                    //     }
-                    // }
+                    // Add memory usage logging every 100 iterations
+                    if (x % 100 == 0) {
+                        long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024;
+                        System.out.println("Memory usage: " + usedMemory + "MB");
+                    }
+                    
+                    PopWorkitem popRequest = new PopWorkitem.Builder("q2").build();
+                    Workitem workitem = client.popWorkitem(Workitem.class, popRequest, "downloads");
+                    
+                    Thread.sleep(1);
+                    
+                    if (workitem != null) {
+                        System.out.println("Updating " + workitem.id + " " + workitem.name);
+                        workitem.state = "successful";
+                        UpdateWorkitem.Builder builder = new UpdateWorkitem.Builder(workitem);
+                        UpdateWorkitem updateRequest = builder.build();
+                        workitem = client.updateWorkitem(Workitem.class, updateRequest);
+                    } else {
+                        if (x % 500 == 0) {
+                            System.out.println("No new workitem " + new java.util.Date());
+                            System.gc();
+                        }
+                    }
                 } catch (Exception e) {
-                    System.out.println("Error: " + e.toString());
+                    System.out.println("Error in task loop: ");
+                    e.printStackTrace(System.out);  // Print full stack trace
+                    try {
+                        Thread.sleep(5000); // Add delay after error
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
             System.out.println("Task canceled.");
