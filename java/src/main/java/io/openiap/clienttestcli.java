@@ -10,7 +10,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class rustsidecli {
+public class clienttestcli {
     private static Client client;
     private static volatile boolean running = true;
     private static Scanner scanner;
@@ -25,8 +25,8 @@ public class rustsidecli {
         scanner = new Scanner(System.in);
         executor = Executors.newSingleThreadExecutor();
         try {
-            client.enableTracing("openiap=trace", "");
-            // client.enableTracing("openiap=info", "");
+            client.enableTracing("openiap=trace", "new");
+            client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
             System.out.println("? for help");
@@ -59,10 +59,16 @@ public class rustsidecli {
                 showHelp();
                 break;
             case "t":
-                rustsidetest.RunAll();
+                clienttestclass.RunAll();
                 break;
             case "q":
                 handleQuery();
+                break;
+            case "r2":
+                handleRPCMessage();
+                break;
+            case "r":
+                handleRegisterQueue();
                 break;
             case "qq":
                 handleQueryAll();
@@ -135,19 +141,61 @@ public class rustsidecli {
 
     private static void handleQuery() {
         try {
-            List<rustsidetest.Entity> results = client.query(new TypeReference<List<rustsidetest.Entity>>() {}.getType(),
+            List<clienttestclass.Entity> results = client.query(new TypeReference<List<clienttestclass.Entity>>() {}.getType(),
                 new QueryParameters.Builder()
                     .collectionname("entities")
                     .query("{\"_type\":\"test\"}")
                     .top(10)
                     .build());
             if (results != null) {
-                for (rustsidetest.Entity item : results) {
+                for (clienttestclass.Entity item : results) {
                     System.out.println("Item: " + item._type + " " + item._id + " " + item.name);
                 }
             }
         } catch (Exception e) {
             System.out.println("Query error: " + e.getMessage());
+        }
+    }
+    private static void handleRPCMessage() {
+        // sparn thread to handle the reply
+        new Thread(() -> {
+            try {
+                var result = client.rpc(
+                    new QueueMessageParameters.Builder()
+                    .queuename("test2queue")
+                    .striptoken(true)
+                    .message("{\"find\":\"Allan\"}")
+                    .build()                
+                );
+                System.out.println("RPC message sent: " + result);
+            } catch (Exception e) {
+                System.out.println("RPCMessage error: " + e.getMessage());
+            }
+        });
+    }
+    private static void handleRegisterQueue() {
+        try {
+            var queuename = client.registerQueueAsync(
+                new RegisterQueueParameters.Builder()
+                    .queuename("test2queue")
+                    .build(),
+                (result) -> {
+                    System.out.println(result.queuename + " got messsage from " + result.replyto + ": " + result.data);
+                    new Thread(() -> {
+                        client.queueMessage(
+                            new QueueMessageParameters.Builder()
+                                .queuename(result.replyto)
+                                .correlation_id(result.correlation_id)
+                                .striptoken(true)
+                                .message("{\"payload\": {\"response\":\"Bettina\"}}")
+                                .build()
+                        );
+                    });
+                }                   
+            );
+            System.out.println("RegisterQueueed queue as: " + queuename);
+        } catch (Exception e) {
+            System.out.println("RegisterQueue error: " + e.getMessage());
         }
     }
 
@@ -179,7 +227,7 @@ public class rustsidecli {
 
     private static void handlePushWorkitem() {
         try {
-            rustsidetest.Entity entity = new rustsidetest.Entity();
+            clienttestclass.Entity entity = new clienttestclass.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
             var result = client.pushWorkitem(new PushWorkitem.Builder("q2")
@@ -200,7 +248,7 @@ public class rustsidecli {
             List<String> files = Arrays.asList("testfile.csv"
             // , "/home/allan/Documents/assistant-linux-x86_64.AppImage"
             );
-            rustsidetest.Entity entity = new rustsidetest.Entity();
+            clienttestclass.Entity entity = new clienttestclass.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
 
@@ -258,10 +306,10 @@ public class rustsidecli {
 
     private static void handleInsertOne() {
         try {
-            rustsidetest.Entity entity = new rustsidetest.Entity();
+            clienttestclass.Entity entity = new clienttestclass.Entity();
             entity.name = "CLI Test";
             entity._type = "test";
-            rustsidetest.Entity result = client.insertOne(rustsidetest.Entity.class,
+            clienttestclass.Entity result = client.insertOne(clienttestclass.Entity.class,
                 new InsertOneParameters.Builder()
                     .collectionname("entities")
                     .itemFromObject(entity)
@@ -275,13 +323,13 @@ public class rustsidecli {
     private static void handleInsertMany() {
         try {
             String jsonItems = "[{\"_type\":\"test\", \"name\":\"cli-many-1\"}, {\"_type\":\"test\", \"name\":\"cli-many-2\"}]";
-            List<rustsidetest.Entity> results = client.insertMany(new TypeReference<List<rustsidetest.Entity>>() {}.getType(),
+            List<clienttestclass.Entity> results = client.insertMany(new TypeReference<List<clienttestclass.Entity>>() {}.getType(),
                 new InsertManyParameters.Builder()
                     .collectionname("entities")
                     .items(jsonItems)
                     .build());
             if (results != null) {
-                for (rustsidetest.Entity entity : results) {
+                for (clienttestclass.Entity entity : results) {
                     System.out.println("Inserted: " + entity._id + " - " + entity.name);
                 }
             }
@@ -381,7 +429,7 @@ public class rustsidecli {
                 try {
                     x++;
                     Thread.sleep(1);
-                    rustsidetest.RunAll();
+                    clienttestclass.RunAll();
                     if (x % 500 == 0) {
                         System.out.println("No new workitem " + new java.util.Date());
                         System.gc();

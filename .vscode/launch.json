@@ -47,7 +47,7 @@
             "type": "java",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "mainClass": "io.openiap.rustsidecli",
+            "mainClass": "io.openiap.clienttestcli",
             "projectName": "client"
         },
         {

@@ -137,6 +137,16 @@ impl  QueueMessageRequest {
             ..Default::default()
         }
     }
+    /// Creates a new `QueueMessageRequest` with the given `queuename`, `correlation_id`, `data` and `striptoken`.
+    pub fn replyto(queuename: &str, correlation_id: &str, data: &str, striptoken: bool) -> Self {
+        Self {
+            queuename: queuename.to_string(),
+            data: data.to_string(),
+            correlation_id: correlation_id.to_string(),
+            striptoken,
+            ..Default::default()
+        }
+    }
     /// Creates a new `QueueMessageRequest` with the given `exchangename`, `data` and `striptoken`.
     pub fn byexchangename(exchangename: &str, data: &str, striptoken: bool) -> Self {
         Self {

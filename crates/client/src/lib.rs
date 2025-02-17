@@ -153,6 +153,8 @@ pub struct ClientStatistics {
     deleteone: u64,
     deletemany: u64,
 }
+type QueueCallbackFn = Box<dyn Fn(&Client, QueueEvent) -> Option<String> + Send + Sync>;
+// type ExchangeCallbackFn = Box<dyn Fn(&Client, QueueEvent) + Send + Sync>;
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
 pub struct ClientInner {
@@ -167,7 +169,7 @@ pub struct ClientInner {
     /// List of active queues ( message queues / mqqt queues or exchanges )
     #[allow(clippy::type_complexity)]
     pub queues:
-        Arc<Mutex<std::collections::HashMap<String, Box<dyn Fn(QueueEvent) + Send + Sync>>>>,
+        Arc<Mutex<std::collections::HashMap<String, QueueCallbackFn>>>,
 }
 /// Client enum, used to determine which client to use.
 #[derive(Clone, Debug)]
@@ -1381,7 +1383,7 @@ impl Client {
             let queueevent: QueueEvent =
                 prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
             if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
-                callback(queueevent);
+                callback(self, queueevent);
             }
         } else if let Some(response_tx) = queries.remove(&rid) {
             let stream = streams.get(rid.as_str());
@@ -2717,7 +2719,7 @@ impl Client {
     pub async fn register_queue(
         &self,
         mut config: RegisterQueueRequest,
-        callback: Box<dyn Fn(QueueEvent) + Send + Sync>,
+        callback: QueueCallbackFn,
     ) -> Result<String, OpenIAPError> {
         if config.queuename.is_empty() {
             config.queuename = "".to_string();
@@ -2783,7 +2785,7 @@ impl Client {
     pub async fn register_exchange(
         &self,
         mut config: RegisterExchangeRequest,
-        callback: Box<dyn Fn(QueueEvent) + Send + Sync>,
+        callback: QueueCallbackFn,
     ) -> Result<String, OpenIAPError> {
         if config.exchangename.is_empty() {
             return Err(OpenIAPError::ClientError(
@@ -2874,9 +2876,10 @@ impl Client {
                 RegisterQueueRequest {
                     queuename: "".to_string(),
                 },
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     let tx = tx.lock().unwrap().take().unwrap();
                     tx.send(event.data).unwrap();
+                    None
                 }),
             )
             .await
@@ -3694,7 +3697,7 @@ impl Client {
                 RegisterQueueRequest {
                     queuename: "".to_string(),
                 },
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     let json = event.data.clone();
                     let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
                     let command: String = obj["command"].as_str().unwrap().to_string();
@@ -3719,6 +3722,7 @@ impl Client {
                         let tx = tx.lock().unwrap().take().unwrap();
                         tx.send(event.data).unwrap();
                     }
+                    None
                 }),
             )
             .await

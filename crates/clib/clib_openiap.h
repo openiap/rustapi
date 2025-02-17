@@ -573,6 +573,12 @@ typedef struct OffClientEventResponseWrapper {
   const char *error;
 } OffClientEventResponseWrapper;
 
+typedef struct RpcResponseWrapper {
+  bool success;
+  const char *result;
+  const char *error;
+} RpcResponseWrapper;
+
 /**
  * Return currentlly signed in user
  */
@@ -901,3 +907,8 @@ void free_off_event_response(struct OffClientEventResponseWrapper *response);
 void free_event_response(struct ClientEventResponseWrapper *response);
 
 void free_client_event(struct ClientEventWrapper *response);
+
+struct RpcResponseWrapper *rpc(struct ClientWrapper *client,
+                               struct QueueMessageRequestWrapper *options);
+
+void free_rpc_response(struct RpcResponseWrapper *response);

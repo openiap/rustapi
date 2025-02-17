@@ -5,9 +5,12 @@ use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 
-use openiap_client::PushWorkitemRequest;
+use openiap_client::{PushWorkitemRequest, QueueMessageRequest};
 #[allow(unused_imports)]
-use openiap_client::{self, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest};
+use openiap_client::{
+    self, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest,
+    RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
+};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -24,7 +27,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 // #[cfg(not(target_env = "msvc"))]
 // #[global_allocator]
 // static GLOBAL: Jemalloc = Jemalloc;
-
 
 /// Reads a line from the keyboard input.
 pub async fn keyboard_input() -> String {
@@ -71,11 +73,14 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         match _event {
             openiap_client::ClientEvent::Connecting => println!("CLI: Client connecting!"),
             openiap_client::ClientEvent::Connected => println!("CLI: Client connected!"),
-            openiap_client::ClientEvent::Disconnected(e) => println!("CLI: Client disconnected! {:?}", e),
+            openiap_client::ClientEvent::Disconnected(e) => {
+                println!("CLI: Client disconnected! {:?}", e)
+            }
             openiap_client::ClientEvent::SignedIn => println!("CLI: Client signed in!"),
             // openiap_client::ClientEvent::SignedOut => println!("CLI: Client signed out!"),
         }
-    })).await;
+    }))
+    .await;
     let res = b.connect_async("").await;
     // let res = b.connect("");
     // let res = Client::new_connect("").await;
@@ -85,7 +90,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             println!("Failed to connect to server: {:?}", e);
             // return Err(e.to_string().into());
             return Ok(());
-        }        
+        }
     };
     // Test disconnect/connect
     // b.disconnect();
@@ -95,7 +100,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     //     Err(e) => {
     //         println!("Failed to connect to server: {:?}", e);
     //         return Ok(());
-    //     }        
+    //     }
     // };
     let user = b.get_user();
     match user {
@@ -142,7 +147,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         //     let prof = profiling::prof_final::read().unwrap();
         //     println!("is final: {}", prof);
         //     let prof_final = profiling::prof_final::read().unwrap();
-        //     println!("dump final memory usage to file: {}", prof_final);           
+        //     println!("dump final memory usage to file: {}", prof_final);
         // }
         if input.eq_ignore_ascii_case("0") {
             disable_tracing();
@@ -159,7 +164,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("4") {
             enable_tracing("trace", "new");
         }
-        if input.eq_ignore_ascii_case("st") { // || input.eq_ignore_ascii_case("bum")
+        if input.eq_ignore_ascii_case("st") {
+            // || input.eq_ignore_ascii_case("bum")
             input = "".to_string();
             let client = b.clone();
             if sthandle.is_some() {
@@ -170,25 +176,35 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 sthandle = Some(
                     // tokio::task::Builder::new().name("NonStop").spawn(async move {
                     tokio::task::spawn(async move {
-                    println!("Task started, begin loop...");
-                    loop  {
-                        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                        tokio::time::sleep(tokio::time::Duration::from_micros(1) ).await;
-                        match client.pop_workitem( PopWorkitemRequest::bywiq("q2"), None).await {
-                            Ok(response) => {
-                                match response.workitem {
+                        println!("Task started, begin loop...");
+                        loop {
+                            // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+                            match client
+                                .pop_workitem(PopWorkitemRequest::bywiq("q2"), None)
+                                .await
+                            {
+                                Ok(response) => match response.workitem {
                                     Some(mut workitem) => {
                                         let name = workitem.name.clone();
                                         let id = workitem.id.clone();
                                         println!("popped workitem {:?} {:?}", id, name);
                                         workitem.state = "successful".to_string();
-                                        match client.update_workitem(UpdateWorkitemRequest {
-                                            workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
-                                        }).await {
+                                        match client
+                                            .update_workitem(UpdateWorkitemRequest {
+                                                workitem: Some(workitem),
+                                                ignoremaxretries: false,
+                                                ..Default::default()
+                                            })
+                                            .await
+                                        {
                                             Ok(_response) => {
                                                 x = x + 1;
                                                 if x % 500 == 0 {
-                                                    println!("Updated workitem {:?} {:?}", id, name);
+                                                    println!(
+                                                        "Updated workitem {:?} {:?}",
+                                                        id, name
+                                                    );
                                                 }
                                             }
                                             Err(e) => {
@@ -200,24 +216,27 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                         };
                                     }
                                     None => {
-                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+                                        let a = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap()
+                                            .as_secs();
                                         x = x + 1;
                                         if x % 500 == 0 {
                                             println!("No workitem popped {:?}", a);
                                         }
-
                                     }
+                                },
+                                Err(e) => {
+                                    println!("Failed to pop workitem: {:?}", e);
                                 }
                             }
-                            Err(e) => {
-                                println!("Failed to pop workitem: {:?}", e);
-                            }
                         }
-                    };
-                }));
+                    }),
+                );
             }
         }
-        if input.eq_ignore_ascii_case("st2") { // || input.eq_ignore_ascii_case("bum")
+        if input.eq_ignore_ascii_case("st2") {
+            // || input.eq_ignore_ascii_case("bum")
             input = "".to_string();
             let client = b.clone();
             if sthandle.is_some() {
@@ -228,74 +247,97 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 sthandle = Some(
                     // tokio::task::Builder::new().name("NonStop").spawn(async move {
                     tokio::task::spawn(async move {
-                    println!("Task started, begin loop...");
-                    loop  {
-                        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                        tokio::time::sleep(tokio::time::Duration::from_micros(1) ).await;
-                        match client.push_workitem(PushWorkitemRequest { 
-                            wiq: "rustqueue".to_string(),
-                            name: "test".to_string(),
-                            payload: "{}".to_string(),
-                            ..Default::default()                            
-                        }).await {
-                            Ok(response) => {
-                                match  response.workitem {
-                                    Some(_workitem) => {
-                                        // let name = _workitem.name.clone();
-                                        // let id = _workitem.id.clone();
-                                        // println!("pushed workitem {:?} {:?}", id, name);
-                                    }
-                                    None => {
-                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-                                        println!("No workitem pushed {:?}", a);
-                                    }
-                                };
-                            }
-                            Err(e) => {
-                                println!("Failed to push workitem: {:?}", e);
-                            }
-                        }
-                        match client.pop_workitem( PopWorkitemRequest::bywiq("rustqueue"), None).await {
-                            Ok(response) => {
-                                match response.workitem {
-                                    Some(mut workitem) => {
-                                        let name = workitem.name.clone();
-                                        let id = workitem.id.clone();
-                                        // println!("popped workitem {:?} {:?}", id, name);
-                                        workitem.state = "successful".to_string();
-                                        match client.update_workitem(UpdateWorkitemRequest {
-                                            workitem: Some(workitem), ignoremaxretries: false, ..Default::default()
-                                        }).await {
-                                            Ok(_response) => {
-                                                x = x + 1;
-                                                if x % 500 == 0 {
-                                                    println!("Updated workitem {:?} {:?}", id, name);
-                                                }
-                                            }
-                                            Err(e) => {
-                                                x = x + 1;
-                                                if x % 500 == 0 {
-                                                    println!("Failed to update workitem: {:?}", e);
-                                                }
-                                            }
-                                        };
-                                    }
-                                    None => {
-                                        let a = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-                                        x = x + 1;
-                                        if x % 500 == 0 {
-                                            println!("No workitem popped {:?}", a);
+                        println!("Task started, begin loop...");
+                        loop {
+                            // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+                            match client
+                                .push_workitem(PushWorkitemRequest {
+                                    wiq: "rustqueue".to_string(),
+                                    name: "test".to_string(),
+                                    payload: "{}".to_string(),
+                                    ..Default::default()
+                                })
+                                .await
+                            {
+                                Ok(response) => {
+                                    match response.workitem {
+                                        Some(_workitem) => {
+                                            // let name = _workitem.name.clone();
+                                            // let id = _workitem.id.clone();
+                                            // println!("pushed workitem {:?} {:?}", id, name);
                                         }
-
-                                    }
+                                        None => {
+                                            let a = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .unwrap()
+                                                .as_secs();
+                                            println!("No workitem pushed {:?}", a);
+                                        }
+                                    };
+                                }
+                                Err(e) => {
+                                    println!("Failed to push workitem: {:?}", e);
                                 }
                             }
-                            Err(e) => {
-                                println!("Failed to pop workitem: {:?}", e);
+                            match client
+                                .pop_workitem(PopWorkitemRequest::bywiq("rustqueue"), None)
+                                .await
+                            {
+                                Ok(response) => {
+                                    match response.workitem {
+                                        Some(mut workitem) => {
+                                            let name = workitem.name.clone();
+                                            let id = workitem.id.clone();
+                                            // println!("popped workitem {:?} {:?}", id, name);
+                                            workitem.state = "successful".to_string();
+                                            match client
+                                                .update_workitem(UpdateWorkitemRequest {
+                                                    workitem: Some(workitem),
+                                                    ignoremaxretries: false,
+                                                    ..Default::default()
+                                                })
+                                                .await
+                                            {
+                                                Ok(_response) => {
+                                                    x = x + 1;
+                                                    if x % 500 == 0 {
+                                                        println!(
+                                                            "Updated workitem {:?} {:?}",
+                                                            id, name
+                                                        );
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    x = x + 1;
+                                                    if x % 500 == 0 {
+                                                        println!(
+                                                            "Failed to update workitem: {:?}",
+                                                            e
+                                                        );
+                                                    }
+                                                }
+                                            };
+                                        }
+                                        None => {
+                                            let a = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .unwrap()
+                                                .as_secs();
+                                            x = x + 1;
+                                            if x % 500 == 0 {
+                                                println!("No workitem popped {:?}", a);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("Failed to pop workitem: {:?}", e);
+                                }
                             }
                         }
-                    };
-                }));
+                    }),
+                );
             }
         }
         if input.eq_ignore_ascii_case("dis") {
@@ -314,7 +356,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     // for thread in threads {
                     //     results.extend(thread.join());
                     // }
-                    
                 }
             });
         }
@@ -351,7 +392,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("di") {
             let client = b.clone();
             // tokio::task::Builder::new().name("distinct").spawn(async move {
-                tokio::task::spawn(async move {
+            tokio::task::spawn(async move {
                 let query = DistinctRequest {
                     collectionname: "entities".to_string(),
                     field: "_type".to_string(),
@@ -367,7 +408,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("s") || input.eq_ignore_ascii_case("s1") {
             let client = b.clone();
             // tokio::task::Builder::new().name("guest signin").spawn(async move {
-                tokio::task::spawn(async move {
+            tokio::task::spawn(async move {
                 let s = client
                     .signin(SigninRequest::with_userpass("guest", "password"))
                     .await;
@@ -511,14 +552,13 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     let new_watchid = s.unwrap();
                     println!("Watch created with id {}", new_watchid);
                     let watchid = watchid_clone.lock();
-                    match  watchid {
+                    match watchid {
                         Ok(mut watchid) => {
                             *watchid = new_watchid.to_string();
                         }
                         Err(e) => {
                             println!("Failed to lock watchid: {:?}", e);
                         }
-                        
                     }
                 }
             });
@@ -548,6 +588,22 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        if input.eq_ignore_ascii_case("r2") {
+            let client = b.clone();
+            tokio::task::spawn(async move {
+                let result = client
+                    .rpc(QueueMessageRequest::byqueuename(
+                        "test2queue",
+                        "{\"name\":\"Allan\"}",
+                        true,
+                    ))
+                    .await;
+                match result {
+                    Ok(response) => println!("Received RPC response {:?}", response),
+                    Err(e) => println!("Failed to send RPC message: {:?}", e),
+                }
+            });
+        }
         if input.eq_ignore_ascii_case("r") {
             let client = b.clone();
             // tokio::task::Builder::new().name("registerqueue").spawn(async move {
@@ -555,11 +611,30 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
-                        Box::new(|event| {
+                        Box::new(|client, event| {
                             println!(
                                 "Received message queue from {:?} with reply to {:?}: {:?}",
                                 event.queuename, event.replyto, event.data
                             );
+                            let replyto = event.replyto.clone();
+                            let correlation_id = event.correlation_id.clone();
+                            let client = client.clone(); // This requires `client` to implement Clone.
+
+                            tokio::spawn(async move {
+                                let result = client
+                                    .queue_message(openiap_client::QueueMessageRequest::replyto(
+                                        &replyto,
+                                        &correlation_id,
+                                        "{\"replyname\":\"Bettina\"}",
+                                        true,
+                                    ))
+                                    .await;
+                                match result {
+                                    Ok(_response) => (),
+                                    Err(e) => println!("Failed to queue message: {:?}", e),
+                                }
+                            });
+                            None
                         }),
                     )
                     .await;
@@ -577,7 +652,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     .queue_message(openiap_client::QueueMessageRequest::byqueuename(
                         "test2queue",
                         "{\"name\":\"Allan\"}",
-                        true
+                        true,
                     ))
                     .await;
                 match q {
@@ -600,7 +675,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         .queue_message(openiap_client::QueueMessageRequest::byqueuename(
                             "test2queue",
                             format!("{{\"name\":\"Allan {}\"}}", count).as_str(),
-                            true
+                            true,
                         ))
                         .await;
                     match q {
@@ -613,7 +688,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     if count >= 20 {
                         break;
                     }
-                } 
+                }
             });
         }
         if input.eq_ignore_ascii_case("re") {
@@ -623,11 +698,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q = client
                     .register_exchange(
                         RegisterExchangeRequest::byexchangename("test2exchange"),
-                        Box::new(|event| {
+                        Box::new(|_client, event| {
                             println!(
                                 "Received exchange message to queue  {:?} with reply to {:?}: {:?}",
                                 event.queuename, event.replyto, event.data
                             );
+                            None
                         }),
                     )
                     .await;
@@ -645,7 +721,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     .queue_message(openiap_client::QueueMessageRequest::byexchangename(
                         "test2exchange",
                         "{\"name\":\"Allan\"}",
-                        true
+                        true,
                     ))
                     .await;
                 match q {
@@ -657,7 +733,6 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         }
-
 
         input = keyboard_input().await;
     }

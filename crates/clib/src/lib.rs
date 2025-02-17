@@ -4686,7 +4686,7 @@ pub extern "C" fn register_queue(
         client
             .register_queue(
                 request,
-                Box::new(move |event: QueueEvent| {
+                Box::new(move |_client, event: QueueEvent| {
                     trace!("queue: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
@@ -4704,6 +4704,7 @@ pub extern "C" fn register_queue(
                             e.insert(queuename, q);
                         }
                     }
+                    None
                 }),
             )
         )
@@ -4800,7 +4801,7 @@ pub extern "C" fn register_queue_async(
         client
             .register_queue(
                 request,
-                Box::new(move |event: QueueEvent| {
+                Box::new(move |_client, event: QueueEvent| {
                     debug!("register_queue_async: spawn new task, to call event_callback");
                     trace!("register_queue_async: call event_callback");
                     let queuename = CString::new(event.queuename).unwrap().into_raw();
@@ -4819,6 +4820,7 @@ pub extern "C" fn register_queue_async(
                         request_id
                     });
                     event_callback(Box::into_raw(event));
+                    None
                 }),
             )
         )
@@ -4941,7 +4943,7 @@ pub extern "C" fn register_exchange (
             handle.block_on(
         client
             .register_exchange(request,
-                Box::new(move |event: QueueEvent| {
+                Box::new(move |_client, event: QueueEvent| {
                     trace!("exchange: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
@@ -4959,6 +4961,7 @@ pub extern "C" fn register_exchange (
                             e.insert(queuename, q);
                         }
                     }
+                    None
                 }),
             
             )
@@ -5050,7 +5053,7 @@ pub extern "C" fn register_exchange_async(
             handle.block_on(
         client
             .register_exchange(request,
-                Box::new(move |event: QueueEvent| {
+                Box::new(move |_client, event: QueueEvent| {
                     debug!("register_exchange_async: spawn new task, to call event_callback");
                     trace!("register_exchange_async: call event_callback");
                     let queuename = CString::new(event.queuename).unwrap().into_raw();
@@ -5069,6 +5072,7 @@ pub extern "C" fn register_exchange_async(
                         request_id
                     });
                     event_callback(Box::into_raw(event));
+                    None
                 }),
 
             )
@@ -7002,4 +7006,216 @@ pub extern "C" fn free_client_event(response: *mut ClientEventWrapper) {
         }
         let _ = Box::from_raw(response);
     }        
+}
+#[repr(C)]
+pub struct RpcResponseWrapper {
+    success: bool,
+    result: *const c_char,
+    error: *const c_char
+}
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn rpc(
+    client: *mut ClientWrapper,
+    options: *mut QueueMessageRequestWrapper,
+) -> *mut RpcResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client = client_wrapper.client.clone();
+
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = RpcResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client.unwrap();
+    
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        let request = QueueMessageRequest {
+            queuename: c_char_to_str(options.queuename),
+            correlation_id: c_char_to_str(options.correlation_id),
+            replyto: c_char_to_str(options.replyto),
+            routingkey: c_char_to_str(options.routingkey),
+            exchangename: c_char_to_str(options.exchangename),
+            data: c_char_to_str(options.data),
+            striptoken: options.striptoken,
+            expiration: options.expiration,
+        };
+    
+        handle.block_on(client.rpc(request))
+    });
+
+    match result {
+        Ok(data) => {
+            let result = CString::new(data).unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: true,
+                result,
+                error: std::ptr::null()
+            };
+            Box::into_raw(Box::new(response))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("RPC failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            // let error_msg = CString::new(format!("RPC failed: {:?}", e))
+            //     .into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg
+            };
+            Box::into_raw(Box::new(response))
+        }
+    }
+}
+
+
+// #[tracing::instrument(skip_all)]
+// #[no_mangle]
+// pub extern "C" fn rpc(
+//     client: *mut ClientWrapper,
+//     options: *mut QueueMessageRequestWrapper,
+// ) -> *mut RpcResponseWrapper {
+//     // Validate input...
+//     let options = match safe_wrapper(options) {
+//         Some(options) => options,
+//         None => {
+//             let error_msg = CString::new("Invalid options").unwrap().into_raw();
+//             let response = RpcResponseWrapper {
+//                 success: false,
+//                 result: std::ptr::null(),
+//                 error: error_msg,
+//             };
+//             return Box::into_raw(Box::new(response));
+//         }
+//     };
+//     let client_wrapper = match safe_wrapper(client) {
+//         Some(client) => client,
+//         None => {
+//             let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+//             let response = RpcResponseWrapper {
+//                 success: false,
+//                 result: std::ptr::null(),
+//                 error: error_msg,
+//             };
+//             return Box::into_raw(Box::new(response));
+//         }
+//     };
+//     let client = client_wrapper.client.clone();
+//     if client.is_none() {
+//         let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+//         let response = RpcResponseWrapper {
+//             success: false,
+//             result: std::ptr::null(),
+//             error: error_msg,
+//         };
+//         return Box::into_raw(Box::new(response));
+//     }
+//     let client = client.unwrap();
+
+//     // Create owned request values so they're Send
+//     let request = QueueMessageRequest {
+//         queuename: c_char_to_str(options.queuename),
+//         correlation_id: c_char_to_str(options.correlation_id),
+//         replyto: c_char_to_str(options.replyto),
+//         routingkey: c_char_to_str(options.routingkey),
+//         exchangename: c_char_to_str(options.exchangename),
+//         data: c_char_to_str(options.data),
+//         striptoken: options.striptoken,
+//         expiration: options.expiration,
+//     };
+
+//     // Create a new thread to run the async code
+//     let handle = std::thread::spawn(move || {
+//         // Create a new runtime in this thread.
+//         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+//         // Run the async call inside the runtime
+//         rt.block_on(client.rpc(request))
+//     });
+
+//     // Wait for the thread to complete (this blocks the current thread)
+//     let result = match handle.join() {
+//         Ok(result) => result,
+//         Err(e) => {
+//             let error_msg = CString::new(format!("Thread panicked: {:?}", e))
+//                 .unwrap()
+//                 .into_raw();
+//             let response = RpcResponseWrapper {
+//                 success: false,
+//                 result: std::ptr::null(),
+//                 error: error_msg,
+//             };
+//             return Box::into_raw(Box::new(response));
+//         }
+//     };
+
+//     match result {
+//         Ok(data) => {
+//             let result = CString::new(data).unwrap().into_raw();
+//             let response = RpcResponseWrapper {
+//                 success: true,
+//                 result,
+//                 error: std::ptr::null(),
+//             };
+//             Box::into_raw(Box::new(response))
+//         }
+//         Err(e) => {
+//             let error_msg = CString::new(format!("RPC failed: {:?}", e))
+//                 .unwrap()
+//                 .into_raw();
+//             let response = RpcResponseWrapper {
+//                 success: false,
+//                 result: std::ptr::null(),
+//                 error: error_msg,
+//             };
+//             Box::into_raw(Box::new(response))
+//         }
+//     }
+// }
+
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_rpc_response(response: *mut RpcResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
 }

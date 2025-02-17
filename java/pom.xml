@@ -82,7 +82,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>io.openiap.rustsidecli</mainClass>
+                            <mainClass>io.openiap.clienttestcli</mainClass>
                             <addClasspath>true</addClasspath>
                         </manifest>
                     </archive>
@@ -98,7 +98,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>io.openiap.rustsidecli</mainClass>
+                            <mainClass>io.openiap.clienttestcli</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

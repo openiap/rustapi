@@ -93,6 +93,8 @@ interface CLib extends Library {
     void free_update_workitem_response(Pointer response);
     Pointer delete_workitem(Pointer client, DeleteWorkitem options);
     void free_delete_workitem_response(Pointer response);
+    Pointer rpc(Pointer client, QueueMessageParameters options);
+    void free_rpc_response(Pointer response);
 }
 
 public class Client {
@@ -1066,6 +1068,25 @@ public class Client {
             return response.getSuccess();
         } finally {
             clibInstance.free_off_event_response(responsePtr);
+        }
+    }
+    public String rpc(QueueMessageParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.rpc(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("Rpc returned null response");
+        }
+        RpcResponseWrapper.Response response = new RpcResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.result;
+        } finally {
+            clibInstance.free_rpc_response(responsePtr);
         }
     }
 

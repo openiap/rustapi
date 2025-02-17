@@ -686,11 +686,12 @@ mod tests {
         let response: std::result::Result<String, OpenIAPError> = client
             .register_queue(RegisterQueueRequest::byqueuename("secrettestqueue"), {
                 let tx = Arc::clone(&tx);
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     println!("Queue event: {:?}", event);
                     if let Some(tx) = tx.lock().unwrap().take() {
                         let _ = tx.send(());
                     }
+                    None
                 })
             })
             .await;
