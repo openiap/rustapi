@@ -5,11 +5,49 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Rust: debug binary",
+            "type": "lldb",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=openiap",
+                    "--package=openiap"
+                ],
+                "filter": {
+                    "name": "openiap",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Rust: attach",
+            "type": "lldb",
+            "request": "attach",
+            "pid": "${command:pickMyProcess}"
+        },
+        {
+            "name": "C#: debug Program",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": {
+                "task": "build",
+                "type": "dotnet"
+            },
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}/dotnet",
+            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll"
+        },
+        {
             "name": "Java: run cli.java",
             "type": "java",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "mainClass": "io.openiap.cli",
+            "mainClass": "io.openiap.rustsidecli",
             "projectName": "client"
         },
         {
@@ -57,19 +95,6 @@
             "program": "${workspaceFolder}/node/cli.js"
         },
         {
-            "name": "C#: debug Program",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": {
-                "task": "build",
-                "type": "dotnet"
-            },
-            "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/.env",
-            "cwd": "${workspaceFolder}/dotnet",
-            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll"
-        },
-        {
             "name": "PHP: debug test.php",
             "type": "php",
             "request": "launch",
@@ -101,30 +126,5 @@
                 "XDEBUG_CONFIG": "client_port=${port}"
             }
         },
-        {
-            "name": "Rust: debug binary",
-            "type": "lldb",
-            "request": "launch",
-            "envFile": "${workspaceFolder}/.env",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=openiap",
-                    "--package=openiap"
-                ],
-                "filter": {
-                    "name": "openiap",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "name": "Rust: attach",
-            "type": "lldb",
-            "request": "attach",
-            "pid": "${command:pickMyProcess}"
-        }
     ]
 }
