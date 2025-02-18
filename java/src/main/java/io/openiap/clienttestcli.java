@@ -18,6 +18,7 @@ public class clienttestcli {
     private static Future<?> runningTask;
     private static AtomicBoolean taskRunning = new AtomicBoolean(false);
     private static ExecutorService replyExecutor;
+    private static int messagequeuecounter = 0;
 
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
@@ -205,7 +206,8 @@ public class clienttestcli {
                     .queuename("test2queue")
                     .build(),
                 (result) -> {
-                    System.out.println("Received message on queue: " + result.queuename +
+                    messagequeuecounter++;
+                    System.out.println("Received message " + messagequeuecounter + " on queue: " + result.queuename +
                                        ", from: " + result.replyto +
                                        ", data: " + result.data);
                     String replyToQueue = result.replyto;
@@ -214,9 +216,9 @@ public class clienttestcli {
 
                     replyExecutor.submit(() -> {
                         try {
-                            System.out.println("Sending reply to queue: " + replyToQueue +
-                                               ", correlationId: " + correlationId +
-                                               ", message: " + responseMessage);
+                            // System.out.println("Sending reply to queue: " + replyToQueue +
+                            //                    ", correlationId: " + correlationId +
+                            //                    ", message: " + responseMessage);
                             client.queueMessage(
                                 new QueueMessageParameters.Builder()
                                     .queuename(replyToQueue)
@@ -225,7 +227,6 @@ public class clienttestcli {
                                     .message(responseMessage)
                                     .build()
                             );
-                            System.out.println("Reply sent successfully.");
                         } catch (Exception e) {
                             System.err.println("Error sending reply: " + e.getMessage());
                             e.printStackTrace(); // Log the full stack trace
