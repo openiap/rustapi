@@ -579,6 +579,8 @@ typedef struct RpcResponseWrapper {
   const char *error;
 } RpcResponseWrapper;
 
+typedef void (*RpcResponseCallback)(struct RpcResponseWrapper*);
+
 /**
  * Return currentlly signed in user
  */
@@ -910,5 +912,9 @@ void free_client_event(struct ClientEventWrapper *response);
 
 struct RpcResponseWrapper *rpc(struct ClientWrapper *client,
                                struct QueueMessageRequestWrapper *options);
+
+void rpc_async(struct ClientWrapper *client,
+               struct QueueMessageRequestWrapper *options,
+               RpcResponseCallback response_callback);
 
 void free_rpc_response(struct RpcResponseWrapper *response);

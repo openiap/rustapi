@@ -1,6 +1,7 @@
 package io.openiap;
 
 import com.sun.jna.Pointer;
+
 import com.sun.jna.Native;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Type;
@@ -95,6 +96,7 @@ interface CLib extends Library {
     void free_delete_workitem_response(Pointer response);
     Pointer rpc(Pointer client, QueueMessageParameters options);
     void free_rpc_response(Pointer response);
+    void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback);
 }
 
 public class Client {
@@ -1088,6 +1090,48 @@ public class Client {
         } finally {
             clibInstance.free_rpc_response(responsePtr);
         }
+    }
+
+    public String rpcAsync(QueueMessageParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+
+        final String[] resultHolder = new String[1];
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] exceptionHolder = new Exception[1];
+
+        RpcResponseWrapper.RpcResponseCallback nativeResponseCallback = new RpcResponseWrapper.RpcResponseCallback() {
+            @Override
+            public void invoke(Pointer responsePtr) {
+                RpcResponseWrapper.Response response = new RpcResponseWrapper.Response(responsePtr);
+                try {
+                    if (!response.getSuccess()) {
+                        exceptionHolder[0] = new RuntimeException(response.error);
+                    } else {
+                        resultHolder[0] = response.result;
+                    }
+                } finally {
+                    CLib.INSTANCE.free_rpc_response(responsePtr);
+                    latch.countDown();
+                }
+            }
+        };
+
+        clibInstance.rpc_async(clientPtr, options, nativeResponseCallback);
+
+        try {
+            latch.await(10, TimeUnit.SECONDS); // Wait for the result or timeout
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("RPC call interrupted", e);
+        }
+
+        if (exceptionHolder[0] != null) {
+            throw new RuntimeException("RPC call failed", exceptionHolder[0]);
+        }
+
+        return resultHolder[0];
     }
 
     @SuppressWarnings("removal")

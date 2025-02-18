@@ -7013,7 +7013,6 @@ pub struct RpcResponseWrapper {
     result: *const c_char,
     error: *const c_char
 }
-
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn rpc(
@@ -7098,7 +7097,105 @@ pub extern "C" fn rpc(
         }
     }
 }
+pub type RpcResponseCallback = extern "C" fn(*mut RpcResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn rpc_async(
+    client: *mut ClientWrapper,
+    options: *mut QueueMessageRequestWrapper,
+    response_callback: RpcResponseCallback,
+) {
+    // Validate the options pointer
+    let options = match safe_wrapper(options) {
+        Some(o) => o,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+            };
+            response_callback(Box::into_raw(Box::new(response)));
+            return;
+        }
+    };
 
+    // Validate the client pointer
+    let client_wrapper = match safe_wrapper(client) {
+        Some(c) => c,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+            };
+            response_callback(Box::into_raw(Box::new(response)));
+            return;
+        }
+    };
+
+    // Ensure that the client is actually connected.
+    let client = match client_wrapper.client.clone() {
+        Some(c) => c,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = RpcResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+            };
+            response_callback(Box::into_raw(Box::new(response)));
+            return;
+        }
+    };
+
+    // Build the QueueMessageRequest from the provided options.
+    let request = QueueMessageRequest {
+        queuename: c_char_to_str(options.queuename),
+        correlation_id: c_char_to_str(options.correlation_id),
+        replyto: c_char_to_str(options.replyto),
+        routingkey: c_char_to_str(options.routingkey),
+        exchangename: c_char_to_str(options.exchangename),
+        data: c_char_to_str(options.data),
+        striptoken: options.striptoken,
+        expiration: options.expiration,
+    };
+
+    // Get the runtime handle from the client.
+    let runtime_handle = client.get_runtime_handle();
+
+    // Spawn an asynchronous task using the runtime.
+    runtime_handle.spawn(async move {
+        // Await the RPC call.
+        let result = client.rpc(request).await;
+
+        // Build the response wrapper.
+        let response = match result {
+            Ok(data) => {
+                let result_c = CString::new(data).unwrap().into_raw();
+                RpcResponseWrapper {
+                    success: true,
+                    result: result_c,
+                    error: std::ptr::null(),
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("RPC failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                RpcResponseWrapper {
+                    success: false,
+                    result: std::ptr::null(),
+                    error: error_msg,
+                }
+            }
+        };
+
+        // Call the provided callback with the result.
+        response_callback(Box::into_raw(Box::new(response)));
+    });
+}
 
 // #[tracing::instrument(skip_all)]
 // #[no_mangle]

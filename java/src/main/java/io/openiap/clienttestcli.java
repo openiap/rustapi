@@ -67,6 +67,9 @@ public class clienttestcli {
             case "r2":
                 handleRPCMessage();
                 break;
+            case "r3":
+                handleRPCASyncMessage();
+                break;
             case "r":
                 handleRegisterQueue();
                 break;
@@ -173,6 +176,23 @@ public class clienttestcli {
             }
         });
     }
+    private static void handleRPCASyncMessage() {
+        // sparn thread to handle the reply
+        new Thread(() -> {
+            try {
+                var result = client.rpcAsync(
+                    new QueueMessageParameters.Builder()
+                    .queuename("test2queue")
+                    .striptoken(true)
+                    .message("{\"find\":\"Allan\"}")
+                    .build()
+                );
+                System.out.println("RPC message sent: " + result);
+            } catch (Exception e) {
+                System.out.println("RPCMessage error: " + e.getMessage());
+            }
+        }).start();
+    }
     private static void handleRegisterQueue() {
         try {
             var queuename = client.registerQueueAsync(
@@ -181,16 +201,16 @@ public class clienttestcli {
                     .build(),
                 (result) -> {
                     System.out.println(result.queuename + " got messsage from " + result.replyto + ": " + result.data);
-                    new Thread(() -> {
-                        client.queueMessage(
-                            new QueueMessageParameters.Builder()
-                                .queuename(result.replyto)
-                                .correlation_id(result.correlation_id)
-                                .striptoken(true)
-                                .message("{\"payload\": {\"response\":\"Bettina\"}}")
-                                .build()
-                        );
-                    });
+                    // new Thread(() -> {
+                    //     client.queueMessage(
+                    //         new QueueMessageParameters.Builder()
+                    //             .queuename(result.replyto)
+                    //             .correlation_id(result.correlation_id)
+                    //             .striptoken(true)
+                    //             .message("{\"payload\": {\"response\":\"Bettina\"}}")
+                    //             .build()
+                    //     );
+                    // });
                 }                   
             );
             System.out.println("RegisterQueueed queue as: " + queuename);
