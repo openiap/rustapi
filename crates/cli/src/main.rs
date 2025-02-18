@@ -608,7 +608,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             let client = b.clone();
             // tokio::task::Builder::new().name("registerqueue").spawn(async move {
             tokio::task::spawn(async move {
-                let q = client
+                let q: Result<String, openiap_client::OpenIAPError> = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
                         Box::new(|client, event| {
@@ -625,7 +625,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                     .queue_message(openiap_client::QueueMessageRequest::replyto(
                                         &replyto,
                                         &correlation_id,
-                                        "{\"replyname\":\"Bettina\"}",
+                                        "{\"payload\":\"Bettina\"}",
                                         true,
                                     ))
                                     .await;
