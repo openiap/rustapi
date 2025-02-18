@@ -9,6 +9,8 @@ const { memoryUsage } = require('node:process');
 // import { runInNewContext } from 'vm';
 
 
+const client = new Client();
+
 // Reads a line from the keyboard input.
 function keyboardInput() {
     return new Promise((resolve) => {
@@ -30,9 +32,14 @@ function onwatch(event) {
 }
 
 // Queue event handler
-function onqueue(event) {
+async function onqueue(event) {
     const { queuename, correlation_id, replyto, routingkey, exchangename, data } = event;
     console.log(`Received message from ${queuename}: `, data);
+    await client.queue_message({
+        queuename: replyto,
+        correlation_id,
+        data: '{"message":"Test Reply"}'
+    });
 }
 
 // Do some calculation to generate CPU load
@@ -63,7 +70,6 @@ async function doit() {
     const iterPerCore = Math.floor(numCalcs / availableCores);
     const numIters = 5000;
 
-    const client = new Client();
 
     try {
         await client.connect('');
@@ -77,9 +83,6 @@ async function doit() {
 
     console.log('? for help');
     let input = await keyboardInput();
-    // client.enable_tracing("openiap=trace", "new");
-    // client.enable_tracing("openiap=debug", "new");
-    client.enable_tracing("openiap=info", "");
 
     let do_st_func = false;
     let st_func = async () => {
