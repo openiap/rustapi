@@ -17,6 +17,7 @@ public class clienttestcli {
     private static ExecutorService executor;
     private static Future<?> runningTask;
     private static AtomicBoolean taskRunning = new AtomicBoolean(false);
+    private static ExecutorService replyExecutor;
 
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
@@ -24,6 +25,7 @@ public class clienttestcli {
         client = new Client(libpath);
         scanner = new Scanner(System.in);
         executor = Executors.newSingleThreadExecutor();
+        replyExecutor = Executors.newFixedThreadPool(4); // Adjust pool size as needed
         try {
             client.enableTracing("openiap=trace", "new");
             client.enableTracing("openiap=info", "");
@@ -49,6 +51,9 @@ public class clienttestcli {
             }
             if (scanner != null) {
                 scanner.close();
+            }
+            if (replyExecutor != null) {
+                replyExecutor.shutdown();
             }
         }
     }
@@ -200,20 +205,35 @@ public class clienttestcli {
                     .queuename("test2queue")
                     .build(),
                 (result) -> {
-                    System.out.println(result.queuename + " got messsage from " + result.replyto + ": " + result.data);
-                    // new Thread(() -> {
-                    //     client.queueMessage(
-                    //         new QueueMessageParameters.Builder()
-                    //             .queuename(result.replyto)
-                    //             .correlation_id(result.correlation_id)
-                    //             .striptoken(true)
-                    //             .message("{\"payload\": {\"response\":\"Bettina\"}}")
-                    //             .build()
-                    //     );
-                    // });
-                }                   
+                    System.out.println("Received message on queue: " + result.queuename +
+                                       ", from: " + result.replyto +
+                                       ", data: " + result.data);
+                    String replyToQueue = result.replyto;
+                    String correlationId = result.correlation_id;
+                    String responseMessage = "{\"payload\": {\"response\":\"Bettina\"}}";
+
+                    replyExecutor.submit(() -> {
+                        try {
+                            System.out.println("Sending reply to queue: " + replyToQueue +
+                                               ", correlationId: " + correlationId +
+                                               ", message: " + responseMessage);
+                            client.queueMessage(
+                                new QueueMessageParameters.Builder()
+                                    .queuename(replyToQueue)
+                                    .correlation_id(correlationId)
+                                    .striptoken(true)
+                                    .message(responseMessage)
+                                    .build()
+                            );
+                            System.out.println("Reply sent successfully.");
+                        } catch (Exception e) {
+                            System.err.println("Error sending reply: " + e.getMessage());
+                            e.printStackTrace(); // Log the full stack trace
+                        }
+                    });
+                }
             );
-            System.out.println("RegisterQueueed queue as: " + queuename);
+            System.out.println("Registered queue as: " + queuename);
         } catch (Exception e) {
             System.out.println("RegisterQueue error: " + e.getMessage());
         }
