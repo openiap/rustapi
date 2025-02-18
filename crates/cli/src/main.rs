@@ -611,30 +611,30 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q: Result<String, openiap_client::OpenIAPError> = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
-                        Box::new(|client, event| {
+                        Box::new(|_client, event| {
                             println!(
                                 "Received message queue from {:?} with reply to {:?}: {:?}",
                                 event.queuename, event.replyto, event.data
                             );
-                            let replyto = event.replyto.clone();
-                            let correlation_id = event.correlation_id.clone();
-                            let client = client.clone(); // This requires `client` to implement Clone.
-
-                            tokio::spawn(async move {
-                                let result = client
-                                    .queue_message(openiap_client::QueueMessageRequest::replyto(
-                                        &replyto,
-                                        &correlation_id,
-                                        "{\"payload\":\"Bettina\"}",
-                                        true,
-                                    ))
-                                    .await;
-                                match result {
-                                    Ok(_response) => (),
-                                    Err(e) => println!("Failed to queue message: {:?}", e),
-                                }
-                            });
-                            None
+                            // let replyto = event.replyto.clone();
+                            // let correlation_id = event.correlation_id.clone();
+                            // let client = _client.clone(); // This requires `client` to implement Clone.
+                            // tokio::spawn(async move {
+                            //     let result = client
+                            //         .queue_message(openiap_client::QueueMessageRequest::replyto(
+                            //             &replyto,
+                            //             &correlation_id,
+                            //             "{\"payload\":\"Bettina\"}",
+                            //             true,
+                            //         ))
+                            //         .await;
+                            //     match result {
+                            //         Ok(_response) => (),
+                            //         Err(e) => println!("Failed to queue message: {:?}", e),
+                            //     }
+                            // });
+                            // None
+                            Some("{\"payload\":\"Bettina\"}".to_string())
                         }),
                     )
                     .await;

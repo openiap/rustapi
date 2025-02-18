@@ -737,11 +737,12 @@ mod tests {
         let response = client
             .register_exchange(RegisterExchangeRequest::byexchangename(exchangename), {
                 let tx = Arc::clone(&tx);
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     println!("Queue event: {:?}", event);
                     if let Some(tx) = tx.lock().unwrap().take() {
                         let _ = tx.send(());
                     }
+                    None
                 })
             })
             .await;
@@ -1516,7 +1517,7 @@ mod tests {
         let pingserver = client
             .register_queue(RegisterQueueRequest::byqueuename("pingserver"), {
                 let client = client.clone(); // Clone the Arc to move into the closure
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     let client = client.clone(); // Clone here to move it into the spawn block
                     tokio::task::spawn(async move {
                         client
@@ -1529,6 +1530,7 @@ mod tests {
                             .await
                             .unwrap();
                     });
+                    None
                 })
             })
             .await
@@ -1576,11 +1578,12 @@ mod tests {
         let workflow_consumer = client
             .register_queue(RegisterQueueRequest::byqueuename("workflow_consumer"), {
                 let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
-                Box::new(move |event| {
+                Box::new(move |_client, event| {
                     println!("Workflow event: {:?}", event);
                     if let Some(tx) = tx.lock().unwrap().take() {
                         let _ = tx.send(());
                     }
+                    None
                 })
             })
             .await

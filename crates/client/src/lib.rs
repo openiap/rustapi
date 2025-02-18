@@ -1383,7 +1383,27 @@ impl Client {
             let queueevent: QueueEvent =
                 prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
             if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
-                callback(self, queueevent);
+                let queuename = queueevent.replyto.clone();
+                let correlation_id = queueevent.correlation_id.clone();
+                let result = callback(self, queueevent);
+                if result.is_some() && queuename != "" {
+                    let me = self.clone();
+                    tokio::spawn(async move {
+                        debug!("Sending return value from queue event callback to {}", queuename);
+                        let result = result.unwrap();
+                        let q = QueueMessageRequest {
+                            queuename,
+                            correlation_id,
+                            data: result,
+                            ..Default::default()
+                        };
+                        let e = q.to_envelope();
+                        let send_result = me.send(e).await;
+                        if let Err(e) = send_result {
+                            error!("Failed to send queue event response: {}", e);
+                        }
+                    });
+                }
             }
         } else if let Some(response_tx) = queries.remove(&rid) {
             let stream = streams.get(rid.as_str());
