@@ -585,7 +585,7 @@ namespace OpenIAP
             public IntPtr data;
             public int request_id;
         }
-        public delegate void QueueEventCallback(IntPtr eventStr);
+        public delegate IntPtr QueueEventCallback(IntPtr eventStr);
         public delegate void ExchangeEventCallback(IntPtr eventStr);
 
         [StructLayout(LayoutKind.Sequential)]
@@ -2909,20 +2909,20 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(watchidPtr);
             }
         }
-        void _QueueEventCallback(IntPtr QueueEventWrapperptr)
+        IntPtr _QueueEventCallback(IntPtr QueueEventWrapperptr)
         {
             try
             {
                 var eventObj = Marshal.PtrToStructure<QueueEventWrapper>(QueueEventWrapperptr);
                 if (eventObj.request_id == 0)
                 {
-                    return;
+                    return IntPtr.Zero;
                 }
                 if (DelegateRegistry.TryGetCallback<QueueEvent>(eventObj.request_id, out var eventHandler))
                 {
                     if (eventHandler == null)
                     {
-                        return;
+                        return IntPtr.Zero;
                     }
                     var watchEvent = new QueueEvent
                     {
@@ -2934,10 +2934,14 @@ namespace OpenIAP
                         data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                     };
                     eventHandler(watchEvent);
+                    // var result = eventHandler(watchEvent);
+                    // if(result != null) return Marshal.StringToHGlobalAnsi(result);
+                    return IntPtr.Zero;
                 }
                 else
                 {
                     Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
+                    return IntPtr.Zero;
                 }
             }
             catch (System.Exception ex)
@@ -2948,6 +2952,7 @@ namespace OpenIAP
             {
                 free_queue_event(QueueEventWrapperptr);
             }
+            return IntPtr.Zero;
         }
 
         public string RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
