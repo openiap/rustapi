@@ -4743,7 +4743,7 @@ pub extern "C" fn register_queue(
     Box::into_raw(Box::new(response))
 }
 
-type QueueEventCallback = extern "C" fn(*mut QueueEventWrapper);
+type QueueEventCallback = extern "C" fn(*mut QueueEventWrapper) -> *const c_char;
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn register_queue_async(
@@ -4819,8 +4819,13 @@ pub extern "C" fn register_queue_async(
                         data,
                         request_id
                     });
-                    event_callback(Box::into_raw(event));
-                    None
+                    let result = event_callback(Box::into_raw(event));
+                    let result = c_char_to_str(result);
+                    if result.is_empty() {
+                        return None
+                    }
+                    let result = result.to_string();
+                    Some(result)
                 }),
             )
         )
@@ -4993,13 +4998,13 @@ pub extern "C" fn register_exchange (
 
     Box::into_raw(Box::new(response))
 }
-
+type ExchangeEventCallback = extern "C" fn(*mut QueueEventWrapper);
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn register_exchange_async(
     client: *mut ClientWrapper,
     options: *mut RegisterExchangeRequestWrapper,
-    event_callback: QueueEventCallback,
+    event_callback: ExchangeEventCallback,
 ) -> *mut RegisterExchangeResponseWrapper {
     debug!("register_exchange_async");
     let options = match safe_wrapper(options) {

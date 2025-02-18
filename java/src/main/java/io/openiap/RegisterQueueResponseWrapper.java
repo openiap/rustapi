@@ -48,7 +48,13 @@ public class RegisterQueueResponseWrapper {
     }
 
     public interface QueueEventCallback extends Callback {
+        String invoke(Pointer eventPtr);
+    }
+    public interface ExchangeEventCallback extends Callback {
         void invoke(Pointer eventPtr);
+    }
+    public interface ClientEventCallback extends Callback {
+        void invoke(Pointer event);
     }
 
     public interface RegisterQueueCallback extends Callback {

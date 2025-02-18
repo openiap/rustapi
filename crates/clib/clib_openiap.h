@@ -426,7 +426,7 @@ typedef struct QueueEventWrapper {
   int32_t request_id;
 } QueueEventWrapper;
 
-typedef void (*QueueEventCallback)(struct QueueEventWrapper*);
+typedef const char *(*QueueEventCallback)(struct QueueEventWrapper*);
 
 typedef struct RegisterExchangeResponseWrapper {
   bool success;
@@ -442,6 +442,8 @@ typedef struct RegisterExchangeRequestWrapper {
   bool addqueue;
   int32_t request_id;
 } RegisterExchangeRequestWrapper;
+
+typedef void (*ExchangeEventCallback)(struct QueueEventWrapper*);
 
 typedef struct QueueMessageResponseWrapper {
   bool success;
@@ -829,7 +831,7 @@ struct RegisterExchangeResponseWrapper *register_exchange(struct ClientWrapper *
 
 struct RegisterExchangeResponseWrapper *register_exchange_async(struct ClientWrapper *client,
                                                                 struct RegisterExchangeRequestWrapper *options,
-                                                                QueueEventCallback event_callback);
+                                                                ExchangeEventCallback event_callback);
 
 void free_register_exchange_response(struct RegisterExchangeResponseWrapper *response);
 

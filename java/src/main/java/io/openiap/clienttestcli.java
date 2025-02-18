@@ -210,28 +210,30 @@ public class clienttestcli {
                     System.out.println("Received message " + messagequeuecounter + " on queue: " + result.queuename +
                                        ", from: " + result.replyto +
                                        ", data: " + result.data);
-                    String replyToQueue = result.replyto;
-                    String correlationId = result.correlation_id;
-                    String responseMessage = "{\"payload\": {\"response\":\"Bettina\"}}";
 
-                    replyExecutor.submit(() -> {
-                        try {
-                            // System.out.println("Sending reply to queue: " + replyToQueue +
-                            //                    ", correlationId: " + correlationId +
-                            //                    ", message: " + responseMessage);
-                            client.queueMessage(
-                                new QueueMessageParameters.Builder()
-                                    .queuename(replyToQueue)
-                                    .correlation_id(correlationId)
-                                    .striptoken(true)
-                                    .message(responseMessage)
-                                    .build()
-                            );
-                        } catch (Exception e) {
-                            System.err.println("Error sending reply: " + e.getMessage());
-                            e.printStackTrace(); // Log the full stack trace
-                        }
-                    });
+                    // String replyToQueue = result.replyto;
+                    // String correlationId = result.correlation_id;
+                    // String responseMessage = "{\"payload\": {\"response\":\"Bettina\"}}";
+
+                    // replyExecutor.submit(() -> {
+                    //     try {
+                    //         // System.out.println("Sending reply to queue: " + replyToQueue +
+                    //         //                    ", correlationId: " + correlationId +
+                    //         //                    ", message: " + responseMessage);
+                    //         client.queueMessage(
+                    //             new QueueMessageParameters.Builder()
+                    //                 .queuename(replyToQueue)
+                    //                 .correlation_id(correlationId)
+                    //                 .striptoken(true)
+                    //                 .message(responseMessage)
+                    //                 .build()
+                    //         );
+                    //     } catch (Exception e) {
+                    //         System.err.println("Error sending reply: " + e.getMessage());
+                    //         e.printStackTrace(); // Log the full stack trace
+                    //     }
+                    // });
+                    return "{\"payload\": {\"response\":\"Bettina\"}}";
                 }
             );
             System.out.println("Registered queue as: " + queuename);

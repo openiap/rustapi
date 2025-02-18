@@ -75,13 +75,13 @@ interface CLib extends Library {
     Pointer register_queue_async(Pointer client, RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
     void free_queue_event(Pointer event);
     void free_register_queue_response(Pointer response);
-    Pointer register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    Pointer register_exchange_async(Pointer client, RegisterExchangeParameters options, RegisterQueueResponseWrapper.ExchangeEventCallback event_callback);
     void free_register_exchange_response(Pointer response);
     Pointer queue_message(Pointer client, QueueMessageParameters options);
     void free_queue_message_response(Pointer response);
     Pointer unregister_queue(Pointer client, String queuename);
     void free_unregister_queue_response(Pointer response);
-    Pointer on_client_event_async(Pointer client, RegisterQueueResponseWrapper.QueueEventCallback event_callback);
+    Pointer on_client_event_async(Pointer client, RegisterQueueResponseWrapper.ClientEventCallback event_callback);
     void free_client_event(Pointer event);
     void free_event_response(Pointer response);
     Pointer off_client_event(String eventid);
@@ -105,7 +105,7 @@ public class Client {
     private CLib clibInstance;
     private final Map<String, WatchEventCallback> watchCallbacks = new ConcurrentHashMap<>();
     private final Map<String, QueueEventCallback> queueCallbacks = new ConcurrentHashMap<>();
-    private final Map<String, QueueEventCallback> exchangeCallbacks = new ConcurrentHashMap<>();
+    private final Map<String, ExchangeEventCallback> exchangeCallbacks = new ConcurrentHashMap<>();
     private final Map<String, ClientEventCallback> clientEventCallbacks = new ConcurrentHashMap<>();
 
     public Client(String fullLibPath) {
@@ -739,9 +739,9 @@ public class Client {
 
         RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
             @Override
-            public void invoke(Pointer eventPtr) {
+            public String invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
-                    return;
+                    return "";
                 }
                 RegisterQueueResponseWrapper.QueueEventWrapper eventWrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
                 eventWrapper.read();
@@ -753,10 +753,14 @@ public class Client {
                     event.routingkey = eventWrapper.routingkey;
                     event.exchangename = eventWrapper.exchangename;
                     event.data = eventWrapper.data;
-                    eventCallback.onEvent(event);
+                    var result = eventCallback.onEvent(event);
+                    if(result != null) {
+                        return result;
+                    }
                 } finally {
                     clibInstance.free_queue_event(eventPtr);
                 }
+                return "";
             }
         };
 
@@ -781,12 +785,11 @@ public class Client {
         }
     }
 
-    public String registerExchangeAsync(RegisterExchangeParameters options, final QueueEventCallback eventCallback) {
+    public String registerExchangeAsync(RegisterExchangeParameters options, final ExchangeEventCallback eventCallback) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
-
-        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
+        RegisterQueueResponseWrapper.ExchangeEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.ExchangeEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) return;
@@ -996,6 +999,9 @@ public class Client {
     }
 
     public interface QueueEventCallback {
+        String onEvent(QueueEvent event);
+    }
+    public interface ExchangeEventCallback {
         void onEvent(QueueEvent event);
     }
 
@@ -1008,7 +1014,7 @@ public class Client {
             throw new RuntimeException("Client not initialized");
         }
 
-        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
+        RegisterQueueResponseWrapper.ClientEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.ClientEventCallback() {
             @Override
             public void invoke(Pointer eventPtr) {
                 if (eventPtr == null) {
