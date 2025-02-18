@@ -802,7 +802,7 @@ public class Client {
                     event.data = eventWrapper.data;
                     eventCallback.onEvent(event);
                 } finally {
-                    // Free event if needed
+                    clibInstance.free_queue_event(eventPtr);
                 }
             }
         };
