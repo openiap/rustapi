@@ -426,7 +426,7 @@ typedef struct QueueEventWrapper {
   int32_t request_id;
 } QueueEventWrapper;
 
-typedef void (*QueueEventCallback)(struct QueueEventWrapper*);
+typedef const char *(*QueueEventCallback)(struct QueueEventWrapper*);
 
 typedef struct RegisterExchangeResponseWrapper {
   bool success;
@@ -443,6 +443,8 @@ typedef struct RegisterExchangeRequestWrapper {
   int32_t request_id;
 } RegisterExchangeRequestWrapper;
 
+typedef void (*ExchangeEventCallback)(struct QueueEventWrapper*);
+
 typedef struct QueueMessageResponseWrapper {
   bool success;
   const char *error;
@@ -457,6 +459,7 @@ typedef struct QueueMessageRequestWrapper {
   const char *data;
   bool striptoken;
   int32_t expiration;
+  int32_t request_id;
 } QueueMessageRequestWrapper;
 
 typedef struct UnRegisterQueueResponseWrapper {
@@ -572,6 +575,15 @@ typedef struct OffClientEventResponseWrapper {
   bool success;
   const char *error;
 } OffClientEventResponseWrapper;
+
+typedef struct RpcResponseWrapper {
+  bool success;
+  const char *result;
+  const char *error;
+  int32_t request_id;
+} RpcResponseWrapper;
+
+typedef void (*RpcResponseCallback)(struct RpcResponseWrapper*);
 
 /**
  * Return currentlly signed in user
@@ -821,7 +833,7 @@ struct RegisterExchangeResponseWrapper *register_exchange(struct ClientWrapper *
 
 struct RegisterExchangeResponseWrapper *register_exchange_async(struct ClientWrapper *client,
                                                                 struct RegisterExchangeRequestWrapper *options,
-                                                                QueueEventCallback event_callback);
+                                                                ExchangeEventCallback event_callback);
 
 void free_register_exchange_response(struct RegisterExchangeResponseWrapper *response);
 
@@ -901,3 +913,12 @@ void free_off_event_response(struct OffClientEventResponseWrapper *response);
 void free_event_response(struct ClientEventResponseWrapper *response);
 
 void free_client_event(struct ClientEventWrapper *response);
+
+struct RpcResponseWrapper *rpc(struct ClientWrapper *client,
+                               struct QueueMessageRequestWrapper *options);
+
+void rpc_async(struct ClientWrapper *client,
+               struct QueueMessageRequestWrapper *options,
+               RpcResponseCallback response_callback);
+
+void free_rpc_response(struct RpcResponseWrapper *response);

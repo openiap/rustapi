@@ -43,6 +43,29 @@ try {
                 $entities = $client->Query("entities", []);
                 print_r($entities);
                 break;
+            case '1':
+                $client->enable_tracing("", "");
+                break;
+            case '2':
+                $client->enable_tracing("openiap=new", "");
+                break;
+            case '3':
+                $client->enable_tracing("openiap=debug", "new");
+                break;
+            case 'r':
+                $result = $client->register_queue("test2queue", function($message) {
+                    print("Received message: " . json_encode($message) . "\n");
+                    return ['payload' => "Bettina"];
+                });
+                break;
+            case 'r2':
+                $result = $client->rpc("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                print_r($result);
+                break;
+            case 'm':
+                $result = $client->queue_message("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                print_r($result);
+                break;
             case 'i':
                 $result = $client->insert_one("entities", (object) ["name" => "testphp", "value" => 123]);
                 print_r($result);
