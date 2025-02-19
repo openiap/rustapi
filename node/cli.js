@@ -35,11 +35,7 @@ function onwatch(event) {
 async function onqueue(event) {
     const { queuename, correlation_id, replyto, routingkey, exchangename, data } = event;
     console.log(`Received message from ${queuename}: `, data);
-    await client.queue_message({
-        queuename: replyto,
-        correlation_id,
-        data: '{"message":"Test Reply"}'
-    });
+    return {payload:"Test Reply"};
 }
 
 // Do some calculation to generate CPU load

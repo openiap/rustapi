@@ -2640,7 +2640,7 @@ class Client {
         const id = this.uniqeid();
         this.queues[id] = {
             interval:
-                setInterval(() => {
+                setInterval(async () => {
                     if (this.connected == false) {
                         clearInterval(this.queues[id].interval);
                         delete this.queues[id];
@@ -2681,7 +2681,18 @@ class Client {
                                 data: data,
                             }
                             this.trace('call next had result', event);
-                            callback(event);
+                            let cbresult = await callback(event);
+                            if(cbresult != null && cbresult != "" && event.replyto != null && event.replyto != "") {
+                                if(typeof cbresult === 'object') {
+                                    cbresult = JSON.stringify(cbresult);
+                                }
+                                await this.queue_message({
+                                    queuename: event.replyto,
+                                    correlation_id: event.correlation_id,
+                                    striptoken: true,
+                                    data: cbresult
+                                });
+                            }
                         }
 
                         this.trace('free_queue_event');
