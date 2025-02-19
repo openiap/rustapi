@@ -59,7 +59,12 @@ try {
                 });
                 break;
             case 'r2':
-                $result = $client->rpc("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                // $result = $client->rpc("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                $result = $client->rpc_async("test2queue", ['payload' => "Test Message"], 
+                function($message) {
+                    print("Received response: " . json_encode($message) . "\n");
+                },
+                ['striptoken' => true]);
                 print_r($result);
                 break;
             case 'm':

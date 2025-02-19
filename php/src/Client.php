@@ -1822,5 +1822,74 @@ class Client {
         return $result;
     }
 
+    public function rpc_async($queuename, $payload, $callback, $options = array()) {
+        $request = $this->ffi->new('struct QueueMessageRequestWrapper');
+        
+        // Set queuename
+        $queuename_str = $this->ffi->new("char[" . strlen($queuename) + 1 . "]", false);
+        FFI::memcpy($queuename_str, $queuename, strlen($queuename));
+        $request->queuename = FFI::cast("char *", FFI::addr($queuename_str));
+
+        // Convert payload to string if necessary and set it
+        $data = is_string($payload) ? $payload : json_encode($payload);
+        $data_str = $this->ffi->new("char[" . strlen($data) + 1 . "]", false);
+        FFI::memcpy($data_str, $data, strlen($data));
+        $request->data = FFI::cast("char *", FFI::addr($data_str));
+
+        // Set optional parameters
+        if (isset($options['correlationId'])) {
+            $corr_str = $this->ffi->new("char[" . strlen($options['correlationId']) + 1 . "]", false);
+            FFI::memcpy($corr_str, $options['correlationId'], strlen($options['correlationId']));
+            $request->correlation_id = FFI::cast("char *", FFI::addr($corr_str));
+        }
+
+        if (isset($options['replyto'])) {
+            $reply_str = $this->ffi->new("char[" . strlen($options['replyto']) + 1 . "]", false);
+            FFI::memcpy($reply_str, $options['replyto'], strlen($options['replyto']));
+            $request->replyto = FFI::cast("char *", FFI::addr($reply_str));
+        }
+
+        if (isset($options['routingkey'])) {
+            $routing_str = $this->ffi->new("char[" . strlen($options['routingkey']) + 1 . "]", false);
+            FFI::memcpy($routing_str, $options['routingkey'], strlen($options['routingkey']));
+            $request->routingkey = FFI::cast("char *", FFI::addr($routing_str));
+        }
+
+        if (isset($options['exchangename'])) {
+            $exchange_str = $this->ffi->new("char[" . strlen($options['exchangename']) + 1 . "]", false);
+            FFI::memcpy($exchange_str, $options['exchangename'], strlen($options['exchangename']));
+            $request->exchangename = FFI::cast("char *", FFI::addr($exchange_str));
+        }
+
+        $request->striptoken = isset($options['striptoken']) ? $options['striptoken'] : false;
+        $request->expiration = isset($options['expiration']) ? $options['expiration'] : 0;
+        $request->request_id = 0;
+
+        // Create a C callback function that will call our PHP callback
+        $c_callback = function($response) use ($callback) {
+            if (!$response->success) {
+                $error = FFI::string($response->error);
+                $callback(null, new Exception($error));
+            } else {
+                $result = null;
+                if ($response->result) {
+                    $result = FFI::string($response->result);
+                }
+                $callback($result, null);
+            }
+        };
+
+        // Make the RPC async call
+        $this->ffi->rpc_async($this->client, FFI::addr($request), $c_callback);
+
+        // Free allocated memory
+        FFI::free($queuename_str);
+        FFI::free($data_str);
+        if (isset($options['correlationId'])) FFI::free($corr_str);
+        if (isset($options['replyto'])) FFI::free($reply_str);
+        if (isset($options['routingkey'])) FFI::free($routing_str);
+        if (isset($options['exchangename'])) FFI::free($exchange_str);
+    }
+
 }
 
