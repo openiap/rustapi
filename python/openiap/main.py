@@ -342,7 +342,7 @@ class QueueEventWrapper(Structure):
                 ("exchangename", c_char_p),
                 ("data", c_char_p) ]
 RegisterQueueCallback = CFUNCTYPE(None, POINTER(RegisterQueueResponseWrapper))
-QueueEventCallback = CFUNCTYPE(None, POINTER(QueueEventWrapper))
+QueueEventCallback = CFUNCTYPE(c_char_p, POINTER(QueueEventWrapper))
 
 class RegisterExchangeRequestWrapper(Structure):
     _fields_ = [("exchangename", c_char_p),
@@ -1675,13 +1675,34 @@ class Client:
             try:
                 cbresult = callback(result, self.counter)
                 if cbresult:
-                    print(f"QUEUE EVENT: Reply with {cbresult}")
                     if not isinstance(cbresult, str):
-                        cbresult = str(cbresult)
-                    self.trace("Callback returned", cbresult)
-                    return c_char_p(cbresult.encode('utf-8'))
+                        cbresult = json.dumps(cbresult)
+                    
+                    # Allocate memory that will persist after the function returns
+                    encoded_result = cbresult.encode('utf-8') + b'\0'  # Add null terminator
+                    str_len = len(encoded_result)
+                    
+                    # Allocate memory and copy the string into it
+                    ptr = ctypes.create_string_buffer(encoded_result, str_len)
+                    
+                    # Get the address of the buffer as an integer
+                    addr = ctypes.cast(ptr, ctypes.c_void_p).value
+                    
+                    print(f"QUEUE EVENT: Reply with2 {encoded_result}")
+                    self.trace("Callback returned address", addr)
+                    
+                    # Store the buffer in an instance variable to prevent garbage collection
+                    if not hasattr(self, '_callback_buffers'):
+                        self._callback_buffers = []
+                    self._callback_buffers.append(ptr)
+                    
+                    # Return the integer address
+                    return addr
+                else:
+                    return None
             except Exception as e:
                 self.trace("Error in callback", e)
+                return None
 
         c_callback = QueueEventCallback(queue_event_callback)
         self.callbacks.append(c_callback)
