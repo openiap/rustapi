@@ -538,15 +538,26 @@ class Program
                     try {
                         var queueId = client.RegisterQueue("test2queue", e => {
                             Console.WriteLine("Queue event received from " + e.queuename + " with data: " + e.data);
-                            if(!string.IsNullOrEmpty(e.replyto)) {
-                                var t = System.Threading.Tasks.Task.Run(() => {
-                                    var message = "{\"payload\": \"Bettina\"}";
-                                    _ = client.QueueMessage(message, e.replyto, striptoken: true, correlation_id: e.correlation_id);
-                                });
-                            }
-                            // return "{\"payload\": \"Bettina\"}";
+                            // if(!string.IsNullOrEmpty(e.replyto)) {
+                            //     var t = System.Threading.Tasks.Task.Run(() => {
+                            //         var message = "{\"payload\": \"Bettina\"}";
+                            //         _ = client.QueueMessage(message, e.replyto, striptoken: true, correlation_id: e.correlation_id);
+                            //     });
+                            // }
+                            return "{\"payload\": \"Bettina\"}";
                         });
                         Console.WriteLine("Queue registered with id: " + queueId);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Error disconnecting: " + e.Message);                        
+                    }
+                    break;
+                case "r2":
+                    try {
+                        var message = "{\"message\": \"Hello from dotnet\"}";
+                        var response = await client.Rpc(message, "test2queue", striptoken: true);
+                        Console.WriteLine("RPC response: " + response);
                     }
                     catch (Exception e)
                     {

@@ -459,6 +459,7 @@ typedef struct QueueMessageRequestWrapper {
   const char *data;
   bool striptoken;
   int32_t expiration;
+  int32_t request_id;
 } QueueMessageRequestWrapper;
 
 typedef struct UnRegisterQueueResponseWrapper {
@@ -579,6 +580,7 @@ typedef struct RpcResponseWrapper {
   bool success;
   const char *result;
   const char *error;
+  int32_t request_id;
 } RpcResponseWrapper;
 
 typedef void (*RpcResponseCallback)(struct RpcResponseWrapper*);

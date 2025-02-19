@@ -13,6 +13,7 @@ namespace OpenIAP
     {
         private CallbackRegistry CallbackRegistry = new CallbackRegistry();
         private ActionRegistry DelegateRegistry = new ActionRegistry();
+        private FuncRegistry QueueFuncRegistry = new FuncRegistry();
         private int CallbackRegistryNextRequestId = 0;
         private readonly PopWorkitemCallback _PopWorkitemCallbackDelegate;
         private readonly UpdateWorkitemCallback _UpdateWorkitemCallbackDelegate;
@@ -43,6 +44,7 @@ namespace OpenIAP
 
         private readonly QueueEventCallback _QueueEventCallbackDelegate;
         private readonly ExchangeEventCallback _ExchangeEventCallbackDelegate;
+        private readonly RpcResponseCallback _RpcResponseCallbackDelegate;
         public IntPtr clientPtr;
         ClientWrapper client;
         bool tracing { get; set; } = false;
@@ -645,6 +647,7 @@ namespace OpenIAP
             [MarshalAs(UnmanagedType.I1)]
             public bool striptoken;
             public int expiration;
+            public int request_id;
         }
         [StructLayout(LayoutKind.Sequential)]
         public struct QueueMessageResponseWrapper
@@ -770,6 +773,18 @@ namespace OpenIAP
             public int request_id;
         }
         public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RpcResponseWrapper
+        {
+            [MarshalAs(UnmanagedType.I1)]
+            public bool success;
+            public IntPtr result;
+            public IntPtr error;
+            public int request_id; 
+        }
+
+        public delegate void RpcResponseCallback(IntPtr responsePtr);
         #endregion
 
         #region dll imports
@@ -1058,6 +1073,11 @@ namespace OpenIAP
         public static extern void delete_workitem_async(IntPtr client, ref DeleteWorkitemRequestWrapper request, DeleteWorkitemCallback callback);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void free_delete_workitem_response(IntPtr response);
+
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void rpc_async(IntPtr client, ref QueueMessageRequestWrapper options, RpcResponseCallback response_callback);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void free_rpc_response(IntPtr response);
         #endregion
         public Client(string libPath = "")
         {
@@ -1110,6 +1130,7 @@ namespace OpenIAP
             _DropCollectionCallbackDelegate = _DropCollectionCallback;
             _QueueEventCallbackDelegate = _QueueEventCallback;
             _ExchangeEventCallbackDelegate = _ExchangeEventCallback;
+            _RpcResponseCallbackDelegate = _RpcResponseCallback;
         }
         public void enabletracing(string rust_log = "", string tracing = "")
         {
@@ -2918,13 +2939,13 @@ namespace OpenIAP
                 {
                     return IntPtr.Zero;
                 }
-                if (DelegateRegistry.TryGetCallback<QueueEvent>(eventObj.request_id, out var eventHandler))
+                if (QueueFuncRegistry.TryGetCallback<QueueEvent, string>(eventObj.request_id, out var funcHandler))
                 {
-                    if (eventHandler == null)
+                    if (funcHandler == null)
                     {
                         return IntPtr.Zero;
                     }
-                    var watchEvent = new QueueEvent
+                    var queueEvent = new QueueEvent
                     {
                         queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
                         correlation_id = Marshal.PtrToStringAnsi(eventObj.correlation_id) ?? string.Empty,
@@ -2933,29 +2954,26 @@ namespace OpenIAP
                         exchangename = Marshal.PtrToStringAnsi(eventObj.exchangename) ?? string.Empty,
                         data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
                     };
-                    eventHandler(watchEvent);
-                    // var result = eventHandler(watchEvent);
-                    // if(result != null) return Marshal.StringToHGlobalAnsi(result);
-                    return IntPtr.Zero;
+                    var result = funcHandler(queueEvent);
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        return Marshal.StringToHGlobalAnsi(result);
+                    }
                 }
-                else
-                {
-                    Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
-                    return IntPtr.Zero;
-                }
+                return IntPtr.Zero;
             }
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                return IntPtr.Zero;
             }
             finally
             {
                 free_queue_event(QueueEventWrapperptr);
             }
-            return IntPtr.Zero;
         }
 
-        public string RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
+        public string RegisterQueue(string queuename, Func<QueueEvent, string> eventHandler)
         {
             if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
             IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
@@ -2983,7 +3001,7 @@ namespace OpenIAP
                 }
                 else
                 {
-                    DelegateRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
+                    QueueFuncRegistry.TryAddCallback(requestId, result_queuename, eventHandler);
                     return result_queuename;
                 }
             }
@@ -2992,6 +3010,16 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(queuenamePtr);
             }
         }
+
+        // Keep the existing RegisterQueue with Action<QueueEvent> for backward compatibility
+        public string RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
+        {
+            return RegisterQueue(queuename, (queueEvent) => {
+                eventHandler(queueEvent);
+                return string.Empty;
+            });
+        }
+        
         void _ExchangeEventCallback(IntPtr QueueEventWrapperptr)
         {
             try
@@ -3779,6 +3807,80 @@ namespace OpenIAP
             {
             }
             await tcs.Task;
+        }
+        private void _RpcResponseCallback(IntPtr responsePtr)
+        {
+            try
+            {
+                var response = Marshal.PtrToStructure<RpcResponseWrapper>(responsePtr);
+                // RPC requests are tracked by correlation_id, so lookup the corresponding TCS
+                int requestId = response.request_id;
+                if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
+                {
+                    if (!response.success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                        CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
+                    }
+                    else
+                    {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                        CallbackRegistry.TrySetResult(requestId, result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in RPC callback: {ex.Message}");
+            }
+            finally
+            {
+                free_rpc_response(responsePtr);
+            }
+        }
+
+        public Task<string> Rpc(string data, string queuename = "", string exchangename = "", string routingkey = "", bool striptoken = false, int expiration = 0)
+        {
+            var tcs = new TaskCompletionSource<string>();
+
+            IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
+            IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
+            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename); 
+            IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
+            IntPtr replytoPtr = IntPtr.Zero;
+            IntPtr correlation_idPtr = IntPtr.Zero;
+
+            try
+            {
+                int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+                
+                var request = new QueueMessageRequestWrapper
+                {
+                    data = dataPtr,
+                    queuename = queuenamePtr,
+                    exchangename = exchangenamePtr,
+                    replyto = replytoPtr,
+                    routingkey = routingkeyPtr,
+                    correlation_id = correlation_idPtr,
+                    striptoken = striptoken,
+                    expiration = expiration,
+                    request_id = requestId
+                };
+
+                CallbackRegistry.TryAddCallback(requestId, tcs);
+                rpc_async(clientPtr, ref request, _RpcResponseCallbackDelegate);
+            }
+            finally 
+            {
+                Marshal.FreeHGlobal(dataPtr);
+                Marshal.FreeHGlobal(queuenamePtr);
+                Marshal.FreeHGlobal(exchangenamePtr);
+                Marshal.FreeHGlobal(routingkeyPtr);
+                if (replytoPtr != IntPtr.Zero) Marshal.FreeHGlobal(replytoPtr);
+                if (correlation_idPtr != IntPtr.Zero) Marshal.FreeHGlobal(correlation_idPtr);
+            }
+
+            return tcs.Task;
         }
         public void Dispose()
         {

@@ -5238,6 +5238,7 @@ pub struct QueueMessageRequestWrapper {
     data: *const c_char,
     striptoken: bool,
     expiration: i32,
+    request_id: i32,
 }
 #[repr(C)]
 pub struct QueueMessageResponseWrapper {
@@ -5306,8 +5307,6 @@ pub extern "C" fn queue_message(
                 error: std::ptr::null(),
             };
             Box::into_raw(Box::new(response))
-            
-
         }
         Err(e) => {
             let error_msg = CString::new(format!("Queue message failed: {:?}", e))
@@ -7016,7 +7015,8 @@ pub extern "C" fn free_client_event(response: *mut ClientEventWrapper) {
 pub struct RpcResponseWrapper {
     success: bool,
     result: *const c_char,
-    error: *const c_char
+    error: *const c_char,
+    request_id: i32
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
@@ -7031,7 +7031,8 @@ pub extern "C" fn rpc(
             let response = RpcResponseWrapper {
                 success: false,
                 result: std::ptr::null(),
-                error: error_msg
+                error: error_msg,
+                request_id: 0
             };
             return Box::into_raw(Box::new(response));
         }
@@ -7043,7 +7044,8 @@ pub extern "C" fn rpc(
             let response = RpcResponseWrapper {
                 success: false,
                 result: std::ptr::null(),
-                error: error_msg
+                error: error_msg,
+                request_id: options.request_id
             };
             return Box::into_raw(Box::new(response));
         }
@@ -7055,7 +7057,8 @@ pub extern "C" fn rpc(
         let response = RpcResponseWrapper {
             success: false,
             result: std::ptr::null(),
-            error: error_msg
+            error: error_msg,
+            request_id: options.request_id
         };
         return Box::into_raw(Box::new(response));
     }
@@ -7083,7 +7086,8 @@ pub extern "C" fn rpc(
             let response = RpcResponseWrapper {
                 success: true,
                 result,
-                error: std::ptr::null()
+                error: std::ptr::null(),
+                request_id: options.request_id
             };
             Box::into_raw(Box::new(response))
         }
@@ -7096,7 +7100,8 @@ pub extern "C" fn rpc(
             let response = RpcResponseWrapper {
                 success: false,
                 result: std::ptr::null(),
-                error: error_msg
+                error: error_msg,
+                request_id: options.request_id
             };
             Box::into_raw(Box::new(response))
         }
@@ -7119,6 +7124,7 @@ pub extern "C" fn rpc_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: 0
             };
             response_callback(Box::into_raw(Box::new(response)));
             return;
@@ -7134,6 +7140,7 @@ pub extern "C" fn rpc_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id
             };
             response_callback(Box::into_raw(Box::new(response)));
             return;
@@ -7149,6 +7156,7 @@ pub extern "C" fn rpc_async(
                 success: false,
                 result: std::ptr::null(),
                 error: error_msg,
+                request_id: options.request_id
             };
             response_callback(Box::into_raw(Box::new(response)));
             return;
@@ -7164,11 +7172,13 @@ pub extern "C" fn rpc_async(
         exchangename: c_char_to_str(options.exchangename),
         data: c_char_to_str(options.data),
         striptoken: options.striptoken,
-        expiration: options.expiration,
+        expiration: options.expiration
     };
 
     // Get the runtime handle from the client.
     let runtime_handle = client.get_runtime_handle();
+
+    let request_id = options.request_id;
 
     // Spawn an asynchronous task using the runtime.
     runtime_handle.spawn(async move {
@@ -7183,6 +7193,7 @@ pub extern "C" fn rpc_async(
                     success: true,
                     result: result_c,
                     error: std::ptr::null(),
+                    request_id: request_id
                 }
             }
             Err(e) => {
@@ -7193,6 +7204,7 @@ pub extern "C" fn rpc_async(
                     success: false,
                     result: std::ptr::null(),
                     error: error_msg,
+                    request_id: request_id
                 }
             }
         };

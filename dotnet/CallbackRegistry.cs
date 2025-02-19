@@ -184,3 +184,51 @@ public class ActionRegistry
         return false;
     }
 }
+
+public class FuncObject {
+    public object func;
+    public object queuename;
+    public FuncObject(object func, string queuename) {
+        this.func = func;
+        this.queuename = queuename;
+    }
+}
+
+public class FuncRegistry
+{
+    private ConcurrentDictionary<int, object> _funcRegistry = new ConcurrentDictionary<int, object>();
+    public int Count => _funcRegistry.Count;
+
+    public bool TryAddCallback<TIn, TOut>(int id, string queuename, Func<TIn, TOut> func)
+    {
+        var obj = new FuncObject(func, queuename);
+        return _funcRegistry.TryAdd(id, obj);
+    }
+
+    public bool TryGetCallback<TIn, TOut>(int id, out Func<TIn, TOut>? func)
+    {
+        if (_funcRegistry.TryGetValue(id, out var _obj))
+        {
+            FuncObject obj = (FuncObject)_obj;
+            if(obj.func is Func<TIn, TOut> typedFunc) {
+                func = typedFunc;
+                return true;
+            }
+            Console.WriteLine($"Failed to get callback for id: {id} is of wrong type {obj.GetType()} expected {typeof(Func<TIn, TOut>)}");
+        }
+        func = null;
+        return false;
+    }
+
+    public bool TryRemoveCallback<TIn, TOut>(string queuename, out Func<TIn, TOut>? func)
+    {
+        var id = _funcRegistry.Where(x => (string)((FuncObject)x.Value).queuename == queuename).FirstOrDefault().Key;
+        if (_funcRegistry.TryRemove(id, out var obj) && ((FuncObject)obj).func is Func<TIn, TOut> typedFunc)
+        {
+            func = typedFunc;
+            return true;
+        }
+        func = null;
+        return false;
+    }
+}
