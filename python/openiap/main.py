@@ -1673,7 +1673,13 @@ class Client:
             self.trace("register_queue: Internal callback invoked", result)
             self.counter += 1
             try:
-                callback(result, self.counter)
+                cbresult = callback(result, self.counter)
+                if cbresult:
+                    print(f"QUEUE EVENT: Reply with {cbresult}")
+                    if not isinstance(cbresult, str):
+                        cbresult = str(cbresult)
+                    self.trace("Callback returned", cbresult)
+                    return c_char_p(cbresult.encode('utf-8'))
             except Exception as e:
                 self.trace("Error in callback", e)
 

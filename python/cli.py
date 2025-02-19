@@ -21,6 +21,7 @@ def on_watch(event, counter):
 def on_queue(event, counter):
     data = event.get("data")
     print(f"QUEUE EVENT: Received {data} event")
+    return {"payload": "Bettina"}
 
 # Calculate factorial (to generate CPU load)
 def factorial(num):
