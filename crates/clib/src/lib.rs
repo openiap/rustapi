@@ -4287,13 +4287,13 @@ pub extern "C" fn watch(
 pub extern "C" fn next_watch_event (
     watchid: *const c_char,
 ) -> *mut WatchEventWrapper {
-    debug!("unwrap watchid");
+    trace!("unwrap watchid");
     let watchid = c_char_to_str(watchid);
-    debug!("watchid {:}", watchid);
+    trace!("watchid {:}", watchid);
     let watchid = watchid.to_string();
-    debug!("unwrap events");
+    trace!("unwrap events");
     let mut e = WATCH_EVENTS.lock().unwrap();
-    debug!("get queue");
+    trace!("get queue");
     let queue = e.get_mut(&watchid);
     match queue {
         Some(q) => {
@@ -4312,7 +4312,7 @@ pub extern "C" fn next_watch_event (
                     Box::into_raw(event)
                 }
                 None => {
-                    debug!("No event");
+                    trace!("No event");
                     Box::into_raw(Box::new(WatchEventWrapper::default())) 
                 },
             }
@@ -5157,13 +5157,13 @@ impl Default for QueueEventWrapper {
 pub extern "C" fn next_queue_event (
     queuename: *const c_char,
 ) -> *mut QueueEventWrapper {
-    debug!("unwrap watchid");
+    trace!("unwrap watchid");
     let queuename = c_char_to_str(queuename);
-    debug!("queuename {:}", queuename);
+    trace!("queuename {:}", queuename);
     let queuename = queuename.to_string();
-    debug!("unwrap events");
+    trace!("unwrap events");
     let mut e = QUEUE_EVENTS.lock().unwrap();
-    debug!("get queue");
+    trace!("get queue");
     let queue = e.get_mut(&queuename);
     match queue {
         Some(q) => {
@@ -5188,7 +5188,7 @@ pub extern "C" fn next_queue_event (
                     Box::into_raw(event)
                 }
                 None => {
-                    debug!("No event");
+                    trace!("No event");
                     Box::into_raw(Box::new(QueueEventWrapper::default())) 
                 },
             }
@@ -6899,13 +6899,13 @@ pub extern "C" fn on_client_event_async(
 pub extern "C" fn next_client_event (
     clientid: *const c_char,    
 ) -> *mut ClientEventWrapper {
-    debug!("unwrap clientid");
+    trace!("unwrap clientid");
     let clientid = c_char_to_str(clientid);
-    debug!("clientid {:}", clientid);
+    trace!("clientid {:}", clientid);
     let clientid = clientid.to_string();
-    debug!("unwrap events");
+    trace!("unwrap events");
     let mut e = CLIENT_EVENTS.lock().unwrap();
-    debug!("get queue");
+    trace!("get queue");
     let queue = e.get_mut(&clientid);
     match queue {
         Some(q) => {
@@ -6922,7 +6922,7 @@ pub extern "C" fn next_client_event (
                     Box::into_raw(Box::new(event))
                 }
                 None => {
-                    debug!("No event");
+                    trace!("No event");
                     Box::into_raw(Box::new(ClientEventWrapper::default())) 
                 },
             }
