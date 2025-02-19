@@ -192,9 +192,19 @@ async def main():
                 print(f"Registered queue with id {register_result}")
             except ClientError as e:
                 print(f"Failed to register queue: {e}")
+        elif input_command == "r2":
+            try:
+                result = client.rpc_async('{"some": "data"}', queuename="test2queue", striptoken=True)
+                print(result)  # Prints the RPC response
+                result = client.rpc_async({"cmd": "getpackages"}, queuename="test2queue", striptoken=True)
+                print(result)  # Prints the RPC response
+                
+            except ClientError as e:
+                print(f"Failed to to RPC call: {e}")
         elif input_command == "m":
             try:
-                client.queue_message( data="{\"message\": \"Hello, World!\"}", queuename="test2queue", striptoken=True)
+                client.queue_message( data="{\"message\": \"Hello, World as string!\"}", queuename="test2queue", striptoken=True)
+                client.queue_message( data={"message": "Hello, World as object!"}, queuename="test2queue", striptoken=True)
             except ClientError as e:
                 print(f"Failed to register queue: {e}")
         elif input_command == "w":

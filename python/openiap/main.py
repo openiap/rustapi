@@ -371,6 +371,13 @@ class QueueMessageResponseWrapper(Structure):
     _fields_ = [("success", c_bool),
                 ("error", c_char_p)]
 
+class RpcResponseWrapper(Structure):
+    _fields_ = [("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p)]
+
+RpcResponseCallback = CFUNCTYPE(None, POINTER(RpcResponseWrapper))
+
 # Custom exception classes
 class ClientError(Exception):
     """Base class for exceptions in this module."""
@@ -552,7 +559,7 @@ class Client:
             architecture = os.uname().machine
             if architecture == 'x86_64':
                 # is Musl ?
-                if os.path.exists('/lib/libc.musl-x86_64.so.1'):
+                if os.path.exists('/lib/libc.musl-x86_64.so'):
                     lib_file = 'libopeniap-linux-musl-x64.a'
                 else:
                     lib_file = 'libopeniap-linux-x64.so'
@@ -1688,8 +1695,7 @@ class Client:
                     # Get the address of the buffer as an integer
                     addr = ctypes.cast(ptr, ctypes.c_void_p).value
                     
-                    print(f"QUEUE EVENT: Reply with2 {encoded_result}")
-                    self.trace("Callback returned address", addr)
+                    self.trace("Callback returned address", encoded_result)
                     
                     # Store the buffer in an instance variable to prevent garbage collection
                     if not hasattr(self, '_callback_buffers'):
@@ -1823,6 +1829,10 @@ class Client:
         if queuename == "" and exchangename == "":
             raise ValueError("Either queuename or exchangename must be provided")
         
+        # Convert data to JSON string if it's not already a string
+        if not isinstance(data, str):
+            data = json.dumps(data)
+        
         req = QueueMessageRequestWrapper(
             queuename=c_char_p(queuename.encode('utf-8')),
             data=c_char_p(data.encode('utf-8')),
@@ -1870,6 +1880,55 @@ class Client:
         else:
             raise ClientError('Unwatch failed or unwatch is null')
 
+    def rpc_async(self, data, queuename="", exchangename="", routingkey="", replyto="", correlation_id="", striptoken=False, expiration=0):
+        self.trace("Inside rpc_async")
+        event = threading.Event()
+        result = {"success": None, "result": None, "error": None}
+        
+        # Convert data to JSON string if it's not already a string
+        if not isinstance(data, str):
+            data = json.dumps(data)
+        
+        def callback(response_ptr):
+            try:
+                response = response_ptr.contents
+                self.trace("RPC callback invoked")
+                if not response.success:
+                    error_message = ctypes.cast(response.error, c_char_p).value.decode('utf-8')
+                    result["error"] = ClientError(f"RPC failed: {error_message}")
+                else:
+                    result["success"] = response.success
+                    result["result"] = ctypes.cast(response.result, c_char_p).value.decode('utf-8')
+                self.lib.free_rpc_response(response_ptr)
+            finally:
+                event.set()
+
+        cb = RpcResponseCallback(callback)
+        
+        req = QueueMessageRequestWrapper(
+            queuename=c_char_p(queuename.encode('utf-8')),
+            data=c_char_p(data.encode('utf-8')),
+            exchangename=c_char_p(exchangename.encode('utf-8')),
+            routingkey=c_char_p(routingkey.encode('utf-8')),
+            replyto=c_char_p("".encode('utf-8')),
+            correlation_id=c_char_p("".encode('utf-8')),
+            striptoken=striptoken,
+            expiration=expiration
+        )
+        
+        self.trace("Calling rpc_async")
+        self.lib.rpc_async(self.client, byref(req), cb)
+        self.trace("rpc_async called")
+
+        event.wait()
+
+        if result["error"]:
+            raise result["error"]
+        
+        try:
+            return json.loads(result["result"])
+        except json.JSONDecodeError:
+            return result["result"]  # Return raw string if not valid JSON
 
     def __del__(self):
         if hasattr(self, 'lib'):
