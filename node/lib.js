@@ -528,6 +528,13 @@ const QueueMessageResponseWrapper = koffi.struct('QueueMessageResponseWrapper', 
 });
 const QueueMessageResponseWrapperPtr = koffi.pointer(QueueMessageResponseWrapper);
 
+const RpcResponseWrapper = koffi.struct('RpcResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString
+});
+const RpcResponseWrapperPtr  = koffi.pointer(RpcResponseWrapper);
+
 function isMusl() {
     // For Node 10
     if (!process.report || typeof process.report.getReport !== 'function') {
@@ -768,6 +775,10 @@ function loadLibrary() {
         lib.free_register_queue_response = lib.func('free_register_queue_response', 'void', [RegisterQueueResponseWrapperPtr]);
         lib.register_exchange = lib.func('register_exchange', RegisterExchangeResponseWrapperPtr, [ClientWrapperPtr, RegisterExchangeRequestWrapperPtr]);
         lib.free_register_exchange_response = lib.func('free_register_exchange_response', 'void', [RegisterExchangeResponseWrapperPtr]);
+        lib.rpc = lib.func('rpc', RpcResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
+        lib.rpcCallback = koffi.proto('void rpcCallback(RpcResponseWrapper*)');
+        lib.rpc_async = lib.func('rpc_async', 'void', [ClientWrapperPtr, QueueMessageRequestWrapperPtr, koffi.pointer(lib.rpcCallback)]);
+        lib.free_rpc_response = lib.func('free_rpc_response', 'void', [RpcResponseWrapperPtr]);
         lib.next_queue_event = lib.func('next_queue_event', QueueEventPtr, [CString]);
         lib.free_queue_event = lib.func('free_queue_event', 'void', [QueueEventPtr]);
         lib.unregister_queue = lib.func('unregister_queue', UnRegisterQueueResponseWrapperPtr, [ClientWrapperPtr, CString]);
@@ -2430,7 +2441,6 @@ class Client {
 
         return watchid;
     }
-
     clientevents = {}
     next_watch_interval = 1000;
     on_client_event(callback) {
@@ -2501,10 +2511,6 @@ class Client {
             delete this.clientevents[eventid];
         }
     }
-
-
-
-
     event_refs = {};
     uniqeid() {
         return Math.random().toString(36).substr(2, 9);
@@ -2765,6 +2771,73 @@ class Client {
         }
         return result.queuename;
     }
+    rpc({ queuename, data, striptoken }) {
+        this.verbose('rpc invoked');
+        if (typeof data === 'object') {
+            data = JSON.stringify(data);
+        }
+        const req = {
+            queuename: queuename,
+            striptoken: striptoken,
+            data: data
+        };
+        this.trace('call rpc');
+        const response = this.lib.rpc(this.client, req);
+        this.verbose('decode response');
+        const result = koffi.decode(response, RpcResponseWrapper);
+        this.trace('free_rpc_response');
+        this.lib.free_rpc_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let payload = result.result;
+        try {
+            payload = JSON.parse(payload);
+        } catch (error) {            
+        }
+        return payload;
+    }
+    rpc_async({ queuename, data, striptoken }) {
+        this.verbose('rpc_async invoked');
+        return new Promise((resolve, reject) => {
+            if (typeof data === 'object') {
+                data = JSON.stringify(data);
+            }
+            const req = {
+                queuename: queuename,
+                striptoken: striptoken,
+                data: data
+            };
+            this.verbose('create callback');
+            const callback = (responsePtr) => {
+                this.verbose('rpc_async callback');
+                this.trace('decode response');
+                const response = koffi.decode(responsePtr, RpcResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    let payload = response.result;
+                    try {
+                        payload = JSON.parse(payload);
+                    } catch (error) {
+                    }
+                    resolve(payload);
+                }
+                this.trace('free_rpc_response');
+                this.lib.free_rpc_response(responsePtr);
+            };
+
+            const cb = koffi.register(callback, koffi.pointer(this.lib.rpcCallback));
+            this.verbose('call rpc_async');
+            this.lib.rpc_async(this.client, req, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('Rpc async failed'));
+                }
+            });
+        });
+    }
     unregister_queue(queuename) {
         const reqptr = this.lib.unregister_queue(this.client, queuename);
         this.verbose('decode response');
@@ -2791,6 +2864,9 @@ class Client {
             }
         }
         if (data == null) data = "";
+        if (typeof data === 'object') {
+            data = JSON.stringify(data);
+        }
         if (replyto == null) replyto = "";
         if (exchangename == null) exchangename = "";
         if (correlation_id == null) correlation_id = "";

@@ -73,6 +73,7 @@ async function doit() {
         console.error('Failed to connect to server:', e);
         return;
     }
+    client.enable_tracing("openiap=info", "");
     let eventid = client.on_client_event((event) => {
         console.log("client event", event);
     });
@@ -112,7 +113,16 @@ async function doit() {
                 case '?':
                     console.log('Help:\nquit: to quit\nq: Query\nqq: Query all\ndi: Distinct\ns: Sign in as guest\ns2: Sign in as testuser\ni: Insert\nim: Insert Many\nd: Download\nu: Upload train.csv\nuu: Upload assistant-linux-x86_64.AppImage\nuuu: Upload virtio-win-0.1.225.iso\nw: Watch\nuw: Unwatch\nr: Register queue\nm: Queue message\nc: CPU Load Test');
                     break;
-    
+                case '1':
+                    client.enable_tracing("", "");
+                    break;
+                case '2':
+                    client.enable_tracing("openiap=new", "");
+                    break;
+                case '3':
+                    client.enable_tracing("openiap=debug", "new");
+                    break;
+        
                 case 'c':
                     console.log(`Calculating factorial of 20 ${numCalcs} times`);
                     for (let i = 0; i < numIters; i++) {
@@ -281,12 +291,30 @@ async function doit() {
                         console.error('Failed to register queue:', e);
                     }
                     break;
+                case 'r2':
+                    try {
+                        // const response = await client.rpc({
+                        //     queuename: 'test2queue',
+                        //     striptoken: true,
+                        //     data: '{"message":"Test message"}'
+                        // }, onqueue);
+                        const response = await client.rpc_async({
+                            queuename: 'test2queue',
+                            striptoken: true,
+                            data: '{"message":"Test message"}'
+                        }, onqueue);
+                        console.log(`Receved reply ${JSON.stringify(response)}`);
+                    } catch (e) {
+                        console.error('Failed to register queue:', e);
+                    }
+                    break;
                 
                 case 'm':
                     try {
                         await client.queue_message({
                             queuename: 'test2queue',
-                            data: '{"message":"Test message"}'
+                            striptoken: true,
+                            data: {message:"Test message"}
                         });
                         console.log(`Queued message to test2queue`);
                     } catch (e) {
