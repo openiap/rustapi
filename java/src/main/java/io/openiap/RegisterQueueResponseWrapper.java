@@ -2,11 +2,17 @@ package io.openiap;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import com.sun.jna.Structure;
 import com.sun.jna.Pointer;
 import com.sun.jna.Callback;
 
 public class RegisterQueueResponseWrapper {
+    // Make this public so Client can access it
+    public static final Map<String, QueueEventCallback> activeCallbacks = new ConcurrentHashMap<>();
+
     public static class Response extends Structure {
         public boolean success;
         public String queuename;
@@ -47,9 +53,23 @@ public class RegisterQueueResponseWrapper {
         }
     }
 
+    public static void registerCallback(String queueName, QueueEventCallback callback) {
+        activeCallbacks.put(queueName, callback);
+    }
+
+    public static void unregisterCallback(String queueName) {
+        activeCallbacks.remove(queueName);
+    }
+
+    public static Set<String> getActiveQueues() {
+        return activeCallbacks.keySet();
+    }
+
+    // Modify QueueEventCallback to match Client's callback type
     public interface QueueEventCallback extends Callback {
         String invoke(Pointer eventPtr);
     }
+
     public interface ExchangeEventCallback extends Callback {
         void invoke(Pointer eventPtr);
     }

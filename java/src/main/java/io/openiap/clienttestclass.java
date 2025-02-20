@@ -15,6 +15,7 @@ import io.openiap.ColTimeseriesWrapper.TimeUnit;
 
 @SuppressWarnings("unused")
 public class clienttestclass {
+    private static Client client; // Add client field
     private static volatile boolean gotwatchevent = false;
     private static volatile int queuemessagecount = 0;
     private static volatile int exchangemessagecount = 0;
@@ -29,11 +30,34 @@ public class clienttestclass {
         public String java;
     }
 
+    private static void handleQueueEvent(QueueEvent event) {
+        System.out.println("Received message on queue: " + event.getQueuename() +
+                          ", data: " + event.getData());
+    }
+
+    public static void testRegisterQueue() throws Exception {
+        var queuename = client.registerQueueAsync(
+            new RegisterQueueParameters.Builder()
+                .queuename("test2queue")
+                .build(),
+            (eventPtr) -> {
+                RegisterQueueResponseWrapper.QueueEventWrapper wrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
+                wrapper.read();
+                QueueEvent event = new QueueEvent();
+                event.setData(wrapper.data);
+                event.setQueuename(wrapper.queuename);
+                handleQueueEvent(event);
+                return "{\"payload\": {\"response\":\"testing\"}}";
+            }
+        );
+        System.out.println("Registered queue as: " + queuename);
+    }
+
     public static void RunAll() {
         System.out.println("CLI initializing...");
         String libpath = NativeLoader.loadLibrary("openiap");
 
-        Client client = new Client(libpath);
+        client = new Client(libpath);
         try {
             client.enableTracing("openiap=trace", "");
             client.enableTracing("openiap=info", "");
@@ -418,8 +442,13 @@ public class clienttestclass {
                     new RegisterQueueParameters.Builder()
                             .queuename("test2queue")
                             .build(),
-                    (result) -> {
-                        System.out.println("Queue result: " + result.data + " on " + result.queuename);
+                    (eventPtr) -> {
+                        RegisterQueueResponseWrapper.QueueEventWrapper wrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
+                        wrapper.read();
+                        QueueEvent event = new QueueEvent();
+                        event.setData(wrapper.data);
+                        event.setQueuename(wrapper.queuename);
+                        System.out.println("Queue result: " + event.getData() + " on " + event.getQueuename());
                         queuemessagecount++;
                         return "";
                     });
@@ -503,7 +532,7 @@ public class clienttestclass {
             if (exctimer != null) {
                 exctimer.cancel();
             }
-            client.disconnect();
+            client.close();
             System.out.println("CLI executed successfully!");
         }
     }

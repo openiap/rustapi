@@ -18,7 +18,6 @@ public class clienttestcli {
     private static Future<?> runningTask;
     private static AtomicBoolean taskRunning = new AtomicBoolean(false);
     private static ExecutorService replyExecutor;
-    private static int messagequeuecounter = 0;
 
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
@@ -205,34 +204,16 @@ public class clienttestcli {
                 new RegisterQueueParameters.Builder()
                     .queuename("test2queue")
                     .build(),
-                (result) -> {
-                    messagequeuecounter++;
-                    System.out.println("Received message " + messagequeuecounter + " on queue: " + result.queuename +
-                                       ", from: " + result.replyto +
-                                       ", data: " + result.data);
-
-                    // String replyToQueue = result.replyto;
-                    // String correlationId = result.correlation_id;
-                    // String responseMessage = "{\"payload\": {\"response\":\"Bettina\"}}";
-
-                    // replyExecutor.submit(() -> {
-                    //     try {
-                    //         // System.out.println("Sending reply to queue: " + replyToQueue +
-                    //         //                    ", correlationId: " + correlationId +
-                    //         //                    ", message: " + responseMessage);
-                    //         client.queueMessage(
-                    //             new QueueMessageParameters.Builder()
-                    //                 .queuename(replyToQueue)
-                    //                 .correlation_id(correlationId)
-                    //                 .striptoken(true)
-                    //                 .message(responseMessage)
-                    //                 .build()
-                    //         );
-                    //     } catch (Exception e) {
-                    //         System.err.println("Error sending reply: " + e.getMessage());
-                    //         e.printStackTrace(); // Log the full stack trace
-                    //     }
-                    // });
+                (eventPtr) -> {
+                    RegisterQueueResponseWrapper.QueueEventWrapper wrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
+                    wrapper.read();
+                    QueueEvent event = new QueueEvent();
+                    event.setData(wrapper.data);
+                    event.setQueuename(wrapper.queuename);
+                    event.setReplyto(wrapper.replyto);
+                    System.out.println("Received message on queue: " + event.getQueuename() +
+                                     ", from: " + event.getReplyto() +
+                                     ", data: " + event.getData());
                     return "{\"payload\": {\"response\":\"Bettina\"}}";
                 }
             );

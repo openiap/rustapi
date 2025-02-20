@@ -12,6 +12,7 @@ import java.util.List;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
 
 import com.sun.jna.Library;
 
@@ -99,14 +100,14 @@ interface CLib extends Library {
     void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback);
 }
 
-public class Client {
+public class Client implements AutoCloseable {
     private final ObjectMapper objectMapper;
     private Pointer clientPtr;
     private CLib clibInstance;
     private final Map<String, WatchEventCallback> watchCallbacks = new ConcurrentHashMap<>();
-    private final Map<String, QueueEventCallback> queueCallbacks = new ConcurrentHashMap<>();
     private final Map<String, ExchangeEventCallback> exchangeCallbacks = new ConcurrentHashMap<>();
     private final Map<String, ClientEventCallback> clientEventCallbacks = new ConcurrentHashMap<>();
+    private boolean isConnected = false;
 
     public Client(String fullLibPath) {
         this.objectMapper = new ObjectMapper();
@@ -120,6 +121,17 @@ public class Client {
         }
     }
 
+    public boolean connected() {
+        return isConnected && clientPtr != null;
+    }
+
+    protected CLib getLib() {
+        return clibInstance;
+    }
+
+    protected Pointer getNativeClient() {
+        return clientPtr;
+    }
 
     public void setAgentName(String agentName) {
         if (clientPtr == null) {
@@ -149,6 +161,7 @@ public class Client {
         } finally {
             clibInstance.free_connect_response(responsePtr);
         }
+        isConnected = true;
     }
 
     public String listCollections(boolean includeHist) throws Exception {
@@ -193,12 +206,12 @@ public class Client {
 
     public void disconnect() {
         if (clientPtr != null) {
-            queueCallbacks.clear();
             exchangeCallbacks.clear();
             watchCallbacks.clear();
             clientEventCallbacks.clear();
             clibInstance.client_disconnect(clientPtr);
         }
+        isConnected = false;
     }
 
     private void freeClient() {
@@ -732,56 +745,61 @@ public class Client {
         }
     }
 
-    public String registerQueueAsync(RegisterQueueParameters options, final QueueEventCallback eventCallback) {
-        if (clientPtr == null) {
-            throw new RuntimeException("Client not initialized");
+    // Add registerQueueAsync method for backward compatibility
+    public String registerQueueAsync(RegisterQueueParameters options, RegisterQueueResponseWrapper.QueueEventCallback callback) {
+        return registerQueue(options.queuename, callback);
+    }
+
+    public String registerQueue(String queuename, RegisterQueueResponseWrapper.QueueEventCallback callback) {
+        if (!connected()) {
+            throw new RuntimeException("Client not connected");
         }
 
-        RegisterQueueResponseWrapper.QueueEventCallback nativeEventCallback = new RegisterQueueResponseWrapper.QueueEventCallback() {
-            @Override
-            public String invoke(Pointer eventPtr) {
-                if (eventPtr == null) {
-                    return "";
-                }
-                RegisterQueueResponseWrapper.QueueEventWrapper eventWrapper = new RegisterQueueResponseWrapper.QueueEventWrapper(eventPtr);
-                eventWrapper.read();
-                try {
-                    QueueEvent event = new QueueEvent();
-                    event.queuename = eventWrapper.queuename;
-                    event.correlation_id = eventWrapper.correlation_id;
-                    event.replyto = eventWrapper.replyto;
-                    event.routingkey = eventWrapper.routingkey;
-                    event.exchangename = eventWrapper.exchangename;
-                    event.data = eventWrapper.data;
-                    var result = eventCallback.onEvent(event);
-                    if(result != null) {
-                        return result;
-                    }
-                } finally {
-                    clibInstance.free_queue_event(eventPtr);
-                }
-                return "";
-            }
-        };
-
-        Pointer responsePtr = clibInstance.register_queue_async(clientPtr, options, nativeEventCallback);
-        if (responsePtr == null) {
-            throw new RuntimeException("RegisterQueue returned null response");
-        }
-
-        RegisterQueueResponseWrapper.Response response = new RegisterQueueResponseWrapper.Response(responsePtr);
+        RegisterQueueParameters.Builder builder = new RegisterQueueParameters.Builder();
+        RegisterQueueParameters params = builder.queuename(queuename).build();
+        
         try {
-            if (!response.getSuccess() || response.error != null) {
-                String errorMsg = response.error != null ? response.error : "Unknown error";
-                throw new RuntimeException(errorMsg);
+            RegisterQueueResponseWrapper.registerCallback(queuename, callback);
+            
+            Pointer response = getLib().register_queue_async(getNativeClient(), params, callback);
+            if (response == null) {
+                throw new RuntimeException("Failed to register queue");
             }
-            String queueId = response.queuename;
-            if (queueId != null) {
-                queueCallbacks.put(queueId, eventCallback);
+
+            RegisterQueueResponseWrapper.Response resp = new RegisterQueueResponseWrapper.Response(response);
+            if (!resp.getSuccess()) {
+                RegisterQueueResponseWrapper.unregisterCallback(queuename);
+                throw new RuntimeException(resp.error != null ? resp.error : "Unknown error");
             }
-            return queueId;
+            
+            return resp.queuename;
         } finally {
-            clibInstance.free_register_queue_response(responsePtr);
+            params.clear();
+        }
+    }
+
+    // Make unregisterQueue accept only String
+    public void unregisterQueue(String queuename) {
+        if (queuename == null) {
+            throw new IllegalArgumentException("Queue name cannot be null");
+        }
+        if (!connected()) {
+            throw new RuntimeException("Client not connected");
+        }
+
+        try {
+            Pointer response = getLib().unregister_queue(getNativeClient(), queuename);
+            if (response == null) {
+                throw new RuntimeException("Failed to unregister queue");
+            }
+
+            UnRegisterQueueResponseWrapper.Response resp = new UnRegisterQueueResponseWrapper.Response(response);
+            if (!resp.getSuccess()) {
+                throw new RuntimeException(resp.error);
+            }
+        } finally {
+            // Clean up callback registration
+            RegisterQueueResponseWrapper.unregisterCallback(queuename);
         }
     }
 
@@ -797,12 +815,12 @@ public class Client {
                 eventWrapper.read();
                 try {
                     QueueEvent event = new QueueEvent();
-                    event.queuename = eventWrapper.queuename;
-                    event.correlation_id = eventWrapper.correlation_id;
-                    event.replyto = eventWrapper.replyto;
-                    event.routingkey = eventWrapper.routingkey;
-                    event.exchangename = eventWrapper.exchangename;
-                    event.data = eventWrapper.data;
+                    event.setQueuename(eventWrapper.queuename);
+                    event.setCorrelation_id(eventWrapper.correlation_id);
+                    event.setReplyto(eventWrapper.replyto);
+                    event.setRoutingkey(eventWrapper.routingkey);
+                    event.setExchangename(eventWrapper.exchangename);
+                    event.setData(eventWrapper.data);
                     eventCallback.onEvent(event);
                 } finally {
                     clibInstance.free_queue_event(eventPtr);
@@ -829,31 +847,6 @@ public class Client {
         } finally {
             clibInstance.free_register_exchange_response(responsePtr);
         }
-    }
-
-    public boolean unregisterQueue(String queuename) {
-        if (clientPtr == null) {
-            throw new RuntimeException("Client not initialized");
-        }
-        if (queuename != null) {
-            queueCallbacks.remove(queuename);
-            Pointer responsePtr = clibInstance.unregister_queue(clientPtr, queuename);
-            if (responsePtr == null) {
-                throw new RuntimeException("UnregisterQueue returned null response");
-            }
-
-            UnRegisterQueueResponseWrapper.Response response = new UnRegisterQueueResponseWrapper.Response(responsePtr);
-            try {
-                if (!response.getSuccess() || response.error != null) {
-                    String errorMsg = response.error != null ? response.error : "Unknown error";
-                    throw new RuntimeException(errorMsg);
-                }
-                return response.getSuccess();
-            } finally {
-                clibInstance.free_unregister_queue_response(responsePtr);
-            }
-        }
-        return false;
     }
 
     public void queueMessage(QueueMessageParameters options) {
@@ -998,9 +991,6 @@ public class Client {
         void onEvent(WatchEvent event);
     }
 
-    public interface QueueEventCallback {
-        String onEvent(QueueEvent event);
-    }
     public interface ExchangeEventCallback {
         void onEvent(QueueEvent event);
     }
@@ -1149,5 +1139,15 @@ public class Client {
         } finally {
             super.finalize();
         }
+    }
+
+    @Override
+    public void close() {
+        // Clear all registered callbacks
+        for (String queue : new ArrayList<>(RegisterQueueResponseWrapper.activeCallbacks.keySet())) {
+            unregisterQueue(queue);
+        }
+        disconnect();
+        freeClient();
     }
 }
