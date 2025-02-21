@@ -549,14 +549,34 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
                 .build();
     
             let otel_layer = OpenTelemetryTracingBridge::new(&logger_provider);
-
-            let filter_otel = EnvFilter::new("info")
+            
+            // Create separate filter instances instead of cloning
+            let filter_handle = EnvFilter::new("info")
                 .add_directive("hyper=off".parse().unwrap())
                 .add_directive("opentelemetry=off".parse().unwrap())
                 .add_directive("tonic=off".parse().unwrap())
                 .add_directive("h2=off".parse().unwrap())
                 .add_directive("reqwest=off".parse().unwrap());
-            let otel_layer = otel_layer.with_filter(filter_otel);
+                
+            let filter_registry = EnvFilter::new("info")
+                .add_directive("hyper=off".parse().unwrap())
+                .add_directive("opentelemetry=off".parse().unwrap())
+                .add_directive("tonic=off".parse().unwrap())
+                .add_directive("h2=off".parse().unwrap())
+                .add_directive("reqwest=off".parse().unwrap());
+
+            // Create two separate layers with their own filters
+            let filtered_layer_handle = Box::new(otel_layer.with_filter(filter_handle)) as Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>;
+            let filtered_layer_registry = OpenTelemetryTracingBridge::new(&logger_provider).with_filter(filter_registry);
+
+            if let Err(e) = OTEL_RELOAD_HANDLE.modify(|current| {
+                *current = filtered_layer_handle;
+                ()
+            }) {
+                tracing::error!("Failed to update OTEL layer: {:?}", e);
+            } else {
+                tracing::debug!("Updated OTEL layer successfully");
+            }
         
             // Create a new tracing::Fmt layer to print the logs to stdout. It has a
             // default filter of `info` level and above, and `debug` and above for logs
@@ -569,7 +589,7 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
             // Initialize the tracing subscriber with the OpenTelemetry layer and the
             // Fmt layer.
             tracing_subscriber::registry()
-                .with(otel_layer)
+                .with(filtered_layer_registry)
                 .with(fmt_layer)
                 .init();
             providers2.logger = Some(logger_provider);            
@@ -613,20 +633,25 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, reload, Registry};
 use once_cell::sync::Lazy;
 
 
-// Static global to hold a reload handle for updating the filter dynamically.
-// reload::Handle expects both a Layer (EnvFilter) and a Subscriber (Registry).
+// Update noop_otel_layer to return Box<dyn Layer>
+fn noop_otel_layer() -> Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync> {
+    Box::new(tracing_subscriber::fmt::layer().with_filter(EnvFilter::new("off")))
+}
+
+// Global handles for dynamic layers
 static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = Lazy::new(|| {
     let filter = EnvFilter::from_default_env();
-    let (layer, handle) = reload::Layer::new(filter);
-
-    let subscriber = Registry::default().with(layer).with(fmt::layer());
-
-    // Set the global default tracing subscriber
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Failed to set global default subscriber");
-
+    let (_filter_layer, handle) = reload::Layer::new(filter);
     Arc::new(handle)
 });
+
+// Update OTEL_RELOAD_HANDLE to use concrete type
+static OTEL_RELOAD_HANDLE: Lazy<Arc<reload::Handle<Box<dyn tracing_subscriber::Layer<Registry> + Send + Sync>, Registry>>> =
+    Lazy::new(|| {
+        let otel = noop_otel_layer();
+        let (_, handle) = reload::Layer::new(otel);
+        Arc::new(handle)
+    });
 
 // Unified function for initializing or updating the tracing filter and span events
 #[allow(dead_code)]
