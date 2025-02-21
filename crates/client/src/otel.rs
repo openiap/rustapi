@@ -3,7 +3,9 @@ use crate::{otel, ClientStatistics};
 use openiap_proto::errors::OpenIAPError;
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
-use tracing::{debug, error};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+use tracing::{debug, error, info};
 use std::sync::{Arc};
 #[cfg(feature = "otel_cpu")]
 use std::sync::{Mutex};
@@ -77,7 +79,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             let cpu = &process_stat_clone.lock().unwrap().cpu().unwrap_or_default() * 100.0 as f64;
             gauge.observe(cpu, &common_attributes);
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_cpu")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -94,7 +96,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             let cpu_utilization = cpu / core_count as f64;
             gauge.observe(cpu_utilization, &common_attributes);
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_network")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -126,7 +128,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             gauge.observe(net_rx, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "receive")]].concat());
             gauge.observe(net_tx, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "transmit")]].concat());
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_disk")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -142,7 +144,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             gauge.observe(io_stat.read_bytes, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "read")]].concat());
             gauge.observe(io_stat.write_bytes, &[common_attributes.as_slice(), &[KeyValue::new(DIRECTION, "write")]].concat());
         })
-        .init();
+        .build();
 
     #[cfg(feature = "otel_memory")]
     let common_attributes = [
@@ -161,7 +163,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             }
             gauge.observe(physical_mem, &common_attributes);
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_memory")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -179,7 +181,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             }
             gauge.observe(virtual_mem, &common_attributes);
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_elapsed")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -194,7 +196,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
             let elapsed_time = start_time.elapsed().unwrap_or_default().as_millis() as u64;
             gauge.observe(elapsed_time, &common_attributes);
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_connections")]        
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -214,7 +216,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
                 }
             }
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_connections")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -234,7 +236,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
                 }
             }
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_package_stats")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -254,7 +256,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
                 }
             }
         })
-        .init();
+        .build();
     #[cfg(feature = "otel_package_stats")]
     let common_attributes = [
         KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
@@ -274,7 +276,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
                 }
             }
         })
-        .init();
+        .build();
 
     #[cfg(feature = "otel_commands")]
     let common_attributes = [
@@ -448,55 +450,50 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
                 }
             }
         })
-        .init();
+        .build();
     Ok(())
 }
 
-
-
-
-
-
 use opentelemetry::{KeyValue};
-use opentelemetry_otlp::{WithExportConfig};
+use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::{Resource};
-use std::time::{Duration, SystemTime}; // Instant, 
-use opentelemetry_otlp::{new_exporter, new_pipeline};
-use opentelemetry_sdk::{runtime::Tokio};
+use std::time::{SystemTime};
+use opentelemetry_otlp::{LogExporter, MetricExporter}; // , SpanExporter
 use opentelemetry::metrics::MeterProvider;
-
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 #[allow(dead_code)]
 struct ProviderWrapper {
     provider: Option<opentelemetry_sdk::metrics::SdkMeterProvider>,
-    tracer: Option<opentelemetry_sdk::trace::TracerProvider>,
+    tracer: Option<opentelemetry_sdk::trace::SdkTracerProvider>,
+    logger: Option<opentelemetry_sdk::logs::SdkLoggerProvider>,
 }
 use lazy_static::lazy_static;
 lazy_static! {
     static ref provider1: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
         provider: None,
-        tracer: None
+        tracer: None,
+        logger: None
     });
     static ref provider2: std::sync::Mutex<ProviderWrapper> = std::sync::Mutex::new(ProviderWrapper {
         provider: None,
-        tracer: None
+        tracer: None,
+        logger: None
     });
 }
-
-
-// use opentelemetry_appender_log::OpenTelemetryLogBridge;
-// use opentelemetry_appender_tracing::layer;
-
-
-// use opentelemetry_sdk::logs::{BatchLogProcessor, LoggerProvider};
-
-// use opentelemetry_stdout::LogExporter;
-
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
-pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, otlpurl: &str, stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let period = 5;
+pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
+    metric_url: &str, _trace_url: &str, log_url: &str, 
+    stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
     let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
+    let resource = Resource::builder().with_service_name("rust")
+        .with_attribute(KeyValue::new("service.version", version.to_string() ))
+        .with_attribute(KeyValue::new("agent.name", agent_name.to_string() ))
+        .with_attribute(KeyValue::new("agent.version", agent_version.to_string() ))
+        .build();
 
     let mut hasher = md5::Context::new();
     match hasher.write_all(apihostname.as_bytes()) {
@@ -511,19 +508,16 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
         debug!("Initializing generic telemetry");
         let mut providers1 = provider1.lock().unwrap();
         if providers1.provider.is_none() {
-            let exporter1 = new_exporter()
-                .tonic()
+            let exporter1 = MetricExporter::builder()
+                .with_tonic()
                 .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-                .with_endpoint("https://otel.stats.openiap.io:443");
-            let provider = new_pipeline()
-            .metrics(Tokio)
-            .with_exporter(exporter1)
-            .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
-                KeyValue::new("service.version", version.to_string() ), 
-                KeyValue::new("agent.name", agent_name.to_string() ),
-                KeyValue::new("agent.version", agent_version.to_string() )]))
-            .with_period(Duration::from_secs(period))
-            .build().unwrap();
+                .with_endpoint("https://otel.stats.openiap.io:443")
+                .build()
+                .expect("Failed to create metric exporter");
+            let provider = SdkMeterProvider::builder()
+                .with_periodic_exporter(exporter1)
+                .with_resource(resource.clone())
+                .build();
             let meter1 = provider.meter("process-meter1");
             // let meter: opentelemetry::metrics::Meter = meterprovider1.meter("process-meter1");
             // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
@@ -537,47 +531,65 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
         }
     }
 
-    if !otlpurl.is_empty() {
-        debug!("Adding {} for telemetry", otlpurl);
+    if !log_url.is_empty() {
         let mut providers2 = provider2.lock().unwrap();
-        // if providers2.tracer.is_none() {
-        //     let exporter3 = new_exporter()
-        //     .tonic()
-        //     .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-        //     .with_endpoint(otlpurl);
-
-        //     let provider = opentelemetry_otlp::new_pipeline()
-        //     .logging()
-        //     .with_exporter(exporter3)
-        //     .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
-        //         KeyValue::new("service.version", version.to_string() ), 
-        //         KeyValue::new("agent.name", agent_name.to_string() ),
-        //         KeyValue::new("agent.version", agent_version.to_string() )]))
-        //     .install_simple().unwrap();
-
-        //     let layer = layer::OpenTelemetryTracingBridge::new(&provider);
-        //     tracing_subscriber::registry().with(layer).init();
-        
-
-        //     // let logger_provider = LoggerProvider::builder()
-        //     // .with_log_processor(BatchLogProcessor::builder(exporter3).build())
-        //     // .build();
-            
-        // }
         if providers2.provider.is_none() {
-            let exporter2 = new_exporter()
-                .tonic()
+
+            debug!("Adding {} for log observability", log_url);
+            let exporter = LogExporter::builder()
+                .with_tonic()
                 .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-                .with_endpoint(otlpurl);
-            let provider = new_pipeline()
-                .metrics(Tokio)
-                .with_exporter(exporter2)
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rust" ), 
-                    KeyValue::new("service.version", version.to_string() ), 
-                    KeyValue::new("agent.name", agent_name.to_string() ),
-                    KeyValue::new("agent.version", agent_version.to_string() )]))
-                .with_period(Duration::from_secs(period))
-                .build().unwrap();
+                .with_endpoint(log_url)
+                .build()
+                .expect("Failed to create log exporter");
+    
+            let logger_provider = SdkLoggerProvider::builder()
+                .with_resource(resource.clone())
+                .with_batch_exporter(exporter)
+                .build();
+    
+            let otel_layer = OpenTelemetryTracingBridge::new(&logger_provider);
+
+            let filter_otel = EnvFilter::new("info")
+                .add_directive("hyper=off".parse().unwrap())
+                .add_directive("opentelemetry=off".parse().unwrap())
+                .add_directive("tonic=off".parse().unwrap())
+                .add_directive("h2=off".parse().unwrap())
+                .add_directive("reqwest=off".parse().unwrap());
+            let otel_layer = otel_layer.with_filter(filter_otel);
+        
+            // Create a new tracing::Fmt layer to print the logs to stdout. It has a
+            // default filter of `info` level and above, and `debug` and above for logs
+            // from OpenTelemetry crates. The filter levels can be customized as needed.
+            let filter_fmt = EnvFilter::new("info").add_directive("opentelemetry=off".parse().unwrap());
+            let fmt_layer = tracing_subscriber::fmt::layer()
+                .with_thread_names(true)
+                .with_filter(filter_fmt);
+        
+            // Initialize the tracing subscriber with the OpenTelemetry layer and the
+            // Fmt layer.
+            tracing_subscriber::registry()
+                .with(otel_layer)
+                .with(fmt_layer)
+                .init();
+            providers2.logger = Some(logger_provider);            
+        }
+        setup_or_update_tracing("", "");
+    }
+    if !metric_url.is_empty() {
+        debug!("Adding {} for performance observability", metric_url);
+        let mut providers2 = provider2.lock().unwrap();
+        if providers2.provider.is_none() {
+            let exporter2 = MetricExporter::builder()
+                .with_tonic()
+                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+                .with_endpoint(metric_url)
+                .build()
+                .expect("Failed to create metric exporter");
+            let provider = SdkMeterProvider::builder()
+                .with_periodic_exporter(exporter2)
+                .with_resource(resource.clone())
+                .build();
 
             let meter2 = provider.meter("process-meter2");
             // when not using global::set_meter_provider we need to keep it alive using ProivderWrapper
@@ -592,4 +604,65 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
     }
 
     Ok(())
+}
+
+
+
+
+use tracing_subscriber::{fmt, layer::SubscriberExt, reload, Registry};
+use once_cell::sync::Lazy;
+
+
+// Static global to hold a reload handle for updating the filter dynamically.
+// reload::Handle expects both a Layer (EnvFilter) and a Subscriber (Registry).
+static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = Lazy::new(|| {
+    let filter = EnvFilter::from_default_env();
+    let (layer, handle) = reload::Layer::new(filter);
+
+    let subscriber = Registry::default().with(layer).with(fmt::layer());
+
+    // Set the global default tracing subscriber
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global default subscriber");
+
+    Arc::new(handle)
+});
+
+// Unified function for initializing or updating the tracing filter and span events
+#[allow(dead_code)]
+pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
+    // Configure the filter (log level)
+    if let Ok(new_filter) = EnvFilter::try_new(rust_log) {
+        // Update the existing filter using the reload handle
+        if let Err(e) = FILTER_RELOAD_HANDLE.modify(|current_filter| *current_filter = new_filter) {
+            error!("Failed to update tracing filter: {:?}", e);
+        } else {
+            debug!("Tracing filter updated with rust_log: {}", rust_log);
+        }
+    } else {
+        error!("Invalid filter syntax: {}", rust_log);
+    }
+
+    // Configure the span event tracking based on user input (tracing level)
+    let tracing = tracing.to_string();
+    let subscriber = fmt::layer();
+    let updated_subscriber = match tracing.to_lowercase().as_str() {
+        "new" => subscriber.with_span_events(fmt::format::FmtSpan::NEW),
+        "enter" => subscriber.with_span_events(fmt::format::FmtSpan::ENTER),
+        "exit" => subscriber.with_span_events(fmt::format::FmtSpan::EXIT),
+        "close" => subscriber.with_span_events(fmt::format::FmtSpan::CLOSE),
+        "none" => subscriber.with_span_events(fmt::format::FmtSpan::NONE),
+        "active" => subscriber.with_span_events(fmt::format::FmtSpan::ACTIVE),
+        "full" => subscriber.with_span_events(fmt::format::FmtSpan::FULL),
+        _ => subscriber,
+    };
+
+    // Add the layer to the existing registry
+    let registry = Registry::default().with(updated_subscriber);
+
+    if let Err(e) = tracing::subscriber::set_global_default(registry) {
+        debug!("Global subscriber is already set, skipping reinitialization: {:?}", e);
+    } else {
+        info!("Tracing setup/updated with rust_log: {:?}, tracing: {:?}", rust_log, tracing);
+    }
 }

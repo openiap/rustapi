@@ -264,6 +264,10 @@ pub struct Config {
     #[serde(default)]
     otel_metric_url: String,
     #[serde(default)]
+    otel_trace_url: String,
+    #[serde(default)]
+    otel_log_url: String,
+    #[serde(default)]
     enable_analytics: bool,
 }
 impl std::fmt::Debug for ClientInner {
@@ -396,6 +400,8 @@ impl Client {
         }
         let mut _enable_analytics = true;
         let mut _otel_metric_url = std::env::var("OTEL_METRIC_URL").unwrap_or_default();
+        let mut _otel_trace_url = std::env::var("OTEL_TRACE_URL").unwrap_or_default();
+        let mut _otel_log_url = std::env::var("OTEL_LOG_URL").unwrap_or_default();
         let mut apihostname = url.host_str().unwrap_or("localhost.openiap.io").to_string();
         if apihostname.starts_with("grpc.") {
             apihostname = apihostname[5..].to_string();
@@ -406,6 +412,12 @@ impl Client {
             if !config.otel_metric_url.is_empty() {
                 _otel_metric_url = config.otel_metric_url.clone();
             }
+            if !config.otel_trace_url.is_empty() {
+                _otel_trace_url = config.otel_trace_url.clone();
+            }
+            if !config.otel_log_url.is_empty() {
+                _otel_log_url = config.otel_log_url.clone();
+            }
             if !config.domain.is_empty() {
                 apihostname = config.domain.clone();
             }
@@ -415,7 +427,9 @@ impl Client {
         if _enable_analytics {
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), &self.stats) {
+            match otel::init_telemetry(&agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), 
+            _otel_trace_url.as_str(),  _otel_log_url.as_str(), 
+            &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
                     error!("Failed to initialize telemetry: {}", e);

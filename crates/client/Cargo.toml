@@ -23,11 +23,11 @@ minreq = { version = "2.12.0", features = ["https"] }
 url = { version = "2.5.3" }
 flate2 = { version = "1.0.34" }
 lazy_static = { version = "1.5.0" }
-opentelemetry = { version = "0.26.0", optional = true, features = [ "logs" ] }
-opentelemetry-appender-tracing = { version = "0.26.0", optional = true }
-# opentelemetry_appender_log = { version = "0.26.0", optional = true }
-opentelemetry_sdk = { version = "0.26.0", features = [ "rt-tokio", "async-std" ], optional = true }
-opentelemetry-otlp = { version = "0.26.0", features = [ "metrics", "grpc-tonic", "tls-webpki-roots" ], optional = true }
+opentelemetry = { version = "0.28.0", optional = true, features = [ "logs" ] }
+opentelemetry-appender-tracing = { version = "0.28.0", optional = true }
+# opentelemetry_appender_log = { version = "0.28.0", optional = true }
+opentelemetry_sdk = { version = "0.28.0", features = [ "rt-tokio", "async-std" ], optional = true }
+opentelemetry-otlp = { version = "0.28.0", features = [ "metrics", "grpc-tonic", "tls-webpki-roots" ], optional = true }
 md5 = { version = "0.7.0" }
 indexmap = { version = "2.6.0" }
 hostname = { version = "0.4.0" }
@@ -47,7 +47,7 @@ systemstat = { version = "0.2.3" }
 # default = ["otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed"]
 default = ["otel_memory", "otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed"]
 # default = ["otel_memory", "otel_package_stats", "otel_commands", "otel_connections", "otel_elapsed", "otel_cpu", "otel_network", "otel_disk"]
-otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp"]
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:opentelemetry-appender-tracing"]
 otel_memory = ["otel"]
 otel_package_stats = ["otel"]
 otel_commands = ["otel"]

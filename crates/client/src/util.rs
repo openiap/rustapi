@@ -101,6 +101,7 @@ static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = La
 });
 
 // Unified function for initializing or updating the tracing filter and span events
+#[allow(dead_code)]
 pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
     // Configure the filter (log level)
     if let Ok(new_filter) = EnvFilter::try_new(rust_log) {
@@ -138,15 +139,29 @@ pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
     }
 }
 
+
 /// Enable global tracing, allowing dynamic configuration of tracing settings.
 /// - rust_log is a [tracing_subscriber::EnvFilter] string (use empty string to use environment variable RUST_LOG).
 /// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active, or full.
 pub fn enable_tracing(rust_log: &str, tracing: &str) {
+    #[cfg(not(feature = "otel"))]
     setup_or_update_tracing(rust_log, tracing);
+
+    #[cfg(feature = "otel")]
+    use crate::otel;
+    #[cfg(feature = "otel")]
+    otel::setup_or_update_tracing(rust_log, tracing);
 }
 
 /// Disable tracing by setting a "none" filter.
 pub fn disable_tracing() {
+    #[cfg(not(feature = "otel"))]
     setup_or_update_tracing("none", "none");
+
+    #[cfg(feature = "otel")]
+    use crate::otel;
+    #[cfg(feature = "otel")]
+    otel::setup_or_update_tracing("none", "none");
+
     info!("Tracing has been disabled.");
 }
