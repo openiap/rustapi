@@ -2,7 +2,7 @@
 name = "openiap-client"
 description = "openiap client library"
 license = "MPL-2.0"
-version = "0.0.23"
+version = "0.0.24"
 edition = "2021"
 
 [dependencies]

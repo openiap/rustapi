@@ -567,7 +567,7 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
             //     .init();
             providers2.logger = Some(logger_provider);            
         }
-        setup_or_update_tracing("", "");
+        // setup_or_update_tracing("", "");
     }
     if !metric_url.is_empty() {
         debug!("Adding {} for performance observability", metric_url);
