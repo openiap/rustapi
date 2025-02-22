@@ -58,7 +58,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::{StreamExt };
 use async_channel::{unbounded};
-const VERSION: &str = "0.0.22";
+const VERSION: &str = "0.0.23";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -514,7 +514,7 @@ impl Client {
                 url.port().unwrap_or(80)
             );
         }
-        info!("Connecting to {}", strurl);
+        debug!("Connecting to {}", strurl);
         let config = self.load_config(strurl.as_str(), &url).await;
         if !usegprc {
             strurl = format!("{}/ws/v2", strurl);
@@ -833,9 +833,9 @@ impl Client {
             }
             if state == ClientState::Disconnected && !current.eq(&state) {
                 if message.is_some() {
-                    info!("Disconnected: {}", message.unwrap());
+                    debug!("Disconnected: {}", message.unwrap());
                 } else {
-                    info!("Disconnected");
+                    debug!("Disconnected");
                 }
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let me = self.clone();

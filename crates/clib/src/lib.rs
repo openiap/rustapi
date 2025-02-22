@@ -426,19 +426,19 @@ pub struct ConnectResponseWrapper {
 #[no_mangle]
 pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address: *const c_char) -> *mut ConnectResponseWrapper {
     let server_address = c_char_to_str(server_address);
-    info!("server_address = {:?}", server_address);
+    trace!("server_address = {:?}", server_address);
     let client = match safe_wrapper( client_wrap ) {
         Some( wrap ) => wrap.client.clone().unwrap(),
         None => {
             Client::new()
         }
     };
-    info!("connect::begin");
+    trace!("connect::begin");
     let res: Result<(), openiap_client::OpenIAPError> = client.connect(&server_address);
-    info!("connect::complete");
+    trace!("connect::complete");
     if res.is_err() {
         let e = res.err().unwrap();
-        info!("error_msg = {:?}", format!("Connection failed: {:?}", e));
+        debug!("error_msg = {:?}", format!("Connection failed: {:?}", e));
         let error_msg = CString::new(format!("Connection failed: {:?}", e))
             .unwrap()
             .into_raw();
@@ -448,7 +448,7 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
             error: error_msg,
             request_id: 0,
         }));
-        info!("connect::complete error result address: {:?}", result);
+        debug!("connect::complete error result address: {:?}", result);
         return result;
     }
     let result = Box::into_raw(Box::new(ConnectResponseWrapper {
@@ -456,7 +456,7 @@ pub extern "C" fn client_connect(client_wrap: *mut ClientWrapper, server_address
         error: std::ptr::null(),
         request_id: 0,
     }));
-    info!("connect::complete result address: {:?}", result);
+    trace!("connect::complete result address: {:?}", result);
     result
 }
 type ConnectCallback = extern "C" fn(wrapper: *mut ConnectResponseWrapper);
