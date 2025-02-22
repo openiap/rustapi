@@ -137,6 +137,7 @@ publish-all: publish-node publish-dotnet publish-python publish-java publish-car
 
 build-and-package-all: build-all package-all
 build-and-publish-all: build-all package-all publish-all
+latest: build-all package-all publish-all
 
 echo-done:
 	@echo "Build and publish process completed!"
