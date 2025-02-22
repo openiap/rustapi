@@ -58,7 +58,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::{StreamExt };
 use async_channel::{unbounded};
-const VERSION: &str = "0.0.25";
+const VERSION: &str = "0.0.26";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -345,6 +345,13 @@ impl Client {
         let config: Option<Config>;
         let issecure = url.scheme() == "https" || url.scheme() == "wss" || url.port() == Some(443);
         let mut port = url.port().unwrap_or(80);
+        if issecure {
+            port = 443;
+        }
+        let mut host = url.host_str().unwrap_or("localhost.openiap.io").replace("grpc.", "");
+        if host.starts_with("api-grpc") {
+            host = "api".to_string();
+        }
         if port == 50051 {
             port = 3000;
         }
@@ -352,18 +359,14 @@ impl Client {
             format!(
                 "{}://{}:{}/config",
                 "https",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", ""),
+                host,
                 port
             )
         } else {
             format!(
                 "{}://{}:{}/config",
                 "http",
-                url.host_str()
-                    .unwrap_or("localhost.openiap.io")
-                    .replace("grpc.", ""),
+                host,
                 port
             )
         };
