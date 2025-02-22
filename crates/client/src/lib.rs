@@ -58,7 +58,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::{StreamExt };
 use async_channel::{unbounded};
-const VERSION: &str = "0.0.24";
+const VERSION: &str = "0.0.25";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -370,7 +370,8 @@ impl Client {
 
         let configurl = url::Url::parse(configurl.as_str())
             .map_err(|e| OpenIAPError::ClientError(format!("Failed to parse URL: {}", e))).expect("wefew");
-        let o = minreq::get(configurl).send();
+        trace!("Getting config from: {}", configurl);
+        let o = minreq::get(configurl).with_timeout(5).send();
         match o {
             Ok(_) => {
                 let response = match o {
