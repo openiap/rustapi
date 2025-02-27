@@ -80,32 +80,98 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
     Ok(compressed_data)
 }
 
-use tracing_subscriber::{fmt, layer::SubscriberExt, reload, EnvFilter, Registry};
-use once_cell::sync::Lazy;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 use std::sync::Arc;
+use once_cell::sync::Lazy;
+use tracing_subscriber::{fmt, layer::SubscriberExt, reload, EnvFilter, Registry, layer::Layered};
+#[cfg(feature = "otel")]
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+#[cfg(feature = "otel")]
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+#[cfg(feature = "otel")]
+use opentelemetry_otlp::{WithExportConfig, LogExporter};
+#[cfg(feature = "otel")]
+use opentelemetry_sdk::Resource;
+#[cfg(feature = "otel")]
+use opentelemetry::{global, KeyValue};
+#[cfg(feature = "otel")]
+use opentelemetry_otlp::WithTonicConfig;
 
+#[cfg(feature = "otel")]
+static OTEL_LOGGER: Lazy<Option<SdkLoggerProvider>> = Lazy::new(|| {
+    let log_url = std::env::var("otel_log_url").unwrap_or_default();
+    if log_url.is_empty() {
+        return None;
+    }
 
-// Static global to hold a reload handle for updating the filter dynamically.
-// reload::Handle expects both a Layer (EnvFilter) and a Subscriber (Registry).
+    let exporter = LogExporter::builder()
+        .with_tonic()
+        .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+        .with_endpoint(log_url)
+        .build()
+        .expect("Failed to create OpenTelemetry log exporter");
+
+    let resource = Resource::builder().with_service_name("rust").build();
+
+    let provider = SdkLoggerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(resource)
+        .build();
+
+    Some(provider)
+});
+
+#[cfg(feature = "otel")]
 static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = Lazy::new(|| {
     let filter = EnvFilter::from_default_env();
     let (layer, handle) = reload::Layer::new(filter);
 
-    let subscriber = Registry::default().with(layer).with(fmt::layer());
+    let registry = Registry::default().with(layer).with(fmt::layer()).with(OpenTelemetryTracingBridge::new(OTEL_LOGGER.as_ref().expect("OpenTelemetry provider missing")));
 
-    // Set the global default tracing subscriber
-    tracing::subscriber::set_global_default(subscriber)
+
+    tracing::subscriber::set_global_default(registry)
         .expect("Failed to set global default subscriber");
 
     Arc::new(handle)
 });
 
-// Unified function for initializing or updating the tracing filter and span events
-#[allow(dead_code)]
-pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
-    // Configure the filter (log level)
+#[cfg(not(feature = "otel"))]
+static FILTER_RELOAD_HANDLE: Lazy<Arc<reload::Handle<EnvFilter, Registry>>> = Lazy::new(|| {
+    let filter = EnvFilter::from_default_env();
+    let (layer, handle) = reload::Layer::new(filter);
+
+    let registry = Registry::default().with(layer).with(fmt::layer());
+
+    tracing::subscriber::set_global_default(registry)
+        .expect("Failed to set global default subscriber");
+
+    Arc::new(handle)
+});
+
+/// Unified function for setting up or updating the tracing configuration
+pub fn setup_or_update_tracing(rust_log: &str) {
     if let Ok(new_filter) = EnvFilter::try_new(rust_log) {
-        // Update the existing filter using the reload handle
         if let Err(e) = FILTER_RELOAD_HANDLE.modify(|current_filter| *current_filter = new_filter) {
             error!("Failed to update tracing filter: {:?}", e);
         } else {
@@ -114,54 +180,15 @@ pub fn setup_or_update_tracing(rust_log: &str, tracing: &str) {
     } else {
         error!("Invalid filter syntax: {}", rust_log);
     }
-
-    // Configure the span event tracking based on user input (tracing level)
-    let tracing = tracing.to_string();
-    let subscriber = fmt::layer();
-    let updated_subscriber = match tracing.to_lowercase().as_str() {
-        "new" => subscriber.with_span_events(fmt::format::FmtSpan::NEW),
-        "enter" => subscriber.with_span_events(fmt::format::FmtSpan::ENTER),
-        "exit" => subscriber.with_span_events(fmt::format::FmtSpan::EXIT),
-        "close" => subscriber.with_span_events(fmt::format::FmtSpan::CLOSE),
-        "none" => subscriber.with_span_events(fmt::format::FmtSpan::NONE),
-        "active" => subscriber.with_span_events(fmt::format::FmtSpan::ACTIVE),
-        "full" => subscriber.with_span_events(fmt::format::FmtSpan::FULL),
-        _ => subscriber,
-    };
-
-    // Add the layer to the existing registry
-    let registry = Registry::default().with(updated_subscriber);
-
-    if let Err(e) = tracing::subscriber::set_global_default(registry) {
-        debug!("Global subscriber is already set, skipping reinitialization: {:?}", e);
-    } else {
-        info!("Tracing setup/updated with rust_log: {:?}, tracing: {:?}", rust_log, tracing);
-    }
 }
 
-
-/// Enable global tracing, allowing dynamic configuration of tracing settings.
-/// - rust_log is a [tracing_subscriber::EnvFilter] string (use empty string to use environment variable RUST_LOG).
-/// - tracing is a string that can be empty for nothing, or one of the following: new, enter, exit, close, active, or full.
-pub fn enable_tracing(rust_log: &str, tracing: &str) {
-    #[cfg(not(feature = "otel"))]
-    setup_or_update_tracing(rust_log, tracing);
-
-    #[cfg(feature = "otel")]
-    use crate::otel;
-    #[cfg(feature = "otel")]
-    otel::setup_or_update_tracing(rust_log, tracing);
+/// Enable global tracing with optional OpenTelemetry
+pub fn enable_tracing(rust_log: &str, _tracing: &str) {
+    setup_or_update_tracing(rust_log);
 }
 
 /// Disable tracing by setting a "none" filter.
 pub fn disable_tracing() {
-    #[cfg(not(feature = "otel"))]
-    setup_or_update_tracing("none", "none");
-
-    #[cfg(feature = "otel")]
-    use crate::otel;
-    #[cfg(feature = "otel")]
-    otel::setup_or_update_tracing("none", "none");
-
+    setup_or_update_tracing("none");
     info!("Tracing has been disabled.");
 }
