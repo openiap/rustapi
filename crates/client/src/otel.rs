@@ -6,7 +6,6 @@ use opentelemetry::Key;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use tracing::{debug, error, info};
-use std::fmt::Debug;
 use std::sync::{Arc};
 #[cfg(feature = "otel_cpu")]
 use std::sync::{Mutex};
@@ -461,8 +460,6 @@ use opentelemetry_sdk::{Resource};
 use std::time::{SystemTime};
 use opentelemetry_otlp::{LogExporter, MetricExporter}; // , SpanExporter
 use opentelemetry::metrics::MeterProvider;
-use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 #[allow(dead_code)]
 struct ProviderWrapper {
