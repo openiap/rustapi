@@ -387,7 +387,7 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
     let rust_log = rust_log.to_string();
     let tracing = c_char_to_str(tracing);
     let tracing = tracing.to_string();
-    openiap_client::enable_tracing(&rust_log, &tracing);
+    openiap_client::enable_tracing(&rust_log, &tracing, None);
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]

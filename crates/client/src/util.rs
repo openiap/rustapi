@@ -102,190 +102,320 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
 
 
 
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use tracing_subscriber::{
     fmt,
-    layer::Layer, // we need Layer trait in scope
+    layer::{Layer, SubscriberExt},
     reload,
+    filter::Filtered,
     EnvFilter,
     Registry,
 };
-use tracing_subscriber::prelude::*; // for .with_filter() and .and_then()
-use std::sync::OnceLock;
+use tracing_subscriber::layer::Layered;
+use tracing_subscriber::prelude::*; // for .with()
 
-// ----- OPTIONAL: OTel support (compiles only if feature="otel") -----
+use tracing::span::{Attributes, Record};
+
+// ----- OTel imports (only if feature="otel") -----
 #[cfg(feature = "otel")]
-use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-#[cfg(feature = "otel")]
-use opentelemetry_otlp::{WithTonicConfig, WithExportConfig, LogExporter};
-#[cfg(feature = "otel")]
-use opentelemetry_sdk::{logs::SdkLoggerProvider, Resource};
+use {
+    // The bridging layer
+    opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge,
 
-#[cfg(feature = "otel")]
-static OTEL_LOGGER: Lazy<Option<SdkLoggerProvider>> = Lazy::new(|| {
-    let log_url = std::env::var("otel_log_url").unwrap_or_default();
-    if log_url.is_empty() {
-        return None;
-    }
+    // OTLP exporter
+    opentelemetry_otlp::{LogExporter, WithTonicConfig, WithExportConfig},
 
-    let exporter = LogExporter::builder()
-        .with_tonic()
-        .with_tls_config(
-            tonic::transport::ClientTlsConfig::new().with_native_roots()
-        )
-        .with_endpoint(log_url)
-        .build()
-        .expect("Failed to create OpenTelemetry log exporter");
+    // The OTel SDK provider + logger
+    // (Under the hood, it uses a batch processor if you do `with_batch_exporter()`,
+    //  but from the bridging perspective, the logger type is `SdkLogger`.)
+    opentelemetry_sdk::{
+        logs::{SdkLoggerProvider, SdkLogger},
+        Resource,
+    },
+    // For the `S: Subscriber` bound
+    tracing::Subscriber,
+};
 
-    let resource = Resource::builder()
-        .with_service_name("rust")
-        .build();
+/// Whether the global subscriber has been set up
+static INSTALLED: OnceCell<()> = OnceCell::new();
 
-    let provider = SdkLoggerProvider::builder()
-        .with_batch_exporter(exporter)
-        .with_resource(resource)
-        .build();
+/// Our type for the base console layering:
+type ConsoleLayered = Layered<
+    Filtered<fmt::Layer<Registry>, reload::Layer<EnvFilter, Registry>, Registry>,
+    Registry
+>;
 
-    Some(provider)
-});
-
-/// Each filter's reload handle is typed against the base `Registry`.
-static mut CONSOLE_FILTER_HANDLE: Option<reload::Handle<EnvFilter, Registry>> = None;
-
+/// If "otel" is on, we layer OTel bridging on top of the console subscriber.
 #[cfg(feature="otel")]
-static mut OTEL_FILTER_HANDLE: Option<reload::Handle<EnvFilter, Registry>> = None;
+type FullSubscriber = Layered<
+    reload::Layer<OtelBridgeState, ConsoleLayered>,
+    ConsoleLayered
+>;
 
-//------------------------------------------------------------------------------
-// TRACING INITIALIZATION
-//------------------------------------------------------------------------------
+/// Reload handle for the console filter
+static CONSOLE_FILTER_HANDLE: Lazy<OnceCell<reload::Handle<EnvFilter, Registry>>> =
+    Lazy::new(OnceCell::new);
 
-/// With "otel" feature: sets up console + OTel logs, each reloadable, merged for a single subscriber.
+/// Reload handle for the OTel bridging (only if feature="otel")
 #[cfg(feature="otel")]
-pub fn init_tracing() {
-    // 1) Start with a base Registry
-    let base_subscriber = Registry::default();
+static OTEL_BRIDGE_HANDLE: Lazy<OnceCell<reload::Handle<OtelBridgeState, ConsoleLayered>>> =
+    Lazy::new(OnceCell::new);
 
-    // 2) Create a reloadable console filter
-    let console_filter = EnvFilter::from_default_env();
-    let (console_filter_layer, console_handle) = reload::Layer::new(console_filter);
+/// ---------------------------------------------------------------------------
+/// PUBLIC API
+/// ---------------------------------------------------------------------------
 
-    // Store the handle
-    unsafe {
-        CONSOLE_FILTER_HANDLE = Some(console_handle);
-    }
-
-    // Then transform it into the actual "fmt" layer
-    let console_layer = fmt::layer()
-        .with_thread_names(true)
-        .with_filter(console_filter_layer);
-
-    // 3) Create a reloadable OTel filter
-    let otel_filter = EnvFilter::new("info")
-        .add_directive("openiap=debug".parse().unwrap());
-    let (otel_filter_layer, otel_handle) = reload::Layer::new(otel_filter);
-
-    // Store the handle
-    unsafe {
-        OTEL_FILTER_HANDLE = Some(otel_handle);
-    }
-
-    // Then transform it into the bridging layer
-    let otel_layer = OpenTelemetryTracingBridge::new(
-        OTEL_LOGGER.as_ref().expect("OTel logger missing")
-    )
-    .with_filter(otel_filter_layer);
-
-    // 4) Combine them into a single layer that implements Layer<Registry>:
-    //    - "console_layer.and_then(otel_layer)" means events pass to the console layer,
-    //      and if they're still enabled, they're also passed to OTel.
-    let combined_layer = console_layer.and_then(otel_layer);
-
-    // 5) Attach that combined layer to the Registry
-    let final_subscriber = base_subscriber.with(combined_layer);
-
-    // 6) Done: set as global default
-    tracing::subscriber::set_global_default(final_subscriber)
-        .expect("Failed to set global subscriber");
-}
-
-/// Without "otel" feature: sets up only a console logs with a reloadable filter.
-#[cfg(not(feature="otel"))]
-pub fn init_tracing() {
-    // 1) Base Registry
-    let base_subscriber = Registry::default();
-
-    // 2) Create reloadable console filter
-    let console_filter = EnvFilter::from_default_env();
-    let (console_filter_layer, console_handle) = reload::Layer::new(console_filter);
-
-    // Store the handle
-    unsafe {
-        CONSOLE_FILTER_HANDLE = Some(console_handle);
-    }
-
-    // Then transform it into the "fmt" layer
-    let console_layer = fmt::layer()
-        .with_thread_names(true)
-        .with_filter(console_filter_layer);
-
-    // 3) Attach to the Registry
-    let final_subscriber = base_subscriber.with(console_layer);
-
-    // 4) Set as global
-    tracing::subscriber::set_global_default(final_subscriber)
-        .expect("Failed to set global subscriber");
-}
-
-//------------------------------------------------------------------------------
-// RUNTIME RELOAD
-//------------------------------------------------------------------------------
-
-/// Dynamically update the console filter
-pub fn update_console_filter(new_filter: &str) {
-    if let Ok(parsed_filter) = EnvFilter::try_new(new_filter) {
-        unsafe {
-            if let Some(handle) = &CONSOLE_FILTER_HANDLE {
-                if let Err(err) = handle.modify(|f| *f = parsed_filter) {
-                    eprintln!("Failed to update console filter: {err:?}");
-                }
-            }
-        }
-    }
-}
-
-/// Dynamically update the OTel filter (only if compiled with `--features otel`)
-#[cfg(feature="otel")]
-pub fn update_otel_filter(new_filter: &str) {
-    if let Ok(parsed_filter) = EnvFilter::try_new(new_filter) {
-        unsafe {
-            if let Some(handle) = &OTEL_FILTER_HANDLE {
-                if let Err(err) = handle.modify(|f| *f = parsed_filter) {
-                    eprintln!("Failed to update OTel filter: {err:?}");
-                }
-            }
-        }
-    }
-}
-/// This is our guard to ensure we install the subscriber only once.
-static INSTALLED: OnceLock<()> = OnceLock::new();
-
-/// Helper: set console + OTel logs together
-#[allow(dead_code)]
-pub fn enable_tracing(console_log: &str, otel_log: &str) {
-    // If not yet installed, do the one-time setup
+/// Call `enable_tracing(...)` as many times as you want:
+///  - On first call, installs a global subscriber (console + optional OTel).
+///  - On subsequent calls, just reconfigures filters & bridging.
+pub fn enable_tracing(
+    console_filter: &str,
+    otel_filter: &str,
+    otel_url: Option<&str>,
+) {
+    // If not yet installed, do a one-time global subscriber install:
     if INSTALLED.set(()).is_ok() {
-        init_tracing();
+        install_global_subscriber();
     }
-    
-    update_console_filter(console_log);
+
+    // Update console filter
+    update_console_filter(console_filter);
+
+    // If "otel" feature is on, update bridging
     #[cfg(feature="otel")]
-    update_otel_filter(otel_log);
+    {
+        let url = otel_url.unwrap_or("").trim();
+        update_otel_state(url, otel_filter);
+    }
 }
 
-/// Helper: disable all logs
-#[allow(dead_code)]
+/// Disable all logging: sets console + OTel filters to "none" and bridging = None
 pub fn disable_tracing() {
     update_console_filter("none");
     #[cfg(feature="otel")]
-    update_otel_filter("none");
+    {
+        update_otel_state("", "none"); // empty URL => bridging = None
+    }
+}
+
+/// Dynamically update the console filter (e.g. "warn,mycrate=info").
+pub fn update_console_filter(new_filter: &str) {
+    if let Some(handle) = CONSOLE_FILTER_HANDLE.get() {
+        let parsed = match EnvFilter::try_new(new_filter) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to parse console filter {new_filter:?}: {e}");
+                return;
+            }
+        };
+        if let Err(err) = handle.modify(|f| *f = parsed) {
+            eprintln!("Failed to update console filter: {err}");
+        }
+    }
+}
+
+/// ---------------------------------------------------------------------------
+/// INTERNAL: One-time global subscriber
+/// ---------------------------------------------------------------------------
+fn install_global_subscriber() {
+    // 1) Base registry
+    let registry = Registry::default();
+
+    // 2) Create a reloadable console filter
+    let console_filter = EnvFilter::new("info");
+    let (console_filter_layer, console_reload_handle) = reload::Layer::new(console_filter);
+
+    // Wrap with a fmt layer
+    let console_layer = fmt::layer()
+        .with_thread_names(true)
+        .with_filter(console_filter_layer);
+
+    // Combine => yields `ConsoleLayered`
+    let console_subscriber = registry.with(console_layer);
+
+    // 3) If "otel" is on, create a reloadable bridging layer, default = none
+    #[cfg(feature="otel")]
+    let (otel_layer, otel_reload_handle) = reload::Layer::new(OtelBridgeState::none());
+
+    #[cfg(feature="otel")]
+    let full_subscriber: FullSubscriber = console_subscriber.with(otel_layer);
+
+    #[cfg(not(feature="otel"))]
+    let full_subscriber = console_subscriber;
+
+    // 4) Set as global default
+    tracing::subscriber::set_global_default(full_subscriber)
+        .expect("Failed to set global subscriber");
+
+    // 5) Store reload handles
+    CONSOLE_FILTER_HANDLE
+        .set(console_reload_handle)
+        .expect("Failed to store console filter reload handle");
+
+    #[cfg(feature="otel")]
+    {
+        // We cannot just `.expect(...)` here because that would require `Debug` on OtelBridgeState.
+        // We'll handle the error manually (which is extremely unlikely unless it's already set).
+        if let Err(_already_set) = OTEL_BRIDGE_HANDLE.set(otel_reload_handle) {
+            panic!("Failed to store OTel bridging reload handle (already set?)");
+        }
+    }
+}
+
+/// If `url` is empty => bridging = None, else bridging = some new OTel provider
+#[cfg(feature="otel")]
+fn update_otel_state(url: &str, filter: &str) {
+    let new_state = if url.is_empty() {
+        OtelBridgeState::none()
+    } else {
+        OtelBridgeState::some(url, filter)
+    };
+
+    if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
+        if let Err(err) = handle.modify(|state| {
+            *state = new_state;
+        }) {
+            eprintln!("Failed to update OTel bridging state: {err}");
+        }
+    }
+}
+
+/// ---------------------------------------------------------------------------
+/// OTelBridgeState: bridging + a local filter
+/// ---------------------------------------------------------------------------
+/// We *cannot* `#[derive(Debug)]` because `OpenTelemetryTracingBridge<SdkLoggerProvider,SdkLogger>` 
+/// doesn't implement Debug.
+#[cfg(feature="otel")]
+struct OtelBridgeState {
+    bridging: Option<OpenTelemetryTracingBridge<SdkLoggerProvider, SdkLogger>>,
+    filter: EnvFilter,
+}
+
+#[cfg(feature="otel")]
+impl OtelBridgeState {
+    fn none() -> Self {
+        Self {
+            bridging: None,
+            filter: EnvFilter::new("none"),
+        }
+    }
+
+    fn some(endpoint: &str, filter_directives: &str) -> Self {
+        // 1) Build an OTLP exporter
+        let exporter = LogExporter::builder()
+            .with_tonic()
+            .with_tls_config(
+                tonic::transport::ClientTlsConfig::new().with_native_roots()
+            )
+            .with_endpoint(endpoint)
+            .build()
+            .expect("Failed to build OTel log exporter");
+
+        // 2) Resource
+        let resource = Resource::builder()
+            .with_service_name("rust")
+            .build();
+
+        // 3) Build an SdkLoggerProvider with a "batch exporter"
+        //    => bridging wants <SdkLoggerProvider,SdkLogger>
+        let provider = SdkLoggerProvider::builder()
+            .with_batch_exporter(exporter)
+            .with_resource(resource)
+            .build();
+
+        // 4) bridging
+        let bridging = Some(OpenTelemetryTracingBridge::new(&provider));
+
+        // 5) parse user filter
+        let filter = EnvFilter::try_new(filter_directives)
+            .unwrap_or_else(|_| EnvFilter::new("info"));
+
+        Self { bridging, filter }
+    }
+}
+
+/// A custom layer that checks if an event/span passes our `filter`,
+/// and if so, forwards it to bridging (if present).
+#[cfg(feature="otel")]
+impl<S> Layer<S> for OtelBridgeState
+where
+    S: Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
+{
+    fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        // Clone the context for the filter check => doesn't consume `ctx`
+        let is_enabled = self.filter.enabled(event.metadata(), ctx.clone());
+        if is_enabled {
+            if let Some(bridge) = &self.bridging {
+                // now pass the original ctx to bridging
+                bridge.on_event(event, ctx);
+            }
+        }
+    }
+
+    fn on_new_span(
+        &self,
+        attrs: &Attributes<'_>,
+        id: &tracing::Id,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let is_enabled = self.filter.enabled(attrs.metadata(), ctx.clone());
+        if is_enabled {
+            if let Some(bridge) = &self.bridging {
+                bridge.on_new_span(attrs, id, ctx);
+            }
+        }
+    }
+
+    fn on_record(
+        &self,
+        span: &tracing::Id,
+        values: &Record<'_>,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        // No filter check needed here if you want all records
+        // But if you do want to check the filter, you'd do it similarly:
+        if let Some(bridge) = &self.bridging {
+            bridge.on_record(span, values, ctx);
+        }
+    }
+
+    fn on_follows_from(
+        &self,
+        span: &tracing::Id,
+        follows: &tracing::Id,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        if let Some(bridge) = &self.bridging {
+            bridge.on_follows_from(span, follows, ctx);
+        }
+    }
+
+    fn on_enter(&self, id: &tracing::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        if let Some(bridge) = &self.bridging {
+            bridge.on_enter(id, ctx);
+        }
+    }
+
+    fn on_exit(&self, id: &tracing::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        if let Some(bridge) = &self.bridging {
+            bridge.on_exit(id, ctx);
+        }
+    }
+
+    fn on_close(&self, id: tracing::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        if let Some(bridge) = &self.bridging {
+            bridge.on_close(id, ctx);
+        }
+    }
+
+    fn on_id_change(
+        &self,
+        old: &tracing::Id,
+        new: &tracing::Id,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        if let Some(bridge) = &self.bridging {
+            bridge.on_id_change(old, new, ctx);
+        }
+    }
 }

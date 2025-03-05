@@ -452,7 +452,7 @@ impl Client {
             // enable_tracing("openiap=trace", "new");
             // enable_tracing("openiap=debug", "new");
             // enable_tracing("trace", "");
-            enable_tracing("openiap=error", "");
+            enable_tracing("openiap=error", "", None);
             // enable_tracing("openiap=debug", "");
         }
         if self.is_connect_called() {
@@ -655,7 +655,7 @@ impl Client {
             // enable_tracing("openiap=trace", "new");
             // enable_tracing("openiap=debug", "new");
             // enable_tracing("trace", "");
-            enable_tracing("openiap=error", "");
+            enable_tracing("openiap=error", "", None);
             // enable_tracing("openiap=debug", "");
         }
         let client  = Client::new();

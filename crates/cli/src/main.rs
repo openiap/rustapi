@@ -153,16 +153,16 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             disable_tracing();
         }
         if input.eq_ignore_ascii_case("1") {
-            enable_tracing("openiap=info", "");
+            enable_tracing("openiap=info", "openiap=trace", Some("https://otel.demo.openiap.io/v1/logs"));
         }
         if input.eq_ignore_ascii_case("2") {
-            enable_tracing("openiap=debug", "new");
+            enable_tracing("openiap=debug", "openiap=trace", None);
         }
         if input.eq_ignore_ascii_case("3") {
-            enable_tracing("openiap=trace", "new");
+            enable_tracing("openiap=trace", "openiap=trace", None);
         }
         if input.eq_ignore_ascii_case("4") {
-            enable_tracing("trace", "new");
+            enable_tracing("trace", "openiap=trace", None);
         }
         if input.eq_ignore_ascii_case("st") {
             // || input.eq_ignore_ascii_case("bum")
