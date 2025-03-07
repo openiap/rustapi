@@ -10,6 +10,8 @@ openiap-client = { path = "../client", version = "0.0" }
 tokio = { version = "1.41.0", features = ["rt-multi-thread"] }
 tokio-stream = { version = "0.1.16" }
 lazy_static = { version = "1.5.0" }
+rand =  { version = "0.9.0" }
+tracing = { version = "0.1.40", features = ["log", "attributes"] }
 
 # [target.'cfg(not(target_env = "msvc"))'.dependencies]
 # tikv-jemallocator = { version = "0.6.0", features = ["profiling", "stats"] }

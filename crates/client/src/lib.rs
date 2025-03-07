@@ -52,6 +52,7 @@ mod ws;
 mod grpc;
 mod util;
 pub use crate::util::{set_otel_url, enable_tracing, disable_tracing};
+pub use crate::otel::{set_f64_observable_gauge, set_u64_observable_gauge, set_i64_observable_gauge, disable_observable_gauge};
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;

@@ -4,11 +4,13 @@
 use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
+use tracing::{error, info};
 
 use openiap_client::{PushWorkitemRequest, QueueMessageRequest};
 #[allow(unused_imports)]
 use openiap_client::{
-    self, set_otel_url, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest,
+    self, set_otel_url, disable_tracing, enable_tracing, set_f64_observable_gauge, 
+    set_u64_observable_gauge, set_i64_observable_gauge, disable_observable_gauge, Client, InsertManyRequest, PopWorkitemRequest,
     RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
 };
 
@@ -18,6 +20,7 @@ use openiap_client::protos::{
 };
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
+
 
 // #[cfg(not(target_env = "msvc"))]
 // use tikv_jemallocator::Jemalloc;
@@ -116,6 +119,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::from("bum");
     println!("? for help");
     let mut sthandle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut f64handle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut u64handle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut i64handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut x: u64 = 0;
     while !input.eq_ignore_ascii_case("quit") {
         if input.eq_ignore_ascii_case("?") {
@@ -163,6 +169,90 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         }
         if input.eq_ignore_ascii_case("4") {
             enable_tracing("trace",  "new");
+        }
+        if input.eq_ignore_ascii_case("o") {
+            input = "".to_string();
+            if f64handle.is_some() {
+                disable_observable_gauge("test_f64");
+                info!("Disabled custom metric: test_f64");
+                f64handle.unwrap().abort();
+                f64handle = None;
+            } else {
+                f64handle = Some(
+                    tokio::task::spawn(async move {
+                        info!("Task started, begin loop for test_f64");
+                        let randomf: f64 = rand::random::<f64>() * 50.0;
+                        match set_f64_observable_gauge("test_f64", randomf, "My custom metric description") {
+                            Ok(_) => info!("test_f64 created with inital value: {}", randomf),
+                            Err(e) => error!("Failed to register custom metric: {}", e),
+                        }        
+                        loop {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                            let randomf: f64 = rand::random::<f64>() * 50.0;
+                            match set_f64_observable_gauge("test_f64", randomf, "My custom metric description") {
+                                Ok(_) => info!("test_f64 set to: {}", randomf),
+                                Err(e) => error!("Failed to register custom metric: {}", e),
+                            }        
+                        }
+                    }),
+                );
+            }
+        }
+        if input.eq_ignore_ascii_case("o2") {
+            input = "".to_string();
+            if u64handle.is_some() {
+                disable_observable_gauge("test_u64");
+                info!("Disabled custom metric: test_u64");
+                u64handle.unwrap().abort();
+                u64handle = None;
+            } else {
+                u64handle = Some(
+                    tokio::task::spawn(async move {
+                        info!("Task started, begin loop for test_u64");
+                        let randomf: u64 = (rand::random::<f64>() * 50.0).round() as u64;
+                        match set_u64_observable_gauge("test_u64", randomf, "My custom metric description") {
+                            Ok(_) => info!("test_u64 created with inital value: {}", randomf),
+                            Err(e) => error!("Failed to register custom metric: {}", e),
+                        }        
+                        loop {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                            let randomf: u64 = (rand::random::<f64>() * 50.0).round() as u64;
+                            match set_u64_observable_gauge("test_u64", randomf, "My custom metric description") {
+                                Ok(_) => info!("test_u64 set to: {}", randomf),
+                                Err(e) => error!("Failed to register custom metric: {}", e),
+                            }        
+                        }
+                    }),
+                );
+            }
+        }
+        if input.eq_ignore_ascii_case("o3") {
+            input = "".to_string();
+            if i64handle.is_some() {
+                disable_observable_gauge("test_i64");
+                info!("Disabled custom metric: test_i64");
+                i64handle.unwrap().abort();
+                i64handle = None;
+            } else {
+                i64handle = Some(
+                    tokio::task::spawn(async move {
+                        info!("Task started, begin loop for test_i64");
+                        let randomf: i64 = (rand::random::<f64>() * 50.0).round() as i64;
+                        match set_i64_observable_gauge("test_i64", randomf, "My custom metric description") {
+                            Ok(_) => info!("test_i64 created with inital value: {}", randomf),
+                            Err(e) => error!("Failed to register custom metric: {}", e),
+                        }        
+                        loop {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                            let randomf: i64 = (rand::random::<f64>() * 50.0).round() as i64;
+                            match set_i64_observable_gauge("test_i64", randomf, "My custom metric description") {
+                                Ok(_) => info!("test_i64 set to: {}", randomf),
+                                Err(e) => error!("Failed to register custom metric: {}", e),
+                            }        
+                        }
+                    }),
+                );
+            }
         }
         if input.eq_ignore_ascii_case("st") {
             // || input.eq_ignore_ascii_case("bum")

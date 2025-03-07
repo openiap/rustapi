@@ -6,11 +6,9 @@ use opentelemetry::Key;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use tracing::{debug, error, info};
 use std::sync::{Arc};
-#[cfg(feature = "otel_cpu")]
-use std::sync::{Mutex};
-use std::io::Write;
-#[cfg(feature = "otel_network")]
-use systemstat::{System, Platform};
+use std::collections::HashMap;
+use once_cell::sync::Lazy;
+use std::io::Write;  // Add this line for write_all trait
 
 #[cfg(feature = "otel_cpu")]
 const PROCESS_CPU_USAGE: &str = "process.cpu.usage";
@@ -479,6 +477,32 @@ lazy_static! {
         logger: None
     });
 }
+
+#[derive(Clone)]
+struct MetricValue {
+    f64value: f64,
+    u64value: u64,
+    i64value: i64,
+    description: String,
+    enabled: bool,
+}
+
+static METRIC_VALUES: Lazy<std::sync::Mutex<HashMap<String, MetricValue>>> = Lazy::new(|| {
+    std::sync::Mutex::new(HashMap::new())
+});
+
+#[derive(Clone)]
+struct MetricsContext {
+    version: String,
+    agent_name: String,
+    agent_version: String,
+    ofid: String,
+}
+
+static METRICS_CONTEXT: Lazy<std::sync::Mutex<Option<MetricsContext>>> = Lazy::new(|| {
+    std::sync::Mutex::new(None)
+});
+
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
 pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
@@ -500,6 +524,14 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
         }
     }
     let ofid = format!("{:x}", hasher.compute());
+    
+    // Store the context
+    *METRICS_CONTEXT.lock().unwrap() = Some(MetricsContext {
+        version: version.to_string(),
+        agent_name: agent_name.to_string(),
+        agent_version: agent_version.to_string(),
+        ofid: ofid.clone(),
+    });
 
     if enable_analytics {
         debug!("Initializing generic telemetry");
@@ -560,12 +592,237 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
 
     Ok(())
 }
+/// Create/Update an onservable gauge metric that can be updated dynamically.
+/// this means the value will be stored and send doing each metric update.
+pub fn set_f64_observable_gauge(name: &str, value: f64, description: &str) -> Result<(), String> {
+    let providers2 = provider2.lock().unwrap();
+    if providers2.provider.is_none() {
+        return Err("Provider not initialized".to_string());
+    }
+    
+    let name_owned = name.to_string();
+    
+    // Check if metric already exists and update if it does
+    let mut metrics = METRIC_VALUES.lock().unwrap();
+    if let Some(metric) = metrics.get_mut(&name_owned) {
+        metric.f64value = value;
+        metric.enabled = true;
+        return Ok(());
+    }
+    
+    // Store metric info in our static map for new metrics
+    metrics.insert(name_owned.clone(), MetricValue {
+        f64value: value,
+        u64value: 0,
+        i64value: 0,
+        description: description.to_string(),
+        enabled: true,
+    });
+    
+    if let Some(provider) = &providers2.provider {
+        let meter = provider.meter("custommeter");
+        let name_for_callback = name_owned.clone();
+        
+        // Get the metrics context
+        let context = METRICS_CONTEXT.lock().unwrap().clone();
+        
+        meter
+            .f64_observable_gauge(name_owned)
+            .with_description(description.to_string())
+            .with_callback(move |gauge| {
+                let enabled = METRIC_VALUES.lock().unwrap().get(&name_for_callback).map(|m| m.enabled).unwrap_or_default();
+                if !enabled {
+                    return;
+                }                
+                if let Some(metric) = METRIC_VALUES.lock().unwrap().get(&name_for_callback) {
+                    let mut attributes = vec![
+                        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+                        KeyValue::new("metric_name", name_for_callback.clone()),
+                        KeyValue::new("PID", std::process::id().to_string()),
+                    ];
+                    
+                    // Add context attributes if available
+                    if let Some(ctx) = &context {
+                        attributes.extend_from_slice(&[
+                            KeyValue::new("service.version", ctx.version.clone()),
+                            KeyValue::new("agent.name", ctx.agent_name.clone()),
+                            KeyValue::new("agent.version", ctx.agent_version.clone()),
+                            KeyValue::new(OFID, ctx.ofid.clone()),
+                        ]);
+                    }
+                    
+                    gauge.observe(metric.f64value, &attributes);
+                }
+            })
+            .build();
+        
+        Ok(())
+    } else {
+        Err("Provider is None".to_string())
+    }
+}
+/// Create/Update an onservable gauge metric that can be updated dynamically.
+/// this means the value will be stored and send doing each metric update.
+pub fn set_u64_observable_gauge(name: &str, value: u64, description: &str) -> Result<(), String> {
+    let providers2 = provider2.lock().unwrap();
+    if providers2.provider.is_none() {
+        return Err("Provider not initialized".to_string());
+    }
+    
+    let name_owned = name.to_string();
+    
+    // Check if metric already exists and update if it does
+    let mut metrics = METRIC_VALUES.lock().unwrap();
+    if let Some(metric) = metrics.get_mut(&name_owned) {
+        metric.u64value = value;
+        metric.enabled = true;
+        return Ok(());
+    }
+    
+    // Store metric info in our static map for new metrics
+    metrics.insert(name_owned.clone(), MetricValue {
+        f64value: 0.0,
+        u64value: value,
+        i64value: 0,
+        description: description.to_string(),
+        enabled: true,
+    });
+    
+    if let Some(provider) = &providers2.provider {
+        let meter = provider.meter("custommeter");
+        let name_for_callback = name_owned.clone();
+        
+        // Get the metrics context
+        let context = METRICS_CONTEXT.lock().unwrap().clone();
+        
+        meter
+            .u64_observable_gauge(name_owned)
+            .with_description(description.to_string())
+            .with_callback(move |gauge| {
+                let enabled = METRIC_VALUES.lock().unwrap().get(&name_for_callback).map(|m| m.enabled).unwrap_or_default();
+                if !enabled {
+                    return;
+                }                
+                if let Some(metric) = METRIC_VALUES.lock().unwrap().get(&name_for_callback) {
+                    let mut attributes = vec![
+                        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+                        KeyValue::new("metric_name", name_for_callback.clone()),
+                        KeyValue::new("PID", std::process::id().to_string()),
+                    ];
+                    
+                    // Add context attributes if available
+                    if let Some(ctx) = &context {
+                        attributes.extend_from_slice(&[
+                            KeyValue::new("service.version", ctx.version.clone()),
+                            KeyValue::new("agent.name", ctx.agent_name.clone()),
+                            KeyValue::new("agent.version", ctx.agent_version.clone()),
+                            KeyValue::new(OFID, ctx.ofid.clone()),
+                        ]);
+                    }
+                    
+                    gauge.observe(metric.u64value, &attributes);
+                }
+            })
+            .build();
+        
+        Ok(())
+    } else {
+        Err("Provider is None".to_string())
+    }
+}
+/// Create/Update an onservable gauge metric that can be updated dynamically.
+/// this means the value will be stored and send doing each metric update.
+pub fn set_i64_observable_gauge(name: &str, value: i64, description: &str) -> Result<(), String> {
+    let providers2 = provider2.lock().unwrap();
+    if providers2.provider.is_none() {
+        return Err("Provider not initialized".to_string());
+    }
+    
+    let name_owned = name.to_string();
+    
+    // Check if metric already exists and update if it does
+    let mut metrics = METRIC_VALUES.lock().unwrap();
+    if let Some(metric) = metrics.get_mut(&name_owned) {
+        metric.i64value = value;
+        metric.enabled = true;
+        return Ok(());
+    }
+    
+    // Store metric info in our static map for new metrics
+    metrics.insert(name_owned.clone(), MetricValue {
+        f64value: 0.0,
+        u64value: 0,
+        i64value: value,
+        description: description.to_string(),
+        enabled: true,
+    });
+    
+    if let Some(provider) = &providers2.provider {
+        let meter = provider.meter("custommeter");
+        let name_for_callback = name_owned.clone();
+        
+        // Get the metrics context
+        let context = METRICS_CONTEXT.lock().unwrap().clone();
+        
+        meter
+            .i64_observable_gauge(name_owned)
+            .with_description(description.to_string())
+            .with_callback(move |gauge| {
+                let enabled = METRIC_VALUES.lock().unwrap().get(&name_for_callback).map(|m| m.enabled).unwrap_or_default();
+                if !enabled {
+                    return;
+                }                
+                if let Some(metric) = METRIC_VALUES.lock().unwrap().get(&name_for_callback) {
+                    let mut attributes = vec![
+                        KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+                        KeyValue::new("metric_name", name_for_callback.clone()),
+                        KeyValue::new("PID", std::process::id().to_string()),
+                    ];
+                    
+                    // Add context attributes if available
+                    if let Some(ctx) = &context {
+                        attributes.extend_from_slice(&[
+                            KeyValue::new("service.version", ctx.version.clone()),
+                            KeyValue::new("agent.name", ctx.agent_name.clone()),
+                            KeyValue::new("agent.version", ctx.agent_version.clone()),
+                            KeyValue::new(OFID, ctx.ofid.clone()),
+                        ]);
+                    }
+                    
+                    gauge.observe(metric.i64value, &attributes);
+                }
+            })
+            .build();
+        
+        Ok(())
+    } else {
+        Err("Provider is None".to_string())
+    }
+}
+/// Disable an observable gauge metric. 
+pub fn disable_observable_gauge(name: &str) {
+    // Check if metric already exists and update if it does
+    let mut metrics = METRIC_VALUES.lock().unwrap();
+    if let Some(metric) = metrics.get_mut(name) {
+        metric.enabled = false;
+    }
+}
+#[allow(dead_code)]
+pub fn get_metric_value(name: &str) -> Option<f64> {
+    METRIC_VALUES.lock().unwrap()
+        .get(name)
+        .map(|m| m.f64value)
+}
 
-
-
+#[allow(dead_code)]
+pub fn list_metrics() -> Vec<(String, f64, String)> {
+    METRIC_VALUES.lock().unwrap()
+        .iter()
+        .map(|(name, metric)| (name.clone(), metric.f64value, metric.description.clone()))
+        .collect()
+}
 
 use tracing_subscriber::{fmt, layer::SubscriberExt, reload, Registry};
-use once_cell::sync::Lazy;
 
 
 // Static global to hold a reload handle for updating the filter dynamically.
