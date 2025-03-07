@@ -47,9 +47,6 @@ namespace OpenIAP
         private readonly RpcResponseCallback _RpcResponseCallbackDelegate;
         public IntPtr clientPtr;
         ClientWrapper client;
-        bool tracing { get; set; } = false;
-        bool informing { get; set; } = false;
-        bool verbosing { get; set; } = false;
         #region Structs
         [StructLayout(LayoutKind.Sequential)]
         public struct ClientWrapper
@@ -882,6 +879,17 @@ namespace OpenIAP
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void disable_tracing();
 
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void error(string message);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void info(string message);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void warn(string message);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void debug(string message);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void trace(string message);
+
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void ClientEventCallback(IntPtr eventStr);
@@ -1135,39 +1143,59 @@ namespace OpenIAP
         public void enabletracing(string rust_log = "", string tracing = "")
         {
             enable_tracing(rust_log, tracing);
-            informing = true;
-            if (rust_log.Contains("verbose")) verbosing = true;
-            if (rust_log.Contains("trace")) this.tracing = true;
         }
         public void disabletracing()
         {
             disable_tracing();
         }
-        public void info(params object[] objs)
+        public void error(params object[] objs)
         {
-            if (informing)
+            for(int i = 0; i < objs.Length; i++)
             {
-                Console.Write("dotnet: ");
-                objs.ToList().ForEach(obj => Console.Write(obj));
-                Console.WriteLine();
+                if(objs[i] != null) {
+                    var message = objs[i].ToString();
+                    if(!string.IsNullOrEmpty(message)) Client.error(message);
+                }
             }
         }
-        public void verbose(params object[] objs)
+        public void info(params object[] objs)
         {
-            if (verbosing)
+            for(int i = 0; i < objs.Length; i++)
             {
-                Console.Write("dotnet: ");
-                objs.ToList().ForEach(obj => Console.Write(obj));
-                Console.WriteLine();
+                if(objs[i] != null) {
+                    var message = objs[i].ToString();
+                    if(!string.IsNullOrEmpty(message)) Client.info(message);
+                }
+            }
+        }
+        public void warn(params object[] objs)
+        {
+            for(int i = 0; i < objs.Length; i++)
+            {
+                if(objs[i] != null) {
+                    var message = objs[i].ToString();
+                    if(!string.IsNullOrEmpty(message)) Client.warn(message);
+                }
+            }
+        }
+        public void debug(params object[] objs)
+        {
+            for(int i = 0; i < objs.Length; i++)
+            {
+                if(objs[i] != null) {
+                    var message = objs[i].ToString();
+                    if(!string.IsNullOrEmpty(message)) Client.debug(message);
+                }
             }
         }
         public void trace(params object[] objs)
         {
-            if (tracing)
+            for(int i = 0; i < objs.Length; i++)
             {
-                Console.Write("dotnet: ");
-                objs.ToList().ForEach(obj => Console.Write(obj));
-                Console.WriteLine();
+                if(objs[i] != null) {
+                    var message = objs[i].ToString();
+                    if(!string.IsNullOrEmpty(message)) Client.trace(message);
+                }
             }
         }
         void _ConnectCallback(IntPtr clientWrapperPtr)
@@ -1179,12 +1207,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
                 {
@@ -1201,7 +1229,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1253,12 +1281,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -1276,7 +1304,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1317,12 +1345,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
                 {
@@ -1339,7 +1367,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1409,12 +1437,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
                 {
@@ -1432,7 +1460,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1459,12 +1487,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -1483,7 +1511,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1531,12 +1559,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
                 {
@@ -1553,7 +1581,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1606,12 +1634,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback(requestId, out var tcs))
                 {
@@ -1628,7 +1656,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1653,12 +1681,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<(string jwt, string error, bool success)>(requestId, out var tcs))
                 {
@@ -1678,7 +1706,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1736,12 +1764,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -1759,7 +1787,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1837,12 +1865,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -1861,7 +1889,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -1930,12 +1958,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
                 {
@@ -1955,7 +1983,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2001,12 +2029,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string[]>(requestId, out var tcs))
                 {
@@ -2034,7 +2062,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2083,12 +2111,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2106,7 +2134,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2172,12 +2200,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2195,7 +2223,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2261,12 +2289,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2284,7 +2312,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2350,12 +2378,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2373,7 +2401,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2442,12 +2470,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
                 {
@@ -2467,7 +2495,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2515,12 +2543,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<int>(requestId, out var tcs))
                 {
@@ -2540,7 +2568,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2609,12 +2637,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2634,7 +2662,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2682,12 +2710,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2707,7 +2735,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2815,12 +2843,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -2841,7 +2869,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -2964,7 +2992,7 @@ namespace OpenIAP
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
                 return IntPtr.Zero;
             }
             finally
@@ -3048,12 +3076,12 @@ namespace OpenIAP
                 }
                 else
                 {
-                    Console.WriteLine("No event handler found for request_id: " + eventObj.request_id);
+                    error("No event handler found for request_id: " + eventObj.request_id);
                 }
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -3202,12 +3230,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
                 {
@@ -3293,7 +3321,7 @@ namespace OpenIAP
             catch (Exception ex)
             {
                 // tcs.SetException(ex);
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
 
             }
             finally
@@ -3400,12 +3428,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
                 {
@@ -3494,12 +3522,12 @@ namespace OpenIAP
                 }
                 else
                 {
-                    Console.WriteLine($"No matching TCS found for request_id: {requestId}");
+                    error($"No matching TCS found for request_id: {requestId}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -3546,12 +3574,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<Workitem?>(requestId, out var tcs))
                 {
@@ -3637,7 +3665,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -3760,12 +3788,12 @@ namespace OpenIAP
                 var count = CallbackRegistry.Count;
                 if (count == 0)
                 {
-                    Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                     return;
                 }
                 else if (count > 1)
                 {
-                    // Console.WriteLine($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
                 }
                 if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
                 {
@@ -3784,7 +3812,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                error(ex.Message);
             }
             finally
             {
@@ -3831,7 +3859,7 @@ namespace OpenIAP
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in RPC callback: {ex.Message}");
+                error($"Error in RPC callback: {ex.Message}");
             }
             finally
             {

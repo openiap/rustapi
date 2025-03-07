@@ -4,7 +4,6 @@ use openiap_proto::errors::OpenIAPError;
 use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
-use opentelemetry_sdk::logs::SdkLoggerProvider;
 use tracing::{debug, error, info};
 use std::sync::{Arc};
 #[cfg(feature = "otel_cpu")]
@@ -458,7 +457,7 @@ use opentelemetry::{KeyValue};
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::{Resource};
 use std::time::{SystemTime};
-use opentelemetry_otlp::{LogExporter, MetricExporter}; // , SpanExporter
+use opentelemetry_otlp::{MetricExporter};
 use opentelemetry::metrics::MeterProvider;
 use tracing_subscriber::EnvFilter;
 #[allow(dead_code)]
@@ -483,7 +482,7 @@ lazy_static! {
 /// Initialize telemetry
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
 pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
-    metric_url: &str, _trace_url: &str, log_url: &str, 
+    metric_url: &str, trace_url: &str, log_url: &str, 
     stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
     let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
@@ -530,41 +529,7 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
     }
 
     if !log_url.is_empty() {
-        let mut providers2 = provider2.lock().unwrap();
-        if providers2.provider.is_none() {
-
-            debug!("Adding {} for log observability", log_url);
-            let exporter = LogExporter::builder()
-                .with_tonic()
-                .with_tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
-                .with_endpoint(log_url)
-                .build()
-                .expect("Failed to create log exporter");
-    
-            let logger_provider = SdkLoggerProvider::builder()
-                .with_resource(resource.clone())
-                .with_batch_exporter(exporter)
-                .build();
-
-            // let otel_layer = OpenTelemetryTracingBridge::new(&logger_provider);
-            // let filter_otel = EnvFilter::new("info")
-            //     .add_directive("hyper=off".parse().unwrap())
-            //     .add_directive("opentelemetry=off".parse().unwrap())
-            //     .add_directive("tonic=off".parse().unwrap())
-            //     .add_directive("h2=off".parse().unwrap())
-            //     .add_directive("reqwest=off".parse().unwrap());
-            // let otel_layer: tracing_subscriber::filter::Filtered<OpenTelemetryTracingBridge<SdkLoggerProvider, opentelemetry_sdk::logs::SdkLogger>, EnvFilter, Registry> = otel_layer.with_filter(filter_otel);
-            // let filter_fmt = EnvFilter::new("info").add_directive("opentelemetry=off".parse().unwrap());
-            // let fmt_layer: tracing_subscriber::filter::Filtered<fmt::Layer<tracing_subscriber::layer::Layered<tracing_subscriber::filter::Filtered<OpenTelemetryTracingBridge<SdkLoggerProvider, opentelemetry_sdk::logs::SdkLogger>, EnvFilter, Registry>, Registry>>, EnvFilter, tracing_subscriber::layer::Layered<tracing_subscriber::filter::Filtered<OpenTelemetryTracingBridge<SdkLoggerProvider, opentelemetry_sdk::logs::SdkLogger>, EnvFilter, Registry>, Registry>> = tracing_subscriber::fmt::layer()
-            //     .with_thread_names(true)
-            //     .with_filter(filter_fmt);
-            // tracing_subscriber::registry()
-            //     .with(otel_layer)
-            //     .with(fmt_layer)
-            //     .init();
-            providers2.logger = Some(logger_provider);            
-        }
-        // setup_or_update_tracing("", "");
+        crate::set_otel_url(log_url, trace_url, &ofid, version, agent_name, agent_version);
     }
     if !metric_url.is_empty() {
         debug!("Adding {} for performance observability", metric_url);

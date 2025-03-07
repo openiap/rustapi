@@ -27,10 +27,11 @@ public class clienttestcli {
         executor = Executors.newSingleThreadExecutor();
         replyExecutor = Executors.newFixedThreadPool(4); // Adjust pool size as needed
         try {
-            client.enableTracing("openiap=trace", "new");
+            // client.enableTracing("openiap=trace", "new");
             client.enableTracing("openiap=info", "");
             client.start();
             client.connect("");
+            client.info("Connected to server, successfully.");
             System.out.println("? for help");
             if(System.getenv("oidc_config") != null && System.getenv("oidc_config") != "") {
                 handleStartTask();

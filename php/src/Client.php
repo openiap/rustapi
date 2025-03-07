@@ -189,11 +189,26 @@ class Client {
         return true;
     }
     public function enable_tracing($rust_log, $tracing) {
-        print_r("enabling tracing with rust_log=$rust_log, tracing=$tracing\n");
+        $this->debug("enabling tracing with rust_log=$rust_log, tracing=$tracing\n");
         $this->ffi->enable_tracing($rust_log, $tracing);
     }
     public function disable_tracing() {
         $this->ffi->disable_tracing();
+    }
+    public function error($message) {
+        $this->ffi->error($message);
+    }
+    public function info($message) {
+        $this->ffi->info($message);
+    }
+    public function warn($message) {
+        $this->ffi->warn($message);
+    }
+    public function debug($message) {
+        $this->ffi->debug($message);
+    }
+    public function trace($message) {
+        $this->ffi->trace($message);
     }
 
     private function set_agent_name($agent_name) {

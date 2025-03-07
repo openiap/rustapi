@@ -51,7 +51,7 @@ mod tests;
 mod ws;
 mod grpc;
 mod util;
-pub use crate::util::{enable_tracing, disable_tracing};
+pub use crate::util::{set_otel_url, enable_tracing, disable_tracing};
 
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
@@ -452,7 +452,7 @@ impl Client {
             // enable_tracing("openiap=trace", "new");
             // enable_tracing("openiap=debug", "new");
             // enable_tracing("trace", "");
-            enable_tracing("openiap=error", "", None);
+            enable_tracing("openiap=error", "");
             // enable_tracing("openiap=debug", "");
         }
         if self.is_connect_called() {
@@ -655,7 +655,7 @@ impl Client {
             // enable_tracing("openiap=trace", "new");
             // enable_tracing("openiap=debug", "new");
             // enable_tracing("trace", "");
-            enable_tracing("openiap=error", "", None);
+            enable_tracing("openiap=error", "");
             // enable_tracing("openiap=debug", "");
         }
         let client  = Client::new();

@@ -26,7 +26,7 @@ try {
 
     $client = new Client();
     // $client->enable_tracing("openiap=debug", "new");
-    $client->enable_tracing("openiap=info", "new");
+    $client->enable_tracing("openiap=info", "");
 
     // print("Init events\n");
     // $eventId = $client->on_client_event(function($event) {
@@ -35,6 +35,7 @@ try {
     // });
     // print("Event ID: $eventId\n");
     $client->connect("");
+    $client->info("Successfully connected to server");
 
     Loop::addReadStream(STDIN, function ($stream) use ($client) {
         $chunk = \trim(\fread($stream, 64 * 1024));

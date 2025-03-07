@@ -31,6 +31,11 @@ interface CLib extends Library {
     void free_list_collections_response(Pointer response);
     void enable_tracing(String rustLog, String tracing);
     void disable_tracing();
+    void error(String message);
+    void info(String message);
+    void warn(String message);
+    void debug(String message);
+    void trace(String message);
     Pointer query(Pointer client, QueryParameters options);
     void free_query_response(Pointer response);
     Pointer aggregate(Pointer client, AggregateParameters options);
@@ -199,7 +204,21 @@ public class Client implements AutoCloseable {
     public void enableTracing(String rustLog, String tracing) {
         clibInstance.enable_tracing(rustLog, tracing);
     }
-
+    public void error(String message) {
+        clibInstance.error(message);
+    }
+    public void info(String message) {
+        clibInstance.info(message);
+    }
+    public void warn(String message) {
+        clibInstance.warn(message);
+    }
+    public void debug(String message) {
+        clibInstance.debug(message);
+    }
+    public void trace(String message) {
+        clibInstance.trace(message);
+    }
     public void disableTracing() {
         clibInstance.disable_tracing();
     }

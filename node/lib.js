@@ -639,6 +639,12 @@ function loadLibrary() {
 
         lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
 
+        lib.error = lib.func('void error(const char* message)');
+        lib.info = lib.func('void info(const char* message)');
+        lib.warn = lib.func('void warn(const char* message)');
+        lib.debug = lib.func('void debug(const char* message)');
+        lib.trace = lib.func('void trace(const char* message)');
+
         lib.create_client = lib.func('create_client', ClientWrapperPtr, []);
         lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
         lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
@@ -843,13 +849,9 @@ class Client {
         }
     }
 
-    tracing = false;
-    informing = true;
-    verbosing = false;
-    connected = false;
     free() {
         if (this.client) {
-            this.verbose('this.client not null, call free_client');
+            this.trace('this.client not null, call free_client');
             this.lib.free_client(this.client);
             this.client = null;
         }
@@ -858,35 +860,39 @@ class Client {
     }
 
     enable_tracing(rust_log = '', tracing = '') {
-        this.verbose('enable_tracing invoked', rust_log, tracing);
+        this.trace('enable_tracing invoked', rust_log, tracing);
         this.lib.enable_tracing(rust_log, tracing);
         this.informing = true;
-        if (rust_log.indexOf('verbose') > -1) this.verbosing = true;
-        if (rust_log.indexOf('trace') > -1) { this.tracing = true; this.verbosing = true; }
         this.trace('enable_tracing called');
     }
     disable_tracing() {
         this.lib.disable_tracing();
     }
-    info(...args) {
-        if (this.informing == true) console.log('Node.js:', ...args);
+    error(...args) {
+        this.lib.error(args.join(' '));
     }
-    verbose(...args) {
-        if (this.verbosing == true) console.log('Node.js:', ...args);
+    info(...args) {
+        this.lib.info(args.join(' '));
+    }
+    warn(...args) {
+        this.lib.warn(args.join(' '));
+    }
+    debug(...args) {
+        this.lib.debug(args.join(' '));
     }
     trace(...args) {
-        if (this.tracing == true) console.log('Node.js:', ...args);
+        this.lib.trace(args.join(' '));
     }
     set_agent_name(name) {
-        this.verbose('set_agent_name invoked', name);
+        this.trace('set_agent_name invoked', name);
         this.lib.set_agent_name(this.client, name);
     }
     set_agent_version(version) {
-        this.verbose('set_agent_version invoked', version);
+        this.trace('set_agent_version invoked', version);
         this.lib.set_agent_version(this.client, version);
     }
     async connect(url) {
-        this.verbose('connect invoked', url);
+        this.trace('connect invoked', url);
         this.connected = false;
         const ResponsePtr = this.lib.connect(this.client, url);
         if (ResponsePtr === 0) {
@@ -903,7 +909,7 @@ class Client {
     }
 
     connect_async(url) {
-        this.verbose('connect_async invoked', url);
+        this.trace('connect_async invoked', url);
         this.connected = false;
         return new Promise((resolve, reject) => {
             try {
@@ -924,7 +930,7 @@ class Client {
                         reject(new ClientCreationError(error.message));
                     }
                 }, koffi.pointer(this.lib.ConnectCallback));
-                this.verbose('call connect_async');
+                this.trace('call connect_async');
                 this.lib.connect_async(this.client, url, 0, cb);
             } catch (error) {
                 reject(new ClientCreationError(error.message));
@@ -933,13 +939,13 @@ class Client {
     }
 
     disconnect() {
-        this.verbose('disconnect invoked');
+        this.trace('disconnect invoked');
         this.lib.disconnect(this.client);
         this.connected = false;
     }
 
     signin({ username = '', password = '', jwt = '', agent = '', version = '', longtoken = false, validateonly = false, ping = false } = {}) {
-        this.verbose('signin invoked');
+        this.trace('signin invoked');
         const req = {
             username: username,
             password: password,
@@ -967,7 +973,7 @@ class Client {
         };
     }
     signin_async({ username = '', password = '', jwt = '', agent = '', version = '', longtoken = false, validateonly = false, ping = false } = {}) {
-        this.verbose('signin invoked');
+        this.trace('signin invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 username: username,
@@ -981,7 +987,7 @@ class Client {
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('signin_async callback');
+                this.trace('signin_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, SigninResponseWrapper);
                 if (!response.success) {
@@ -1006,7 +1012,7 @@ class Client {
     }
 
     list_collections(includehist = false) {
-        this.verbose('list_collections invoked');
+        this.trace('list_collections invoked');
         const responsePtr = this.lib.list_collections(this.client, includehist);
         const response = koffi.decode(responsePtr, ListCollectionsResponseWrapper);
         this.lib.free_list_collections_response(responsePtr);
@@ -1017,10 +1023,10 @@ class Client {
         return JSON.parse(response.collections);
     }
     list_collections_async(includehist = false) {
-        this.verbose('list_collections invoked');
+        this.trace('list_collections invoked');
         return new Promise((resolve, reject) => {
             const callback = (responsePtr) => {
-                this.verbose('list_collections_async callback');
+                this.trace('list_collections_async callback');
                 const response = koffi.decode(responsePtr, ListCollectionsResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1028,7 +1034,7 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.collections));
                 }
-                this.verbose('free_list_collections_response');
+                this.trace('free_list_collections_response');
                 this.lib.free_list_collections_response(responsePtr);
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.listCollectionsCallback));
@@ -1042,7 +1048,7 @@ class Client {
     }
     // "seconds" | "minutes" | "hours"
     create_collection({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
-        this.verbose('create_collection invoked');
+        this.trace('create_collection invoked');
         const req = {
             collectionname: collectionname,
             collation: collation,
@@ -1053,11 +1059,11 @@ class Client {
             max: max,
             size: size
         };
-        this.verbose('call create_collection');
+        this.trace('call create_collection');
         const response = this.lib.create_collection(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, CreateCollectionResponseWrapper);
-        this.verbose('free_create_collection_response');
+        this.trace('free_create_collection_response');
         this.lib.free_create_collection_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -1066,7 +1072,7 @@ class Client {
         return result.success;
     }
     create_collection_async({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
-        this.verbose('create_collection invoked');
+        this.trace('create_collection invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1078,9 +1084,9 @@ class Client {
                 max: max,
                 size: size
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('create_collection_async callback');
+                this.trace('create_collection_async callback');
                 const response = koffi.decode(responsePtr, CreateCollectionResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1088,11 +1094,11 @@ class Client {
                 } else {
                     resolve(response.success);
                 }
-                this.verbose('free_create_collection_response');
+                this.trace('free_create_collection_response');
                 this.lib.free_create_collection_response(responsePtr);
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.create_collectionCallback));
-            this.verbose('call create_collection_async');
+            this.trace('call create_collection_async');
             this.lib.create_collection_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Create collection failed'));
@@ -1102,7 +1108,7 @@ class Client {
     }
 
     drop_collection(collectionname) {
-        this.verbose('drop_collection invoked');
+        this.trace('drop_collection invoked');
         const response = this.lib.drop_collection(this.client, collectionname);
         const result = koffi.decode(response, DropCollectionResponseWrapper);
         this.lib.free_drop_collection_response(response);
@@ -1112,7 +1118,7 @@ class Client {
         }
     }
     drop_collection_async(collectionname) {
-        this.verbose('drop_collection invoked');
+        this.trace('drop_collection invoked');
         return new Promise((resolve, reject) => {
             const response = this.lib.drop_collection(this.client, collectionname);
             const result = koffi.decode(response, DropCollectionResponseWrapper);
@@ -1127,7 +1133,7 @@ class Client {
     }
 
     get_indexes(collectionname) {
-        this.verbose('get_indexes invoked');
+        this.trace('get_indexes invoked');
         const response = this.lib.get_indexes(this.client, collectionname);
         const result = koffi.decode(response, GetIndexesResponseWrapper);
         this.lib.free_get_indexes_response(response);
@@ -1138,7 +1144,7 @@ class Client {
         return JSON.parse(result.indexes);
     }
     get_indexes_async(collectionname) {
-        this.verbose('get_indexes invoked');
+        this.trace('get_indexes invoked');
         return new Promise((resolve, reject) => {
             const response = this.lib.get_indexes(this.client, collectionname);
             const result = koffi.decode(response, GetIndexesResponseWrapper);
@@ -1153,18 +1159,18 @@ class Client {
     }
 
     create_index({ collectionname, index, options, name }) {
-        this.verbose('create_index invoked');
+        this.trace('create_index invoked');
         const req = {
             collectionname: collectionname,
             index: index,
             options: options,
             name: name
         };
-        this.verbose('call create_index');
+        this.trace('call create_index');
         const response = this.lib.create_index(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, CreateIndexResponseWrapper);
-        this.verbose('free_create_index_response');
+        this.trace('free_create_index_response');
         this.lib.free_create_index_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -1173,7 +1179,7 @@ class Client {
         return result.success;
     }
     create_index_async({ collectionname, index, options, name }) {
-        this.verbose('create_index invoked');
+        this.trace('create_index invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1181,9 +1187,9 @@ class Client {
                 options: options,
                 name: name
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('create_index_async callback');
+                this.trace('create_index_async callback');
                 const response = koffi.decode(responsePtr, CreateIndexResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1191,11 +1197,11 @@ class Client {
                 } else {
                     resolve(response.success);
                 }
-                this.verbose('free_create_index_response');
+                this.trace('free_create_index_response');
                 this.lib.free_create_index_response(responsePtr);
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.create_indexCallback));
-            this.verbose('call create_index_async');
+            this.trace('call create_index_async');
             this.lib.create_index_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Create index failed'));
@@ -1205,7 +1211,7 @@ class Client {
     }
 
     drop_index(collectionname, indexname) {
-        this.verbose('drop_index invoked');
+        this.trace('drop_index invoked');
         const response = this.lib.drop_index(this.client, collectionname, indexname);
         const result = koffi.decode(response, DropIndexResponseWrapper);
         this.lib.free_drop_index_response(response);
@@ -1215,7 +1221,7 @@ class Client {
         }
     }
     drop_index_async(collectionname, indexname) {
-        this.verbose('drop_index invoked');
+        this.trace('drop_index invoked');
         return new Promise((resolve, reject) => {
             const response = this.lib.drop_index(this.client, collectionname, indexname);
             const result = koffi.decode(response, DropIndexResponseWrapper);
@@ -1230,7 +1236,7 @@ class Client {
     }
 
     query({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
-        this.verbose('query invoked');
+        this.trace('query invoked');
         const req = {
             collectionname: collectionname,
             query: query,
@@ -1276,9 +1282,9 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.results));
                 }
-                this.verbose('free_query_response::begin');
+                this.trace('free_query_response::begin');
                 this.lib.free_query_response(responsePtr);
-                this.verbose('free_query_response::end');
+                this.trace('free_query_response::end');
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.queryCallback));
@@ -1291,7 +1297,7 @@ class Client {
         });
     }
     aggregate({ collectionname, aggregates = "[]", queryas = "", hint = "", explain = false }) {
-        this.verbose('aggregate invoked');
+        this.trace('aggregate invoked');
         const req = {
             collectionname: collectionname,
             aggregates: aggregates,
@@ -1299,10 +1305,10 @@ class Client {
             hint: hint,
             explain: explain
         };
-        this.verbose('call aggregate');
+        this.trace('call aggregate');
         const response = this.lib.aggregate(this.client, req);
         const result = koffi.decode(response, AggregateResponseWrapper);
-        this.verbose('free_aggregate_response');
+        this.trace('free_aggregate_response');
         this.lib.free_aggregate_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -1311,7 +1317,7 @@ class Client {
         return JSON.parse(result.results);
     }
     aggregate_async({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
-        this.verbose('aggregate invoked');
+        this.trace('aggregate invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1320,9 +1326,9 @@ class Client {
                 hint: hint,
                 explain: explain
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('aggregate_async callback');
+                this.trace('aggregate_async callback');
                 const response = koffi.decode(responsePtr, AggregateResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1330,12 +1336,12 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.results));
                 }
-                this.verbose('free_aggregate_response');
+                this.trace('free_aggregate_response');
                 this.lib.free_aggregate_response(responsePtr);
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.aggregateCallback));
 
-            this.verbose('call aggregate_async');
+            this.trace('call aggregate_async');
             this.lib.aggregate_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Aggregate failed'));
@@ -1344,7 +1350,7 @@ class Client {
         });
     }
     count({ collectionname, query = "", queryas = "", explain = false }) {
-        this.verbose('count invoked');
+        this.trace('count invoked');
         const req = {
             collectionname: collectionname,
             query: query,
@@ -1364,7 +1370,7 @@ class Client {
         return result.result;
     }
     count_async({ collectionname, query = "", queryas = "", explain = false }) {
-        this.verbose('count async invoked');
+        this.trace('count async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1374,7 +1380,7 @@ class Client {
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('count_async callback');
+                this.trace('count_async callback');
                 const response = koffi.decode(responsePtr, CountResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1396,7 +1402,7 @@ class Client {
         });
     }
     distinct({ collectionname, field, query = "", queryas = "", explain = false }) {
-        this.verbose('distinct invoked');
+        this.trace('distinct invoked');
         const req = {
             collectionname: collectionname,
             field: field,
@@ -1404,7 +1410,7 @@ class Client {
             queryas: queryas,
             explain: explain
         };
-        this.verbose('call distinct');
+        this.trace('call distinct');
         const responsePtr = this.lib.distinct(this.client, req);
         this.trace('decode response');
         let results = [];
@@ -1419,7 +1425,7 @@ class Client {
                 results.push(value.toString());
             };
         }
-        this.verbose('free_distinct_response');
+        this.trace('free_distinct_response');
         this.lib.free_distinct_response(responsePtr);
         if (!response.success) {
             const errorMsg = response.error;
@@ -1428,7 +1434,7 @@ class Client {
         return results;
     }
     distinct_async({ collectionname, field, query = "", queryas = "", explain = false }) {
-        this.verbose('distinct invoked');
+        this.trace('distinct invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1437,9 +1443,9 @@ class Client {
                 queryas: queryas,
                 explain: explain
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('distinct_async callback');
+                this.trace('distinct_async callback');
                 const response = koffi.decode(responsePtr, DistinctResponseWrapper);
                 let results = [];
                 if (response.success) {
@@ -1456,12 +1462,12 @@ class Client {
                 } else {
                     resolve(results);
                 }
-                this.verbose('free_distinct_response');
+                this.trace('free_distinct_response');
                 this.lib.free_distinct_response(responsePtr);
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.distinctCallback));
 
-            this.verbose('call distinct_async');
+            this.trace('call distinct_async');
             this.lib.distinct_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Distinct failed'));
@@ -1470,7 +1476,7 @@ class Client {
         });
     }
     insert_one({ collectionname, item, w = 1, j = false }) {
-        this.verbose('insert_one invoked');
+        this.trace('insert_one invoked');
         const req = {
             collectionname: collectionname,
             item: item,
@@ -1490,7 +1496,7 @@ class Client {
         return JSON.parse(result.result);
     }
     insert_one_async({ collectionname, item, w = 1, j = false }) {
-        this.verbose('insert_one async invoked');
+        this.trace('insert_one async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1499,7 +1505,7 @@ class Client {
                 j: j
             };
             const callback = (responsePtr) => {
-                this.verbose('insert_one_async callback');
+                this.trace('insert_one_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, InsertOneResponseWrapper);
                 if (!response.success) {
@@ -1508,11 +1514,11 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.result));
                 }
-                this.verbose('free_insert_one_response');
+                this.trace('free_insert_one_response');
                 this.lib.free_insert_one_response(responsePtr);
             }
             const cb = koffi.register(callback, koffi.pointer(this.lib.insert_oneCallback));
-            this.verbose('call insert_one_async');
+            this.trace('call insert_one_async');
             this.lib.insert_one_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertOne failed'));
@@ -1521,7 +1527,7 @@ class Client {
         });
     };
     insert_many({ collectionname, items, w = 1, j = false, skipresults = false }) {
-        this.verbose('insert_many invoked');
+        this.trace('insert_many invoked');
         const req = {
             collectionname: collectionname,
             items: items,
@@ -1542,7 +1548,7 @@ class Client {
         return JSON.parse(result.results);
     }
     insert_many_async({ collectionname, items, w = 1, j = false, skipresults = false }) {
-        this.verbose('insert_many invoked');
+        this.trace('insert_many invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1551,9 +1557,9 @@ class Client {
                 j: j,
                 skipresults: skipresults
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('insert_many_async callback');
+                this.trace('insert_many_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, InsertManyResponseWrapper);
                 if (!response.success) {
@@ -1562,12 +1568,12 @@ class Client {
                 } else {
                     resolve(JSON.parse(response.results));
                 }
-                this.verbose('free_insert_many_response');
+                this.trace('free_insert_many_response');
                 this.lib.free_insert_many_response(responsePtr);
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.insert_manyCallback));
-            this.verbose('call insert_many_async');
+            this.trace('call insert_many_async');
             this.lib.insert_many_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('InsertMany failed'));
@@ -1576,7 +1582,7 @@ class Client {
         });
     }
     update_one({ collectionname, item, w = 1, j = false }) {
-        this.verbose('update_one invoked');
+        this.trace('update_one invoked');
         const req = {
             collectionname: collectionname,
             item: item,
@@ -1596,7 +1602,7 @@ class Client {
         return JSON.parse(result.result);
     }
     update_one_async({ collectionname, item, w = 1, j = false }) {
-        this.verbose('update_one invoked');
+        this.trace('update_one invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1605,7 +1611,7 @@ class Client {
                 j: j
             };
             const callback = (responsePtr) => {
-                this.verbose('update_one_async callback');
+                this.trace('update_one_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, UpdateOneResponseWrapper);
                 if (!response.success) {
@@ -1628,7 +1634,7 @@ class Client {
         });
     }
     insert_or_update_one({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
-        this.verbose('insert_or_update_one invoked');
+        this.trace('insert_or_update_one invoked');
         const req = {
             collectionname: collectionname,
             item: item,
@@ -1649,7 +1655,7 @@ class Client {
         return JSON.parse(result.result);
     }
     insert_or_update_one_async({ collectionname, item, uniqeness = "_id", w = 1, j = false }) {
-        this.verbose('insert_or_update_one invoked');
+        this.trace('insert_or_update_one invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1659,7 +1665,7 @@ class Client {
                 j: j
             };
             const callback = (responsePtr) => {
-                this.verbose('insert_or_update_one_async callback');
+                this.trace('insert_or_update_one_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, InsertOrUpdateOneResponseWrapper);
                 if (!response.success) {
@@ -1682,7 +1688,7 @@ class Client {
         });
     }
     delete_one({ collectionname, id, recursive }) {
-        this.verbose('delete_one invoked');
+        this.trace('delete_one invoked');
         const req = {
             collectionname: collectionname,
             id: id,
@@ -1701,7 +1707,7 @@ class Client {
         return result.affectedrows;
     }
     delete_one_async({ collectionname, id, recursive }) {
-        this.verbose('delete_one_async invoked');
+        this.trace('delete_one_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1709,7 +1715,7 @@ class Client {
                 recursive: recursive
             };
             const callback = (responsePtr) => {
-                this.verbose('delete_one_async callback');
+                this.trace('delete_one_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, DeleteOneResponseWrapper);
                 if (!response.success) {
@@ -1732,7 +1738,7 @@ class Client {
         });
     }
     delete_many({ collectionname, query = "", ids = [], recursive = false }) {
-        this.verbose('delete_many invoked');
+        this.trace('delete_many invoked');
         const req = {
             collectionname: collectionname,
             query: query,
@@ -1754,7 +1760,7 @@ class Client {
         return result.affectedrows;
     }
     delete_many_async({ collectionname, query = "", ids = [], recursive = false }) {
-        this.verbose('delete_many_async invoked');
+        this.trace('delete_many_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1765,7 +1771,7 @@ class Client {
             ids.push(null); // terminate array
             req.ids = ids;
             const callback = (responsePtr) => {
-                this.verbose('delete_many_async callback');
+                this.trace('delete_many_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, DeleteManyResponseWrapper);
                 if (!response.success) {
@@ -1788,7 +1794,7 @@ class Client {
         });
     }
     download({ collectionname, id, folder, filename }) {
-        this.verbose('download invoked');
+        this.trace('download invoked');
         const req = {
             collectionname: collectionname,
             id: id,
@@ -1807,7 +1813,7 @@ class Client {
         return result.filename;
     }
     download_async({ collectionname, id, folder, filename }) {
-        this.verbose('download async invoked');
+        this.trace('download async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1817,7 +1823,7 @@ class Client {
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('download_async callback');
+                this.trace('download_async callback');
                 const response = koffi.decode(responsePtr, DownloadResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1839,7 +1845,7 @@ class Client {
         });
     }
     upload({ filepath, filename, mimetype, metadata, collectionname }) {
-        this.verbose('upload invoked');
+        this.trace('upload invoked');
         const req = {
             filepath: filepath,
             filename: filename,
@@ -1859,7 +1865,7 @@ class Client {
         return result.id
     }
     upload_async({ filepath, filename, mimetype, metadata, collectionname }) {
-        this.verbose('upload async invoked');
+        this.trace('upload async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 filepath: filepath,
@@ -1870,7 +1876,7 @@ class Client {
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('upload_async callback');
+                this.trace('upload_async callback');
                 const response = koffi.decode(responsePtr, UploadResponseWrapper);
                 if (!response.success) {
                     const errorMsg = response.error;
@@ -1894,7 +1900,7 @@ class Client {
     push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
     }) {
-        this.verbose('push_workitem invoked');
+        this.trace('push_workitem invoked');
         // if nextrun is not null and nextrun is a date
         if (nextrun != null && nextrun instanceof Date) {
             this.trace('Node.js: nextrun before', nextrun);
@@ -1918,10 +1924,10 @@ class Client {
             files_len: files.length
         };
         encode_files(req);
-        this.verbose('call push_workitem');
+        this.trace('call push_workitem');
         const response = this.lib.push_workitem(this.client, req);
         try {
-            this.verbose('decode response');
+            this.trace('decode response');
             const result = koffi.decode(response, PushWorkitemResponseWrapper);
             if (!result.success) {
                 const errorMsg = result.error;
@@ -1950,14 +1956,14 @@ class Client {
             }
             return null;
         } finally {
-            this.verbose('free_push_workitem_response');
+            this.trace('free_push_workitem_response');
             this.lib.free_push_workitem_response(response);
         }
     }
     push_workitem_async({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
     }) {
-        this.verbose('push_workitem invoked');
+        this.trace('push_workitem invoked');
         return new Promise((resolve, reject) => {
             // if nextrun is not null and nextrun is a date
             if (nextrun != null && nextrun instanceof Date) {
@@ -1982,9 +1988,9 @@ class Client {
                 files_len: files.length
             };
             encode_files(req);
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('push_workitem_async callback');
+                this.trace('push_workitem_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, PushWorkitemResponseWrapper);
                 if (!response.success) {
@@ -2019,7 +2025,7 @@ class Client {
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.push_workitemCallback));
-            this.verbose('call push_workitem_async');
+            this.trace('call push_workitem_async');
             this.lib.push_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('PushWorkitem async failed'));
@@ -2029,7 +2035,7 @@ class Client {
         });
     }
     pop_workitem({ wiq = "", wiqid = "", downloadfolder = "." }) {
-        this.verbose('pop_workitem invoked');
+        this.trace('pop_workitem invoked');
         if (downloadfolder == null || downloadfolder == "") downloadfolder = ".";
         const req = {
             wiq: wiq,
@@ -2074,7 +2080,7 @@ class Client {
     callbackid = 0;
     callbacks = {};
     pop_workitem_async_callback(responsePtr) {
-        this.verbose('pop_workitem_async callback');
+        this.trace('pop_workitem_async callback');
         this.trace('decode response');
         const response = koffi.decode(responsePtr, PopWorkitemResponseWrapper);
         const request_id = response.request_id;
@@ -2127,7 +2133,7 @@ class Client {
         }
     }
     pop_workitem_async({ wiq = "", wiqid = "", downloadfolder = "." }) {
-        this.verbose('pop_workitem async invoked');
+        this.trace('pop_workitem async invoked');
         return new Promise((resolve, reject) => {
             if (downloadfolder == null || downloadfolder == "") downloadfolder = ".";
 
@@ -2143,12 +2149,12 @@ class Client {
                 wiqid: wiqid,
                 request_id: request_id
             };
-            this.verbose('call pop_workitem_async');
+            this.trace('call pop_workitem_async');
             this.lib.pop_workitem_async(this.client, req, downloadfolder, this.callbacks[request_id].callback);
         });
     }
     update_workitem({ workitem, ignoremaxretries = false, files = [] }) {
-        this.verbose('update_workitem invoked');
+        this.trace('update_workitem invoked');
         workitem = Object.assign({
             id: "",
             name: "",
@@ -2197,12 +2203,12 @@ class Client {
             workitem.lastrun = 0;
         }
         encode_files(workitem);
-        this.verbose('encode workitem');
+        this.trace('encode workitem');
         req.workitem = workitem;
-        this.verbose('encode request');
-        this.verbose('call update_workitem with ', files.length, ' files');
+        this.trace('encode request');
+        this.trace('call update_workitem with ', files.length, ' files');
         const response = this.lib.update_workitem(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, UpdateWorkitemResponseWrapper);
         try {
             if (!result.success) {
@@ -2232,12 +2238,12 @@ class Client {
             }
             return null;
         } finally {
-            this.verbose('free_update_workitem_response');
+            this.trace('free_update_workitem_response');
             this.lib.free_update_workitem_response(response);
         }
     }
     update_workitem_async({ workitem, ignoremaxretries = false, files = [] }) {
-        this.verbose('update_workitem async invoked');
+        this.trace('update_workitem async invoked');
         return new Promise((resolve, reject) => {
             workitem = Object.assign({
                 id: "",
@@ -2287,12 +2293,12 @@ class Client {
                 workitem.lastrun = 0;
             }
             encode_files(workitem);
-            this.verbose('encode workitem');
+            this.trace('encode workitem');
             req.workitem = workitem;
-            this.verbose('encode request');
-            this.verbose('create callback');
+            this.trace('encode request');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('update_workitem_async callback');
+                this.trace('update_workitem_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, UpdateWorkitemResponseWrapper);
                 if (!response.success) {
@@ -2327,7 +2333,7 @@ class Client {
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.update_workitemCallback));
-            this.verbose('call update_workitem_async');
+            this.trace('call update_workitem_async');
             this.lib.update_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('UpdateWorkitem async failed'));
@@ -2339,15 +2345,15 @@ class Client {
     }
 
     delete_workitem(id) {
-        this.verbose('delete_workitem invoked');
+        this.trace('delete_workitem invoked');
         const req = {
             id: id
         };
-        this.verbose('call delete_workitem');
+        this.trace('call delete_workitem');
         const response = this.lib.delete_workitem(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, DeleteWorkitemResponseWrapper);
-        this.verbose('free_delete_workitem_response');
+        this.trace('free_delete_workitem_response');
         this.lib.free_delete_workitem_response(response);
         if (!result.success) {
             const errorMsg = result.error;
@@ -2355,14 +2361,14 @@ class Client {
         }
     }
     delete_workitem_async(id) {
-        this.verbose('delete_workitem async invoked');
+        this.trace('delete_workitem async invoked');
         return new Promise((resolve, reject) => {
             const req = {
                 id: id
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('delete_workitem_async callback');
+                this.trace('delete_workitem_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, DeleteWorkitemResponseWrapper);
                 if (!response.success) {
@@ -2376,7 +2382,7 @@ class Client {
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.delete_workitemCallback));
-            this.verbose('call delete_workitem_async');
+            this.trace('call delete_workitem_async');
             this.lib.delete_workitem_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('DeleteWorkitem async failed'));
@@ -2387,14 +2393,14 @@ class Client {
     watches = {}
     next_watch_interval = 200;
     watch({ collectionname, paths }, callback) {
-        this.verbose('watch invoked');
+        this.trace('watch invoked');
         const req = {
             collectionname: collectionname,
             paths: paths
         }
         this.trace('call watch');
         const response = this.lib.watch(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
         this.trace('free_watch_response');
         this.lib.free_watch_response(response);
@@ -2444,10 +2450,10 @@ class Client {
     clientevents = {}
     next_watch_interval = 1000;
     on_client_event(callback) {
-        this.verbose('on_client_event invoked');
+        this.trace('on_client_event invoked');
         this.trace('call on_client_event');
         const response = this.lib.on_client_event(this.client);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, ClientEventResponseWrapper);
         this.trace('free_event_response');
         this.lib.free_event_response(response);
@@ -2495,7 +2501,7 @@ class Client {
         return eventid;
     }
     off_client_event(eventid) {
-        this.verbose('off_client_event invoked');
+        this.trace('off_client_event invoked');
         const response = this.lib.off_client_event(eventid);
         this.trace('decode response');
         const result = koffi.decode(response, OffClientEventResponseWrapper);
@@ -2517,7 +2523,7 @@ class Client {
     }
     watch_async({ collectionname, paths }, callback) {
         throw new Error('Not implemented');
-        this.verbose('watch invoked');
+        this.trace('watch invoked');
         const req = {
             collectionname: collectionname,
             paths: paths
@@ -2545,7 +2551,7 @@ class Client {
 
         this.trace('call watch');
         const response = this.lib.watch(this.client, req, event_cb);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, WatchResponseWrapper);
         this.trace('free_watch_response');
         this.lib.free_watch_response(response);
@@ -2609,7 +2615,7 @@ class Client {
         });
     }
     unwatch(watchid) {
-        this.verbose('unwatch invoked');
+        this.trace('unwatch invoked');
         const response = this.lib.unwatch(this.client, watchid);
         this.trace('decode response');
         const result = koffi.decode(response, UnwatchResponseWrapper);
@@ -2628,13 +2634,13 @@ class Client {
     queues = {}
     next_queue_interval = 200;
     register_queue({ queuename }, callback) {
-        this.verbose('register queue invoked');
+        this.trace('register queue invoked');
         const req = {
             queuename: queuename
         };
         this.trace('call register_queue');
         const response = this.lib.register_queue(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, RegisterQueueResponseWrapper);
         this.trace('free_register_queue_response');
         this.lib.free_register_queue_response(response);
@@ -2710,7 +2716,7 @@ class Client {
         return result.queuename;
     }
     register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
-        this.verbose('register exchange invoked');
+        this.trace('register exchange invoked');
         if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
         if (algorithm == null) algorithm = "";
         if (routingkey == null) routingkey = "";
@@ -2723,7 +2729,7 @@ class Client {
         };
         this.trace('call register_exchange');
         const response = this.lib.register_exchange(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, RegisterExchangeResponseWrapper);
         this.trace('free_register_exchange_response');
         this.lib.free_register_exchange_response(response);
@@ -2772,7 +2778,7 @@ class Client {
         return result.queuename;
     }
     rpc({ queuename, data, striptoken }) {
-        this.verbose('rpc invoked');
+        this.trace('rpc invoked');
         if (typeof data === 'object') {
             data = JSON.stringify(data);
         }
@@ -2783,7 +2789,7 @@ class Client {
         };
         this.trace('call rpc');
         const response = this.lib.rpc(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, RpcResponseWrapper);
         this.trace('free_rpc_response');
         this.lib.free_rpc_response(response);
@@ -2799,7 +2805,7 @@ class Client {
         return payload;
     }
     rpc_async({ queuename, data, striptoken }) {
-        this.verbose('rpc_async invoked');
+        this.trace('rpc_async invoked');
         return new Promise((resolve, reject) => {
             if (typeof data === 'object') {
                 data = JSON.stringify(data);
@@ -2809,9 +2815,9 @@ class Client {
                 striptoken: striptoken,
                 data: data
             };
-            this.verbose('create callback');
+            this.trace('create callback');
             const callback = (responsePtr) => {
-                this.verbose('rpc_async callback');
+                this.trace('rpc_async callback');
                 this.trace('decode response');
                 const response = koffi.decode(responsePtr, RpcResponseWrapper);
                 if (!response.success) {
@@ -2830,7 +2836,7 @@ class Client {
             };
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.rpcCallback));
-            this.verbose('call rpc_async');
+            this.trace('call rpc_async');
             this.lib.rpc_async(this.client, req, cb, (err) => {
                 if (err) {
                     reject(new ClientError('Rpc async failed'));
@@ -2840,7 +2846,7 @@ class Client {
     }
     unregister_queue(queuename) {
         const reqptr = this.lib.unregister_queue(this.client, queuename);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(reqptr, UnRegisterQueueResponseWrapper);
         this.trace('free_unregister_queue_response');
         this.lib.free_unregister_queue_response(reqptr);
@@ -2857,7 +2863,7 @@ class Client {
         }
     }
     queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey, striptoken, expiration }) {
-        this.verbose('queue message invoked');
+        this.trace('queue message invoked');
         if (queuename == null || queuename == "") {
             if (exchangename == null || exchangename == "") {
                 throw new ClientError('queuename or exchangename is required');
@@ -2885,7 +2891,7 @@ class Client {
         };
         this.trace('call queue_message');
         const response = this.lib.queue_message(this.client, req);
-        this.verbose('decode response');
+        this.trace('decode response');
         const result = koffi.decode(response, QueueMessageResponseWrapper);
         this.trace('free_queue_message_response');
         this.lib.free_queue_message_response(response);

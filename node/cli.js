@@ -67,13 +67,14 @@ async function doit() {
     const numIters = 5000;
 
 
+    client.enable_tracing("openiap=info", "");
     try {
         await client.connect('');
+        client.info('Connected to server, successfully');
     } catch (e) {
-        console.error('Failed to connect to server:', e);
+        client.error('Failed to connect to server:', e);
         return;
     }
-    client.enable_tracing("openiap=info", "");
     let eventid = client.on_client_event((event) => {
         console.log("client event", event);
     });

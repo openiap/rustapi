@@ -585,6 +585,16 @@ typedef struct RpcResponseWrapper {
 
 typedef void (*RpcResponseCallback)(struct RpcResponseWrapper*);
 
+void error(const char *message);
+
+void info(const char *message);
+
+void warn(const char *message);
+
+void debug(const char *message);
+
+void trace(const char *message);
+
 /**
  * Return currentlly signed in user
  */

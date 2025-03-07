@@ -515,9 +515,6 @@ def encode_workitem(workitem, files):
 class Client:
     def __init__(self):
         self.lib = self._load_library()
-        self.tracing = False
-        self.informing = False
-        self.verbosing = False
         self.callbacks = []  # Keep a reference to the callbacks
 
         self.lib.create_client.argtypes = []
@@ -600,14 +597,8 @@ class Client:
             raise LibraryLoadError(f"Failed to load library: {e}")
         
     def enable_tracing(self, rust_log="", tracing=""):
-        print("Calling enable_tracing", rust_log, tracing)
+        self.debug("Calling enable_tracing " , rust_log, tracing)
         self.lib.enable_tracing(rust_log.encode('utf-8'), tracing.encode('utf-8'))
-        self.informing = True
-        if "verbose" in rust_log:
-            self.verbosing = True
-        if "trace" in rust_log:
-            self.tracing = True
-    
     def on_client_event(self, callback = None):
         self.trace("Inside on_client_event")
         result = {"success": None, "eventid": None, "error": None}
@@ -674,15 +665,21 @@ class Client:
         self.trace("Calling disable_tracing")
         self.lib.disable_tracing()
         self.trace("disable_tracing called")
+    def error(self, *args):
+        message = " ".join(map(str, args))
+        self.lib.error(message.encode('utf-8'))
     def info(self, *args):
-        if self.informing:
-            print(*args)
-    def verbose(self, *args):
-        if self.verbosing:
-            print(*args)
+        message = " ".join(map(str, args))
+        self.lib.info(message.encode('utf-8'))
+    def warn(self, *args):
+        message = " ".join(map(str, args))
+        self.lib.warn(message.encode('utf-8'))
+    def debug(self, *args):
+        message = " ".join(map(str, args))
+        self.lib.debug(message.encode('utf-8'))
     def trace(self, *args):
-        if self.tracing:
-            print(*args)
+        message = " ".join(map(str, args))
+        self.lib.trace(message.encode('utf-8'))
     def connect(self, url=""):
         # Event to wait for the callback
         event = threading.Event()

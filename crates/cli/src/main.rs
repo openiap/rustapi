@@ -8,7 +8,7 @@ use std::thread::available_parallelism;
 use openiap_client::{PushWorkitemRequest, QueueMessageRequest};
 #[allow(unused_imports)]
 use openiap_client::{
-    self, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest,
+    self, set_otel_url, disable_tracing, enable_tracing, Client, InsertManyRequest, PopWorkitemRequest,
     RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
 };
 
@@ -68,7 +68,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
 
     let b = Client::new();
     // enable_tracing("openiap=debug", "new");
-    // enable_tracing("openiap=info", "");
+    enable_tracing("openiap=info", "");
     b.on_event(Box::new(|_event| {
         match _event {
             openiap_client::ClientEvent::Connecting => println!("CLI: Client connecting!"),
@@ -153,16 +153,16 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             disable_tracing();
         }
         if input.eq_ignore_ascii_case("1") {
-            enable_tracing("openiap=info", "openiap=trace", Some("https://otel.demo.openiap.io/v1/logs"));
+            enable_tracing("openiap=info",  "");
         }
         if input.eq_ignore_ascii_case("2") {
-            enable_tracing("openiap=debug", "openiap=trace", None);
+            enable_tracing("openiap=debug", "new");
         }
         if input.eq_ignore_ascii_case("3") {
-            enable_tracing("openiap=trace", "openiap=trace", None);
+            enable_tracing("openiap=trace",  "new");
         }
         if input.eq_ignore_ascii_case("4") {
-            enable_tracing("trace", "openiap=trace", None);
+            enable_tracing("trace",  "new");
         }
         if input.eq_ignore_ascii_case("st") {
             // || input.eq_ignore_ascii_case("bum")

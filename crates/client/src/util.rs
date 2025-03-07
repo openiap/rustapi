@@ -27,6 +27,7 @@ pub fn move_file(from: &str, to: &str) -> std::io::Result<()> {
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use opentelemetry::{Key, KeyValue};
 use std::io::{self, BufReader, BufWriter};
 #[allow(dead_code)]
 pub fn compress_file(input_path: &str, output_path: &str) -> io::Result<()> {
@@ -103,8 +104,9 @@ pub fn compress_file_to_vec(input_path: &str) -> io::Result<::prost::alloc::vec:
 
 
 use once_cell::sync::{Lazy, OnceCell};
+use std::sync::Mutex;
 use tracing_subscriber::{
-    fmt,
+    fmt::{self, format::FmtSpan},
     layer::{Layer, SubscriberExt},
     reload,
     filter::Filtered,
@@ -112,93 +114,144 @@ use tracing_subscriber::{
     Registry,
 };
 use tracing_subscriber::layer::Layered;
-use tracing_subscriber::prelude::*; // for .with()
-
 use tracing::span::{Attributes, Record};
 
-// ----- OTel imports (only if feature="otel") -----
 #[cfg(feature = "otel")]
 use {
-    // The bridging layer
     opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge,
-
-    // OTLP exporter
-    opentelemetry_otlp::{LogExporter, WithTonicConfig, WithExportConfig},
-
-    // The OTel SDK provider + logger
-    // (Under the hood, it uses a batch processor if you do `with_batch_exporter()`,
-    //  but from the bridging perspective, the logger type is `SdkLogger`.)
+    opentelemetry_otlp::{LogExporter, WithTonicConfig, WithExportConfig}, // SpanExporter
     opentelemetry_sdk::{
         logs::{SdkLoggerProvider, SdkLogger},
         Resource,
     },
-    // For the `S: Subscriber` bound
     tracing::Subscriber,
 };
 
-/// Whether the global subscriber has been set up
 static INSTALLED: OnceCell<()> = OnceCell::new();
+const HOSTNAME: Key = Key::from_static_str("hostname");
+const OFID: Key = Key::from_static_str("ofid");
 
-/// Our type for the base console layering:
 type ConsoleLayered = Layered<
     Filtered<fmt::Layer<Registry>, reload::Layer<EnvFilter, Registry>, Registry>,
     Registry
 >;
 
-/// If "otel" is on, we layer OTel bridging on top of the console subscriber.
-#[cfg(feature="otel")]
-type FullSubscriber = Layered<
-    reload::Layer<OtelBridgeState, ConsoleLayered>,
-    ConsoleLayered
->;
-
-/// Reload handle for the console filter
 static CONSOLE_FILTER_HANDLE: Lazy<OnceCell<reload::Handle<EnvFilter, Registry>>> =
     Lazy::new(OnceCell::new);
 
-/// Reload handle for the OTel bridging (only if feature="otel")
 #[cfg(feature="otel")]
 static OTEL_BRIDGE_HANDLE: Lazy<OnceCell<reload::Handle<OtelBridgeState, ConsoleLayered>>> =
     Lazy::new(OnceCell::new);
 
-/// ---------------------------------------------------------------------------
-/// PUBLIC API
-/// ---------------------------------------------------------------------------
+#[cfg(feature="otel")]
+#[derive(Clone)]
+struct PendingOtelConfig {
+    log_url: String,
+    filter: String,
+    ofid: String,
+    version: String, 
+    agent_name: String, 
+    agent_version: String
+}
 
-/// Call `enable_tracing(...)` as many times as you want:
-///  - On first call, installs a global subscriber (console + optional OTel).
-///  - On subsequent calls, just reconfigures filters & bridging.
-pub fn enable_tracing(
-    console_filter: &str,
-    otel_filter: &str,
-    otel_url: Option<&str>,
-) {
+#[cfg(feature="otel")]
+static PENDING_OTEL_CONFIG: Lazy<Mutex<Option<PendingOtelConfig>>> =
+    Lazy::new(|| Mutex::new(None));
+
+#[derive(Clone)]
+struct LastUsedFilters {
+    console_filter: String,
+    otel_filter: String,
+    span_events: String,
+}
+
+/// Default to "openiap=info" for console and "openiap=trace" for OTEL, and "none" for span_events
+static LAST_USED_FILTERS: Lazy<Mutex<LastUsedFilters>> = Lazy::new(|| Mutex::new(
+    LastUsedFilters {
+        console_filter: "openiap=info".to_string(),
+        otel_filter:    "openiap=trace".to_string(),
+        span_events:    "".to_string(),
+    }
+));
+/// Override the default logging filter for opentelemetry
+#[allow(dead_code)]
+pub fn set_otel_log_filter( otel_filter: &str) {
+    {
+        let mut last = LAST_USED_FILTERS.lock().unwrap();
+        last.otel_filter = otel_filter.to_owned();
+    }
+
+    #[cfg(feature="otel")]
+    {
+        // We want to update the bridging filter. But we do it outside bridging creation:
+        if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
+            // short lock to change the filter
+            if let Err(e) = handle.modify(|state| {
+                // parse new filter
+                let parsed = match EnvFilter::try_new(otel_filter) {
+                    Ok(f) => f,
+                    Err(err) => {
+                        eprintln!("Failed to parse otel filter {otel_filter:?}: {err}");
+                        return;
+                    }
+                };
+                state.filter = parsed;
+            }) {
+                eprintln!("Failed to update bridging filter: {e}");
+            }
+        }
+    }
+    #[cfg(feature="otel")]
+    {
+        // If there's a pending OTel config (for instance if user called set_otel_url first),
+        // we now apply it. This creates bridging outside the lock, then sets it.
+        apply_pending_otel_config();
+    }
+}
+/// Public function: call as many times as you want
+/// Added `span_events: &str` to control how span events are logged
+pub fn enable_tracing(console_filter: &str, span_events: &str) {
+    {
+        // Store these filters as our "last known" config
+        let mut last = LAST_USED_FILTERS.lock().unwrap();
+        last.console_filter = console_filter.to_owned();
+        last.span_events    = span_events.to_owned();
+    }
+
     // If not yet installed, do a one-time global subscriber install:
     if INSTALLED.set(()).is_ok() {
         install_global_subscriber();
     }
 
-    // Update console filter
+    // update console filter
     update_console_filter(console_filter);
 
-    // If "otel" feature is on, update bridging
     #[cfg(feature="otel")]
     {
-        let url = otel_url.unwrap_or("").trim();
-        update_otel_state(url, otel_filter);
+        // If there's a pending OTel config (for instance if user called set_otel_url first),
+        // we now apply it. This creates bridging outside the lock, then sets it.
+        apply_pending_otel_config();
     }
 }
 
-/// Disable all logging: sets console + OTel filters to "none" and bridging = None
+/// Disable tracing by setting a "none" filter and no span events
 pub fn disable_tracing() {
     update_console_filter("none");
+
+    // Also set the "span_events" to none in our stored config
+    {
+        let mut last = LAST_USED_FILTERS.lock().unwrap();
+        last.span_events = "none".to_string();
+    }
+
     #[cfg(feature="otel")]
     {
-        update_otel_state("", "none"); // empty URL => bridging = None
+        // bridging = none
+        update_otel_state("", "none", "", "", "", "");
     }
 }
 
-/// Dynamically update the console filter (e.g. "warn,mycrate=info").
+/// Dynamically update the console filter
 pub fn update_console_filter(new_filter: &str) {
     if let Some(handle) = CONSOLE_FILTER_HANDLE.get() {
         let parsed = match EnvFilter::try_new(new_filter) {
@@ -214,61 +267,130 @@ pub fn update_console_filter(new_filter: &str) {
     }
 }
 
-/// ---------------------------------------------------------------------------
-/// INTERNAL: One-time global subscriber
-/// ---------------------------------------------------------------------------
-fn install_global_subscriber() {
-    // 1) Base registry
-    let registry = Registry::default();
+/// Set the OTel endpoint URL for bridging
+#[cfg(feature="otel")]
+pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) {
+    let log_url = log_url.trim();
+    let _trace_url = trace_url.trim();
+    let ofid = ofid.trim();
 
-    // 2) Create a reloadable console filter
-    let console_filter = EnvFilter::new("info");
-    let (console_filter_layer, console_reload_handle) = reload::Layer::new(console_filter);
+    // If the subscriber wasn't installed yet, install it with defaults
+    if INSTALLED.set(()).is_ok() {
+        install_global_subscriber(); 
+    }
 
-    // Wrap with a fmt layer
-    let console_layer = fmt::layer()
-        .with_thread_names(true)
-        .with_filter(console_filter_layer);
+    // If you want to apply user-specified filters or re-use last-known filters, do that here:
+    let (console_filter, otel_filter) = {
+        let last = LAST_USED_FILTERS.lock().unwrap();
+        (
+            last.console_filter.clone(),
+            last.otel_filter.clone(),
+        )
+    };
 
-    // Combine => yields `ConsoleLayered`
-    let console_subscriber = registry.with(console_layer);
+    update_console_filter(&console_filter);
 
-    // 3) If "otel" is on, create a reloadable bridging layer, default = none
-    #[cfg(feature="otel")]
-    let (otel_layer, otel_reload_handle) = reload::Layer::new(OtelBridgeState::none());
-
-    #[cfg(feature="otel")]
-    let full_subscriber: FullSubscriber = console_subscriber.with(otel_layer);
-
-    #[cfg(not(feature="otel"))]
-    let full_subscriber = console_subscriber;
-
-    // 4) Set as global default
-    tracing::subscriber::set_global_default(full_subscriber)
-        .expect("Failed to set global subscriber");
-
-    // 5) Store reload handles
-    CONSOLE_FILTER_HANDLE
-        .set(console_reload_handle)
-        .expect("Failed to store console filter reload handle");
-
-    #[cfg(feature="otel")]
-    {
-        // We cannot just `.expect(...)` here because that would require `Debug` on OtelBridgeState.
-        // We'll handle the error manually (which is extremely unlikely unless it's already set).
-        if let Err(_already_set) = OTEL_BRIDGE_HANDLE.set(otel_reload_handle) {
-            panic!("Failed to store OTel bridging reload handle (already set?)");
+    // Now specifically set or update bridging with the user-supplied endpoint.
+    let new_state = build_otel_state(log_url, &otel_filter, ofid, version, agent_name, agent_version);
+    if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
+        if let Err(err) = handle.modify(|state| {
+            *state = new_state;
+        }) {
+            eprintln!("Failed to set bridging: {err}");
         }
     }
 }
 
-/// If `url` is empty => bridging = None, else bridging = some new OTel provider
+/// If the user provided `set_otel_url(...)` before we installed the subscriber,
+/// we apply it now. This is called from `enable_tracing(...)`.
 #[cfg(feature="otel")]
-fn update_otel_state(url: &str, filter: &str) {
-    let new_state = if url.is_empty() {
+fn apply_pending_otel_config() {
+    let maybe_config = {
+        let mut lock = PENDING_OTEL_CONFIG.lock().unwrap();
+        lock.take()
+    };
+    if let Some(PendingOtelConfig { log_url, filter, ofid, version, agent_name, agent_version }) = maybe_config {
+        // Build bridging outside the lock
+        let new_state = build_otel_state(&log_url, &filter, &ofid, &version, &agent_name, &agent_version);
+
+        // Then set bridging
+        if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
+            if let Err(err) = handle.modify(|state| {
+                *state = new_state;
+            }) {
+                eprintln!("Failed to set bridging: {err}");
+            }
+        }
+    }
+}
+
+// INTERNAL: One-time global subscriber
+fn install_global_subscriber() {
+    let registry = Registry::default();
+
+    // reloadable console filter. Default is "openiap=info"
+    let console_filter = EnvFilter::new("openiap=info");
+    let (console_filter_layer, console_reload_handle) = reload::Layer::new(console_filter);
+
+    // Get our last-known span_events setting
+    let span_events = {
+        let last = LAST_USED_FILTERS.lock().unwrap();
+        parse_span_events(&last.span_events)
+    };
+
+    // Attach the console fmt layer with the chosen span-event setting
+    let console_layer = fmt::layer()
+        .with_thread_names(true)
+        .with_span_events(span_events)
+        .with_filter(console_filter_layer);
+
+    let console_subscriber = registry.with(console_layer);
+
+    #[cfg(feature="otel")]
+    let (otel_layer, otel_reload_handle) = reload::Layer::new(OtelBridgeState::none());
+
+    #[cfg(feature="otel")]
+    let full_subscriber = console_subscriber.with(otel_layer);
+
+    #[cfg(not(feature="otel"))]
+    let full_subscriber = console_subscriber;
+
+    tracing::subscriber::set_global_default(full_subscriber)
+        .expect("Failed to set global subscriber");
+
+    CONSOLE_FILTER_HANDLE
+        .set(console_reload_handle)
+        .expect("Failed to store console reload handle");
+
+    #[cfg(feature="otel")]
+    {
+        if let Err(_e) = OTEL_BRIDGE_HANDLE.set(otel_reload_handle) {
+            panic!("Failed to store OTel reload handle");
+        }
+    }
+}
+
+// Helper: parse a string into a `FmtSpan` mode
+fn parse_span_events(input: &str) -> FmtSpan {
+    match input.to_lowercase().as_str() {
+        "new"    => FmtSpan::NEW,
+        "enter"  => FmtSpan::ENTER,
+        "exit"   => FmtSpan::EXIT,
+        "close"  => FmtSpan::CLOSE,
+        "active" => FmtSpan::ACTIVE,
+        "full"   => FmtSpan::FULL,
+        // fallback to none on anything unknown or "none"
+        _        => FmtSpan::NONE,
+    }
+}
+
+// OTel bridging
+#[cfg(feature="otel")]
+fn update_otel_state(log_url: &str, filter: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) {
+    let new_state = if log_url.is_empty() {
         OtelBridgeState::none()
     } else {
-        OtelBridgeState::some(url, filter)
+        build_otel_state(log_url, filter, ofid, version, agent_name, agent_version)
     };
 
     if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
@@ -280,11 +402,21 @@ fn update_otel_state(url: &str, filter: &str) {
     }
 }
 
-/// ---------------------------------------------------------------------------
-/// OTelBridgeState: bridging + a local filter
-/// ---------------------------------------------------------------------------
-/// We *cannot* `#[derive(Debug)]` because `OpenTelemetryTracingBridge<SdkLoggerProvider,SdkLogger>` 
-/// doesn't implement Debug.
+/// Build bridging outside of any reload lock, so we don't re-enter logs on ourselves
+#[cfg(feature="otel")]
+fn build_otel_state(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) -> OtelBridgeState {
+    if endpoint.is_empty() {
+        return OtelBridgeState::none();
+    }
+
+    tracing::dispatcher::with_default(
+        &tracing::dispatcher::Dispatch::new(tracing_subscriber::Registry::default()),
+        || {
+            OtelBridgeState::some(endpoint, filter_directives, ofid, version, agent_name, agent_version)
+        },
+    )
+}
+
 #[cfg(feature="otel")]
 struct OtelBridgeState {
     bridging: Option<OpenTelemetryTracingBridge<SdkLoggerProvider, SdkLogger>>,
@@ -300,8 +432,7 @@ impl OtelBridgeState {
         }
     }
 
-    fn some(endpoint: &str, filter_directives: &str) -> Self {
-        // 1) Build an OTLP exporter
+    fn some(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) -> Self {
         let exporter = LogExporter::builder()
             .with_tonic()
             .with_tls_config(
@@ -309,44 +440,43 @@ impl OtelBridgeState {
             )
             .with_endpoint(endpoint)
             .build()
-            .expect("Failed to build OTel log exporter");
+            .expect("Failed to build OTel exporter");
+        let common_attributes = [
+            KeyValue::new(HOSTNAME, hostname::get().unwrap_or_default().into_string().unwrap()),
+            KeyValue::new(OFID, ofid.to_string()),
+            KeyValue::new("PID", std::process::id().to_string()),
+        ];
+    
+        let resource = Resource::builder().with_service_name("rust")
+        .with_attribute(KeyValue::new("service.version", version.to_string() ))
+        .with_attribute(KeyValue::new("agent.name", agent_name.to_string() ))
+        .with_attribute(KeyValue::new("agent.version", agent_version.to_string() ))
+        .with_attributes(common_attributes)
+        .build();
 
-        // 2) Resource
-        let resource = Resource::builder()
-            .with_service_name("rust")
-            .build();
-
-        // 3) Build an SdkLoggerProvider with a "batch exporter"
-        //    => bridging wants <SdkLoggerProvider,SdkLogger>
         let provider = SdkLoggerProvider::builder()
             .with_batch_exporter(exporter)
             .with_resource(resource)
             .build();
 
-        // 4) bridging
         let bridging = Some(OpenTelemetryTracingBridge::new(&provider));
 
-        // 5) parse user filter
         let filter = EnvFilter::try_new(filter_directives)
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+            .unwrap_or_else(|_| EnvFilter::new("openiap=trace"));
 
         Self { bridging, filter }
     }
 }
 
-/// A custom layer that checks if an event/span passes our `filter`,
-/// and if so, forwards it to bridging (if present).
 #[cfg(feature="otel")]
 impl<S> Layer<S> for OtelBridgeState
 where
     S: Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
 {
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        // Clone the context for the filter check => doesn't consume `ctx`
         let is_enabled = self.filter.enabled(event.metadata(), ctx.clone());
         if is_enabled {
             if let Some(bridge) = &self.bridging {
-                // now pass the original ctx to bridging
                 bridge.on_event(event, ctx);
             }
         }
@@ -372,8 +502,6 @@ where
         values: &Record<'_>,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        // No filter check needed here if you want all records
-        // But if you do want to check the filter, you'd do it similarly:
         if let Some(bridge) = &self.bridging {
             bridge.on_record(span, values, ctx);
         }

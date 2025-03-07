@@ -47,16 +47,16 @@ class Program
         // Initialize the client
         Console.WriteLine($"Creating client, Thread ID: {Thread.CurrentThread.ManagedThreadId}");
         Client client = new Client();
-        // client.enabletracing("info", "");
+        client.enabletracing("openiap=info", "");
         // client.enabletracing("openiap=trace", "new");
         await client.connect();
         // client.connect();
         if (!client.connected())
         {
-            Console.WriteLine("Client connection error: " + client.connectionerror());
+            client.error("Client connection error: " + client.connectionerror());
             return;
         }
-        Console.WriteLine("Client connection success: " + client.connected());
+        client.info("Client connection success: " + client.connected());
 
         // Command handling loop
         Console.WriteLine("? for help");

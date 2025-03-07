@@ -70,12 +70,13 @@ async def main():
     client.enable_tracing("openiap=info", "")
     # client.enable_tracing("openiap=debug", "new")
     # client.enable_tracing("openiap=trace", "")
-    print("Connecting to OpenIAP...")
+    client.info("Connecting to OpenIAP...")
 
     try:
         client.connect()
+        client.info("Successfully connected to server")
     except ClientError as e:
-        print(f"Failed to connect to server: {e}")
+        client.error(f"Failed to connect to server: {e}")
         return
 
     print("? for help")

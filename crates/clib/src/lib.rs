@@ -17,8 +17,6 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::vec;
-// use tokio::runtime::Runtime;
-use tracing::{debug, info, trace};
 
 mod safe_wrappers;
 use safe_wrappers::{c_char_to_str, safe_wrapper};
@@ -39,6 +37,38 @@ lazy_static! {
         Mutex::new(m)
     };
 
+}
+
+use tracing::{error, info, warn, debug, trace};
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn error(message: *const c_char) {
+    let message = c_char_to_str(message);
+    error!("{}", message);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn info(message: *const c_char) {
+    let message = c_char_to_str(message);
+    info!("{}", message);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn warn(message: *const c_char) {
+    let message = c_char_to_str(message);
+    warn!("{}", message);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn debug(message: *const c_char) {
+    let message = c_char_to_str(message);
+    debug!("{}", message);
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn trace(message: *const c_char) {
+    let message = c_char_to_str(message);
+    trace!("{}", message);
 }
 /// A wrapper for the client library.
 /// This struct is used to hold the client instance and the runtime instance.
@@ -387,7 +417,7 @@ pub extern "C" fn enable_tracing(rust_log: *const c_char, tracing: *const c_char
     let rust_log = rust_log.to_string();
     let tracing = c_char_to_str(tracing);
     let tracing = tracing.to_string();
-    openiap_client::enable_tracing(&rust_log, &tracing, None);
+    openiap_client::enable_tracing(&rust_log, &tracing);
 }
 #[no_mangle]
 #[tracing::instrument(skip_all)]
