@@ -595,6 +595,14 @@ void debug(const char *message);
 
 void trace(const char *message);
 
+void set_f64_observable_gauge(const char *name, double value, const char *description);
+
+void set_u64_observable_gauge(const char *name, uint64_t value, const char *description);
+
+void set_i64_observable_gauge(const char *name, int64_t value, const char *description);
+
+void disable_observable_gauge(const char *name);
+
 /**
  * Return currentlly signed in user
  */

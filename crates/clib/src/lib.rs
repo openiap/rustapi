@@ -70,6 +70,43 @@ pub extern "C" fn trace(message: *const c_char) {
     let message = c_char_to_str(message);
     trace!("{}", message);
 }
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn set_f64_observable_gauge(name: *const c_char, value: f64, description: *const c_char) {
+    let name = c_char_to_str(name);
+    let description = c_char_to_str(description);
+    match openiap_client::set_f64_observable_gauge(&name, value, &description) {
+        Ok(_) => debug!("observable gauge '{}' created with inital value: {}", name, value),
+        Err(e) => error!("Failed to register custom metric: {}", e),
+    };
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn set_u64_observable_gauge(name: *const c_char, value: u64, description: *const c_char) {
+    let name = c_char_to_str(name);
+    let description = c_char_to_str(description);
+    match openiap_client::set_u64_observable_gauge(&name, value, &description) {
+        Ok(_) => debug!("observable gauge '{}' created with inital value: {}", name, value),
+        Err(e) => error!("Failed to register custom metric: {}", e),
+    };
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn set_i64_observable_gauge(name: *const c_char, value: i64, description: *const c_char) {
+    let name = c_char_to_str(name);
+    let description = c_char_to_str(description);
+    match openiap_client::set_i64_observable_gauge(&name, value, &description) {
+        Ok(_) => debug!("observable gauge '{}' created with inital value: {}", name, value),
+        Err(e) => error!("Failed to register custom metric: {}", e),
+    };
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn disable_observable_gauge(name: *const c_char) {
+    let name = c_char_to_str(name);
+    openiap_client::disable_observable_gauge(&name);
+}
+
 /// A wrapper for the client library.
 /// This struct is used to hold the client instance and the runtime instance.
 #[repr(C)]
