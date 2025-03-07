@@ -9,6 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class clienttestcli {
     private static Client client;
@@ -18,6 +20,9 @@ public class clienttestcli {
     private static Future<?> runningTask;
     private static AtomicBoolean taskRunning = new AtomicBoolean(false);
     private static ExecutorService replyExecutor;
+    private static ScheduledExecutorService f64Handler = null;
+    private static ScheduledExecutorService u64Handler = null;
+    private static ScheduledExecutorService i64Handler = null;
 
     public static void main(String[] args) {
         System.out.println("CLI initializing...");
@@ -44,18 +49,7 @@ public class clienttestcli {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (executor != null) {
-                executor.shutdownNow();
-            }
-            if (client != null) {
-                client.disconnect();
-            }
-            if (scanner != null) {
-                scanner.close();
-            }
-            if (replyExecutor != null) {
-                replyExecutor.shutdown();
-            }
+            cleanup();
         }
     }
 
@@ -118,6 +112,15 @@ public class clienttestcli {
             case "pd":
                 handleDeleteWorkitem();
                 break;
+            case "o":
+                handleF64Observable();
+                break;
+            case "o2":
+                handleU64Observable();
+                break;
+            case "o3":
+                handleI64Observable();
+                break;
             case "quit":
                 running = false;
                 break;
@@ -145,6 +148,9 @@ public class clienttestcli {
         System.out.println("  w    - Watch collection");
         System.out.println("  st   - Start/stop task (workitem processing)");
         System.out.println("  st2  - Start/stop task (continuous testing)");
+        System.out.println("  o    - Toggle f64 observable gauge");
+        System.out.println("  o2   - Toggle u64 observable gauge");
+        System.out.println("  o3   - Toggle i64 observable gauge");
         System.out.println("  quit - Exit program");
     }
 
@@ -533,6 +539,90 @@ public class clienttestcli {
         } catch (Exception e) {
             System.out.println("DeleteWorkitem error: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    private static void handleF64Observable() {
+        if (f64Handler != null) {
+            client.disable_observable_gauge("test_f64");
+            f64Handler.shutdown();
+            f64Handler = null;
+            client.info("stopped test_f64");
+            return;
+        }
+        
+        client.set_f64_observable_gauge("test_f64", 42.7, "test");
+        client.info("started test_f64 to 42.7");
+        
+        f64Handler = Executors.newSingleThreadScheduledExecutor();
+        f64Handler.scheduleAtFixedRate(() -> {
+            double random = Math.random() * 50;
+            client.info("Setting test_f64 to " + random);
+            client.set_f64_observable_gauge("test_f64", random, "test");
+        }, 0, 30, TimeUnit.SECONDS);
+    }
+
+    private static void handleU64Observable() {
+        if (u64Handler != null) {
+            client.disable_observable_gauge("test_u64");
+            u64Handler.shutdown();
+            u64Handler = null;
+            client.info("stopped test_u64");
+            return;
+        }
+        
+        client.set_u64_observable_gauge("test_u64", 42, "test");
+        client.info("started test_u64 to 42");
+        
+        u64Handler = Executors.newSingleThreadScheduledExecutor();
+        u64Handler.scheduleAtFixedRate(() -> {
+            long random = (long)(Math.random() * 50);
+            client.info("Setting test_u64 to " + random);
+            client.set_u64_observable_gauge("test_u64", random, "test");
+        }, 0, 30, TimeUnit.SECONDS);
+    }
+
+    private static void handleI64Observable() {
+        if (i64Handler != null) {
+            client.disable_observable_gauge("test_i64");
+            i64Handler.shutdown();
+            i64Handler = null;
+            client.info("stopped test_i64");
+            return;
+        }
+        
+        client.set_i64_observable_gauge("test_i64", 42, "test");
+        client.info("started test_i64 to 42");
+        
+        i64Handler = Executors.newSingleThreadScheduledExecutor();
+        i64Handler.scheduleAtFixedRate(() -> {
+            long random = (long)(Math.random() * 50);
+            client.info("Setting test_i64 to " + random);
+            client.set_i64_observable_gauge("test_i64", random, "test");
+        }, 0, 30, TimeUnit.SECONDS);
+    }
+
+    private static void cleanup() {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+        if (client != null) {
+            client.disconnect();
+        }
+        if (scanner != null) {
+            scanner.close();
+        }
+        if (replyExecutor != null) {
+            replyExecutor.shutdown();
+        }
+        if (f64Handler != null) {
+            f64Handler.shutdownNow();
+        }
+        if (u64Handler != null) {
+            u64Handler.shutdownNow();
+        }
+        if (i64Handler != null) {
+            i64Handler.shutdownNow();
         }
     }
 }

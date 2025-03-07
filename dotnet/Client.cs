@@ -889,6 +889,14 @@ namespace OpenIAP
         public static extern void debug(string message);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void trace(string message);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "set_f64_observable_gauge")]
+        private static extern void _set_f64_observable_gauge(string name, double value, string description);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "set_u64_observable_gauge")]
+        private static extern void _set_u64_observable_gauge(string name, ulong value, string description);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "set_i64_observable_gauge")]
+        private static extern void _set_i64_observable_gauge(string name, long value, string description);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl, EntryPoint = "disable_observable_gauge")]
+        private static extern void _disable_observable_gauge(string name);
 
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -1197,6 +1205,22 @@ namespace OpenIAP
                     if(!string.IsNullOrEmpty(message)) Client.trace(message);
                 }
             }
+        }
+        public void set_f64_observable_gauge(string name, double value, string description)
+        {
+            Client._set_f64_observable_gauge(name, value, description);
+        }
+        public void set_u64_observable_gauge(string name, ulong value, string description)
+        {
+            Client._set_u64_observable_gauge(name, value, description);
+        }
+        public void set_i64_observable_gauge(string name, long value, string description)
+        {
+            Client._set_i64_observable_gauge(name, value, description);
+        }
+        public void disable_observable_gauge(string name)
+        {
+            Client._disable_observable_gauge(name);
         }
         void _ConnectCallback(IntPtr clientWrapperPtr)
         {

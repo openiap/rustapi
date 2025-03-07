@@ -210,7 +210,23 @@ class Client {
     public function trace($message) {
         $this->ffi->trace($message);
     }
-
+    // void set_f64_observable_gauge(const char *name, double value, const char *description);
+    public function set_f64_observable_gauge($name, $value, $description) {
+        $this->ffi->set_f64_observable_gauge($name, $value, $description);
+    }
+    // void set_u64_observable_gauge(const char *name, uint64_t value, const char *description);
+    public function set_u64_observable_gauge($name, $value, $description) {
+        $this->ffi->set_u64_observable_gauge($name, $value, $description);
+    }    
+    // void set_i64_observable_gauge(const char *name, int64_t value, const char *description);
+    public function set_i64_observable_gauge($name, $value, $description) {
+        $this->ffi->set_i64_observable_gauge($name, $value, $description);
+    }    
+    // void disable_observable_gauge(const char *name);
+    public function disable_observable_gauge($name) {
+        $this->ffi->disable_observable_gauge($name);
+    }
+    
     private function set_agent_name($agent_name) {
         $this->ffi->client_set_agent_name($this->client, $agent_name);
     }

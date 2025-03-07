@@ -1,9 +1,11 @@
 import asyncio
-from ctypes import c_char_p
+from ctypes import c_char_p, ArgumentError
 import json
 from openiap import Client, ClientError
 import os
 import threading
+import time
+import random
 
 from openiap.main import ColTimeseriesWrapper
 
@@ -65,6 +67,46 @@ async def st_func(client: Client):
         print(f"Failed to connect to server: {e}")
         return
 
+# Add handler variables at module level
+f64_thread = None
+u64_thread = None
+i64_thread = None
+stop_threads = False
+
+# Add handler functions
+def f64_handler(client):
+    while not stop_threads:
+        try:
+            value = random.uniform(0, 50)
+            client.info(f"Setting test_f64 to {value}")
+            client.set_f64_observable_gauge("test_f64", value, "test")
+            time.sleep(30)
+        except (ArgumentError, Exception) as e:
+            client.error(f"Error in f64_handler: {str(e)}")
+            break
+
+def u64_handler(client):
+    while not stop_threads:
+        try:
+            value = int(random.uniform(0, 50))
+            client.info(f"Setting test_u64 to {value}")
+            client.set_u64_observable_gauge("test_u64", value, "test")
+            time.sleep(30)
+        except (ArgumentError, Exception) as e:
+            client.error(f"Error in u64_handler: {str(e)}")
+            break
+
+def i64_handler(client):
+    while not stop_threads:
+        try:
+            value = int(random.uniform(0, 50))
+            client.info(f"Setting test_i64 to {value}")
+            client.set_i64_observable_gauge("test_i64", value, "test")
+            time.sleep(30)
+        except (ArgumentError, Exception) as e:
+            client.error(f"Error in i64_handler: {str(e)}")
+            break
+
 async def main():
     client = Client()
     client.enable_tracing("openiap=info", "")
@@ -87,6 +129,8 @@ async def main():
         input_command = await keyboard_input()
 
         if input_command == "quit":
+            global stop_threads
+            stop_threads = True
             break
         elif input_command == "?":
             print("""
@@ -105,6 +149,9 @@ async def main():
             uw: Unwatch
             r: Register queue
             m: Queue message
+            o: Toggle f64 observable gauge
+            o2: Toggle u64 observable gauge
+            o3: Toggle i64 observable gauge
             """)
         elif input_command == "0":
             client.disable_tracing()
@@ -248,6 +295,59 @@ async def main():
             iter_per_core = num_calcs // available_cores
             num_iters = 5000
             threading.Thread(target=start_cpu_load, args=(num_iters, available_cores, iter_per_core)).start()
+        elif input_command == "o":
+            global f64_thread
+            if f64_thread and f64_thread.is_alive():
+                client.disable_observable_gauge("test_f64")
+                client.info("stopped test_f64")
+                stop_threads = True
+                f64_thread.join()
+                f64_thread = None
+                stop_threads = False
+            else:
+                client.set_f64_observable_gauge("test_f64", 42.7, "test")
+                client.info("started test_f64 to 42.7")
+                f64_thread = threading.Thread(target=f64_handler, args=(client,))
+                f64_thread.daemon = True
+                f64_thread.start()
+
+        elif input_command == "o2":
+            global u64_thread
+            if u64_thread and u64_thread.is_alive():
+                client.disable_observable_gauge("test_u64")
+                client.info("stopped test_u64")
+                stop_threads = True
+                u64_thread.join()
+                u64_thread = None
+                stop_threads = False
+            else:
+                client.set_u64_observable_gauge("test_u64", 42, "test")
+                client.info("started test_u64 to 42")
+                u64_thread = threading.Thread(target=u64_handler, args=(client,))
+                u64_thread.daemon = True
+                u64_thread.start()
+
+        elif input_command == "o3":
+            global i64_thread
+            if i64_thread and i64_thread.is_alive():
+                client.disable_observable_gauge("test_i64")
+                client.info("stopped test_i64")
+                stop_threads = True
+                i64_thread.join()
+                i64_thread = None
+                stop_threads = False
+            else:
+                client.set_i64_observable_gauge("test_i64", 42, "test")
+                client.info("started test_i64 to 42")
+                i64_thread = threading.Thread(target=i64_handler, args=(client,))
+                i64_thread.daemon = True
+                i64_thread.start()
+
+    # Make sure to clean up threads before exiting
+    stop_threads = True
+    for thread in [f64_thread, u64_thread, i64_thread]:
+        if thread and thread.is_alive():
+            thread.join()
 
     if sthandle is not None:
         sthandle.cancel()

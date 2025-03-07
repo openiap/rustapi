@@ -524,6 +524,11 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
         }
     }
     let ofid = format!("{:x}", hasher.compute());
+
+    // if OTEL_METRIC_EXPORT_INTERVAL is not set, set it to 10000 ( instad of 60000 )
+    if std::env::var("OTEL_METRIC_EXPORT_INTERVAL").is_err() {
+        std::env::set_var("OTEL_METRIC_EXPORT_INTERVAL", "10000");
+    }
     
     // Store the context
     *METRICS_CONTEXT.lock().unwrap() = Some(MetricsContext {

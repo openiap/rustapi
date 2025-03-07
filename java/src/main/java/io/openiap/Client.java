@@ -30,6 +30,10 @@ interface CLib extends Library {
     Pointer list_collections(Pointer client, boolean includeHist);
     void free_list_collections_response(Pointer response);
     void enable_tracing(String rustLog, String tracing);
+    void set_f64_observable_gauge(String name, double value, String description);
+    void set_u64_observable_gauge(String name, long value, String description);
+    void set_i64_observable_gauge(String name, long value, String description);
+    void disable_observable_gauge(String name);
     void disable_tracing();
     void error(String message);
     void info(String message);
@@ -222,7 +226,18 @@ public class Client implements AutoCloseable {
     public void disableTracing() {
         clibInstance.disable_tracing();
     }
-
+    public void set_f64_observable_gauge(String name, double value, String description) {
+        clibInstance.set_f64_observable_gauge(name, value, description);
+    }
+    public void set_u64_observable_gauge(String name, long value, String description) {
+        clibInstance.set_u64_observable_gauge(name, value, description);
+    }
+    public void set_i64_observable_gauge(String name, long value, String description) {
+        clibInstance.set_i64_observable_gauge(name, value, description);
+    }
+    public void disable_observable_gauge(String name) {
+        clibInstance.disable_observable_gauge(name);
+    }
     public void disconnect() {
         if (clientPtr != null) {
             exchangeCallbacks.clear();

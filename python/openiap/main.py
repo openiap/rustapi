@@ -2,7 +2,8 @@ import ctypes
 import json
 import os, platform
 import sys
-from ctypes import CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, c_uint64, CFUNCTYPE, POINTER, byref, pointer
+from ctypes import (CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, 
+                   c_uint64, c_int64, c_double, CFUNCTYPE, POINTER, byref, pointer)
 import threading
 import time
 
@@ -680,6 +681,23 @@ class Client:
     def trace(self, *args):
         message = " ".join(map(str, args))
         self.lib.trace(message.encode('utf-8'))
+    def set_f64_observable_gauge(self, name: str, value: float, description: str):
+        value_c = c_double(value)
+        self.lib.set_f64_observable_gauge.argtypes = [c_char_p, c_double, c_char_p]
+        self.lib.set_f64_observable_gauge(name.encode('utf-8'), value_c, description.encode('utf-8'))
+
+    def set_u64_observable_gauge(self, name: str, value: int, description: str):
+        value_c = c_uint64(value)
+        self.lib.set_u64_observable_gauge.argtypes = [c_char_p, c_uint64, c_char_p]
+        self.lib.set_u64_observable_gauge(name.encode('utf-8'), value_c, description.encode('utf-8'))
+
+    def set_i64_observable_gauge(self, name: str, value: int, description: str):
+        value_c = c_int64(value)
+        self.lib.set_i64_observable_gauge.argtypes = [c_char_p, c_int64, c_char_p]
+        self.lib.set_i64_observable_gauge(name.encode('utf-8'), value_c, description.encode('utf-8'))
+
+    def disable_observable_gauge(self, name):
+        self.lib.disable_observable_gauge(name.encode('utf-8'))
     def connect(self, url=""):
         # Event to wait for the callback
         event = threading.Event()

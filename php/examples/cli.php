@@ -37,7 +37,12 @@ try {
     $client->connect("");
     $client->info("Successfully connected to server");
 
-    Loop::addReadStream(STDIN, function ($stream) use ($client) {
+    // Handler state variables
+    $f64_handler = null;
+    $u64_handler = null;
+    $i64_handler = null;
+
+    Loop::addReadStream(STDIN, function ($stream) use ($client, &$f64_handler, &$u64_handler, &$i64_handler) {
         $chunk = \trim(\fread($stream, 64 * 1024));
         switch ($chunk) {
             case 'q':
@@ -83,7 +88,59 @@ try {
                 });
                 print("Watch ID: $watchid \n");
                 break;
+            case 'o':
+                if ($f64_handler) {
+                    $client->disable_observable_gauge("test_f64");
+                    $client->info("stopped test_f64");
+                    Loop::cancelTimer($f64_handler);
+                    $f64_handler = null;
+                } else {
+                    $client->set_f64_observable_gauge("test_f64", 42.7, "test");
+                    $client->info("started test_f64 to 42.7");
+                    $f64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand() / mt_getrandmax() * 50;
+                        $client->info("Setting test_f64 to " . $value);
+                        $client->set_f64_observable_gauge("test_f64", $value, "test");
+                    });
+                }
+                break;
+            case 'o2': 
+                if ($u64_handler) {
+                    $client->disable_observable_gauge("test_u64");
+                    $client->info("stopped test_u64");
+                    Loop::cancelTimer($u64_handler);
+                    $u64_handler = null;
+                } else {
+                    $client->set_u64_observable_gauge("test_u64", 42, "test");
+                    $client->info("started test_u64 to 42");
+                    $u64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand(0, 50);
+                        $client->info("Setting test_u64 to " . $value);
+                        $client->set_u64_observable_gauge("test_u64", $value, "test");
+                    });
+                }
+                break;
+            case 'o3':
+                if ($i64_handler) {
+                    $client->disable_observable_gauge("test_i64");
+                    $client->info("stopped test_i64");
+                    Loop::cancelTimer($i64_handler);
+                    $i64_handler = null;
+                } else {
+                    $client->set_i64_observable_gauge("test_i64", 42, "test");
+                    $client->info("started test_i64 to 42");
+                    $i64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand(0, 50);
+                        $client->info("Setting test_i64 to " . $value); 
+                        $client->set_i64_observable_gauge("test_i64", $value, "test");
+                    });
+                }
+                break;
             case 'quit':
+                // Cancel any active gauge handlers
+                if ($f64_handler) Loop::cancelTimer($f64_handler);
+                if ($u64_handler) Loop::cancelTimer($u64_handler);
+                if ($i64_handler) Loop::cancelTimer($i64_handler);
                 $client->free();
                 unset($client);                
                 Loop::removeReadStream($stream);

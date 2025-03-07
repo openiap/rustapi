@@ -645,6 +645,11 @@ function loadLibrary() {
         lib.debug = lib.func('void debug(const char* message)');
         lib.trace = lib.func('void trace(const char* message)');
 
+        lib.set_f64_observable_gauge = lib.func('void set_f64_observable_gauge(const char* name, double value, const char* description);');
+        lib.set_u64_observable_gauge = lib.func('void set_u64_observable_gauge(const char* name, uint64_t value, const char* description);');
+        lib.set_i64_observable_gauge = lib.func('void set_i64_observable_gauge(const char* name, int64_t value, const char* description);');
+        lib.disable_observable_gauge = lib.func('void disable_observable_gauge(const char* name);');
+
         lib.create_client = lib.func('create_client', ClientWrapperPtr, []);
         lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
         lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
@@ -882,6 +887,18 @@ class Client {
     }
     trace(...args) {
         this.lib.trace(args.join(' '));
+    }
+    set_f64_observable_gauge(name, value, description) {
+        this.lib.set_f64_observable_gauge(name, value, description);
+    }
+    set_u64_observable_gauge(name, value, description) {
+        this.lib.set_u64_observable_gauge(name, value, description);
+    }
+    set_i64_observable_gauge(name, value, description) {
+        this.lib.set_i64_observable_gauge(name, value, description);
+    }
+    disable_observable_gauge(name) {
+        this.lib.disable_observable_gauge(name);
     }
     set_agent_name(name) {
         this.trace('set_agent_name invoked', name);

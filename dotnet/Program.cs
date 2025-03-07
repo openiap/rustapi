@@ -58,6 +58,11 @@ class Program
         }
         client.info("Client connection success: " + client.connected());
 
+        // Add handler state variables
+        Timer? f64_handler = null;
+        Timer? u64_handler = null;
+        Timer? i64_handler = null;
+
         // Command handling loop
         Console.WriteLine("? for help");
         string input = "";
@@ -80,6 +85,9 @@ class Program
                     Console.WriteLine("i - Insert an entity");
                     Console.WriteLine("w - Watch for changes");
                     Console.WriteLine("uw - Unwatch");
+                    Console.WriteLine("o - Toggle f64 observable gauge");
+                    Console.WriteLine("o2 - Toggle u64 observable gauge"); 
+                    Console.WriteLine("o3 - Toggle i64 observable gauge");
                     break;
                 case "0":
                     client.disabletracing();
@@ -574,7 +582,74 @@ class Program
                         Console.WriteLine("Error disconnecting: " + e.Message);
                     }
                     break;
+                case "o":
+                    if (f64_handler != null)
+                    {
+                        client.disable_observable_gauge("test_f64");
+                        client.info("stopped test_f64");
+                        f64_handler.Dispose();
+                        f64_handler = null;
+                    }
+                    else
+                    {
+                        client.set_f64_observable_gauge("test_f64", 42.7, "test");
+                        client.info("started test_f64 to 42.7");
+                        var random = new Random();
+                        f64_handler = new Timer(state => {
+                            var value = random.NextDouble() * 50;
+                            client.info($"Setting test_f64 to {value}");
+                            client.set_f64_observable_gauge("test_f64", value, "test");
+                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+                    }
+                    break;
+
+                case "o2":
+                    if (u64_handler != null)
+                    {
+                        client.disable_observable_gauge("test_u64");
+                        client.info("stopped test_u64");
+                        u64_handler.Dispose();
+                        u64_handler = null;
+                    }
+                    else
+                    {
+                        client.set_u64_observable_gauge("test_u64", 42, "test");
+                        client.info("started test_u64 to 42");
+                        var random = new Random();
+                        u64_handler = new Timer(state => {
+                            var value = (ulong)random.Next(0, 50);
+                            client.info($"Setting test_u64 to {value}");
+                            client.set_u64_observable_gauge("test_u64", value, "test");
+                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+                    }
+                    break;
+
+                case "o3":
+                    if (i64_handler != null)
+                    {
+                        client.disable_observable_gauge("test_i64");
+                        client.info("stopped test_i64");
+                        i64_handler.Dispose();
+                        i64_handler = null;
+                    }
+                    else
+                    {
+                        client.set_i64_observable_gauge("test_i64", 42, "test");
+                        client.info("started test_i64 to 42");
+                        var random = new Random();
+                        i64_handler = new Timer(state => {
+                            var value = (long)random.Next(0, 50);
+                            client.info($"Setting test_i64 to {value}");
+                            client.set_i64_observable_gauge("test_i64", value, "test");
+                        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+                    }
+                    break;
+
                 case "quit":
+                    // Cleanup handlers
+                    f64_handler?.Dispose();
+                    u64_handler?.Dispose();
+                    i64_handler?.Dispose();
                     try {
                         client.Dispose();
                         Console.WriteLine("Client disposed. Exiting...");

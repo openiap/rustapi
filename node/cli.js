@@ -108,6 +108,12 @@ async function doit() {
         console.log("loop completed");
     }
 
+    let handler_test_f64 = null;
+    let handler_test_u64 = null;
+    let handler_test_i64 = null;
+    
+    
+
     try {
         while (input.toLowerCase() !== 'quit') {
             switch (input.toLowerCase()) {
@@ -123,7 +129,58 @@ async function doit() {
                 case '3':
                     client.enable_tracing("openiap=debug", "new");
                     break;
-        
+
+                case 'o':
+                    if(handler_test_f64 != null) {
+                        client.disable_observable_gauge("test_f64");
+                        clearInterval(handler_test_f64);
+                        handler_test_f64 = null;
+                        client.info("stopped test_f64");
+                        return;
+                    }
+                    client.set_f64_observable_gauge("test_f64", 42.7, "test");
+                    client.info("started test_f64 to 42.7");
+                    handler_test_f64 = setInterval(() => {
+                        let random = Math.floor(Math.random() * 50);
+                        client.info("Setting test_f64 to ", random);
+                        client.set_f64_observable_gauge("test_f64", random, "test");
+                    }
+                    , 30000);
+                    break;        
+                case 'o2':
+                    if(handler_test_u64 != null) {
+                        client.disable_observable_gauge("test_u64");
+                        clearInterval(handler_test_u64);
+                        handler_test_u64 = null;
+                        client.info("stopped test_u64");
+                        return;
+                    }
+                    client.set_u64_observable_gauge("test_u64", 42.7, "test");
+                    client.info("started test_u64 to 42.7");
+                    handler_test_u64 = setInterval(() => {
+                        let random = Math.floor(Math.random() * 50);
+                        client.info("Setting test_u64 to ", random);
+                        client.set_u64_observable_gauge("test_u64", random, "test");
+                    }
+                    , 30000);
+                    break;        
+                case 'o3':
+                    if(handler_test_i64 != null) {
+                        client.disable_observable_gauge("test_i64");
+                        clearInterval(handler_test_i64);
+                        handler_test_i64 = null;
+                        client.info("stopped test_i64");
+                        return;
+                    }
+                    client.set_i64_observable_gauge("test_i64", 42.7, "test");
+                    client.info("started test_i64 to 42.7");
+                    handler_test_i64 = setInterval(() => {
+                        let random = Math.floor(Math.random() * 50);
+                        client.info("Setting test_i64 to ", random);
+                        client.set_i64_observable_gauge("test_i64", random, "test");
+                    }
+                    , 30000);
+                    break;        
                 case 'c':
                     console.log(`Calculating factorial of 20 ${numCalcs} times`);
                     for (let i = 0; i < numIters; i++) {
