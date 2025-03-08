@@ -571,9 +571,9 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
         {   
             crate::set_otel_url(log_url, trace_url, &ofid, version, agent_name, agent_version);
         }
+        debug!("added {} for logging observability", log_url);
     }
     if !metric_url.is_empty() {
-        debug!("Adding {} for performance observability", metric_url);
         let mut providers2 = provider2.lock().unwrap();
         if providers2.provider.is_none() {
             let exporter2 = MetricExporter::builder()
@@ -596,6 +596,7 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
                 }
             }
             providers2.provider = Some(provider);
+            debug!("added {} for performance observability", metric_url);
         }
     }
 

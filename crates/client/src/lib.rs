@@ -652,12 +652,8 @@ impl Client {
     #[tracing::instrument(skip_all)]
     pub async fn new_connect(dst: &str) -> Result<Self, OpenIAPError> {
         #[cfg(test)]
-        {   
-            // enable_tracing("openiap=trace", "new");
-            // enable_tracing("openiap=debug", "new");
-            // enable_tracing("trace", "");
+        {
             enable_tracing("openiap=error", "");
-            // enable_tracing("openiap=debug", "");
         }
         let client  = Client::new();
         client.connect_async(dst).await?;
@@ -1527,7 +1523,7 @@ impl Client {
             config.agent = self.get_agent_name();
         }
 
-        debug!("Attempting sign-in using {:?}", config);
+        // trace!("Attempting sign-in using {:?}", config);
         let envelope = config.to_envelope();
         let result = self.send(envelope).await;
 

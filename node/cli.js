@@ -392,6 +392,24 @@ async function doit() {
         do_st_func = false;
         await new Promise((resolve) => setTimeout(resolve, 500));
     }
+    if(handler_test_f64 != null) {
+        client.disable_observable_gauge("test_f64");
+        clearInterval(handler_test_f64);
+        handler_test_f64 = null;
+        client.info("stopped test_f64");
+    }
+    if(handler_test_u64 != null) {
+        client.disable_observable_gauge("test_u64");
+        clearInterval(handler_test_u64);
+        handler_test_u64 = null;
+        client.info("stopped test_u64");
+    }
+    if(handler_test_i64 != null) {
+        client.disable_observable_gauge("test_i64");
+        clearInterval(handler_test_i64);
+        handler_test_i64 = null;
+        client.info("stopped test_i64");
+    }
     client.free();
 }
 

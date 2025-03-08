@@ -165,12 +165,12 @@ struct LastUsedFilters {
     span_events: String,
 }
 
-/// Default to "openiap=info" for console and "openiap=trace" for OTEL, and "none" for span_events
+/// Default to "" for console and "openiap=trace" for OTEL, and "none" for span_events
 static LAST_USED_FILTERS: Lazy<Mutex<LastUsedFilters>> = Lazy::new(|| Mutex::new(
     LastUsedFilters {
-        console_filter: "openiap=info".to_string(),
+        console_filter: "".to_string(),
         otel_filter:    "openiap=trace".to_string(),
-        span_events:    "".to_string(),
+        span_events:    "none".to_string(),
     }
 ));
 /// Override the default logging filter for opentelemetry
@@ -292,12 +292,7 @@ pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, a
         install_global_subscriber(); 
     }
 
-    // Schedule the OTel configuration to be applied on the next event loop iteration
-    tokio::spawn(async {
-        // Small delay to ensure we're outside any tracing context
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-        apply_pending_otel_config();
-    });
+    apply_pending_otel_config();
 }
 
 #[cfg(feature="otel")]
@@ -380,6 +375,7 @@ fn parse_span_events(input: &str) -> FmtSpan {
         "close"  => FmtSpan::CLOSE,
         "active" => FmtSpan::ACTIVE,
         "full"   => FmtSpan::FULL,
+        "none"   => FmtSpan::NONE,
         // fallback to none on anything unknown or "none"
         _        => FmtSpan::NONE,
     }
