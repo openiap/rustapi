@@ -274,53 +274,54 @@ pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, a
     let _trace_url = trace_url.trim();
     let ofid = ofid.trim();
 
+    // Store the configuration for later application
+    {
+        let mut pending = PENDING_OTEL_CONFIG.lock().unwrap();
+        *pending = Some(PendingOtelConfig {
+            log_url: log_url.to_string(),
+            filter: LAST_USED_FILTERS.lock().unwrap().otel_filter.clone(),
+            ofid: ofid.to_string(),
+            version: version.to_string(),
+            agent_name: agent_name.to_string(),
+            agent_version: agent_version.to_string(),
+        });
+    }
+
     // If the subscriber wasn't installed yet, install it with defaults
     if INSTALLED.set(()).is_ok() {
         install_global_subscriber(); 
     }
 
-    // If you want to apply user-specified filters or re-use last-known filters, do that here:
-    let (console_filter, otel_filter) = {
-        let last = LAST_USED_FILTERS.lock().unwrap();
-        (
-            last.console_filter.clone(),
-            last.otel_filter.clone(),
-        )
-    };
-
-    update_console_filter(&console_filter);
-
-    // Now specifically set or update bridging with the user-supplied endpoint.
-    let new_state = build_otel_state(log_url, &otel_filter, ofid, version, agent_name, agent_version);
-    if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
-        if let Err(err) = handle.modify(|state| {
-            *state = new_state;
-        }) {
-            eprintln!("Failed to set bridging: {err}");
-        }
-    }
+    // Schedule the OTel configuration to be applied on the next event loop iteration
+    tokio::spawn(async {
+        // Small delay to ensure we're outside any tracing context
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        apply_pending_otel_config();
+    });
 }
 
-/// If the user provided `set_otel_url(...)` before we installed the subscriber,
-/// we apply it now. This is called from `enable_tracing(...)`.
 #[cfg(feature="otel")]
 fn apply_pending_otel_config() {
-    let maybe_config = {
-        let mut lock = PENDING_OTEL_CONFIG.lock().unwrap();
-        lock.take()
-    };
-    if let Some(PendingOtelConfig { log_url, filter, ofid, version, agent_name, agent_version }) = maybe_config {
-        // Build bridging outside the lock
-        let new_state = build_otel_state(&log_url, &filter, &ofid, &version, &agent_name, &agent_version);
+    // Take the config outside the lock
+    let maybe_config = PENDING_OTEL_CONFIG.lock()
+        .unwrap()
+        .take();
 
-        // Then set bridging
-        if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
-            if let Err(err) = handle.modify(|state| {
-                *state = new_state;
-            }) {
-                eprintln!("Failed to set bridging: {err}");
+    if let Some(PendingOtelConfig { log_url, filter, ofid, version, agent_name, agent_version }) = maybe_config {
+        // Ensure we're not in a tracing context
+        tracing::dispatcher::with_default(
+            &tracing::dispatcher::Dispatch::new(tracing_subscriber::Registry::default()),
+            || {
+                let new_state = build_otel_state(&log_url, &filter, &ofid, &version, &agent_name, &agent_version);
+                if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
+                    if let Err(err) = handle.modify(|state| {
+                        *state = new_state;
+                    }) {
+                        eprintln!("Failed to set bridging: {err}");
+                    }
+                }
             }
-        }
+        );
     }
 }
 
