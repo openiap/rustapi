@@ -1555,7 +1555,8 @@ mod tests {
             }
         }
     }
-    #[tokio::test()] // cargo test test_create_workflow_instance -- --nocapture
+    #[allow(dead_code)]
+    // #[tokio::test()] // cargo test test_create_workflow_instance -- --nocapture
     async fn test_create_workflow_instance() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 

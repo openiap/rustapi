@@ -504,6 +504,7 @@ static METRICS_CONTEXT: Lazy<std::sync::Mutex<Option<MetricsContext>>> = Lazy::n
 });
 
 /// Initialize telemetry
+#[allow(unused_variables)]
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
 pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
     metric_url: &str, trace_url: &str, log_url: &str, 
@@ -566,7 +567,10 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
     }
 
     if !log_url.is_empty() {
-        crate::set_otel_url(log_url, trace_url, &ofid, version, agent_name, agent_version);
+        #[cfg(not(test))]
+        {   
+            crate::set_otel_url(log_url, trace_url, &ofid, version, agent_name, agent_version);
+        }
     }
     if !metric_url.is_empty() {
         debug!("Adding {} for performance observability", metric_url);
