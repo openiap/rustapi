@@ -30,7 +30,7 @@
             "pid": "${command:pickMyProcess}"
         },
         {
-            "name": "(c) cli",
+            "name": "C: debug cli",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/c/client_cli",
