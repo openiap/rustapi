@@ -475,6 +475,7 @@ fn free<T>(ptr: *mut T) {
 #[no_mangle]
 pub extern "C" fn create_client() -> *mut ClientWrapper {
     let client = Client::new();
+    client.set_agent_name("c");
     trace!("create_client");
     Box::into_raw(Box::new(ClientWrapper {
         client: Some(client),

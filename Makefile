@@ -65,6 +65,7 @@ build-linux:
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
 	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
+	cp crates/clib/clib_openiap.h c/clib_openiap.h	
 
 build-macos:
 	cross build --target aarch64-apple-darwin --release
@@ -84,6 +85,13 @@ build-windows:
 
 build-java:
 	# (cd java && mvn clean package)
+
+copy-lib:
+	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
+	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/lib/* dotnet/lib
+	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib
+	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
+	rm -rf c/lib && mkdir -p c/lib && cp target/lib/* c/lib
 
 # Package language bindings
 package-node:
@@ -131,7 +139,7 @@ publish-cargo:
 	cargo publish -p openiap-clib --allow-dirty
 
 # Combined tasks
-build-all: clean prepare build-linux build-macos build-windows build-java
+build-all: clean prepare build-linux build-macos build-windows build-java copy-lib
 package-all: package-node package-dotnet package-python package-java
 publish-all: publish-node publish-dotnet publish-python publish-java publish-cargo
 

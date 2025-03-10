@@ -1,0 +1,5 @@
+*.tgz
+lib
+*.csv
+*.o
+client_cli
