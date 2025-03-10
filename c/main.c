@@ -35,6 +35,7 @@ int main(void) {
     
     if (!conn_resp->success) {
         fprintf(stderr, "Connection failed: %s\n", conn_resp->error);
+        return 1;
     } else {
         printf("Connected successfully! Request ID: %d\n", conn_resp->request_id);
     }
