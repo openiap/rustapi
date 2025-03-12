@@ -17,8 +17,6 @@ bump:
 	# Update version in lib.rs files (Rust source files)
 	@find crates -name "*.rs" -exec sed -i -E "s/(^[[:space:]]*const VERSION: &str = )\"[0-9]+\.[0-9]+\.[0-9]+\";/\1\"$(VERSION)\";/g" {} \;
 
-
-
 	# Update version in .csproj files (C# project files)
 	@find dotnet -name "*.csproj" -exec sed -i 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
 
@@ -41,6 +39,8 @@ bump:
 	# @find java -name "pom.xml" -exec sed -i 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
 	@find java -name "pom.xml" -exec sed -i '/<artifactId>client<\/artifactId>/{n;s/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>${VERSION}<\/version>/}' {} \;
 
+	# Update version in conanfile.py (conan package manager)
+	@find c -name "*.py" -exec sed -i 's/version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
 
 	@echo "Version bump completed to $(VERSION)"
 
@@ -65,7 +65,7 @@ build-linux:
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
 	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
-	cp crates/clib/clib_openiap.h c/clib_openiap.h	
+	cp crates/clib/clib_openiap.h c/clib_openiap.h
 
 build-macos:
 	cross build --target aarch64-apple-darwin --release
@@ -114,6 +114,14 @@ package-java:
 	@echo "Building java jar"
 	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	(cd java && mvn clean package)
+
+package-c:
+	conan create c -s os=Linux -s arch=x86_64
+	conan create c -s os=Linux -s arch=armv8
+	conan create c -s os=Macos -s arch=x86_64
+	conan create c -s os=Macos -s arch=armv8
+	conan create c -s os=Windows -s arch=x86
+	conan create c -s os=Windows -s arch=x86_64
 publish-node:
 	(cd node && npm publish)
 

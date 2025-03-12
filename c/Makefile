@@ -8,25 +8,24 @@ CC := gcc
 ifdef DEBUG
     BUILD_TYPE := debug
     LIB_DIR := ../target/debug
-    CFLAGS := -I. -Wall -Wextra -g -O0
+    CFLAGS := -Iinclude -Wall -Wextra -g -O0
 else
     BUILD_TYPE := release
     LIB_DIR := lib
-    CFLAGS := -I. -Wall -Wextra -O2
+    CFLAGS := -Iinclude -Wall -Wextra -O2
 endif
 
 # Set linker flags to use the appropriate lib directory with rpath.
 LDFLAGS := -L$(LIB_DIR) -Wl,-rpath,$(LIB_DIR)
 
-# Choose the library name based on OS and build type.
+# Choose the correct library name.
 ifeq ($(BUILD_TYPE),debug)
-    # Debug build uses the common library name across platforms.
     LIB := -lopeniap_clib
 else
     ifeq ($(UNAME_S),Linux)
-        LIB := -lopeniap-linux-x64
+        LIB := -l:libopeniap-linux-x64.so
     else ifeq ($(UNAME_S),Darwin)
-        LIB := -lopeniap-macos-x64
+        LIB := -l:libopeniap-macos-x64.dylib
     else
         $(error Unsupported OS: $(UNAME_S))
     endif
@@ -34,10 +33,10 @@ endif
 
 # Binary name and source files.
 TARGET  := client_cli
-SRCS    := main.c
+SRCS    := test_package/main.c
 OBJS    := $(SRCS:.c=.o)
 
-.PHONY: all clean run debug
+.PHONY: all clean run debug package-c
 
 all: $(TARGET)
 	@echo "Built $(TARGET) in $(BUILD_TYPE) mode."
@@ -45,7 +44,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) $(LIB) -o $(TARGET)
 
-%.o: %.c clib_openiap.h
+test_package/%.o: test_package/%.c include/clib_openiap.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
@@ -56,3 +55,11 @@ run: $(TARGET)
 
 debug:
 	$(MAKE) DEBUG=1 all
+
+package-c:
+	conan create . -s os=Linux -s arch=x86_64
+	conan create . -s os=Linux -s arch=armv8
+	conan create . -s os=Macos -s arch=x86_64
+	conan create . -s os=Macos -s arch=armv8
+	conan create . -s os=Windows -s arch=x86
+	conan create . -s os=Windows -s arch=x86_64

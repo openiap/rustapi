@@ -14,13 +14,14 @@ export OPENIAP_JWT=eyJhbGciOiJI....
 Then compile and run the main program
 ```bash
 cargo build
-(cd c && gcc main.c -L../target/debug -lopeniap_clib -Wl,-rpath=../target/debug -o client_cli && ./client_cli )
+(cd c && gcc test_package/main.c -L../target/debug -Iinclude -lopeniap_clib -Wl,-rpath=../target/debug -o client_cli && ./client_cli )
 ```
 
 Or when building for release, we will have a lib folder with the shared library and the client_cli executable
 ```bash
 make build-all
-(cd c && gcc main.c -Llib -lopeniap_clib -Wl,-rpath=lib -o client_cli && ./client_cli )
+(cd c && gcc test_package/main.c -Llib -Iinclude -l:libopeniap-linux-x64.so -Wl,-rpath=lib -o client_cli && ./client_cli)
+
 ```
 
 see the Makefile for more information and options, make will compile for release by default
