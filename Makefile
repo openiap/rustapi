@@ -6,6 +6,7 @@ NUGET_API_KEY ?= $(NUGET_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
 
 export CROSS_CONTAINER_ENGINE_NO_BUILDKIT = 1
+export LD_LIBRARY_PATH=$(pwd)/target/lib:$LD_LIBRARY_PATH
 
 # Bump version in all relevant files
 bump:
@@ -66,6 +67,7 @@ build-linux:
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
 	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
 	cp crates/clib/clib_openiap.h c/clib_openiap.h
+	cp crates/clib/clib_openiap.h go/clib_openiap.h
 
 build-macos:
 	cross build --target aarch64-apple-darwin --release
@@ -85,6 +87,8 @@ build-windows:
 
 build-java:
 	# (cd java && mvn clean package)
+build-go:
+	(cd go && go build -o cli ./cmd/cli)
 
 copy-lib:
 	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
@@ -92,6 +96,7 @@ copy-lib:
 	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib
 	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	rm -rf c/lib && mkdir -p c/lib && cp target/lib/* c/lib
+	rm -rf go/lib && mkdir -p go/lib && cp target/lib/* go/lib
 
 # Package language bindings
 package-node:
