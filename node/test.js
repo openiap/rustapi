@@ -17,7 +17,7 @@ const fs = require('fs');
 
         const url = '';
         // client.enable_tracing("openiap=trace", "new");
-        client.enable_tracing("openiap=debug", "new");
+        // client.enable_tracing("openiap=debug", "new");
         client.enable_tracing("openiap=info", "");
 
 

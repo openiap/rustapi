@@ -1556,7 +1556,7 @@ checksum = "d75b0bedcc4fe52caa0e03d9f1151a323e4aa5e2d78ba3580400cd3c9e2bc4bc"
 
 [[package]]
 name = "openiap"
-version = "0.0.27"
+version = "0.0.28"
 dependencies = [
  "lazy_static",
  "openiap-client",
@@ -1568,7 +1568,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-clib"
-version = "0.0.27"
+version = "0.0.28"
 dependencies = [
  "cbindgen",
  "lazy_static",
@@ -1581,7 +1581,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-client"
-version = "0.0.27"
+version = "0.0.28"
 dependencies = [
  "async-channel 2.3.1",
  "bytes",
@@ -1619,7 +1619,7 @@ dependencies = [
 
 [[package]]
 name = "openiap-proto"
-version = "0.0.27"
+version = "0.0.28"
 dependencies = [
  "prost",
  "prost-types",

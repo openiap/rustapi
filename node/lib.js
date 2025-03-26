@@ -929,6 +929,18 @@ class Client {
         this.trace('set_agent_version invoked', version);
         this.lib.set_agent_version(this.client, version);
     }
+    stringify(obj) {
+        if(obj === null) {
+            return '';
+        }
+        if (typeof data === 'object') {
+            return JSON.stringify(data);
+        }
+        if(typeof obj === 'string') {
+            return obj;
+        }
+        return JSON.stringify(obj);
+    }
     async connect(url) {
         this.trace('connect invoked', url);
         this.connected = false;
@@ -1200,8 +1212,8 @@ class Client {
         this.trace('create_index invoked');
         const req = {
             collectionname: collectionname,
-            index: index,
-            options: options,
+            index: this.stringify(index),
+            options: this.stringify(options),
             name: name
         };
         this.trace('call create_index');
@@ -1221,8 +1233,8 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                index: index,
-                options: options,
+                index: this.stringify(index),
+                options: this.stringify(options),
                 name: name
             };
             this.trace('create callback');
@@ -1275,14 +1287,11 @@ class Client {
 
     custom_command({ command, id = "", name = "", data = ""}) {
         this.trace('custom_command invoked');
-        if(data != null && data != "" && typeof data !== 'string') {
-            data = JSON.stringify(data);
-        }
         const req = {
             command: command,
             id: id,
             name: name,
-            data: data
+            data: this.stringify(data)
         };
         this.trace('call custom_command');
         const response = this.lib.custom_command(this.client, req);
@@ -1303,14 +1312,11 @@ class Client {
     custom_command_async({ command, id = "", name = "", data = ""}) {
         this.trace('custom_command invoked');
         return new Promise((resolve, reject) => {
-            if(data != null && data != "" && typeof data !== 'string') {
-                data = JSON.stringify(data);
-            }
             const req = {
                 command: command,
                 id: id,
                 name: name,
-                data: data
+                data: this.stringify(data)
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
@@ -1343,9 +1349,9 @@ class Client {
         this.trace('query invoked');
         const req = {
             collectionname: collectionname,
-            query: query,
-            projection: projection,
-            orderby: orderby,
+            query: this.stringify(query),
+            projection: this.stringify(projection),
+            orderby: this.stringify(orderby),
             queryas: queryas,
             explain: explain,
             skip: skip,
@@ -1369,9 +1375,9 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                query: query,
-                projection: projection,
-                orderby: orderby,
+                query: this.stringify(query),
+                projection: this.stringify(projection),
+                orderby: this.stringify(orderby),
                 queryas: queryas,
                 explain: explain,
                 skip: skip,
@@ -1404,7 +1410,7 @@ class Client {
         this.trace('aggregate invoked');
         const req = {
             collectionname: collectionname,
-            aggregates: aggregates,
+            aggregates: this.stringify(aggregates),
             queryas: queryas,
             hint: hint,
             explain: explain
@@ -1425,7 +1431,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                aggregates: aggregates,
+                aggregates: this.stringify(aggregates),
                 queryas: queryas,
                 hint: hint,
                 explain: explain
@@ -1457,7 +1463,7 @@ class Client {
         this.trace('count invoked');
         const req = {
             collectionname: collectionname,
-            query: query,
+            query: this.stringify(query),
             queryas: queryas,
             explain: explain
         };
@@ -1478,7 +1484,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                query: query,
+                query: this.stringify(query),
                 queryas: queryas,
                 explain: explain
             };
@@ -1510,7 +1516,7 @@ class Client {
         const req = {
             collectionname: collectionname,
             field: field,
-            query: query,
+            query: this.stringify(query),
             queryas: queryas,
             explain: explain
         };
@@ -1543,7 +1549,7 @@ class Client {
             const req = {
                 collectionname: collectionname,
                 field: field,
-                query: query,
+                query: this.stringify(query),
                 queryas: queryas,
                 explain: explain
             };
@@ -1583,7 +1589,7 @@ class Client {
         this.trace('insert_one invoked');
         const req = {
             collectionname: collectionname,
-            item: item,
+            item: this.stringify(item),
             w: w,
             j: j
         };
@@ -1604,7 +1610,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                item: item,
+                item: this.stringify(item),
                 w: w,
                 j: j
             };
@@ -1634,7 +1640,7 @@ class Client {
         this.trace('insert_many invoked');
         const req = {
             collectionname: collectionname,
-            items: items,
+            items: this.stringify(items),
             w: w,
             j: j,
             skipresults: skipresults
@@ -1656,7 +1662,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                items: items,
+                items: this.stringify(items),
                 w: w,
                 j: j,
                 skipresults: skipresults
@@ -1689,7 +1695,7 @@ class Client {
         this.trace('update_one invoked');
         const req = {
             collectionname: collectionname,
-            item: item,
+            item: this.stringify(item),
             w: w,
             j: j
         };
@@ -1710,7 +1716,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                item: item,
+                item: this.stringify(item),
                 w: w,
                 j: j
             };
@@ -1741,7 +1747,7 @@ class Client {
         this.trace('insert_or_update_one invoked');
         const req = {
             collectionname: collectionname,
-            item: item,
+            item: this.stringify(item),
             uniqeness: uniqeness,
             w: w,
             j: j
@@ -1763,7 +1769,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                item: item,
+                item: this.stringify(item),
                 uniqeness: uniqeness,
                 w: w,
                 j: j
@@ -2017,7 +2023,7 @@ class Client {
             wiq: wiq,
             wiqid: wiqid,
             name: name,
-            payload: payload,
+            payload: this.stringify(payload),
             nextrun: nextrun,
             success_wiqid: success_wiqid,
             failed_wiqid: failed_wiqid,
@@ -2081,7 +2087,7 @@ class Client {
                 wiq: wiq,
                 wiqid: wiqid,
                 name: name,
-                payload: payload,
+                payload: this.stringify(payload),
                 nextrun: nextrun,
                 success_wiqid: success_wiqid,
                 failed_wiqid: failed_wiqid,
@@ -2500,7 +2506,7 @@ class Client {
         this.trace('watch invoked');
         const req = {
             collectionname: collectionname,
-            paths: paths
+            paths: this.stringify(paths)
         }
         this.trace('call watch');
         const response = this.lib.watch(this.client, req);
@@ -2630,7 +2636,7 @@ class Client {
         this.trace('watch invoked');
         const req = {
             collectionname: collectionname,
-            paths: paths
+            paths: this.stringify(paths)
         }
         let event_counter = 0;
         const event_callback = (responsePtr) => {
@@ -2673,7 +2679,7 @@ class Client {
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
-                paths: paths
+                paths: this.stringify(paths)
             };
             const callback = (responsePtr) => {
                 this.trace('watch_async callback');
@@ -2883,13 +2889,10 @@ class Client {
     }
     rpc({ queuename, data, striptoken }) {
         this.trace('rpc invoked');
-        if (typeof data === 'object') {
-            data = JSON.stringify(data);
-        }
         const req = {
             queuename: queuename,
             striptoken: striptoken,
-            data: data
+            data: this.stringify(data)
         };
         this.trace('call rpc');
         const response = this.lib.rpc(this.client, req);
@@ -2911,13 +2914,10 @@ class Client {
     rpc_async({ queuename, data, striptoken }) {
         this.trace('rpc_async invoked');
         return new Promise((resolve, reject) => {
-            if (typeof data === 'object') {
-                data = JSON.stringify(data);
-            }
             const req = {
                 queuename: queuename,
                 striptoken: striptoken,
-                data: data
+                data: this.stringify(data)
             };
             this.trace('create callback');
             const callback = (responsePtr) => {
@@ -2973,10 +2973,6 @@ class Client {
                 throw new ClientError('queuename or exchangename is required');
             }
         }
-        if (data == null) data = "";
-        if (typeof data === 'object') {
-            data = JSON.stringify(data);
-        }
         if (replyto == null) replyto = "";
         if (exchangename == null) exchangename = "";
         if (correlation_id == null) correlation_id = "";
@@ -2985,7 +2981,7 @@ class Client {
         if (expiration == null) expiration = 0;
         const req = {
             queuename: queuename,
-            data: data,
+            data: this.stringify(data),
             replyto: replyto,
             exchangename: exchangename,
             correlation_id: correlation_id,
