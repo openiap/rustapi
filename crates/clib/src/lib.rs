@@ -6,7 +6,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
 #[cfg(all(test, not(windows)))]
 mod tests;
@@ -446,6 +446,208 @@ pub extern "C" fn free_query_response(response: *mut QueryResponseWrapper) {
     }
 }
 
+/// CustomCommandRequestWrapper is a C-compatible wrapper for CustomCommandRequest.
+#[repr(C)]
+pub struct CustomCommandRequestWrapper {
+    pub command: *const c_char,
+    pub id: *const c_char,
+    pub name: *const c_char,
+    pub data: *const c_char,
+    pub request_id: i32,
+}
+
+/// CustomCommandResponseWrapper is a C-compatible wrapper for CustomCommandResponse.
+#[repr(C)]
+pub struct CustomCommandResponseWrapper {
+    pub success: bool,
+    pub result: *const c_char,
+    pub error: *const c_char,
+    pub request_id: i32,
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn custom_command(
+    client: *mut ClientWrapper,
+    options: *mut CustomCommandRequestWrapper,
+) -> *mut CustomCommandResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CustomCommandResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: 0,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CustomCommandResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CustomCommandResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+            request_id: options.request_id,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+
+    let request = CustomCommandRequest {
+        command: c_char_to_str(options.command).to_string(),
+        id: c_char_to_str(options.id).to_string(),
+        name: c_char_to_str(options.name).to_string(),
+        data: c_char_to_str(options.data).to_string(),
+    };
+
+    let client = client_wrapper.client.clone().unwrap();
+
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.custom_command(request))
+    });
+
+    Box::into_raw(Box::new(match result {
+        Ok(data) => {
+            let result_str = CString::new(data).unwrap().into_raw();
+            CustomCommandResponseWrapper {
+                success: true,
+                result: result_str,
+                error: std::ptr::null(),
+                request_id: options.request_id,
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Custom command failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            CustomCommandResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: options.request_id,
+            }
+        }
+    }))
+}
+type CustomCommandCallback = extern "C" fn(wrapper: *mut CustomCommandResponseWrapper);
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn custom_command_async(
+    client: *mut ClientWrapper,
+    options: *mut CustomCommandRequestWrapper,
+    callback: CustomCommandCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = CustomCommandResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: 0,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = CustomCommandResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let client = client_wrapper.client.clone();
+    let request_id = options.request_id;
+
+    let request = CustomCommandRequest {
+        command: c_char_to_str(options.command).to_string(),
+        id: c_char_to_str(options.id).to_string(),
+        name: c_char_to_str(options.name).to_string(),
+        data: c_char_to_str(options.data).to_string(),
+    };
+
+    if client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = CustomCommandResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+            request_id,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+
+    let client = client.unwrap();
+    let handle = client.get_runtime_handle();
+    let _guard = handle.enter();
+
+    handle.spawn(async move {
+        let result = client.custom_command(request).await;
+
+        let response = match result {
+            Ok(data) => {
+                let result_str = CString::new(data).unwrap().into_raw();
+                CustomCommandResponseWrapper {
+                    success: true,
+                    result: result_str,
+                    error: std::ptr::null(),
+                    request_id,
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Custom command failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                CustomCommandResponseWrapper {
+                    success: false,
+                    result: std::ptr::null(),
+                    error: error_msg,
+                    request_id,
+                }
+            }
+        };
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+#[no_mangle]
+pub extern "C" fn free_custom_command_response(response: *mut CustomCommandResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
+}
 
 #[no_mangle]
 #[tracing::instrument(skip_all)]

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 use tracing::{error, info};
 
-use openiap_client::{PushWorkitemRequest, QueueMessageRequest};
+use openiap_client::{CustomCommandRequest, PushWorkitemRequest, QueueMessageRequest};
 #[allow(unused_imports)]
 use openiap_client::{
     self, set_otel_url, disable_tracing, enable_tracing, set_f64_observable_gauge, 
@@ -800,6 +800,27 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 match q {
                     Ok(response) => println!("Registered exchange as {:?}", response),
                     Err(e) => println!("Failed to register exchange: {:?}", e),
+                }
+            });
+        }
+        if input.eq_ignore_ascii_case("cc") {
+            let client = b.clone();
+            //tokio::task::Builder::new().name("queue message to exchance").spawn(async move {
+            tokio::task::spawn(async move {
+                let q = client
+                    .custom_command(CustomCommandRequest {
+                        command: "getclients".to_string(),
+                        data: "".to_string(),
+                        id: "".to_string(),
+                        name: "".to_string(),
+                    })
+                    .await;
+                match q {
+                    Ok(response) => println!(
+                        "Result: {:?}",
+                        response
+                    ),
+                    Err(e) => println!("Failed to run Custom Command: {:?}", e),
                 }
             });
         }
