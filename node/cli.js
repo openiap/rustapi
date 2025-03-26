@@ -379,7 +379,19 @@ async function doit() {
                         console.error('Failed to queue message:', e);
                     }
                     break;
-    
+                case 'cc':
+                    try {
+                        const clients = await client.custom_command({command: 'getclients'});
+                        console.log("Client count ", clients.length);
+                        for(let i = 0; i < clients.length; i++) {
+                            let c = clients[i];
+                            console.log("   ", c.id, c.agent, c.version, c.name);
+                        }
+                        // console.log(`Clients: ${clients}`);
+                    } catch (e) {
+                        console.error('Failed to get clients:', e);
+                    }
+                    break;    
                 default:
                     console.log('Invalid command');
             }

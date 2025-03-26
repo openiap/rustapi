@@ -2,7 +2,7 @@
 name = "openiap-clib"
 description = "openiap client c library for SDK wrappers"
 license = "MPL-2.0"
-version = "0.0.27"
+version = "0.0.28"
 edition = "2021"
 
 [lib]
@@ -17,7 +17,7 @@ lazy_static = { version = "1.5.0" }
 libc = { version = "0.2.161" }
 
 [build-dependencies]
-cbindgen =       { version = "0.27.0" }
+cbindgen =       { version = "0.28.0" }
 
 # [features]
 # default = ["openiap-client/otel_commands", "openiap-client/otel_connections", "openiap-client/otel_elapsed"]

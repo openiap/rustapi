@@ -55,6 +55,16 @@ const fs = require('fs');
             client.info("signed in", signin_result.success);
 
             if(test_sync) {
+                let clients = client.custom_command({ command: 'getclients' });
+                console.log("clients", clients);
+            }
+
+            if(test_async) {
+                let clients = await client.custom_command_async({ command: 'getclients' });
+                console.log("clients", clients);
+            }
+
+            if(test_sync) {
                 let collections = client.list_collections();
                 // client.info("collections", collections);
                 let nodejs_testcol_exists = false;

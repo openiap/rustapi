@@ -1,7 +1,7 @@
 .PHONY: clean build build-all package package-all publish publish-all
 
 # Variables
-VERSION = 0.0.27
+VERSION = 0.0.28
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
 
@@ -58,6 +58,7 @@ prepare:
 
 # Build Rust binaries
 build-linux:
+	mkdir -p target/lib target/cli
 	cross build --target x86_64-unknown-linux-gnu --release
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-x64.so
 	cp target/x86_64-unknown-linux-gnu/release/openiap target/cli/linux-x64-openiap
@@ -70,6 +71,7 @@ build-linux:
 	cp crates/clib/clib_openiap.h go/clib_openiap.h
 
 build-macos:
+	mkdir -p target/lib target/cli
 	cross build --target aarch64-apple-darwin --release
 	cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
 	cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap
@@ -78,6 +80,7 @@ build-macos:
 	cp target/x86_64-apple-darwin/release/openiap target/cli/macos-x64-openiap
 
 build-windows:
+	mkdir -p target/lib target/cli
 	cross build --target x86_64-pc-windows-gnu --release
 	cp target/x86_64-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-x64.dll
 	cp target/x86_64-pc-windows-gnu/release/openiap.exe target/cli/windows-x64-openiap.exe

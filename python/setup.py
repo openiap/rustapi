@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="openiap",
-    version="0.0.27",
+    version="0.0.28",
     author="OpenIAP ApS / Allan Zimmerman",
     author_email="info@openiap.io",
     description="Simple openiap api wrapper using proto",

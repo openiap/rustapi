@@ -188,6 +188,22 @@ const QueryResponseWrapper = koffi.struct('QueryResponseWrapper', {
 });
 const QueryResponseWrapperPtr = koffi.pointer(QueryResponseWrapper);
 
+const CustomCommandRequestWrapper = koffi.struct('CustomCommandRequestWrapper', {
+    command: CString,
+    id: CString,
+    name: CString,
+    data: CString,
+    request_id: int,
+});
+const CustomCommandRequestWrapperPtr = koffi.pointer(CustomCommandRequestWrapper);
+const CustomCommandResponseWrapper = koffi.struct('CustomCommandResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString,
+    request_id: int,
+});
+const CustomCommandResponseWrapperPtr = koffi.pointer(CustomCommandResponseWrapper);
+
 const AggregateRequestWrapper = koffi.struct('AggregateRequestWrapper', {
     collectionname: CString,
     aggregates: CString,
@@ -703,6 +719,11 @@ function loadLibrary() {
         lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, 'int', koffi.pointer(lib.drop_indexCallback)]);
         lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
 
+
+        lib.custom_command = lib.func('custom_command', CustomCommandResponseWrapperPtr, [ClientWrapperPtr, CustomCommandRequestWrapperPtr]);
+        lib.custom_commandCallback = koffi.proto('void CustomCommandCallback(CustomCommandResponseWrapper*)');
+        lib.custom_command_async = lib.func('custom_command_async', 'void', [ClientWrapperPtr, CustomCommandRequestWrapperPtr, koffi.pointer(lib.custom_commandCallback)]);
+        lib.free_custom_command_response = lib.func('free_custom_command_response', 'void', [CustomCommandResponseWrapperPtr]);
 
         lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
         lib.queryCallback = koffi.proto('void queryCallback(QueryResponseWrapper*)');
@@ -1249,6 +1270,72 @@ class Client {
             } else {
                 resolve();
             }
+        });
+    }
+
+    custom_command({ command, id = "", name = "", data = ""}) {
+        this.trace('custom_command invoked');
+        if(data != null && data != "" && typeof data !== 'string') {
+            data = JSON.stringify(data);
+        }
+        const req = {
+            command: command,
+            id: id,
+            name: name,
+            data: data
+        };
+        this.trace('call custom_command');
+        const response = this.lib.custom_command(this.client, req);
+        this.trace('decode response');
+        const result = koffi.decode(response, CustomCommandResponseWrapper);
+        this.trace('free_custom_command_response');
+        this.lib.free_custom_command_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        try {
+            return JSON.parse(result.result);
+        } catch (error) {            
+        }
+        return result.result;
+    }
+    custom_command_async({ command, id = "", name = "", data = ""}) {
+        this.trace('custom_command invoked');
+        return new Promise((resolve, reject) => {
+            if(data != null && data != "" && typeof data !== 'string') {
+                data = JSON.stringify(data);
+            }
+            const req = {
+                command: command,
+                id: id,
+                name: name,
+                data: data
+            };
+            this.trace('create callback');
+            const callback = (responsePtr) => {
+                this.trace('custom_command_async callback');
+                const response = koffi.decode(responsePtr, CustomCommandResponseWrapper);
+                if (!response.success) {
+                    const errorMsg = response.error;
+                    reject(new ClientError(errorMsg));
+                } else {
+                    try {
+                        resolve(JSON.parse(response.result));
+                    } catch (error) {
+                        resolve(response.result);
+                    }
+                }
+                this.trace('free_custom_command_response');
+                this.lib.free_custom_command_response(responsePtr);
+            };
+            const cb = koffi.register(callback, koffi.pointer(this.lib.custom_commandCallback));
+            this.trace('call custom_command_async');
+            this.lib.custom_command_async(this.client, req, cb, (err) => {
+                if (err) {
+                    reject(new ClientError('Custom command failed'));
+                }
+            });
         });
     }
 
