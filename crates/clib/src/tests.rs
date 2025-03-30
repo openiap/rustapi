@@ -34,7 +34,6 @@ fn get_memory_usage(pid: libc::pid_t) -> u64 {
 #[test]
 #[allow(unreachable_code)]
 fn test_pop_workitem_async_memory_leak() {
-    return;
     // Setup client and request
     let client = create_client();
 
@@ -42,7 +41,7 @@ fn test_pop_workitem_async_memory_leak() {
     
     let options = Box::into_raw(Box::new(PopWorkitemRequestWrapper {
         wiq: CString::new("q2").unwrap().into_raw(),
-        wiqid: CString::new("62dd1b8bba7ef20b1d051a77").unwrap().into_raw(),
+        wiqid: CString::new("67deb12092d595da3fcdc89d").unwrap().into_raw(),
         request_id: 0
     }));
 
@@ -52,7 +51,7 @@ fn test_pop_workitem_async_memory_leak() {
 
     println!("initial memory usage: {} KB", initial_memory);
 
-    for i in 0..1000000 {
+    for i in 0..500 { // 1_000_000
         // Call `pop_workitem_async`
         let downloadfolder = CString::new(".").unwrap();
         pop_workitem_async(client, options, downloadfolder.as_ptr(), callback);
