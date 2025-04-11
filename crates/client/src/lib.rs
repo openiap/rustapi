@@ -29,7 +29,7 @@ pub use protos::flow_service_client::FlowServiceClient;
 use sqids::Sqids;
 
 use tokio::task::JoinHandle;
-use tokio_tungstenite::{WebSocketStream};
+use tokio_tungstenite::WebSocketStream;
 use tracing::{debug, error, info, trace};
 type StdError = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = StdError> = ::std::result::Result<T, E>;
@@ -57,8 +57,8 @@ pub use crate::otel::{set_f64_observable_gauge, set_u64_observable_gauge, set_i6
 type QuerySender = oneshot::Sender<Envelope>;
 type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
-use futures::{StreamExt };
-use async_channel::{unbounded};
+use futures::StreamExt;
+use async_channel::unbounded;
 const VERSION: &str = "0.0.28";
 
 

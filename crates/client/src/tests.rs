@@ -13,7 +13,7 @@ mod tests {
     // use tokio_tungstenite::tungstenite::handshake::client;
     use std::{env, future::Future, pin::Pin};
     use std::sync::Arc;
-    use tokio::sync::{oneshot};
+    use tokio::sync::oneshot;
 
     use crate::{Client, ClientInner};
     use openiap_proto::*;

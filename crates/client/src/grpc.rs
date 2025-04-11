@@ -1,12 +1,12 @@
 // use std::ops::AddAssign;
 use tracing::{trace, error, debug};
 
-use openiap_proto::{errors::OpenIAPError};
+use openiap_proto::errors::OpenIAPError;
 use tonic::Request;
-use tokio_stream::{wrappers::ReceiverStream};
-use futures::{StreamExt };
+use tokio_stream::wrappers::ReceiverStream;
+use futures::StreamExt;
 use crate::{Client, ClientEnum, ClientState};
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 use tonic::transport::Channel;
 pub use openiap_proto::*;

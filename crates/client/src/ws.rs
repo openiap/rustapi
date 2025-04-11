@@ -1,10 +1,10 @@
 use tracing::{error, debug, trace};
-use futures_util::{StreamExt};
+use futures_util::StreamExt;
 use openiap_proto::{errors::OpenIAPError, protos::Envelope};
 use prost::Message as _;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use std::sync::Arc;
-use tokio::sync::{Mutex};
+use tokio::sync::Mutex;
 use futures::SinkExt;
 use bytes::{BytesMut, BufMut}; // Correct import for BufMut
 

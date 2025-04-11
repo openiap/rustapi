@@ -5,7 +5,7 @@ use opentelemetry::metrics::Meter;
 use opentelemetry::Key;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use tracing::{debug, error, info};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::io::Write;  // Add this line for write_all trait
@@ -451,11 +451,11 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
     Ok(())
 }
 
-use opentelemetry::{KeyValue};
+use opentelemetry::KeyValue;
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
-use opentelemetry_sdk::{Resource};
-use std::time::{SystemTime};
-use opentelemetry_otlp::{MetricExporter};
+use opentelemetry_sdk::Resource;
+use std::time::SystemTime;
+use opentelemetry_otlp::MetricExporter;
 use opentelemetry::metrics::MeterProvider;
 use tracing_subscriber::EnvFilter;
 #[allow(dead_code)]
