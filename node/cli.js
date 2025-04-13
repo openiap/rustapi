@@ -1,15 +1,10 @@
-const { Client } = require('./lib');
-const readline = require('readline');
-const os = require('os');
-const { runInThisContext, runInNewContext } = require('vm');
-const { setFlagsFromString } = require('v8');
-const { memoryUsage } = require('node:process');
-
-// import { setFlagsFromString } from 'v8';
-// import { runInNewContext } from 'vm';
-
-
+const { Client, ClientError } = require('./lib');
 const client = new Client();
+const readline = require("readline");
+const os = require("os");
+const { runInNewContext } = require("vm");
+const { setFlagsFromString } = require("v8");
+const { memoryUsage } = require("node:process");
 
 // Reads a line from the keyboard input.
 function keyboardInput() {
@@ -18,7 +13,7 @@ function keyboardInput() {
             input: process.stdin,
             output: process.stdout
         });
-        rl.question('Enter your message: ', (input) => {
+        rl.question("Enter your message: ", (input) => {
             rl.close();
             resolve(input.trim());
         });
@@ -28,14 +23,13 @@ function keyboardInput() {
 // Watch event handler
 function onwatch(event) {
     const { document, operation } = event;
-    console.log(`${operation} on ${document._id} ${document._type} ${document.name}`);
+    client.info(`${operation} on ${document._id} ${document._type} ${document.name}`);
 }
 
 // Queue event handler
-async function onqueue(event) {
+function onqueue(event) {
     const { queuename, correlation_id, replyto, routingkey, exchangename, data } = event;
-    console.log(`Received message from ${queuename}: `, data);
-    return {payload:"Test Reply"};
+    client.info(`Received message from ${queuename}: `, data);
 }
 
 // Do some calculation to generate CPU load
@@ -44,7 +38,7 @@ function factorial(num) {
 }
 
 // Add one loop calculation for CPU load
-target="_new">function addOneLoop(numLoops) {
+target = "_new" > function addOneLoop(numLoops) {
     for (let i = 0; i < numLoops; i++) {
         factorial(20);
     }
@@ -55,10 +49,10 @@ async function doit() {
     if (global.gc) {
         global.gc();
     } else {
-        console.log('Garbage collection unavailable.  Pass --expose-gc '
-          + 'when launching node to enable forced garbage collection.');
-        setFlagsFromString('--expose_gc');
-        global.gc = runInNewContext('gc');      
+        client.info("Garbage collection unavailable.  Pass --expose-gc "
+            + "when launching node to enable forced garbage collection.");
+        setFlagsFromString("--expose_gc");
+        global.gc = runInNewContext("gc");
     }
 
     const numCalcs = 100000;
@@ -67,71 +61,81 @@ async function doit() {
     const numIters = 5000;
 
 
-    client.enable_tracing("openiap=info", "");
     try {
-        await client.connect('');
-        client.info('Connected to server, successfully');
+        await client.connect("");
     } catch (e) {
-        client.error('Failed to connect to server:', e);
+        client.error("Failed to connect to server:", e.message);
         return;
     }
     let eventid = client.on_client_event((event) => {
-        console.log("client event", event);
+        if (event && event.event) client.info("client event", event.event);
     });
 
-    console.log('? for help');
-    let input = await keyboardInput();
+    client.info("? for help");
+    let input = "";
+    // client.enable_tracing("openiap=trace", "new");
+    // client.enable_tracing("openiap=debug", "new");
+    client.enable_tracing("openiap=info", "");
+
+
+    client.set_f64_observable_gauge
 
     let do_st_func = false;
     let st_func = async () => {
-        console.log("let begin loop");
+        client.info("begin pop workitem begin loop");
         let i = 0;
         do {
-            let workitem = await client.pop_workitem_async({ wiq: "q2" });
-            if (workitem != null) {
-                console.log("Updated workitem", workitem.id);
-                workitem.state = "successful"
-                await client.update_workitem_async({ workitem: workitem });
-            }
-            i++;
-            if (i % 500 === 0) {
-                // console.log("pop_workitem_async_result", pop_workitem_async_result);
-                const mem = memoryUsage();
-                console.log("looped 500 times, memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
-
-
-                if (global.gc) {
-                    global.gc();
+            try {
+                let workitem = await client.pop_workitem_async({ wiq: "q2" });
+                if (workitem != null) {
+                    client.info("Updated workitem", workitem.id);
+                    workitem.state = "successful"
+                    await client.update_workitem_async({ workitem: workitem });
                 }
+                i++;
+                if (i % 500 === 0) {
+                    // client.info("pop_workitem_async_result", pop_workitem_async_result);
+                    const mem = memoryUsage();
+                    client.info("looped 500 times, memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
+
+
+                    if (global.gc) {
+                        global.gc();
+                    }
+                }
+            } catch (error) {
+                client.info(error.message);
             }
         } while (do_st_func === true);
-        console.log("loop completed");
+        client.info("loop completed");
     }
 
     let handler_test_f64 = null;
     let handler_test_u64 = null;
     let handler_test_i64 = null;
-    
-    
+
+    // Simple check to see if we are running inside a container, then run the st_func
+    if (process.env.oidc_config != null & process.env.oidc_config != "") {
+        input = "st";
+    }
 
     try {
-        while (input.toLowerCase() !== 'quit') {
+        while (input.toLowerCase() !== "quit") {
             switch (input.toLowerCase()) {
-                case '?':
-                    console.log('Help:\nquit: to quit\nq: Query\nqq: Query all\ndi: Distinct\ns: Sign in as guest\ns2: Sign in as testuser\ni: Insert\nim: Insert Many\nd: Download\nu: Upload train.csv\nuu: Upload assistant-linux-x86_64.AppImage\nuuu: Upload virtio-win-0.1.225.iso\nw: Watch\nuw: Unwatch\nr: Register queue\nm: Queue message\nc: CPU Load Test');
+                case "?":
+                    client.info("Help:\nquit: to quit\nq: Query\nqq: Query all\ndi: Distinct\ns: Sign in as guest\ns2: Sign in as testuser\ni: Insert\nim: Insert Many\nd: Download\nu: Upload train.csv\nuu: Upload assistant-linux-x86_64.AppImage\nuuu: Upload virtio-win-0.1.225.iso\nw: Watch\nuw: Unwatch\nr: Register queue\nm: Queue message\nc: CPU Load Test");
                     break;
-                case '1':
+                case "1":
                     client.enable_tracing("", "");
                     break;
-                case '2':
+                case "2":
                     client.enable_tracing("openiap=new", "");
                     break;
-                case '3':
+                case "3":
                     client.enable_tracing("openiap=debug", "new");
                     break;
-
-                case 'o':
-                    if(handler_test_f64 != null) {
+                case "o":
+                    if (handler_test_f64 != null) {
                         client.disable_observable_gauge("test_f64");
                         clearInterval(handler_test_f64);
                         handler_test_f64 = null;
@@ -145,10 +149,10 @@ async function doit() {
                         client.info("Setting test_f64 to ", random);
                         client.set_f64_observable_gauge("test_f64", random, "test");
                     }
-                    , 30000);
-                    break;        
-                case 'o2':
-                    if(handler_test_u64 != null) {
+                        , 30000);
+                    break;
+                case "o2":
+                    if (handler_test_u64 != null) {
                         client.disable_observable_gauge("test_u64");
                         clearInterval(handler_test_u64);
                         handler_test_u64 = null;
@@ -162,10 +166,10 @@ async function doit() {
                         client.info("Setting test_u64 to ", random);
                         client.set_u64_observable_gauge("test_u64", random, "test");
                     }
-                    , 30000);
-                    break;        
-                case 'o3':
-                    if(handler_test_i64 != null) {
+                        , 30000);
+                    break;
+                case "o3":
+                    if (handler_test_i64 != null) {
                         client.disable_observable_gauge("test_i64");
                         clearInterval(handler_test_i64);
                         handler_test_i64 = null;
@@ -179,10 +183,10 @@ async function doit() {
                         client.info("Setting test_i64 to ", random);
                         client.set_i64_observable_gauge("test_i64", random, "test");
                     }
-                    , 30000);
-                    break;        
-                case 'c':
-                    console.log(`Calculating factorial of 20 ${numCalcs} times`);
+                        , 30000);
+                    break;
+                case "c":
+                    client.info(`Calculating factorial of 20 ${numCalcs} times`);
                     for (let i = 0; i < numIters; i++) {
                         const threads = [];
                         for (let j = 0; j < availableCores; j++) {
@@ -196,234 +200,218 @@ async function doit() {
                         await Promise.all(threads);
                     }
                     break;
-                case 'gc':
+                case "gc":
                     global.gc();
                     const mem = memoryUsage();
-                    console.log("memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
-                    
+                    client.info("memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
+
                     break;
-                case 'st':
-                    if(do_st_func === true) {
+                case "st":
+                    input = "";
+                    if (do_st_func === true) {
                         do_st_func = false;
                     } else {
                         do_st_func = true;
                         st_func();
                     }
                     break;
-                case 'dis':
+                case "dis":
                     client.disconnect();
                     break;
-                case 'q':
+                case "q":
                     try {
-                        const response = await client.query_async({
-                            collection: 'entities',
-                            query: '{}',
-                            projection: '{ "name": 1 }'
+                        const responses = await client.query_async({
+                            collection: "entities",
+                            query: "{}",
+                            projection: "{ \"name\": 1 }"
                         });
-                        console.log(response);
+                        let message = "[\n";
+                        responses.forEach((item) => {
+                            message += `\t${JSON.stringify(item)},\n`;
+                        });
+                        message += "]";
+                        client.info(message);
                     } catch (e) {
-                        console.error('Failed to query:', e);
+                        client.error("Failed to query:", e.message);
                     }
                     break;
-    
-                case 'qq':
+                case "qq":
                     try {
-                        const response = await client.query_async({ collection: 'entities', query: '{}' });
-                        console.log(response);
+                        const responses = await client.query_async({ collection: "entities", query: "{}" });
+                        let message = "[\n";
+                        responses.forEach((item) => {
+                            message += `\t${JSON.stringify(item)},\n`;
+                        });
+                        message += "]";
+                        client.info(message);
                     } catch (e) {
-                        console.error('Failed to query all:', e);
+                        client.error("Failed to query all:", e.message);
                     }
                     break;
-                
-                case 'di':
+                case "di":
                     try {
                         const response = await client.distinct({
-                            collectionname: 'entities',
-                            field: '_type'
+                            collectionname: "entities",
+                            field: "_type"
                         });
-                        console.log(response);
+                        client.info(response);
                     } catch (e) {
-                        console.error('Failed to perform distinct query:', e);
+                        client.error("Failed to perform distinct query:", e.message);
                     }
                     break;
-    
-                case 's':
+                case "s":
                     try {
                         const response = await client.signin({
-                            username: 'guest',
-                            password: 'password'
+                            username: "guest",
+                            password: "password"
                         });
-                        console.log(`Signed in as guest`);
+                        client.info("Signed in as guest");
                     } catch (e) {
-                        console.error('Failed to sign in:', e);
+                        client.error("Failed to sign in:", e.message);
                     }
                     break;
-    
-                case 's2':
+                case "s2":
                     try {
                         const response = await client.signin({
-                            username: 'testuser',
-                            password: 'badpassword'
+                            username: "testuser",
+                            password: "badpassword"
                         });
-                        console.log(`Signed in as testuser`);
+                        client.info("Signed in as testuser");
                     } catch (e) {
-                        console.error('Failed to sign in:', e);
+                        client.error("Failed to sign in:", e.message);
                     }
                     break;
-    
-                case 'i':
+                case "i":
                     try {
                         const response = await client.insert_one({
-                            collectionname: 'entities',
-                            item: '{"name":"Allan", "_type":"test"}'
+                            collectionname: "entities",
+                            item: "{\"name\":\"Allan\", \"_type\":\"test\"}"
                         });
-                        console.log(`Inserted as`, response);
+                        client.info("Inserted as", JSON.stringify(response));
                     } catch (e) {
-                        console.error('Failed to insert:', e);
+                        client.error("Failed to insert:", e.message);
                     }
                     break;
-    
-                case 'im':
+                case "im":
                     try {
                         const responses = await client.insert_many({
-                            collectionname: 'entities',
-                            items: '[{"name":"Allan", "_type":"test"}, {"name":"Allan2", "_type":"test"}]'
+                            collectionname: "entities",
+                            items: "[{\"name\":\"Allan\", \"_type\":\"test\"}, {\"name\":\"Allan2\", \"_type\":\"test\"}]"
                         });
-                        console.log(`Inserted as`, responses);
+                        let message = "Inserted as: [\n";
+                        responses.forEach((item) => {
+                            message += `\t${JSON.stringify(item)},\n`;
+                        });
+                        message += "]";
+                        client.info(message);
                     } catch (e) {
-                        console.error('Failed to insert many:', e);
+                        client.error("Failed to insert many:", e.message);
                     }
                     break;
-                
-                case 'd':
+                case "d":
                     try {
                         const response = await client.download({
-                            id: '65a3aaf66d52b8c15131aebd'
+                            id: "65a3aaf66d52b8c15131aebd"
                         });
-                        console.log(`Downloaded as ${response}`);
+                        client.info(`Downloaded as ${response}`);
                     } catch (e) {
-                        console.error('Failed to download:', e);
+                        client.error("Failed to download:", e.message);
                     }
                     break;
-                
-                case 'u':
+                case "u":
                     try {
                         const response = await client.upload({
-                            filename: 'train.csv',
-                            filepath: 'train.csv'
+                            filename: "train.csv",
+                            filepath: "train.csv"
                         });
-                        console.log(`Uploaded as ${response}`);
+                        client.info(`Uploaded as ${response}`);
                     } catch (e) {
-                        console.error('Failed to upload:', e);
+                        client.error("Failed to upload:", e.message);
                     }
                     break;
-                
-                case 'w':
+                case "w":
                     try {
                         const watchId = await client.watch({
-                            collectionname: 'entities',
+                            collectionname: "entities",
                         }, onwatch);
-                        console.log(`Watch created with id ${watchId}`);
+                        client.info(`Watch created with id ${watchId}`);
                     } catch (e) {
-                        console.error('Failed to watch:', e);
+                        client.error("Failed to watch:", e.message);
                     }
                     break;
-                
-                case 'uw':
+                case "uw":
                     try {
-                        const watchId = 'replace_with_actual_watch_id';
-                        const response = await client.unwatch(watchId);
-                        console.log(`Removed watch for id ${watchId}`);
+                        const watchId = "replace_with_actual_watch_id";
+                        await client.unwatch(watchId);
+                        client.info(`Removed watch for id ${watchId}`);
                     } catch (e) {
-                        console.error('Failed to unwatch:', e);
+                        client.error("Failed to unwatch:", e.message);
                     }
                     break;
-                
-                case 'r':
+                case "r":
                     try {
                         const response = await client.register_queue({
-                            queuename: 'test2queue'
+                            queuename: "test2queue"
                         }, onqueue);
-                        console.log(`Registered queue as ${response}`);
+                        client.info(`Registered queue as ${response}`);
                     } catch (e) {
-                        console.error('Failed to register queue:', e);
+                        client.error("Failed to register queue:", e.message);
                     }
                     break;
-                case 'r2':
+                case "r2":
                     try {
                         // const response = await client.rpc({
-                        //     queuename: 'test2queue',
+                        //     queuename: "test2queue",
                         //     striptoken: true,
-                        //     data: '{"message":"Test message"}'
+                        //     data: "{\"message\":\"Test message\"}"
                         // }, onqueue);
                         const response = await client.rpc_async({
-                            queuename: 'test2queue',
+                            queuename: "test2queue",
                             striptoken: true,
-                            data: '{"message":"Test message"}'
+                            data: "{\"message\":\"Test message\"}"
                         }, onqueue);
-                        console.log(`Receved reply ${JSON.stringify(response)}`);
+                        client.info(`Receved reply ${JSON.stringify(response)}`);
                     } catch (e) {
-                        console.error('Failed to register queue:', e);
+                        client.error("Failed to register queue:", e.message);
                     }
                     break;
-                
-                case 'm':
+                case "m":
                     try {
                         await client.queue_message({
-                            queuename: 'test2queue',
-                            striptoken: true,
-                            data: {message:"Test message"}
+                            queuename: "test2queue",
+                            data: "{\"message\":\"Test message\"}"
                         });
-                        console.log(`Queued message to test2queue`);
+                        client.info("Queued message to test2queue");
                     } catch (e) {
-                        console.error('Failed to queue message:', e);
+                        client.error("Failed to queue message:", e.message);
                     }
                     break;
-                case 'cc':
+                case "cc":
                     try {
-                        const clients = await client.custom_command({command: 'getclients'});
-                        console.log("Client count ", clients.length);
-                        for(let i = 0; i < clients.length; i++) {
+                        const clients = await client.custom_command({ command: "getclients" });
+                        client.info("Client count ", clients.length);
+                        for (let i = 0; i < clients.length; i++) {
                             let c = clients[i];
-                            console.log("   ", c.id, c.agent, c.version, c.name);
+                            client.info("   ", c.id, c.agent, c.version, c.name);
                         }
-                        // console.log(`Clients: ${clients}`);
                     } catch (e) {
-                        console.error('Failed to get clients:', e);
+                        client.error('Failed to get clients:', e);
                     }
-                    break;    
+                    break;
                 default:
-                    console.log('Invalid command');
+                // client.info("Invalid command");
             }
             input = await keyboardInput();
         }
     } catch (error) {
-        console.error('Error:', error);        
+        client.error("Error:", error.message);
     }
-    if(do_st_func === true) {
+    if (do_st_func === true) {
         do_st_func = false;
         await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-    if(handler_test_f64 != null) {
-        client.disable_observable_gauge("test_f64");
-        clearInterval(handler_test_f64);
-        handler_test_f64 = null;
-        client.info("stopped test_f64");
-    }
-    if(handler_test_u64 != null) {
-        client.disable_observable_gauge("test_u64");
-        clearInterval(handler_test_u64);
-        handler_test_u64 = null;
-        client.info("stopped test_u64");
-    }
-    if(handler_test_i64 != null) {
-        client.disable_observable_gauge("test_i64");
-        clearInterval(handler_test_i64);
-        handler_test_i64 = null;
-        client.info("stopped test_i64");
     }
     client.free();
 }
 
 // Execute main function
-doit().catch((err) => console.error(err));
+doit().catch((err) => client.error(err));
