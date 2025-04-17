@@ -5,6 +5,7 @@
   ],
   "java.project.sourcePaths": [
   ],
+  "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
   // "terminal.integrated.env.linux": {
   //   "PATH": "${env:PATH}"
   // },

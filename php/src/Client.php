@@ -1922,5 +1922,29 @@ class Client {
         if (isset($options['exchangename'])) FFI::free($exchange_str);
     }
 
+    public function custom_command($command) {
+        $request = $this->ffi->new('struct CustomCommandRequestWrapper');
+        $cmd_str = $this->ffi->new("char[" . strlen($command) . "+1]", false);
+        FFI::memcpy($cmd_str, $command, strlen($command));
+        $request->command = FFI::cast("char *", FFI::addr($cmd_str));
+        $request->id = null;
+        $request->name = null;
+        $request->data = null;
+        $request->request_id = 0;
+        $response = $this->ffi->custom_command($this->client, FFI::addr($request));
+        FFI::free($cmd_str);
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_custom_command_response($response);
+            throw new Exception($error_message);
+        }
+        $result = null;
+        if ($response->result) {
+            $result = FFI::string($response->result);
+        }
+        $this->ffi->free_custom_command_response($response);
+        return $result;
+    }
+
 }
 

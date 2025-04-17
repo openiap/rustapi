@@ -379,6 +379,22 @@ class RpcResponseWrapper(Structure):
 
 RpcResponseCallback = CFUNCTYPE(None, POINTER(RpcResponseWrapper))
 
+class CustomCommandRequestWrapper(Structure):
+    _fields_ = [
+        ("command", c_char_p),
+        ("id", c_char_p),
+        ("name", c_char_p),
+        ("data", c_char_p),
+        ("request_id", c_int)
+    ]
+class CustomCommandResponseWrapper(Structure):
+    _fields_ = [
+        ("success", c_bool),
+        ("result", c_char_p),
+        ("error", c_char_p),
+        ("request_id", c_int)
+    ]
+
 # Custom exception classes
 class ClientError(Exception):
     """Base class for exceptions in this module."""
@@ -1944,6 +1960,27 @@ class Client:
             return json.loads(result["result"])
         except json.JSONDecodeError:
             return result["result"]  # Return raw string if not valid JSON
+
+    def custom_command(self, command, id=None, name=None, data=None):
+        self.trace("Inside custom_command")
+        # Set up argtypes/restype if not already set
+        self.lib.custom_command.argtypes = [c_void_p, POINTER(CustomCommandRequestWrapper)]
+        self.lib.custom_command.restype = POINTER(CustomCommandResponseWrapper)
+        req = CustomCommandRequestWrapper()
+        req.command = c_char_p(command.encode('utf-8'))
+        req.id = c_char_p(id.encode('utf-8')) if id else None
+        req.name = c_char_p(name.encode('utf-8')) if name else None
+        req.data = c_char_p(data.encode('utf-8')) if data else None
+        req.request_id = 0
+        ref = self.lib.custom_command(self.client, byref(req))
+        response = ref.contents
+        if not response.success:
+            error_message = response.error.decode('utf-8') if response.error else 'Unknown error'
+            self.lib.free_custom_command_response(ref)
+            raise ClientError(f"Custom command failed: {error_message}")
+        result = response.result.decode('utf-8') if response.result else None
+        self.lib.free_custom_command_response(ref)
+        return result
 
     def __del__(self):
         if hasattr(self, 'lib'):

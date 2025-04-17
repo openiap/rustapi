@@ -136,6 +136,14 @@ try {
                     });
                 }
                 break;
+            case 'cc':
+                try {
+                    $result = $client->custom_command("getclients");
+                    print("Custom command result: " . $result . "\n");
+                } catch (Exception $e) {
+                    print("Custom command error: " . $e->getMessage() . "\n");
+                }
+                break;
             case 'quit':
                 // Cancel any active gauge handlers
                 if ($f64_handler) Loop::cancelTimer($f64_handler);

@@ -343,6 +343,15 @@ async def main():
                 i64_thread.daemon = True
                 i64_thread.start()
 
+        elif input_command == "cc":
+            try:
+                # cmd = input("Enter custom command: ")
+                cmd = "getclients"
+                result = client.custom_command(cmd)
+                print(f"Custom command result: {result}")
+            except ClientError as e:
+                print(f"Custom command failed: {e}")
+
     # Make sure to clean up threads before exiting
     stop_threads = True
     for thread in [f64_thread, u64_thread, i64_thread]:
