@@ -50,9 +50,16 @@
             "request": "launch",
             "program": "${workspaceFolder}/c/client_cli",
             "args": [],
+            "envFile": "${workspaceFolder}/.env",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/c",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "${env:PATH}"
+                }
+            ],
+            "miDebuggerPath": "${workspaceFolder}/.vscode/gdb-wrapper.sh",
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
@@ -69,17 +76,19 @@
             ]
         },
         {
-            "name": "C#: debug Program",
+            "name": "C#: debug Program (dotnet)",
+            "type": "dotnet",                              // project debugger
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/dotnet/openiap.csproj"
+          },
+        {
+            "name": "C#: debug Program (coreclr)",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": {
-                "task": "build",
-                "type": "dotnet"
-            },
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}/dotnet",
-            "program": "${workspaceFolder}/dotnet/bin/Debug/net6.0/openiap.dll"
+            "program": "${workspaceFolder}/dotnet/bin/Debug/net9.0/openiap.dll"
         },
         {
             "name": "Java: run cli.java",

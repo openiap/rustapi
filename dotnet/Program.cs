@@ -88,6 +88,7 @@ class Program
                     Console.WriteLine("o - Toggle f64 observable gauge");
                     Console.WriteLine("o2 - Toggle u64 observable gauge"); 
                     Console.WriteLine("o3 - Toggle i64 observable gauge");
+                    Console.WriteLine("cc - Custom command example");
                     break;
                 case "0":
                     client.disabletracing();
@@ -367,12 +368,28 @@ class Program
                     break;
                 case "cc":
                     try {
-                        await client.CreateCollection("testdotnetcollection");
-                        Console.WriteLine("Create testdotnetcollection Collection success.");
+                        // Example 1: Using custom_command with generic string return type
+                        Console.WriteLine("Example 1: Custom command with string return");
+                        var stringResult = await client.custom_command<string>("getclients", "{}");
+                        Console.WriteLine($"Custom command result (string): {stringResult}");
+                        
+                        // Example 2: Using custom_command with dynamic return type for JSON objects
+                        Console.WriteLine("\nExample 2: Custom command with Base object return");
+                        var data = JsonSerializer.Serialize(new { name = "test" });
+                        var typedResult = await client.custom_command<Base>("getclients", data);
+                        if (typedResult != null) {
+                            Console.WriteLine($"Custom command result (typed): ID={typedResult._id}, Name={typedResult.name}");
+                        }
+                        
+                        // Example 3: Using custom_command with JWT token
+                        Console.WriteLine("\nExample 3: Custom command with JWT token");
+                        var (jwt, _, _) = await client.Signin();
+                        var secureResult = await client.custom_command<string>("getclients", "{\"action\":\"check\"}", jwt);
+                        Console.WriteLine($"Custom command result with JWT: {secureResult}");
                     }
                     catch (System.Exception e)
                     {
-                        Console.WriteLine("Error creating collection: " + e.Message);
+                        Console.WriteLine("Error executing custom command: " + e.Message);
                     }
                     break;
                 case "cc2":

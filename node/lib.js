@@ -571,7 +571,7 @@ function loadLibrary() {
     const { platform, arch } = process
     let libDir = path.join(__dirname, 'lib');
     let libPath;
-    console.log(`Platform: ${platform}, Arch: ${arch}`);
+    // console.log(`Platform: ${platform}, Arch: ${arch}`);
     switch (platform) {
         case 'android':
             switch (arch) {
@@ -648,7 +648,7 @@ function loadLibrary() {
                 break;
         }
     }
-    console.log(`Using library: ${libPath}`);
+    // console.log(`Using library: ${libPath}`);
 
     try {
         const lib = koffi.load(libPath);
@@ -941,7 +941,7 @@ class Client {
         }
         return JSON.stringify(obj);
     }
-    async connect(url) {
+    async connect(url = "") {
         this.trace('connect invoked', url);
         this.connected = false;
         const ResponsePtr = this.lib.connect(this.client, url);
@@ -958,7 +958,7 @@ class Client {
         return Response;
     }
 
-    connect_async(url) {
+    connect_async(url = "") {
         this.trace('connect_async invoked', url);
         this.connected = false;
         return new Promise((resolve, reject) => {
@@ -1053,7 +1053,7 @@ class Client {
             const cb = koffi.register(callback, koffi.pointer(this.lib.signinCallback));
             this.trace('call signin_async');
             this.lib.signin_async(this.client, req, cb, (err, res) => {
-                console.log('signin_async error', err, res);
+                this.error('signin_async error', err, res);
                 if (err) {
                     reject(new ClientError('Signin failed'));
                 }
@@ -1097,7 +1097,7 @@ class Client {
         });
     }
     // "seconds" | "minutes" | "hours"
-    create_collection({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
+    create_collection({ collectionname, collation = undefined, timeseries = undefined, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
         this.trace('create_collection invoked');
         const req = {
             collectionname: collectionname,
@@ -1121,7 +1121,7 @@ class Client {
         }
         return result.success;
     }
-    create_collection_async({ collectionname, collation, timeseries, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
+    create_collection_async({ collectionname, collation = undefined, timeseries = undefined, expire_after_seconds = 0, change_stream_pre_and_post_images = false, capped = false, max = 0, size = 0 }) {
         this.trace('create_collection invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1208,7 +1208,7 @@ class Client {
         });
     }
 
-    create_index({ collectionname, index, options, name }) {
+    create_index({ collectionname, index, options = {}, name = "" }) {
         this.trace('create_index invoked');
         const req = {
             collectionname: collectionname,
@@ -1228,7 +1228,7 @@ class Client {
         }
         return result.success;
     }
-    create_index_async({ collectionname, index, options, name }) {
+    create_index_async({ collectionname, index, options = {}, name = "" }) {
         this.trace('create_index invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1285,7 +1285,7 @@ class Client {
         });
     }
 
-    custom_command({ command, id = "", name = "", data = ""}) {
+    custom_command({ command, id = "", name = "", data = {}}) {
         this.trace('custom_command invoked');
         const req = {
             command: command,
@@ -1309,7 +1309,7 @@ class Client {
         }
         return result.result;
     }
-    custom_command_async({ command, id = "", name = "", data = ""}) {
+    custom_command_async({ command, id = "", name = "", data = {}}) {
         this.trace('custom_command invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1345,7 +1345,7 @@ class Client {
         });
     }
 
-    query({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
+    query({ collectionname, query, projection = {}, orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
         this.trace('query invoked');
         const req = {
             collectionname: collectionname,
@@ -1370,7 +1370,7 @@ class Client {
         return JSON.parse(response.results);
     }
 
-    query_async({ collectionname, query, projection = "", orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
+    query_async({ collectionname, query, projection = {}, orderby = "", skip = 0, top = 100, queryas = "", explain = false }) {
         this.trace('query_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1406,7 +1406,7 @@ class Client {
             });
         });
     }
-    aggregate({ collectionname, aggregates = "[]", queryas = "", hint = "", explain = false }) {
+    aggregate({ collectionname, aggregates = [], queryas = "", hint = "", explain = false }) {
         this.trace('aggregate invoked');
         const req = {
             collectionname: collectionname,
@@ -1426,7 +1426,7 @@ class Client {
         }
         return JSON.parse(result.results);
     }
-    aggregate_async({ collectionname, aggregates, queryas = "", hint = "", explain = false }) {
+    aggregate_async({ collectionname, aggregates = [], queryas = "", hint = "", explain = false }) {
         this.trace('aggregate invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1459,7 +1459,7 @@ class Client {
             });
         });
     }
-    count({ collectionname, query = "", queryas = "", explain = false }) {
+    count({ collectionname, query = {}, queryas = "", explain = false }) {
         this.trace('count invoked');
         const req = {
             collectionname: collectionname,
@@ -1479,7 +1479,7 @@ class Client {
         }
         return result.result;
     }
-    count_async({ collectionname, query = "", queryas = "", explain = false }) {
+    count_async({ collectionname, query = {}, queryas = "", explain = false }) {
         this.trace('count async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1511,7 +1511,7 @@ class Client {
             });
         });
     }
-    distinct({ collectionname, field, query = "", queryas = "", explain = false }) {
+    distinct({ collectionname, field, query = {}, queryas = "", explain = false }) {
         this.trace('distinct invoked');
         const req = {
             collectionname: collectionname,
@@ -1543,7 +1543,7 @@ class Client {
         }
         return results;
     }
-    distinct_async({ collectionname, field, query = "", queryas = "", explain = false }) {
+    distinct_async({ collectionname, field, query = {}, queryas = "", explain = false }) {
         this.trace('distinct invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1636,8 +1636,11 @@ class Client {
             });
         });
     };
-    insert_many({ collectionname, items, w = 1, j = false, skipresults = false }) {
+    insert_many({ collectionname, items = [], w = 1, j = false, skipresults = false }) {
         this.trace('insert_many invoked');
+        if(items == null || items.length == 0 ){
+            throw new ClientError('Items cannot be null or empty');
+        }
         const req = {
             collectionname: collectionname,
             items: this.stringify(items),
@@ -1657,8 +1660,11 @@ class Client {
         }
         return JSON.parse(result.results);
     }
-    insert_many_async({ collectionname, items, w = 1, j = false, skipresults = false }) {
+    insert_many_async({ collectionname, items = [], w = 1, j = false, skipresults = false }) {
         this.trace('insert_many invoked');
+        if(items == null || items.length == 0 ){
+            throw new ClientError('Items cannot be null or empty');
+        }
         return new Promise((resolve, reject) => {
             const req = {
                 collectionname: collectionname,
@@ -1797,7 +1803,7 @@ class Client {
             });
         });
     }
-    delete_one({ collectionname, id, recursive }) {
+    delete_one({ collectionname, id, recursive = false }) {
         this.trace('delete_one invoked');
         const req = {
             collectionname: collectionname,
@@ -1816,7 +1822,7 @@ class Client {
         }
         return result.affectedrows;
     }
-    delete_one_async({ collectionname, id, recursive }) {
+    delete_one_async({ collectionname, id, recursive = false }) {
         this.trace('delete_one_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1847,11 +1853,11 @@ class Client {
             });
         });
     }
-    delete_many({ collectionname, query = "", ids = [], recursive = false }) {
+    delete_many({ collectionname, query, recursive = false }) {
         this.trace('delete_many invoked');
         const req = {
             collectionname: collectionname,
-            query: query,
+            query: JSON.stringify(query),
             ids: null,
             recursive: recursive
         };
@@ -1869,7 +1875,7 @@ class Client {
         }
         return result.affectedrows;
     }
-    delete_many_async({ collectionname, query = "", ids = [], recursive = false }) {
+    delete_many_async({ collectionname, query, recursive = false }) {
         this.trace('delete_many_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1903,7 +1909,7 @@ class Client {
             });
         });
     }
-    download({ collectionname, id, folder, filename }) {
+    download({ collectionname, id, folder = "", filename = "" }) {
         this.trace('download invoked');
         const req = {
             collectionname: collectionname,
@@ -1922,7 +1928,7 @@ class Client {
         }
         return result.filename;
     }
-    download_async({ collectionname, id, folder, filename }) {
+    download_async({ collectionname, id, folder = "", filename = "" }) {
         this.trace('download async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1954,13 +1960,13 @@ class Client {
             });
         });
     }
-    upload({ filepath, filename, mimetype, metadata, collectionname }) {
+    upload({ filepath, filename, mimetype = "application/octet-stream", metadata = {}, collectionname = "fs.files" }) {
         this.trace('upload invoked');
         const req = {
             filepath: filepath,
             filename: filename,
             mimetype: mimetype,
-            metadata: metadata,
+            metadata: JSON.stringify(metadata),
             collectionname: collectionname
         };
         this.trace('call upload');
@@ -1974,7 +1980,7 @@ class Client {
         }
         return result.id
     }
-    upload_async({ filepath, filename, mimetype, metadata, collectionname }) {
+    upload_async({ filepath, filename, mimetype = "application/octet-stream", metadata = {}, collectionname = "fs.files" }) {
         this.trace('upload async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -2007,7 +2013,7 @@ class Client {
             });
         });
     }
-    push_workitem({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
+    push_workitem({ wiq = "", wiqid = "", name, payload = {}, nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
     }) {
         this.trace('push_workitem invoked');
@@ -2070,7 +2076,7 @@ class Client {
             this.lib.free_push_workitem_response(response);
         }
     }
-    push_workitem_async({ wiq = "", wiqid = "", name, payload = "{}", nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
+    push_workitem_async({ wiq = "", wiqid = "", name, payload = {}, nextrun = 0, success_wiqid = "", failed_wiqid = "", success_wiq = "", failed_wiq = "", priority = 2,
         files = []
     }) {
         this.trace('push_workitem invoked');
@@ -2195,7 +2201,7 @@ class Client {
         const response = koffi.decode(responsePtr, PopWorkitemResponseWrapper);
         const request_id = response.request_id;
         if (this.callbacks[request_id] == null) {
-            console.log(`Callback for request_id ${request_id} not found!`);
+            this.error(`Callback for request_id ${request_id} not found!`);
             return;
         }
         const { resolve, reject, callback } = this.callbacks[request_id];
@@ -2203,7 +2209,7 @@ class Client {
         koffi.unregister(callback);
         let keys = Object.keys(this.callbacks);
         if(keys.length > 0) {
-            console.log(`Deleted callback for request_id ${request_id}, i now have ${keys.length} remaining callbacks`);
+            this.trace(`Deleted callback for request_id ${request_id}, i now have ${keys.length} remaining callbacks`);
         }
         try {
             if (!response.success) {
@@ -2235,7 +2241,7 @@ class Client {
                 }
             }
         } catch (error) {
-            console.log(error);
+            this.error(error);
         } finally {
             this.trace('free_pop_workitem_response');
             this.lib.free_pop_workitem_response(responsePtr);
@@ -2502,11 +2508,38 @@ class Client {
     }
     watches = {}
     next_watch_interval = 200;
-    watch({ collectionname, paths }, callback) {
+/**
+ * @typedef {object} WatchOptions
+ * @property {string}   collectionname  The name of the collection to watch.
+ * @property {string[]} [paths=[]]      Specific document paths to filter on.
+ */
+
+/**
+ * @typedef {object} WatchEvent
+ * @property {string} id          The document’s unique ID.
+ * @property {string} operation   The type of change ("insert", "update", "delete", etc.).
+ * @property {any}    document    The JSON‑parsed document payload.
+ */
+
+/**
+ * @callback WatchCallback
+ * @param {WatchEvent} event         The watch event.
+ * @param {number}     event_counter How many events have fired so far.
+ * @returns {void}   Throw or log inside if you need to handle errors.
+ */
+
+/**
+ * Start watching a collection.
+ *
+ * @param {WatchOptions} options
+ * @param {WatchCallback} callback
+ * @returns {string}  The watch ID you can later cancel.
+ */
+    watch({ collectionname, paths = null }, callback) {
         this.trace('watch invoked');
         const req = {
             collectionname: collectionname,
-            paths: this.stringify(paths)
+            paths: paths == null ? null : this.stringify(paths)
         }
         this.trace('call watch');
         const response = this.lib.watch(this.client, req);
@@ -2545,7 +2578,7 @@ class Client {
                     try {
                         callback(event, event_counter);
                     } catch (error) {
-                        console.error('Error in watch event callback', error);
+                        this.error('Error in watch event callback', error);
                     }
                 } else {
                     hadone = false;
@@ -2598,7 +2631,7 @@ class Client {
                     try {
                         callback(event, event_counter);
                     } catch (error) {
-                        console.error('Error in client event callback', error);
+                        this.error('Error in client event callback', error);
                     }
                 } else {
                     hadone = false;
@@ -2631,7 +2664,7 @@ class Client {
     uniqeid() {
         return Math.random().toString(36).substr(2, 9);
     }
-    watch_async({ collectionname, paths }, callback) {
+    watch_async({ collectionname, paths = [] }, callback) {
         throw new Error('Not implemented');
         this.trace('watch invoked');
         const req = {
@@ -2654,7 +2687,7 @@ class Client {
                 callback(event, event_counter);
                 this.trace('event #', event_counter, ' callback done');
             } catch (error) {
-                console.error('Error in watch event callback', error);
+                this.error('Error in watch event callback', error);
             }
         }
         const event_cb = koffi.register(event_callback, koffi.pointer(this.lib.WatchEventCallback));
@@ -2673,7 +2706,7 @@ class Client {
 
         return watchid;
     }
-    watch_async_async({ collectionname, paths }, callback) {
+    watch_async_async({ collectionname, paths = [] }, callback) {
         throw new Error('Not implemented');
         this.trace('watch async invoked');
         return new Promise((resolve, reject) => {
@@ -2708,7 +2741,7 @@ class Client {
                 try {
                     callback(event, event_counter);
                 } catch (error) {
-                    console.error('Error in watch event callback', error);
+                    this.error('Error in watch event callback', error);
                 }
             }
             const cb = koffi.register(callback, koffi.pointer(this.lib.watchCallback));
@@ -2743,7 +2776,30 @@ class Client {
     }
     queues = {}
     next_queue_interval = 200;
-    register_queue({ queuename }, callback) {
+/**
+ * @typedef {object} QueueEvent
+ * @property {string} queuename       The name of the queue that produced this event.
+ * @property {string} correlation_id   The ID you can use to correlate replies.
+ * @property {string} replyto          The queue name to reply to (if any).
+ * @property {string} routingkey       The routing key from the broker.
+ * @property {string} exchangename     The exchange this event came from.
+ * @property {any}    data             The payload (already JSON‑parsed if valid).
+ * @property {string} [jwt]            A stripped‑out JWT, if one was present.
+ * @property {any}    [user]           A stripped‑out user object, if one was present.
+ */
+/**
+ * @callback QueueCallback
+ * @param {QueueEvent} event   The fully‑typed event object.
+ * @returns {Promise<any>|any}  If you return something and `event.replyto` is set, it'll be sent.
+ */
+/**
+ * Register a queue and start pumping events into your callback.
+ *
+ * @param {{ queuename: string }} options            Options bag.
+ * @param {QueueCallback}       callback            Called for each event.
+ * @returns {string}            The (possibly‑rewritten) queue name.
+ */
+    register_queue({ queuename }, callback ) {
         this.trace('register queue invoked');
         const req = {
             queuename: queuename
@@ -2825,7 +2881,38 @@ class Client {
         };
         return result.queuename;
     }
-    register_exchange({ exchangename, algorithm, routingkey, addqueue }, callback) {
+/**
+ * @typedef {object} RegisterExchangeOptions
+ * @property {string} exchangename    The exchange to bind.
+ * @property {string} [algorithm="fanout"]  Exchange algorithm (e.g. "fanout", "direct", "topic").
+ * @property {string} [routingkey=""]      Default routing key to use.
+ * @property {boolean} [addqueue=true]     Whether to auto‑create a queue for this exchange.
+ */
+
+/**
+ * @typedef {object} ExchangeEvent
+ * @property {string} queuename       The name of the queue that produced this event.
+ * @property {string} correlation_id   Correlation ID for replies.
+ * @property {string} replyto          Queue name to send replies to.
+ * @property {string} routingkey       The routing key of this message.
+ * @property {string} exchangename     The exchange name that emitted this event.
+ * @property {any}    data             The raw payload.
+ */
+
+/**
+ * @callback ExchangeCallback
+ * @param {ExchangeEvent} event  The decoded exchange event.
+ * @returns {void|Promise<void>}  If the handler is async, return a Promise.
+ */
+
+/**
+ * Register an exchange (and auto‑create a queue if requested).
+ *
+ * @param {RegisterExchangeOptions} options
+ * @param {ExchangeCallback}       callback
+ * @returns {string}  The (possibly‑rewritten) queue name for this exchange.
+ */
+    register_exchange({ exchangename, algorithm = "fanout", routingkey = "", addqueue = true }, callback) {
         this.trace('register exchange invoked');
         if (exchangename == null || exchangename == "") throw new ClientError('exchangename is required');
         if (algorithm == null) algorithm = "";
@@ -2887,7 +2974,7 @@ class Client {
         }
         return result.queuename;
     }
-    rpc({ queuename, data, striptoken }) {
+    rpc({ queuename, data = {}, striptoken = false }) {
         this.trace('rpc invoked');
         const req = {
             queuename: queuename,
@@ -2911,7 +2998,7 @@ class Client {
         }
         return payload;
     }
-    rpc_async({ queuename, data, striptoken }) {
+    rpc_async({ queuename, data = {}, striptoken = true }) {
         this.trace('rpc_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -2966,7 +3053,7 @@ class Client {
             }
         }
     }
-    queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey, striptoken, expiration }) {
+    queue_message({ queuename, data = {}, replyto = "", exchangename = "", correlation_id = "", routingkey = "", striptoken = false, expiration = 0 }) {
         this.trace('queue message invoked');
         if (queuename == null || queuename == "") {
             if (exchangename == null || exchangename == "") {

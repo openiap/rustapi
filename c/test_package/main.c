@@ -21,6 +21,9 @@ void print_help() {
     printf("  im        : Insert multiple documents\n");
     printf("  w         : Watch for changes in entities collection (async)\n");
     printf("  uw        : Unwatch entities collection\n");
+    printf("  r         : Register queue 'test2queue'\n");
+    printf("  m         : Send message to queue 'test2queue'\n");
+    printf("  cc        : Call custom_command 'getclients'\n");
     printf("  quit      : Exit the CLI\n");
 }
 
@@ -48,6 +51,17 @@ void watch_response_callback(struct WatchResponseWrapper* resp) {
     }
 }
 
+// Callback for queue events
+const char *queue_event_callback(struct QueueEventWrapper *event) {
+    printf("\nQueue event received on queue: %s\n", event->queuename);
+    printf("  Data: %s\n", event->data);
+    printf("  Correlation ID: %s\n", event->correlation_id ? event->correlation_id : "(none)");
+    printf("  ReplyTo: %s\n", event->replyto ? event->replyto : "(none)");
+    printf("> ");
+    fflush(stdout);
+    // No reply
+    return "";
+}
 
 int main(void) {
     char input[INPUT_SIZE];
@@ -263,6 +277,63 @@ int main(void) {
                 active_watch_id = NULL;
             } else {
                 printf("No active watch to unsubscribe from\n");
+            }
+        } else if (strcmp(input, "r") == 0) {
+            struct RegisterQueueRequestWrapper req = {
+                .queuename = "test2queue",
+                .request_id = 1
+            };
+            struct RegisterQueueResponseWrapper *resp = register_queue_async(client, &req, queue_event_callback);
+            if (resp == NULL) {
+                printf("Error: register_queue_async returned NULL.\n");
+            } else {
+                if (!resp->success) {
+                    printf("Register queue failed: %s\n", resp->error);
+                } else {
+                    printf("Registered queue as: %s\n", resp->queuename);
+                }
+                free_register_queue_response(resp);
+            }
+        } else if (strcmp(input, "m") == 0) {
+            struct QueueMessageRequestWrapper req = {
+                .queuename = "test2queue",
+                .correlation_id = NULL,
+                .replyto = NULL,
+                .routingkey = NULL,
+                .exchangename = NULL,
+                .data = "{\"message\":\"Test message\"}",
+                .striptoken = true,
+                .expiration = 0,
+                .request_id = 1
+            };
+            struct QueueMessageResponseWrapper *resp = queue_message(client, &req);
+            if (resp == NULL) {
+                printf("Error: queue_message returned NULL.\n");
+            } else {
+                if (!resp->success) {
+                    printf("Queue message failed: %s\n", resp->error);
+                } else {
+                    printf("Queued message to test2queue\n");
+                }
+                free_queue_message_response(resp);
+            }
+        } else if (strcmp(input, "cc") == 0) {
+            struct CustomCommandRequestWrapper req;
+            req.command = "getclients";
+            req.id = NULL;
+            req.name = NULL;
+            req.data = NULL;
+            req.request_id = 1;
+            struct CustomCommandResponseWrapper *resp = custom_command(client, &req);
+            if (resp == NULL) {
+                printf("Error: custom_command returned NULL.\n");
+            } else {
+                if (!resp->success) {
+                    printf("Custom command failed: %s\n", resp->error);
+                } else {
+                    printf("Custom command result: %s\n", resp->result);
+                }
+                free_custom_command_response(resp);
             }
         } else {
             printf("Unknown command: '%s'\n", input);

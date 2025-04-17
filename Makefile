@@ -1,7 +1,7 @@
 .PHONY: clean build build-all package package-all publish publish-all
 
 # Variables
-VERSION = 0.0.28
+VERSION = 0.0.30
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
 
@@ -105,7 +105,7 @@ copy-lib:
 package-node:
 	@echo "Building Node.js package"
 	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
-	(cd node && npm pack)
+	(cd node && npm run build && npm pack)
 
 package-dotnet:
 	@echo "Building .NET package"

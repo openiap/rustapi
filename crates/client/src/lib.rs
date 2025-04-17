@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.28";
+const VERSION: &str = "0.0.30";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -154,7 +154,11 @@ pub struct ClientStatistics {
     deleteone: u64,
     deletemany: u64,
 }
-type QueueCallbackFn = Box<dyn Fn(&Client, QueueEvent) -> Option<String> + Send + Sync>;
+// type QueueCallbackFn = Box<dyn Fn(&Client, QueueEvent) -> Option<String> + Send + Sync>;
+use futures::future::BoxFuture;
+type QueueCallbackFn =
+    Arc<dyn Fn(Arc<Client>, QueueEvent) -> BoxFuture<'static, Option<String>> + Send + Sync>;
+
 // type ExchangeCallbackFn = Box<dyn Fn(&Client, QueueEvent) + Send + Sync>;
 /// The `ClientInner` struct provides the inner client for the OpenIAP service.
 #[derive(Clone)]
@@ -1397,13 +1401,14 @@ impl Client {
         } else if command == "queueevent" {
             let queueevent: QueueEvent =
                 prost::Message::decode(received.data.unwrap().value.as_ref()).unwrap();
-            if let Some(callback) = queues.get(queueevent.queuename.as_str()) {
+            if let Some(callback) = queues.get(queueevent.queuename.as_str()).cloned() {
                 let queuename = queueevent.replyto.clone();
                 let correlation_id = queueevent.correlation_id.clone();
-                let result = callback(self, queueevent);
-                if result.is_some() && queuename != "" {
-                    let me = self.clone();
-                    tokio::spawn(async move {
+                let me = self.clone();
+                tokio::spawn(async move {
+                    let result_fut = callback(Arc::new(me.clone()), queueevent);
+                    let result = result_fut.await;
+                    if result.is_some() && !queuename.is_empty() {
                         debug!("Sending return value from queue event callback to {}", queuename);
                         let result = result.unwrap();
                         let q = QueueMessageRequest {
@@ -1418,8 +1423,8 @@ impl Client {
                         if let Err(e) = send_result {
                             error!("Failed to send queue event response: {}", e);
                         }
-                    });
-                }
+                    }
+                });
             }
         } else if let Some(response_tx) = queries.remove(&rid) {
             let stream = streams.get(rid.as_str());
@@ -2912,10 +2917,10 @@ impl Client {
                 RegisterQueueRequest {
                     queuename: "".to_string(),
                 },
-                Box::new(move |_client, event| {
+                Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
                     let tx = tx.lock().unwrap().take().unwrap();
                     tx.send(event.data).unwrap();
-                    None
+                    Box::pin(async { None })
                 }),
             )
             .await
@@ -3733,32 +3738,35 @@ impl Client {
                 RegisterQueueRequest {
                     queuename: "".to_string(),
                 },
-                Box::new(move |_client, event| {
-                    let json = event.data.clone();
-                    let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
-                    let command: String = obj["command"].as_str().unwrap().to_string();
-                    debug!("Received event: {:?}", event);
-                    if command.eq("invokesuccess") {
-                        debug!("Robot successfully started running workflow");
-                    } else if command.eq("invokeidle") {
-                        debug!("Workflow went idle");
-                    } else if command.eq("invokeerror") {
-                        debug!("Robot failed to run workflow");
-                        let tx = tx.lock().unwrap().take().unwrap();
-                        tx.send(event.data).unwrap();
-                    } else if command.eq("timeout") {
-                        debug!("No robot picked up the workflow");
-                        let tx = tx.lock().unwrap().take().unwrap();
-                        tx.send(event.data).unwrap();
-                    } else if command.eq("invokecompleted") {
-                        debug!("Robot completed running workflow");
-                        let tx = tx.lock().unwrap().take().unwrap();
-                        tx.send(event.data).unwrap();
-                    } else {
-                        let tx = tx.lock().unwrap().take().unwrap();
-                        tx.send(event.data).unwrap();
-                    }
-                    None
+                Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
+                    let tx = tx.clone();
+                    Box::pin(async move {
+                        let json = event.data.clone();
+                        let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
+                        let command: String = obj["command"].as_str().unwrap().to_string();
+                        debug!("Received event: {:?}", event);
+                        if command.eq("invokesuccess") {
+                            debug!("Robot successfully started running workflow");
+                        } else if command.eq("invokeidle") {
+                            debug!("Workflow went idle");
+                        } else if command.eq("invokeerror") {
+                            debug!("Robot failed to run workflow");
+                            let tx = tx.lock().unwrap().take().unwrap();
+                            tx.send(event.data).unwrap();
+                        } else if command.eq("timeout") {
+                            debug!("No robot picked up the workflow");
+                            let tx = tx.lock().unwrap().take().unwrap();
+                            tx.send(event.data).unwrap();
+                        } else if command.eq("invokecompleted") {
+                            debug!("Robot completed running workflow");
+                            let tx = tx.lock().unwrap().take().unwrap();
+                            tx.send(event.data).unwrap();
+                        } else {
+                            let tx = tx.lock().unwrap().take().unwrap();
+                            tx.send(event.data).unwrap();
+                        }
+                        None
+                    })
                 }),
             )
             .await

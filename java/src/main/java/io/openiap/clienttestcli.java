@@ -121,6 +121,9 @@ public class clienttestcli {
             case "o3":
                 handleI64Observable();
                 break;
+            case "cc":
+                handleCustomCommand();
+                break;
             case "quit":
                 running = false;
                 break;
@@ -600,6 +603,23 @@ public class clienttestcli {
             client.info("Setting test_i64 to " + random);
             client.set_i64_observable_gauge("test_i64", random, "test");
         }, 0, 30, TimeUnit.SECONDS);
+    }
+
+    private static void handleCustomCommand() {
+        try {
+            String result = client.customCommand(
+                new CustomCommandParameters.Builder()
+                    .command("getclients")
+                    .build()
+            );
+            System.out.println("CustomCommand result: " + result);
+            // Optionally, parse JSON and print details if needed
+            // ObjectMapper mapper = new ObjectMapper();
+            // List<?> clients = mapper.readValue(result, List.class);
+            // System.out.println("Client count: " + clients.size());
+        } catch (Exception e) {
+            System.out.println("CustomCommand error: " + e.getMessage());
+        }
     }
 
     private static void cleanup() {

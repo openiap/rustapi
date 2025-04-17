@@ -4956,7 +4956,7 @@ pub extern "C" fn register_queue(
         client
             .register_queue(
                 request,
-                Box::new(move |_client, event: QueueEvent| {
+                std::sync::Arc::new(move |_client, event: QueueEvent| {
                     trace!("queue: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
@@ -4974,7 +4974,7 @@ pub extern "C" fn register_queue(
                             e.insert(queuename, q);
                         }
                     }
-                    None
+                    Box::pin(async { None })
                 }),
             )
         )
@@ -5071,7 +5071,7 @@ pub extern "C" fn register_queue_async(
         client
             .register_queue(
                 request,
-                Box::new(move |_client, event: QueueEvent| {
+                std::sync::Arc::new(move |_client, event: QueueEvent| {
                     debug!("register_queue_async: spawn new task, to call event_callback");
                     trace!("register_queue_async: call event_callback");
                     let queuename = CString::new(event.queuename).unwrap().into_raw();
@@ -5092,10 +5092,10 @@ pub extern "C" fn register_queue_async(
                     let result = event_callback(Box::into_raw(event));
                     let result = c_char_to_str(result);
                     if result.is_empty() {
-                        return None
-                    }
+                        return Box::pin(async { None })
+                    } 
                     let result = result.to_string();
-                    Some(result)
+                    Box::pin(async { Some(result) })
                 }),
             )
         )
@@ -5218,7 +5218,7 @@ pub extern "C" fn register_exchange (
             handle.block_on(
         client
             .register_exchange(request,
-                Box::new(move |_client, event: QueueEvent| {
+                std::sync::Arc::new(move |_client, event: QueueEvent| {
                     trace!("exchange: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
                         .unwrap()
@@ -5236,7 +5236,7 @@ pub extern "C" fn register_exchange (
                             e.insert(queuename, q);
                         }
                     }
-                    None
+                    Box::pin(async { None })
                 }),
             
             )
@@ -5328,7 +5328,7 @@ pub extern "C" fn register_exchange_async(
             handle.block_on(
         client
             .register_exchange(request,
-                Box::new(move |_client, event: QueueEvent| {
+                std::sync::Arc::new(move |_client, event: QueueEvent| {
                     debug!("register_exchange_async: spawn new task, to call event_callback");
                     trace!("register_exchange_async: call event_callback");
                     let queuename = CString::new(event.queuename).unwrap().into_raw();
@@ -5347,7 +5347,7 @@ pub extern "C" fn register_exchange_async(
                         request_id
                     });
                     event_callback(Box::into_raw(event));
-                    None
+                    Box::pin(async { None })
                 }),
 
             )

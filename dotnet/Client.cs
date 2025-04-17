@@ -41,6 +41,7 @@ namespace OpenIAP
         private readonly WatchCallback _WatchCallbackDelegate;
         private readonly WatchEventCallback _WatchEventCallbackDelegate;
         private readonly DropCollectionCallback _DropCollectionCallbackDelegate;
+        private readonly CustomCommandCallback _CustomCommandCallbackDelegate;
 
         private readonly QueueEventCallback _QueueEventCallbackDelegate;
         private readonly ExchangeEventCallback _ExchangeEventCallbackDelegate;
@@ -772,6 +773,26 @@ namespace OpenIAP
         public delegate void DeleteWorkitemCallback(IntPtr responsePtr);
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct CustomCommandRequestWrapper
+        {
+            public IntPtr command;
+            public IntPtr id;
+            public IntPtr name;
+            public IntPtr data;
+            public int request_id;
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CustomCommandResponseWrapper
+        {
+            [MarshalAs(UnmanagedType.I1)]
+            public bool success;
+            public IntPtr result;
+            public IntPtr error;
+            public int request_id;
+        }
+        public delegate void CustomCommandCallback(IntPtr responsePtr);
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct RpcResponseWrapper
         {
             [MarshalAs(UnmanagedType.I1)]
@@ -1094,6 +1115,13 @@ namespace OpenIAP
         public static extern void rpc_async(IntPtr client, ref QueueMessageRequestWrapper options, RpcResponseCallback response_callback);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void free_rpc_response(IntPtr response);
+
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void custom_command_async(IntPtr client, ref CustomCommandRequestWrapper request, CustomCommandCallback callback);
+
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void free_custom_command_response(IntPtr response);
+
         #endregion
         public Client(string libPath = "")
         {
@@ -1147,6 +1175,7 @@ namespace OpenIAP
             _QueueEventCallbackDelegate = _QueueEventCallback;
             _ExchangeEventCallbackDelegate = _ExchangeEventCallback;
             _RpcResponseCallbackDelegate = _RpcResponseCallback;
+            _CustomCommandCallbackDelegate = _CustomCommandCallback;
         }
         public void enabletracing(string rust_log = "", string tracing = "")
         {
@@ -3933,6 +3962,94 @@ namespace OpenIAP
             }
 
             return tcs.Task;
+        }
+        private void _CustomCommandCallback(IntPtr responsePtr)
+        {
+            try
+            {
+                var response = Marshal.PtrToStructure<CustomCommandResponseWrapper>(responsePtr);
+                int requestId = response.request_id;
+                var count = CallbackRegistry.Count;
+                if (count == 0)
+                {
+                    error($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                    return;
+                }
+                else if (count > 1)
+                {
+                    trace($"Callback request_id: {requestId} and we have: {CallbackRegistry.Count} items in the registry");
+                }
+                if (CallbackRegistry.TryGetCallback<string>(requestId, out var tcs))
+                {
+                    if (!response.success)
+                    {
+                        string error = Marshal.PtrToStringAnsi(response.error) ?? "Unknown error";
+                        CallbackRegistry.TrySetException<string>(requestId, new ClientError(error));
+                    }
+                    else
+                    {
+                        string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                        CallbackRegistry.TrySetResult(requestId, result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error(ex.Message);
+            }
+            finally
+            {
+                free_custom_command_response(responsePtr);
+            }
+        }
+
+        public Task<T> custom_command<T>(string command, string id = "", string data = "", string name = "")
+        {
+            var tcs = new TaskCompletionSource<string>();
+
+            IntPtr commandPtr = Marshal.StringToHGlobalAnsi(command);
+            IntPtr idPtr = Marshal.StringToHGlobalAnsi(id);
+            IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
+            IntPtr namePtr = Marshal.StringToHGlobalAnsi(name);
+
+            try
+            {
+                int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+                CustomCommandRequestWrapper request = new CustomCommandRequestWrapper
+                {
+                    command = commandPtr,
+                    id = idPtr,
+                    data = dataPtr,
+                    name = namePtr,
+                    request_id = requestId
+                };
+                CallbackRegistry.TryAddCallback(requestId, tcs);
+                custom_command_async(clientPtr, ref request, _CustomCommandCallbackDelegate);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(commandPtr);
+                Marshal.FreeHGlobal(idPtr);
+                Marshal.FreeHGlobal(dataPtr);
+                Marshal.FreeHGlobal(namePtr);                
+            }
+
+            // Use the helper to handle continuation
+            return AsyncContinuationHelper.ProcessResponseAsync<string, T>(
+                tcs.Task,
+                responseJson => responseJson, // Simply pass the JSON string as is
+                responseJson =>
+                {
+                    if (typeof(T) == typeof(string))
+                    {
+                        return (T)(object)responseJson;
+                    }
+                    else
+                    {
+                        return JsonSerializer.Deserialize<T>(responseJson)!;
+                    }
+                }
+            );
         }
         public void Dispose()
         {

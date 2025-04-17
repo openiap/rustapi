@@ -6,13 +6,13 @@ use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
 use tracing::{error, info};
 
-use openiap_client::{CustomCommandRequest, PushWorkitemRequest, QueueMessageRequest};
 #[allow(unused_imports)]
 use openiap_client::{
-    self, set_otel_url, disable_tracing, enable_tracing, set_f64_observable_gauge, 
-    set_u64_observable_gauge, set_i64_observable_gauge, disable_observable_gauge, Client, InsertManyRequest, PopWorkitemRequest,
-    RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
+    self, disable_observable_gauge, disable_tracing, enable_tracing, set_f64_observable_gauge,
+    set_i64_observable_gauge, set_otel_url, set_u64_observable_gauge, Client, InsertManyRequest,
+    PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
 };
+use openiap_client::{CustomCommandRequest, PushWorkitemRequest, QueueMessageRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -20,7 +20,6 @@ use openiap_client::protos::{
 };
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, BufReader};
-
 
 // #[cfg(not(target_env = "msvc"))]
 // use tikv_jemallocator::Jemalloc;
@@ -159,16 +158,16 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             disable_tracing();
         }
         if input.eq_ignore_ascii_case("1") {
-            enable_tracing("openiap=info",  "");
+            enable_tracing("openiap=info", "");
         }
         if input.eq_ignore_ascii_case("2") {
             enable_tracing("openiap=debug", "new");
         }
         if input.eq_ignore_ascii_case("3") {
-            enable_tracing("openiap=trace",  "new");
+            enable_tracing("openiap=trace", "new");
         }
         if input.eq_ignore_ascii_case("4") {
-            enable_tracing("trace",  "new");
+            enable_tracing("trace", "new");
         }
         if input.eq_ignore_ascii_case("o") {
             input = "".to_string();
@@ -178,24 +177,30 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 f64handle.unwrap().abort();
                 f64handle = None;
             } else {
-                f64handle = Some(
-                    tokio::task::spawn(async move {
-                        info!("Task started, begin loop for test_f64");
+                f64handle = Some(tokio::task::spawn(async move {
+                    info!("Task started, begin loop for test_f64");
+                    let randomf: f64 = rand::random::<f64>() * 50.0;
+                    match set_f64_observable_gauge(
+                        "test_f64",
+                        randomf,
+                        "My custom metric description",
+                    ) {
+                        Ok(_) => info!("test_f64 created with inital value: {}", randomf),
+                        Err(e) => error!("Failed to register custom metric: {}", e),
+                    }
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                         let randomf: f64 = rand::random::<f64>() * 50.0;
-                        match set_f64_observable_gauge("test_f64", randomf, "My custom metric description") {
-                            Ok(_) => info!("test_f64 created with inital value: {}", randomf),
+                        match set_f64_observable_gauge(
+                            "test_f64",
+                            randomf,
+                            "My custom metric description",
+                        ) {
+                            Ok(_) => info!("test_f64 set to: {}", randomf),
                             Err(e) => error!("Failed to register custom metric: {}", e),
-                        }        
-                        loop {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                            let randomf: f64 = rand::random::<f64>() * 50.0;
-                            match set_f64_observable_gauge("test_f64", randomf, "My custom metric description") {
-                                Ok(_) => info!("test_f64 set to: {}", randomf),
-                                Err(e) => error!("Failed to register custom metric: {}", e),
-                            }        
                         }
-                    }),
-                );
+                    }
+                }));
             }
         }
         if input.eq_ignore_ascii_case("o2") {
@@ -206,24 +211,30 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 u64handle.unwrap().abort();
                 u64handle = None;
             } else {
-                u64handle = Some(
-                    tokio::task::spawn(async move {
-                        info!("Task started, begin loop for test_u64");
+                u64handle = Some(tokio::task::spawn(async move {
+                    info!("Task started, begin loop for test_u64");
+                    let randomf: u64 = (rand::random::<f64>() * 50.0).round() as u64;
+                    match set_u64_observable_gauge(
+                        "test_u64",
+                        randomf,
+                        "My custom metric description",
+                    ) {
+                        Ok(_) => info!("test_u64 created with inital value: {}", randomf),
+                        Err(e) => error!("Failed to register custom metric: {}", e),
+                    }
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                         let randomf: u64 = (rand::random::<f64>() * 50.0).round() as u64;
-                        match set_u64_observable_gauge("test_u64", randomf, "My custom metric description") {
-                            Ok(_) => info!("test_u64 created with inital value: {}", randomf),
+                        match set_u64_observable_gauge(
+                            "test_u64",
+                            randomf,
+                            "My custom metric description",
+                        ) {
+                            Ok(_) => info!("test_u64 set to: {}", randomf),
                             Err(e) => error!("Failed to register custom metric: {}", e),
-                        }        
-                        loop {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                            let randomf: u64 = (rand::random::<f64>() * 50.0).round() as u64;
-                            match set_u64_observable_gauge("test_u64", randomf, "My custom metric description") {
-                                Ok(_) => info!("test_u64 set to: {}", randomf),
-                                Err(e) => error!("Failed to register custom metric: {}", e),
-                            }        
                         }
-                    }),
-                );
+                    }
+                }));
             }
         }
         if input.eq_ignore_ascii_case("o3") {
@@ -234,24 +245,30 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 i64handle.unwrap().abort();
                 i64handle = None;
             } else {
-                i64handle = Some(
-                    tokio::task::spawn(async move {
-                        info!("Task started, begin loop for test_i64");
+                i64handle = Some(tokio::task::spawn(async move {
+                    info!("Task started, begin loop for test_i64");
+                    let randomf: i64 = (rand::random::<f64>() * 50.0).round() as i64;
+                    match set_i64_observable_gauge(
+                        "test_i64",
+                        randomf,
+                        "My custom metric description",
+                    ) {
+                        Ok(_) => info!("test_i64 created with inital value: {}", randomf),
+                        Err(e) => error!("Failed to register custom metric: {}", e),
+                    }
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                         let randomf: i64 = (rand::random::<f64>() * 50.0).round() as i64;
-                        match set_i64_observable_gauge("test_i64", randomf, "My custom metric description") {
-                            Ok(_) => info!("test_i64 created with inital value: {}", randomf),
+                        match set_i64_observable_gauge(
+                            "test_i64",
+                            randomf,
+                            "My custom metric description",
+                        ) {
+                            Ok(_) => info!("test_i64 set to: {}", randomf),
                             Err(e) => error!("Failed to register custom metric: {}", e),
-                        }        
-                        loop {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                            let randomf: i64 = (rand::random::<f64>() * 50.0).round() as i64;
-                            match set_i64_observable_gauge("test_i64", randomf, "My custom metric description") {
-                                Ok(_) => info!("test_i64 set to: {}", randomf),
-                                Err(e) => error!("Failed to register custom metric: {}", e),
-                            }        
                         }
-                    }),
-                );
+                    }
+                }));
             }
         }
         if input.eq_ignore_ascii_case("st") {
@@ -424,6 +441,47 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                 Err(e) => {
                                     println!("Failed to pop workitem: {:?}", e);
                                 }
+                            }
+                        }
+                    }),
+                );
+            }
+        }
+        if input.eq_ignore_ascii_case("st3") {
+            input = "".to_string();
+            let client = b.clone();
+            if sthandle.is_some() {
+                println!("Stopping nonstop");
+                sthandle.unwrap().abort();
+                sthandle = None;
+            } else {
+                sthandle = Some(
+                    // tokio::task::Builder::new().name("NonStop").spawn(async move {
+                    tokio::task::spawn(async move {
+                        println!("Task started, begin loop...");
+                        loop {
+                            // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            // tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+                            // tokio::time::sleep(tokio::time::Duration::from_micros(500)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(40)).await;
+                            let client = client.clone();
+                            tokio::task::spawn(async move {
+                                let result = client
+                                    .rpc(QueueMessageRequest::byqueuename(
+                                        "test2queue",
+                                        "{\"name\":\"Allan\"}",
+                                        true,
+                                    ))
+                                    .await;
+                                match result {
+                                    Ok(response) => println!("Received RPC response {:?}", response),
+                                    Err(e) => println!("Failed to send RPC message: {:?}", e),
+                                }
+                            });
+
+                            x = x + 1;
+                            if x % 500 == 0 {
+                                println!("RPC messages sent {:?}", x);
                             }
                         }
                     }),
@@ -701,7 +759,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q: Result<String, openiap_client::OpenIAPError> = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
-                        Box::new(|_client, event| {
+                        std::sync::Arc::new(|_client, event| {
                             println!(
                                 "Received message queue from {:?} with reply to {:?}: {:?}",
                                 event.queuename, event.replyto, event.data
@@ -724,7 +782,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                             //     }
                             // });
                             // None
-                            Some("{\"payload\":\"Bettina\"}".to_string())
+                            Box::pin(async { Some("{\"payload\":\"Bettina\"}".to_string()) })
                         }),
                     )
                     .await;
@@ -788,12 +846,12 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q = client
                     .register_exchange(
                         RegisterExchangeRequest::byexchangename("test2exchange"),
-                        Box::new(|_client, event| {
+                        Arc::new(|_client, event| {
                             println!(
                                 "Received exchange message to queue  {:?} with reply to {:?}: {:?}",
                                 event.queuename, event.replyto, event.data
                             );
-                            None
+                            Box::pin(async { None })
                         }),
                     )
                     .await;
@@ -816,10 +874,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     })
                     .await;
                 match q {
-                    Ok(response) => println!(
-                        "Result: {:?}",
-                        response
-                    ),
+                    Ok(response) => println!("Result: {:?}", response),
                     Err(e) => println!("Failed to run Custom Command: {:?}", e),
                 }
             });

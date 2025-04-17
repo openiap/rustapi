@@ -29,7 +29,7 @@ function onwatch(event) {
 // Queue event handler
 function onqueue(event) {
     const { queuename, correlation_id, replyto, routingkey, exchangename, data } = event;
-    client.info(`Received message from ${queuename}: `, data);
+    client.info(`Received message from ${queuename}: `, JSON.stringify(data));
 }
 
 // Do some calculation to generate CPU load

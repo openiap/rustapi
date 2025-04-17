@@ -107,6 +107,8 @@ interface CLib extends Library {
     Pointer rpc(Pointer client, QueueMessageParameters options);
     void free_rpc_response(Pointer response);
     void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback);
+    Pointer custom_command(Pointer client, CustomCommandParameters options);
+    void free_custom_command_response(Pointer response);
 }
 
 public class Client implements AutoCloseable {
@@ -1162,6 +1164,26 @@ public class Client implements AutoCloseable {
         }
 
         return resultHolder[0];
+    }
+
+    public String customCommand(CustomCommandParameters options) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.custom_command(clientPtr, options);
+        if (responsePtr == null) {
+            throw new RuntimeException("custom_command returned null response");
+        }
+        CustomCommandResponseWrapper response = new CustomCommandResponseWrapper(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.result;
+        } finally {
+            clibInstance.free_custom_command_response(responsePtr);
+        }
     }
 
     @SuppressWarnings("removal")

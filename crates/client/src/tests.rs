@@ -686,12 +686,12 @@ mod tests {
         let response: std::result::Result<String, OpenIAPError> = client
             .register_queue(RegisterQueueRequest::byqueuename("secrettestqueue"), {
                 let tx = Arc::clone(&tx);
-                Box::new(move |_client, event| {
+                Arc::new(move |_client, event| {
                     println!("Queue event: {:?}", event);
                     if let Some(tx) = tx.lock().unwrap().take() {
                         let _ = tx.send(());
                     }
-                    None
+                    Box::pin(async { None })
                 })
             })
             .await;
@@ -734,17 +734,23 @@ mod tests {
         let (tx, rx) = oneshot::channel::<()>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
-        let response = client
-            .register_exchange(RegisterExchangeRequest::byexchangename(exchangename), {
+        let handler: Arc<dyn Fn(Arc<Client>, QueueEvent) -> Pin<Box<dyn Future<Output = Option<String>> + Send>> + Send + Sync> =
+            Arc::new({
                 let tx = Arc::clone(&tx);
-                Box::new(move |_client, event| {
-                    println!("Queue event: {:?}", event);
-                    if let Some(tx) = tx.lock().unwrap().take() {
-                        let _ = tx.send(());
-                    }
-                    None
-                })
-            })
+                move |_client, event| {
+                    let tx = Arc::clone(&tx);
+                    Box::pin(async move {
+                        println!("Queue event: {:?}", event);
+                        if let Some(tx) = tx.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                        None
+                    })
+                }
+            });
+
+        let response = client
+            .register_exchange(RegisterExchangeRequest::byexchangename(exchangename), handler)
             .await;
 
         println!("RegisterExchange response: {:?}", response);
@@ -1517,9 +1523,9 @@ mod tests {
         let pingserver = client
             .register_queue(RegisterQueueRequest::byqueuename("pingserver"), {
                 let client = client.clone(); // Clone the Arc to move into the closure
-                Box::new(move |_client, event| {
+                Arc::new(move |_client, event| {
                     let client = client.clone(); // Clone here to move it into the spawn block
-                    tokio::task::spawn(async move {
+                    Box::pin(async move {
                         client
                             .queue_message(QueueMessageRequest {
                                 queuename: event.replyto.clone(),
@@ -1529,8 +1535,8 @@ mod tests {
                             })
                             .await
                             .unwrap();
-                    });
-                    None
+                        None
+                    })
                 })
             })
             .await
@@ -1579,12 +1585,12 @@ mod tests {
         let workflow_consumer = client
             .register_queue(RegisterQueueRequest::byqueuename("workflow_consumer"), {
                 let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
-                Box::new(move |_client, event| {
+                std::sync::Arc::new(move |_client, event| {
                     println!("Workflow event: {:?}", event);
                     if let Some(tx) = tx.lock().unwrap().take() {
                         let _ = tx.send(());
                     }
-                    None
+                    Box::pin(async { None })
                 })
             })
             .await

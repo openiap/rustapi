@@ -4,5 +4,13 @@
   "java.project.referencedLibraries": [
   ],
   "java.project.sourcePaths": [
-  ]
+  ],
+  // "terminal.integrated.env.linux": {
+  //   "PATH": "${env:PATH}"
+  // },
+  // "dotnetAcquisitionExtension.sharedExistingDotnetPath": "${env:HOME}/.dotnet6/dotnet",
+  // "dotnetAcquisitionExtension.allowInvalidPaths": true,
+
+  // "omnisharp.useModernNet": true,
+  // "omnisharp.dotnetPath": "/home/allan/.dotnet6/dotnet"
 }
