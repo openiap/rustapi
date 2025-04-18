@@ -675,6 +675,7 @@ function loadLibrary() {
         lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
 
         lib.set_agent_name = lib.func('client_set_agent_name', 'void', [ClientWrapperPtr, 'str']);
+        lib.client_set_default_timeout = lib.func('client_set_default_timeout', 'void', [ClientWrapperPtr, 'int']);
         lib.set_agent_version = lib.func('client_set_agent_version', 'void', [ClientWrapperPtr, 'str']);
 
         lib.disable_tracing = lib.func('void disable_tracing()');
@@ -719,10 +720,9 @@ function loadLibrary() {
         lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, 'int', koffi.pointer(lib.drop_indexCallback)]);
         lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
 
-
-        lib.custom_command = lib.func('custom_command', CustomCommandResponseWrapperPtr, [ClientWrapperPtr, CustomCommandRequestWrapperPtr]);
+        lib.custom_command = lib.func('custom_command', CustomCommandResponseWrapperPtr, [ClientWrapperPtr, CustomCommandRequestWrapperPtr, 'int']);
         lib.custom_commandCallback = koffi.proto('void CustomCommandCallback(CustomCommandResponseWrapper*)');
-        lib.custom_command_async = lib.func('custom_command_async', 'void', [ClientWrapperPtr, CustomCommandRequestWrapperPtr, koffi.pointer(lib.custom_commandCallback)]);
+        lib.custom_command_async = lib.func('custom_command_async', 'void', [ClientWrapperPtr, CustomCommandRequestWrapperPtr, koffi.pointer(lib.custom_commandCallback), 'int']);
         lib.free_custom_command_response = lib.func('free_custom_command_response', 'void', [CustomCommandResponseWrapperPtr]);
 
         lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
@@ -807,9 +807,9 @@ function loadLibrary() {
         lib.free_register_queue_response = lib.func('free_register_queue_response', 'void', [RegisterQueueResponseWrapperPtr]);
         lib.register_exchange = lib.func('register_exchange', RegisterExchangeResponseWrapperPtr, [ClientWrapperPtr, RegisterExchangeRequestWrapperPtr]);
         lib.free_register_exchange_response = lib.func('free_register_exchange_response', 'void', [RegisterExchangeResponseWrapperPtr]);
-        lib.rpc = lib.func('rpc', RpcResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
+        lib.rpc = lib.func('rpc', RpcResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr, 'int']);
         lib.rpcCallback = koffi.proto('void rpcCallback(RpcResponseWrapper*)');
-        lib.rpc_async = lib.func('rpc_async', 'void', [ClientWrapperPtr, QueueMessageRequestWrapperPtr, koffi.pointer(lib.rpcCallback)]);
+        lib.rpc_async = lib.func('rpc_async', 'void', [ClientWrapperPtr, QueueMessageRequestWrapperPtr, koffi.pointer(lib.rpcCallback), 'int']);
         lib.free_rpc_response = lib.func('free_rpc_response', 'void', [RpcResponseWrapperPtr]);
         lib.next_queue_event = lib.func('next_queue_event', QueueEventPtr, [CString]);
         lib.free_queue_event = lib.func('free_queue_event', 'void', [QueueEventPtr]);
@@ -924,6 +924,10 @@ class Client {
     set_agent_name(name) {
         this.trace('set_agent_name invoked', name);
         this.lib.set_agent_name(this.client, name);
+    }
+    set_default_timeout(timeout) {
+        this.trace('set_default_timeout invoked', timeout);
+        this.lib.client_set_default_timeout(this.client, timeout);
     }
     set_agent_version(version) {
         this.trace('set_agent_version invoked', version);
@@ -1285,7 +1289,7 @@ class Client {
         });
     }
 
-    custom_command({ command, id = "", name = "", data = {}}) {
+    custom_command({ command, id = "", name = "", data = {}, timeout = -1}) {
         this.trace('custom_command invoked');
         const req = {
             command: command,
@@ -1294,7 +1298,7 @@ class Client {
             data: this.stringify(data)
         };
         this.trace('call custom_command');
-        const response = this.lib.custom_command(this.client, req);
+        const response = this.lib.custom_command(this.client, req, timeout);
         this.trace('decode response');
         const result = koffi.decode(response, CustomCommandResponseWrapper);
         this.trace('free_custom_command_response');
@@ -1309,7 +1313,7 @@ class Client {
         }
         return result.result;
     }
-    custom_command_async({ command, id = "", name = "", data = {}}) {
+    custom_command_async({ command, id = "", name = "", data = {}, timeout = -1}) {
         this.trace('custom_command invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -1337,7 +1341,7 @@ class Client {
             };
             const cb = koffi.register(callback, koffi.pointer(this.lib.custom_commandCallback));
             this.trace('call custom_command_async');
-            this.lib.custom_command_async(this.client, req, cb, (err) => {
+            this.lib.custom_command_async(this.client, req, cb, timeout, (err) => {
                 if (err) {
                     reject(new ClientError('Custom command failed'));
                 }
@@ -2974,7 +2978,7 @@ class Client {
         }
         return result.queuename;
     }
-    rpc({ queuename, data = {}, striptoken = false }) {
+    rpc({ queuename, data = {}, striptoken = false, timeout = -1 }) {
         this.trace('rpc invoked');
         const req = {
             queuename: queuename,
@@ -2982,7 +2986,7 @@ class Client {
             data: this.stringify(data)
         };
         this.trace('call rpc');
-        const response = this.lib.rpc(this.client, req);
+        const response = this.lib.rpc(this.client, req, timeout);
         this.trace('decode response');
         const result = koffi.decode(response, RpcResponseWrapper);
         this.trace('free_rpc_response');
@@ -2998,7 +3002,7 @@ class Client {
         }
         return payload;
     }
-    rpc_async({ queuename, data = {}, striptoken = true }) {
+    rpc_async({ queuename, data = {}, striptoken = true, timeout = -1 }) {
         this.trace('rpc_async invoked');
         return new Promise((resolve, reject) => {
             const req = {
@@ -3028,7 +3032,7 @@ class Client {
 
             const cb = koffi.register(callback, koffi.pointer(this.lib.rpcCallback));
             this.trace('call rpc_async');
-            this.lib.rpc_async(this.client, req, cb, (err) => {
+            this.lib.rpc_async(this.client, req, cb, timeout, (err) => {
                 if (err) {
                     reject(new ClientError('Rpc async failed'));
                 }

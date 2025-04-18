@@ -86,17 +86,19 @@ export class Client {
     }): any;
     drop_index(collectionname: any, indexname: any): void;
     drop_index_async(collectionname: any, indexname: any): any;
-    custom_command({ command, id, name, data }: {
+    custom_command({ command, id, name, data, timeout }: {
         command: any;
         id?: string;
         name?: string;
         data?: {};
+        timeout?: number;
     }): any;
-    custom_command_async({ command, id, name, data }: {
+    custom_command_async({ command, id, name, data, timeout }: {
         command: any;
         id?: string;
         name?: string;
         data?: {};
+        timeout?: number;
     }): any;
     query({ collectionname, query, projection, orderby, skip, top, queryas, explain }: {
         collectionname: any;
@@ -502,15 +504,17 @@ export class Client {
          */
         data: any;
     }) => void | Promise<void>): string;
-    rpc({ queuename, data, striptoken }: {
+    rpc({ queuename, data, striptoken, timeout }: {
         queuename: any;
         data?: {};
         striptoken?: boolean;
+        timeout?: number;
     }): any;
-    rpc_async({ queuename, data, striptoken }: {
+    rpc_async({ queuename, data, striptoken, timeout }: {
         queuename: any;
         data?: {};
         striptoken?: boolean;
+        timeout?: number;
     }): any;
     unregister_queue(queuename: any): void;
     queue_message({ queuename, data, replyto, exchangename, correlation_id, routingkey, striptoken, expiration }: {

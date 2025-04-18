@@ -936,6 +936,8 @@ namespace OpenIAP
 
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void client_set_agent_name(IntPtr client, string agentname);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void client_set_default_timeout(IntPtr client, int timeout);
         public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void connect_async(IntPtr client, string url, int request_id, ConnectCallback callback);

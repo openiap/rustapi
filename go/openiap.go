@@ -42,6 +42,10 @@ func (c *Client) SetAgentName(name string) {
 	defer C.free(unsafe.Pointer(cName))
 	C.client_set_agent_name((*C.struct_ClientWrapper)(c.ptr), cName)
 }
+// SetDefaultTimeout sets the agent's default timeout for all server commands
+func (c *Client) SetDefaultTimeout(timeout int) {
+	C.client_set_default_timeout((*C.struct_ClientWrapper)(c.ptr), timeout)
+}
 
 // EnableTracing enables tracing for debugging
 func EnableTracing(rustLog, tracing string) {

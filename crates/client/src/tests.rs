@@ -1010,7 +1010,7 @@ mod tests {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
-            .custom_command(CustomCommandRequest::bycommand("getclients"))
+            .custom_command(CustomCommandRequest::bycommand("getclients"), None)
             .await;
         println!("CustomCommand response: {:?}", response);
 
@@ -1547,7 +1547,7 @@ mod tests {
                 data: "{\"command\": \"ping\"}".to_string(),
                 striptoken: true,
                 ..Default::default()
-            })
+            }, tokio::time::Duration::from_secs(5) )
             .await
             .unwrap();
         println!("RPC response: {:?}", response);

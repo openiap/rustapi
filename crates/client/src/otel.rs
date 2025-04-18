@@ -506,12 +506,12 @@ static METRICS_CONTEXT: Lazy<std::sync::Mutex<Option<MetricsContext>>> = Lazy::n
 /// Initialize telemetry
 #[allow(unused_variables)]
 #[tracing::instrument(skip_all, target = "otel::init_telemetry")]
-pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
+pub fn init_telemetry(service_name: &str, agent_name: &str, agent_version: &str, version: &str, apihostname: &str, 
     metric_url: &str, trace_url: &str, log_url: &str, 
     stats: &Arc<std::sync::Mutex<ClientStatistics>>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let enable_analytics = std::env::var("enable_analytics").unwrap_or("".to_string());
     let enable_analytics: bool = !enable_analytics.eq_ignore_ascii_case("false");
-    let resource = Resource::builder().with_service_name("rust")
+    let resource = Resource::builder().with_service_name(service_name.to_string())
         .with_attribute(KeyValue::new("service.version", version.to_string() ))
         .with_attribute(KeyValue::new("agent.name", agent_name.to_string() ))
         .with_attribute(KeyValue::new("agent.version", agent_version.to_string() ))
@@ -569,7 +569,7 @@ pub fn init_telemetry(agent_name: &str, agent_version: &str, version: &str, apih
     if !log_url.is_empty() {
         #[cfg(not(test))]
         {   
-            crate::set_otel_url(log_url, trace_url, &ofid, version, agent_name, agent_version);
+            crate::set_otel_url(log_url, trace_url, &ofid, version, service_name, agent_name, agent_version);
         }
         debug!("added {} for logging observability", log_url);
     }

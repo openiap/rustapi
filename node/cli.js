@@ -30,6 +30,7 @@ function onwatch(event) {
 function onqueue(event) {
     const { queuename, correlation_id, replyto, routingkey, exchangename, data } = event;
     client.info(`Received message from ${queuename}: `, JSON.stringify(data));
+    return {"message": "Hi from nodejs"}
 }
 
 // Do some calculation to generate CPU load
@@ -368,11 +369,12 @@ async function doit() {
                         const response = await client.rpc_async({
                             queuename: "test2queue",
                             striptoken: true,
-                            data: "{\"message\":\"Test message\"}"
+                            data: "{\"message\":\"Test message\"}",
+                            timeout: 5
                         }, onqueue);
                         client.info(`Receved reply ${JSON.stringify(response)}`);
                     } catch (e) {
-                        client.error("Failed to register queue:", e.message);
+                        client.error("RPC test failed:", e.message);
                     }
                     break;
                 case "m":

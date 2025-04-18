@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.30";
+const VERSION: &str = "0.0.31";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -93,6 +93,7 @@ pub struct Client {
     pub password: Arc<std::sync::Mutex<String>>,
     /// JWT token used to connect to server
     pub jwt: Arc<std::sync::Mutex<String>>,
+    service_name: Arc<std::sync::Mutex<String>>,
     agent_name: Arc<std::sync::Mutex<String>>,
     agent_version: Arc<std::sync::Mutex<String>>,
     event_sender: async_channel::Sender<ClientEvent>,
@@ -105,7 +106,8 @@ pub struct Client {
     pub msgcount: Arc<std::sync::Mutex<i32>>,
     /// Reconnect interval in milliseconds, this will slowly increase if we keep getting disconnected.
     pub reconnect_ms: Arc<std::sync::Mutex<i32>>,
-    
+    /// The default timeout for requests
+    pub default_timeout: Arc<std::sync::Mutex<tokio::time::Duration>>,
 }
 /// The `ClientStatistics` struct provides the statistics for usage of the client
 #[derive(Clone, Default)]
@@ -316,6 +318,7 @@ impl Client {
             username: Arc::new(std::sync::Mutex::new("".to_string())),
             password: Arc::new(std::sync::Mutex::new("".to_string())),
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
+            service_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
             agent_version: Arc::new(std::sync::Mutex::new(VERSION.to_string())),
             event_sender: ces,
@@ -323,6 +326,7 @@ impl Client {
             out_envelope_sender: out_es,
             out_envelope_receiver: out_er,
             state: Arc::new(std::sync::Mutex::new(ClientState::Disconnected)),
+            default_timeout: Arc::new(std::sync::Mutex::new(Duration::from_secs(30))),
         }
     }
     /// Connect the client to the OpenIAP server.
@@ -434,9 +438,10 @@ impl Client {
         }
         #[cfg(feature = "otel")]
         if _enable_analytics {
+            let service_name = self.get_service_name();
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), 
+            match otel::init_telemetry(&service_name, &agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), 
             _otel_trace_url.as_str(),  _otel_log_url.as_str(), 
             &self.stats) {
                 Ok(_) => (),
@@ -1006,7 +1011,17 @@ impl Client {
         let msgcount = self.msgcount.lock().unwrap();
         *msgcount
     }
-
+    /// Set the default timeout for the client commands
+    pub fn set_default_timeout(&self, timeout: Duration) {
+        let mut current = self.default_timeout.lock().unwrap();
+        trace!("Set default_timeout: {} from {:?}", timeout.as_secs(), current.as_secs());
+        *current = timeout;
+    }
+    /// Return the default timeout for the client commands
+    pub fn get_default_timeout(&self) -> Duration {
+        let current = self.default_timeout.lock().unwrap();
+        current.clone()
+    }
     /// Set the connect_called flag to true or false
     #[tracing::instrument(skip_all)]
     pub fn set_connect_called(&self, connect_called: bool) {
@@ -1085,7 +1100,21 @@ impl Client {
         let jwt = self.jwt.lock().unwrap();
         jwt.to_string()
     }
-    /// Set the agent flag to true or false
+    
+    /// Set the service name
+    #[tracing::instrument(skip_all)]
+    pub fn set_service_name(&self, service_name: &str) {
+        let mut current = self.service_name.lock().unwrap();
+        trace!("Set servicename: {} from {}", service_name, *current);
+        *current = service_name.to_string();
+    }
+    /// Return value of the service name string
+    #[tracing::instrument(skip_all)]
+    pub fn get_service_name(&self) -> String {
+        let servicename = self.service_name.lock().unwrap();
+        servicename.to_string()
+    }
+    /// Set the agent name
     #[tracing::instrument(skip_all)]
     pub fn set_agent_name(&self, agent: &str) {
         let mut current = self.agent_name.lock().unwrap();
@@ -1206,22 +1235,36 @@ impl Client {
     }
     /// Internal function, Send a message to the OpenIAP server, and wait for a response.
     #[tracing::instrument(skip_all)]
-    async fn send(&self, msg: Envelope) -> Result<Envelope, OpenIAPError> {
+    async fn send(&self, msg: Envelope, timeout: Option<tokio::time::Duration>) -> Result<Envelope, OpenIAPError> {
         let response = self.send_noawait(msg).await;
         match response {
             Ok((response_rx, id)) => {
-                // Await the response
-                let response = response_rx.await;
-    
+                let timeout = match timeout {
+                    Some(t) => t,
+                    None => self.get_default_timeout()
+                };
+                let result = tokio::time::timeout(timeout, response_rx).await;
                 // Remove the entry from `inner.queries` after awaiting
                 let inner = self.inner.lock().await;
                 inner.queries.lock().await.remove(&id);
-    
-                // Handle the result of the await
-                match response {
-                    Ok(response) => Ok(response),
-                    Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
+
+                match result {
+                    Ok(Ok(response)) => Ok(response),
+                    Ok(Err(e)) => Err(OpenIAPError::CustomError(e.to_string())),
+                    Err(_) => Err(OpenIAPError::ClientError("Request timed out".to_string())),
                 }
+                // // Await the response
+                // let response = response_rx.await;
+    
+                // // Remove the entry from `inner.queries` after awaiting
+                // let inner = self.inner.lock().await;
+                // inner.queries.lock().await.remove(&id);
+    
+                // // Handle the result of the await
+                // match response {
+                //     Ok(response) => Ok(response),
+                //     Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
+                // }
             }
             Err(e) => Err(OpenIAPError::CustomError(e.to_string())),
         }
@@ -1419,7 +1462,7 @@ impl Client {
                             ..Default::default()
                         };
                         let e = q.to_envelope();
-                        let send_result = me.send(e).await;
+                        let send_result = me.send(e, None).await;
                         if let Err(e) = send_result {
                             error!("Failed to send queue event response: {}", e);
                         }
@@ -1449,7 +1492,7 @@ impl Client {
             command: "getelement".into(),
             ..Default::default()
         };
-        let result = match self.send(envelope).await {
+        let result = match self.send(envelope, None).await {
             Ok(res) => res,
             Err(e) => {
                 return Err(e);
@@ -1530,7 +1573,7 @@ impl Client {
 
         // trace!("Attempting sign-in using {:?}", config);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
 
         match &result {
             Ok(m) => {
@@ -1568,7 +1611,7 @@ impl Client {
     pub async fn list_collections(&self, includehist: bool) -> Result<String, OpenIAPError> {
         let config = ListCollectionsRequest::new(includehist);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1651,7 +1694,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1680,7 +1723,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1719,7 +1762,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1792,7 +1835,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1825,7 +1868,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1888,7 +1931,7 @@ impl Client {
         }
 
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -1945,7 +1988,7 @@ impl Client {
         }
         config.top = 1;
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2090,7 +2133,7 @@ impl Client {
             return Err(OpenIAPError::ClientError("No id provided".to_string()));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2150,7 +2193,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2181,7 +2224,7 @@ impl Client {
             config.query = "{}".to_string();
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2218,7 +2261,7 @@ impl Client {
             return Err(OpenIAPError::ClientError("No field provided".to_string()));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2246,7 +2289,7 @@ impl Client {
         config: InsertOneRequest,
     ) -> Result<InsertOneResponse, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2274,7 +2317,7 @@ impl Client {
         config: InsertManyRequest,
     ) -> Result<InsertManyResponse, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2302,7 +2345,7 @@ impl Client {
         config: UpdateOneRequest,
     ) -> Result<UpdateOneResponse, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2330,7 +2373,7 @@ impl Client {
         config: InsertOrUpdateOneRequest,
     ) -> Result<String, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2359,7 +2402,7 @@ impl Client {
         config: InsertOrUpdateManyRequest,
     ) -> Result<InsertOrUpdateManyResponse, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2388,7 +2431,7 @@ impl Client {
         config: UpdateDocumentRequest,
     ) -> Result<UpdateDocumentResponse, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2413,7 +2456,7 @@ impl Client {
     #[tracing::instrument(skip_all)]
     pub async fn delete_one(&self, config: DeleteOneRequest) -> Result<i32, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2438,7 +2481,7 @@ impl Client {
     #[tracing::instrument(skip_all)]
     pub async fn delete_many(&self, config: DeleteManyRequest) -> Result<i32, OpenIAPError> {
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2702,7 +2745,7 @@ impl Client {
         }
 
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2736,7 +2779,7 @@ impl Client {
     pub async fn unwatch(&self, id: &str) -> Result<(), OpenIAPError> {
         let config = UnWatchRequest::byid(id);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2767,7 +2810,7 @@ impl Client {
         }
 
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2802,7 +2845,7 @@ impl Client {
     pub async fn unregister_queue(&self, queuename: &str) -> Result<(), OpenIAPError> {
         let config = UnRegisterQueueRequest::byqueuename(queuename);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2837,7 +2880,7 @@ impl Client {
             config.algorithm = "fanout".to_string();
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2879,7 +2922,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -2902,7 +2945,7 @@ impl Client {
     }
     /// Send message to a queue or exchange in the OpenIAP service, and wait for a reply
     #[tracing::instrument(skip_all)]
-    pub async fn rpc(&self, mut config: QueueMessageRequest) -> Result<String, OpenIAPError> {
+    pub async fn rpc(&self, mut config: QueueMessageRequest, timeout: tokio::time::Duration) -> Result<String, OpenIAPError> {
         if config.queuename.is_empty() && config.exchangename.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No queue or exchange name provided".to_string(),
@@ -2918,8 +2961,11 @@ impl Client {
                     queuename: "".to_string(),
                 },
                 Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
-                    let tx = tx.lock().unwrap().take().unwrap();
-                    tx.send(event.data).unwrap();
+                    if let Some(tx) = tx.lock().unwrap().take() {
+                        let _ = tx.send(event.data);
+                    } else {
+                        debug!("Queue already closed");
+                    }
                     Box::pin(async { None })
                 }),
             )
@@ -2929,8 +2975,8 @@ impl Client {
         config.replyto = q.clone();
         let envelope = config.to_envelope();
 
-        let result = self.send(envelope).await;
-        match result {
+        let result = self.send(envelope, None).await;
+        let rpc_result = match result {
             Ok(m) => {
                 let data = match m.data {
                     Some(d) => d,
@@ -2943,24 +2989,30 @@ impl Client {
                         .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
                     return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
                 }
-                // prost::Message::decode(data.value.as_ref())
-                //     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
-                let response = rx.await.unwrap();
-
-                let ur_response = self.unregister_queue(&q).await;
-                match ur_response {
-                    Ok(_) => {
-                        debug!("Unregistered Response Queue: {:?}", q);
-                    }
-                    Err(e) => {
-                        error!("Failed to unregister Response Queue: {:?}", e);
-                    }
+                match tokio::time::timeout(timeout, rx).await {
+                    Ok(Ok(val)) => Ok(val),
+                    Ok(Err(e)) => Err(OpenIAPError::CustomError(e.to_string())),
+                    Err(_) => Err(OpenIAPError::ClientError("RPC request timed out".to_string())),
                 }
-
-                Ok(response)
             }
-            Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
+            Err(e) => {
+                let unregister_err = self.unregister_queue(&q).await.err();
+                if unregister_err.is_some() {
+                    error!("Failed to unregister Response Queue: {:?}", unregister_err);
+                }
+                Err(OpenIAPError::ClientError(e.to_string()))
+            }
+        };
+
+        if let Err(e) = self.unregister_queue(&q).await {
+            error!("Failed to unregister Response Queue: {:?}", e);
+        } else {
+            debug!("Unregistered Response Queue: {:?}", q);
+        }
+        match rpc_result {
+            Ok(val) => Ok(val),
+            Err(e) => Err(e),
         }
     }
     /// Push a new workitem to a workitem queue
@@ -3029,7 +3081,7 @@ impl Client {
             }
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3119,7 +3171,7 @@ impl Client {
             }
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3155,7 +3207,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3258,7 +3310,7 @@ impl Client {
             }
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3291,7 +3343,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3324,7 +3376,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3365,7 +3417,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3406,7 +3458,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3430,12 +3482,13 @@ impl Client {
     pub async fn custom_command(
         &self,
         config: CustomCommandRequest,
+        timeout: Option<tokio::time::Duration>,
     ) -> Result<String, OpenIAPError> {
         if config.command.is_empty() {
             return Err(OpenIAPError::ClientError("No command provided".to_string()));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, timeout).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3462,7 +3515,7 @@ impl Client {
     pub async fn delete_package(&self, packageid: &str) -> Result<(), OpenIAPError> {
         let config = DeletePackageRequest::byid(packageid);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3488,7 +3541,7 @@ impl Client {
     pub async fn start_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
         let config = StartAgentRequest::byid(agentid);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3514,7 +3567,7 @@ impl Client {
     pub async fn stop_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
         let config = StopAgentRequest::byid(agentid);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3540,7 +3593,7 @@ impl Client {
     pub async fn delete_agent_pod(&self, agentid: &str, podname: &str) -> Result<(), OpenIAPError> {
         let config = DeleteAgentPodRequest::byid(agentid, podname);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3566,7 +3619,7 @@ impl Client {
     pub async fn delete_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
         let config = DeleteAgentRequest::byid(agentid);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3592,7 +3645,7 @@ impl Client {
     pub async fn get_agent_pods(&self, agentid: &str, stats: bool) -> Result<String, OpenIAPError> {
         let config = GetAgentPodsRequest::byid(agentid, stats);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3622,7 +3675,7 @@ impl Client {
     ) -> Result<String, OpenIAPError> {
         let config = GetAgentLogRequest::new(agentid, podname);
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3657,7 +3710,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3690,7 +3743,7 @@ impl Client {
             ));
         }
         let envelope = config.to_envelope();
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3787,7 +3840,7 @@ impl Client {
 
         let envelope = config.to_envelope();
 
-        let result = self.send(envelope).await;
+        let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
                 let data = match m.data {

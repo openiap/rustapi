@@ -469,6 +469,7 @@ pub struct CustomCommandResponseWrapper {
 pub extern "C" fn custom_command(
     client: *mut ClientWrapper,
     options: *mut CustomCommandRequestWrapper,
+    timeout: i32
 ) -> *mut CustomCommandResponseWrapper {
     let options = match safe_wrapper(options) {
         Some(options) => options,
@@ -517,9 +518,13 @@ pub extern "C" fn custom_command(
 
     let client = client_wrapper.client.clone().unwrap();
 
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.custom_command(request))
+        handle.block_on(client.custom_command(request, Some(_timeout)))
     });
 
     Box::into_raw(Box::new(match result {
@@ -552,6 +557,7 @@ pub extern "C" fn custom_command_async(
     client: *mut ClientWrapper,
     options: *mut CustomCommandRequestWrapper,
     callback: CustomCommandCallback,
+    timeout: i32
 ) {
     let options = match safe_wrapper(options) {
         Some(options) => options,
@@ -605,8 +611,13 @@ pub extern "C" fn custom_command_async(
     let handle = client.get_runtime_handle();
     let _guard = handle.enter();
 
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
+
     handle.spawn(async move {
-        let result = client.custom_command(request).await;
+        let result = client.custom_command(request, Some(_timeout)).await;
 
         let response = match result {
             Ok(data) => {
@@ -768,6 +779,21 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
         trace!("Client::Calling callback with result");
         callback(wrapper);
     });
+}
+#[no_mangle]
+pub extern "C" fn client_set_default_timeout(client_wrap: *mut ClientWrapper, timeout: i32) {
+    debug!("set_default_timeout = {:?}", timeout);
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
+    client.set_default_timeout(_timeout);
 }
 #[no_mangle]
 pub extern "C" fn client_set_agent_name(client_wrap: *mut ClientWrapper, agent_name: *const c_char) {
@@ -7293,6 +7319,7 @@ pub struct RpcResponseWrapper {
 pub extern "C" fn rpc(
     client: *mut ClientWrapper,
     options: *mut QueueMessageRequestWrapper,
+    timeout: i32
 ) -> *mut RpcResponseWrapper {
     let options = match safe_wrapper(options) {
         Some(options) => options,
@@ -7334,6 +7361,11 @@ pub extern "C" fn rpc(
     }
     let client = client.unwrap();
     
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
+
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
         let request = QueueMessageRequest {
@@ -7346,8 +7378,7 @@ pub extern "C" fn rpc(
             striptoken: options.striptoken,
             expiration: options.expiration,
         };
-    
-        handle.block_on(client.rpc(request))
+        handle.block_on(client.rpc(request, _timeout))
     });
 
     match result {
@@ -7384,6 +7415,7 @@ pub extern "C" fn rpc_async(
     client: *mut ClientWrapper,
     options: *mut QueueMessageRequestWrapper,
     response_callback: RpcResponseCallback,
+    timeout: i32,
 ) {
     // Validate the options pointer
     let options = match safe_wrapper(options) {
@@ -7450,10 +7482,15 @@ pub extern "C" fn rpc_async(
 
     let request_id = options.request_id;
 
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
+
     // Spawn an asynchronous task using the runtime.
     runtime_handle.spawn(async move {
         // Await the RPC call.
-        let result = client.rpc(request).await;
+        let result = client.rpc(request, _timeout).await;
 
         // Build the response wrapper.
         let response = match result {

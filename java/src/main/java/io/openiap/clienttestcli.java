@@ -25,7 +25,7 @@ public class clienttestcli {
     private static ScheduledExecutorService i64Handler = null;
 
     public static void main(String[] args) {
-        System.out.println("CLI initializing...");
+        // System.out.println("CLI initializing...");
         String libpath = NativeLoader.loadLibrary("openiap");
         client = new Client(libpath);
         scanner = new Scanner(System.in);
@@ -183,13 +183,14 @@ public class clienttestcli {
                     .queuename("test2queue")
                     .striptoken(true)
                     .message("{\"find\":\"Allan\"}")
-                    .build()                
+                    .build(),
+                    1
                 );
                 System.out.println("RPC message sent: " + result);
             } catch (Exception e) {
                 System.out.println("RPCMessage error: " + e.getMessage());
             }
-        });
+        }).start();
     }
     private static void handleRPCASyncMessage() {
         // sparn thread to handle the reply
@@ -200,7 +201,8 @@ public class clienttestcli {
                     .queuename("test2queue")
                     .striptoken(true)
                     .message("{\"find\":\"Allan\"}")
-                    .build()
+                    .build(),
+                    10
                 );
                 System.out.println("RPC message sent: " + result);
             } catch (Exception e) {
@@ -610,7 +612,8 @@ public class clienttestcli {
             String result = client.customCommand(
                 new CustomCommandParameters.Builder()
                     .command("getclients")
-                    .build()
+                    .build(),
+                    10
             );
             System.out.println("CustomCommand result: " + result);
             // Optionally, parse JSON and print details if needed

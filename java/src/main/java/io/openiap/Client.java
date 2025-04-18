@@ -24,6 +24,7 @@ interface CLib extends Library {
     Pointer create_client();
     Pointer client_connect(Pointer client, String serverUrl);
     void client_set_agent_name(Pointer client, String agentName);
+    void client_set_default_timeout(Pointer client, int timeout);
     void free_connect_response(Pointer response);
     void client_disconnect(Pointer client);
     void free_client(Pointer client);
@@ -104,10 +105,10 @@ interface CLib extends Library {
     void free_update_workitem_response(Pointer response);
     Pointer delete_workitem(Pointer client, DeleteWorkitem options);
     void free_delete_workitem_response(Pointer response);
-    Pointer rpc(Pointer client, QueueMessageParameters options);
+    Pointer rpc(Pointer client, QueueMessageParameters options, int timeout);
     void free_rpc_response(Pointer response);
-    void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback);
-    Pointer custom_command(Pointer client, CustomCommandParameters options);
+    void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback, int timeout);
+    Pointer custom_command(Pointer client, CustomCommandParameters options, int timeout);
     void free_custom_command_response(Pointer response);
 }
 
@@ -150,7 +151,12 @@ public class Client implements AutoCloseable {
         }
         clibInstance.client_set_agent_name(clientPtr, agentName);
     }
-
+    public void SetDefaultTimeout(int timeout) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        clibInstance.client_set_default_timeout(clientPtr, timeout);
+    }
     public void connect(String serverUrl) {
         setAgentName("java");
         if (clientPtr == null) {
@@ -1104,11 +1110,11 @@ public class Client implements AutoCloseable {
             clibInstance.free_off_event_response(responsePtr);
         }
     }
-    public String rpc(QueueMessageParameters options) {
+    public String rpc(QueueMessageParameters options, int timeout) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
-        Pointer responsePtr = clibInstance.rpc(clientPtr, options);
+        Pointer responsePtr = clibInstance.rpc(clientPtr, options, timeout);
         if (responsePtr == null) {
             throw new RuntimeException("Rpc returned null response");
         }
@@ -1124,7 +1130,7 @@ public class Client implements AutoCloseable {
         }
     }
 
-    public String rpcAsync(QueueMessageParameters options) {
+    public String rpcAsync(QueueMessageParameters options, int timeout) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
@@ -1150,7 +1156,7 @@ public class Client implements AutoCloseable {
             }
         };
 
-        clibInstance.rpc_async(clientPtr, options, nativeResponseCallback);
+        clibInstance.rpc_async(clientPtr, options, nativeResponseCallback,timeout);
 
         try {
             latch.await(10, TimeUnit.SECONDS); // Wait for the result or timeout
@@ -1166,11 +1172,11 @@ public class Client implements AutoCloseable {
         return resultHolder[0];
     }
 
-    public String customCommand(CustomCommandParameters options) {
+    public String customCommand(CustomCommandParameters options, int timeout) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
-        Pointer responsePtr = clibInstance.custom_command(clientPtr, options);
+        Pointer responsePtr = clibInstance.custom_command(clientPtr, options, timeout);
         if (responsePtr == null) {
             throw new RuntimeException("custom_command returned null response");
         }

@@ -471,7 +471,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                         "test2queue",
                                         "{\"name\":\"Allan\"}",
                                         true,
-                                    ))
+                                    ), 
+                                    tokio::time::Duration::from_secs(1)
+                                )
                                     .await;
                                 match result {
                                     Ok(response) => println!("Received RPC response {:?}", response),
@@ -744,7 +746,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         "test2queue",
                         "{\"name\":\"Allan\"}",
                         true,
-                    ))
+                    ), tokio::time::Duration::from_secs(1))
                     .await;
                 match result {
                     Ok(response) => println!("Received RPC response {:?}", response),
@@ -871,7 +873,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         data: "".to_string(),
                         id: "".to_string(),
                         name: "".to_string(),
-                    })
+                    }, None)
                     .await;
                 match q {
                     Ok(response) => println!("Result: {:?}", response),

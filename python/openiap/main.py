@@ -1911,7 +1911,7 @@ class Client:
         else:
             raise ClientError('Unwatch failed or unwatch is null')
 
-    def rpc_async(self, data, queuename="", exchangename="", routingkey="", replyto="", correlation_id="", striptoken=False, expiration=0):
+    def rpc_async(self, data, queuename="", exchangename="", routingkey="", replyto="", correlation_id="", striptoken=False, expiration=0, timeout=-1):
         self.trace("Inside rpc_async")
         event = threading.Event()
         result = {"success": None, "result": None, "error": None}
@@ -1948,7 +1948,7 @@ class Client:
         )
         
         self.trace("Calling rpc_async")
-        self.lib.rpc_async(self.client, byref(req), cb)
+        self.lib.rpc_async(self.client, byref(req), cb, timeout)
         self.trace("rpc_async called")
 
         event.wait()
@@ -1961,7 +1961,7 @@ class Client:
         except json.JSONDecodeError:
             return result["result"]  # Return raw string if not valid JSON
 
-    def custom_command(self, command, id=None, name=None, data=None):
+    def custom_command(self, command, id=None, name=None, data=None, timeout=-1):
         self.trace("Inside custom_command")
         # Set up argtypes/restype if not already set
         self.lib.custom_command.argtypes = [c_void_p, POINTER(CustomCommandRequestWrapper)]
@@ -1972,7 +1972,7 @@ class Client:
         req.name = c_char_p(name.encode('utf-8')) if name else None
         req.data = c_char_p(data.encode('utf-8')) if data else None
         req.request_id = 0
-        ref = self.lib.custom_command(self.client, byref(req))
+        ref = self.lib.custom_command(self.client, byref(req), timeout)
         response = ref.contents
         if not response.success:
             error_message = response.error.decode('utf-8') if response.error else 'Unknown error'

@@ -242,11 +242,10 @@ async def main():
                 print(f"Failed to register queue: {e}")
         elif input_command == "r2":
             try:
-                result = client.rpc_async('{"some": "data"}', queuename="test2queue", striptoken=True)
-                print(result)  # Prints the RPC response
-                result = client.rpc_async({"cmd": "getpackages"}, queuename="test2queue", striptoken=True)
-                print(result)  # Prints the RPC response
-                
+                result = client.rpc_async('{"some": "data"}', queuename="test2queue", striptoken=True,timeout=2)
+                print(f"RPC REPLY1: {result}")
+                result = client.rpc_async({"cmd": "getpackages"}, queuename="test2queue", striptoken=True,timeout=2)
+                print(f"RPC REPLY2: {result}")
             except ClientError as e:
                 print(f"Failed to to RPC call: {e}")
         elif input_command == "m":
@@ -254,7 +253,7 @@ async def main():
                 client.queue_message( data="{\"message\": \"Hello, World as string!\"}", queuename="test2queue", striptoken=True)
                 client.queue_message( data={"message": "Hello, World as object!"}, queuename="test2queue", striptoken=True)
             except ClientError as e:
-                print(f"Failed to register queue: {e}")
+                print(f"Failed to send message: {e}")
         elif input_command == "w":
             try:
                 watch_id = client.watch(collectionname="entities", callback=on_watch)

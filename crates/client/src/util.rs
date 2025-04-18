@@ -150,6 +150,7 @@ struct PendingOtelConfig {
     filter: String,
     ofid: String,
     version: String, 
+    service_name: String,
     agent_name: String, 
     agent_version: String
 }
@@ -247,7 +248,7 @@ pub fn disable_tracing() {
     #[cfg(feature="otel")]
     {
         // bridging = none
-        update_otel_state("", "none", "", "", "", "");
+        update_otel_state("", "none", "", "", "rust", "", "");
     }
 }
 
@@ -269,7 +270,7 @@ pub fn update_console_filter(new_filter: &str) {
 
 /// Set the OTel endpoint URL for bridging
 #[cfg(feature="otel")]
-pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) {
+pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, service_name: &str, agent_name: &str, agent_version: &str) {
     let log_url = log_url.trim();
     let _trace_url = trace_url.trim();
     let ofid = ofid.trim();
@@ -282,6 +283,7 @@ pub fn set_otel_url(log_url: &str, trace_url: &str, ofid: &str, version: &str, a
             filter: LAST_USED_FILTERS.lock().unwrap().otel_filter.clone(),
             ofid: ofid.to_string(),
             version: version.to_string(),
+            service_name: service_name.to_string(),
             agent_name: agent_name.to_string(),
             agent_version: agent_version.to_string(),
         });
@@ -307,12 +309,12 @@ fn apply_pending_otel_config() {
         .unwrap()
         .take();
 
-    if let Some(PendingOtelConfig { log_url, filter, ofid, version, agent_name, agent_version }) = maybe_config {
+    if let Some(PendingOtelConfig { log_url, filter, ofid, version, service_name, agent_name, agent_version }) = maybe_config {
         // Ensure we're not in a tracing context
         tracing::dispatcher::with_default(
             &tracing::dispatcher::Dispatch::new(tracing_subscriber::Registry::default()),
             || {
-                let new_state = build_otel_state(&log_url, &filter, &ofid, &version, &agent_name, &agent_version);
+                let new_state = build_otel_state(&log_url, &filter, &ofid, &version, &service_name, &agent_name, &agent_version);
                 if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
                     if let Err(err) = handle.modify(|state| {
                         *state = new_state;
@@ -387,11 +389,11 @@ fn parse_span_events(input: &str) -> FmtSpan {
 
 // OTel bridging
 #[cfg(feature="otel")]
-fn update_otel_state(log_url: &str, filter: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) {
+fn update_otel_state(log_url: &str, filter: &str, ofid: &str, version: &str, service_name: &str, agent_name: &str, agent_version: &str) {
     let new_state = if log_url.is_empty() {
         OtelBridgeState::none()
     } else {
-        build_otel_state(log_url, filter, ofid, version, agent_name, agent_version)
+        build_otel_state(log_url, filter, ofid, version, service_name, agent_name, agent_version)
     };
 
     if let Some(handle) = OTEL_BRIDGE_HANDLE.get() {
@@ -405,7 +407,7 @@ fn update_otel_state(log_url: &str, filter: &str, ofid: &str, version: &str, age
 
 /// Build bridging outside of any reload lock, so we don't re-enter logs on ourselves
 #[cfg(feature="otel")]
-fn build_otel_state(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) -> OtelBridgeState {
+fn build_otel_state(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, service_name: &str, agent_name: &str, agent_version: &str) -> OtelBridgeState {
     if endpoint.is_empty() {
         return OtelBridgeState::none();
     }
@@ -413,7 +415,7 @@ fn build_otel_state(endpoint: &str, filter_directives: &str, ofid: &str, version
     tracing::dispatcher::with_default(
         &tracing::dispatcher::Dispatch::new(tracing_subscriber::Registry::default()),
         || {
-            OtelBridgeState::some(endpoint, filter_directives, ofid, version, agent_name, agent_version)
+            OtelBridgeState::some(endpoint, filter_directives, ofid, version, service_name, agent_name, agent_version)
         },
     )
 }
@@ -433,7 +435,7 @@ impl OtelBridgeState {
         }
     }
 
-    fn some(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, agent_name: &str, agent_version: &str) -> Self {
+    fn some(endpoint: &str, filter_directives: &str, ofid: &str, version: &str, service_name: &str, agent_name: &str, agent_version: &str) -> Self {
         let exporter = LogExporter::builder()
             .with_tonic()
             .with_tls_config(
@@ -448,7 +450,7 @@ impl OtelBridgeState {
             KeyValue::new("PID", std::process::id().to_string()),
         ];
     
-        let resource = Resource::builder().with_service_name("rust")
+        let resource = Resource::builder().with_service_name(service_name.to_string())
         .with_attribute(KeyValue::new("service.version", version.to_string() ))
         .with_attribute(KeyValue::new("agent.name", agent_name.to_string() ))
         .with_attribute(KeyValue::new("agent.version", agent_version.to_string() ))

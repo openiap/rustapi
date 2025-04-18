@@ -40,7 +40,7 @@ public class NativeLoader {
         File localLib = new File(libPath);
         if (localLib.exists()) {
             System.load(localLib.getAbsolutePath());
-            System.out.println("Loaded native library from file: " + localLib.getAbsolutePath());
+            // System.out.println("Loaded native library from file: " + localLib.getAbsolutePath());
             return localLib.getAbsolutePath();
         }
 
@@ -61,7 +61,7 @@ public class NativeLoader {
                 }
             }
             System.load(temp.getAbsolutePath());
-            System.out.println("Loaded native library from extracted resource: " + temp.getAbsolutePath());
+            // System.out.println("Loaded native library from extracted resource: " + temp.getAbsolutePath());
             return temp.getAbsolutePath();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load native library from resource: " + libPath, e);
