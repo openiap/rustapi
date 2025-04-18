@@ -465,7 +465,7 @@ impl OtelBridgeState {
         let bridging = Some(OpenTelemetryTracingBridge::new(&provider));
 
         let filter = EnvFilter::try_new(filter_directives)
-            .unwrap_or_else(|_| EnvFilter::new("openiap=trace"));
+            .unwrap_or_else(|_| EnvFilter::new("hyper=off,opentelemetry=off,tonic=off,h2=off,reqwest=off"));
 
         Self { bridging, filter }
     }
