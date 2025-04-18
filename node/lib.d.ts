@@ -17,6 +17,7 @@ export class Client {
     set_i64_observable_gauge(name: any, value: any, description: any): void;
     disable_observable_gauge(name: any): void;
     set_agent_name(name: any): void;
+    set_default_timeout(timeout: any): void;
     set_agent_version(version: any): void;
     stringify(obj: any): string;
     connect(url?: string): Promise<any>;

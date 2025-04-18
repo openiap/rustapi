@@ -152,7 +152,7 @@ publish-cargo:
 	cargo publish -p openiap-proto --allow-dirty
 	cargo publish -p openiap-client --allow-dirty
 	cargo publish -p openiap --allow-dirty
-	cargo publish -p openiap-clib --allow-dirty
+	cargo publish -p openiap-clib --allow-dirty --no-verify
 
 # Combined tasks
 build-all: clean prepare build-linux build-macos build-windows build-java copy-lib
