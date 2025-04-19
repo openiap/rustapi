@@ -60,7 +60,7 @@ const char *queue_event_callback(struct QueueEventWrapper *event) {
     printf("> ");
     fflush(stdout);
     // No reply
-    return "";
+    return "{}";
 }
 
 int main(void) {
@@ -324,7 +324,7 @@ int main(void) {
             req.name = NULL;
             req.data = NULL;
             req.request_id = 1;
-            struct CustomCommandResponseWrapper *resp = custom_command(client, &req);
+            struct CustomCommandResponseWrapper *resp = custom_command(client, &req, 2);
             if (resp == NULL) {
                 printf("Error: custom_command returned NULL.\n");
             } else {

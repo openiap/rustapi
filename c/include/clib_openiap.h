@@ -646,11 +646,13 @@ void query_async(struct ClientWrapper *client,
 void free_query_response(struct QueryResponseWrapper *response);
 
 struct CustomCommandResponseWrapper *custom_command(struct ClientWrapper *client,
-                                                    struct CustomCommandRequestWrapper *options);
+                                                    struct CustomCommandRequestWrapper *options,
+                                                    int32_t timeout);
 
 void custom_command_async(struct ClientWrapper *client,
                           struct CustomCommandRequestWrapper *options,
-                          CustomCommandCallback callback);
+                          CustomCommandCallback callback,
+                          int32_t timeout);
 
 void free_custom_command_response(struct CustomCommandResponseWrapper *response);
 
@@ -667,6 +669,8 @@ void connect_async(struct ClientWrapper *client,
                    const char *server_address,
                    int32_t request_id,
                    ConnectCallback callback);
+
+void client_set_default_timeout(struct ClientWrapper *client_wrap, int32_t timeout);
 
 void client_set_agent_name(struct ClientWrapper *client_wrap, const char *agent_name);
 
@@ -965,10 +969,12 @@ void free_event_response(struct ClientEventResponseWrapper *response);
 void free_client_event(struct ClientEventWrapper *response);
 
 struct RpcResponseWrapper *rpc(struct ClientWrapper *client,
-                               struct QueueMessageRequestWrapper *options);
+                               struct QueueMessageRequestWrapper *options,
+                               int32_t timeout);
 
 void rpc_async(struct ClientWrapper *client,
                struct QueueMessageRequestWrapper *options,
-               RpcResponseCallback response_callback);
+               RpcResponseCallback response_callback,
+               int32_t timeout);
 
 void free_rpc_response(struct RpcResponseWrapper *response);
