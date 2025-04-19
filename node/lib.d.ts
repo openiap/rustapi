@@ -435,6 +435,16 @@ export class Client {
         user?: any;
     }) => Promise<any> | any): string;
     /**
+     * Register a queue asynchronously and receive events via callback.
+     *
+     * @param {{ queuename: string }} options
+     * @param {function(event: object): (Promise<any>|any)} callback
+     * @returns {Promise<string>} Resolves to the queue name.
+     */
+    register_queue_async({ queuename }: {
+        queuename: string;
+    }, callback: any): Promise<string>;
+    /**
      * @typedef {object} RegisterExchangeOptions
      * @property {string} exchangename    The exchange to bind.
      * @property {string} [algorithm="fanout"]  Exchange algorithm (e.g. "fanout", "direct", "topic").

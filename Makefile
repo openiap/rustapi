@@ -114,7 +114,6 @@ copy-lib:
 # Package language bindings
 package-node:
 	@echo "Building Node.js package"
-	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
 	(cd node && npm run build && npm pack)
 
 package-dotnet:
