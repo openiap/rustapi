@@ -804,6 +804,8 @@ function loadLibrary() {
         lib.free_unwatch_response = lib.func('free_unwatch_response', 'void', [UnwatchResponseWrapperPtr]);
 
         lib.register_queue = lib.func('register_queue', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr]);
+        lib.QueueEventCallback = koffi.proto('const char * QueueEventCallback(QueueEventWrapper*)');
+        lib.register_queue_async = lib.func('register_queue_async', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr, koffi.pointer(lib.QueueEventCallback)]);
         lib.free_register_queue_response = lib.func('free_register_queue_response', 'void', [RegisterQueueResponseWrapperPtr]);
         lib.register_exchange = lib.func('register_exchange', RegisterExchangeResponseWrapperPtr, [ClientWrapperPtr, RegisterExchangeRequestWrapperPtr]);
         lib.free_register_exchange_response = lib.func('free_register_exchange_response', 'void', [RegisterExchangeResponseWrapperPtr]);
@@ -2885,6 +2887,140 @@ class Client {
         };
         return result.queuename;
     }
+
+    /**
+     * Register a queue asynchronously and receive events via callback.
+     *
+     * @param {{ queuename: string }} options
+     * @param {function(event: object): (Promise<any>|any)} callback
+     * @returns {Promise<string>} Resolves to the queue name.
+     */
+    register_queue_async({ queuename }, callback) {
+        this.trace('register_queue_async invoked');
+        return new Promise((resolve, reject) => {
+            const req = { queuename: queuename };
+            const id = this.uniqeid();
+            const event_callback = koffi.register((eventPtr) => {
+                console.log("event_callback!")
+                try {
+                    const result = koffi.decode(eventPtr, QueueEventWrapper);
+                    let data = result.data;
+                    if (data != null && data !== "") {
+                        try { data = JSON.parse(data); } catch (e) {}
+                    }
+                    let event = {
+                        queuename: result.queuename,
+                        correlation_id: result.correlation_id,
+                        replyto: result.replyto,
+                        routingkey: result.routingkey,
+                        exchangename: result.exchangename,
+                        data: data,
+                    };
+                    let cbresult = callback(event);
+                    console.log('register_queue_async callback', event, cbresult);
+                    if (cbresult != null && cbresult !== "" && event.replyto) {
+                        if (typeof cbresult === 'object') cbresult = JSON.stringify(cbresult);
+                        const buf = Buffer.from(cbresult + '\0', 'utf8');
+                        return buf;
+                        // return cbresult;
+                    }
+                    // Return null if no reply
+                    return null;
+                } catch (err) {
+                    this.error('register_queue_async event_callback error', err);
+                    return null;
+                }
+            }, koffi.pointer(this.lib.QueueEventCallback));
+            try {
+                const response = this.lib.register_queue_async(this.client, req, event_callback);
+                const result = koffi.decode(response, RegisterQueueResponseWrapper);
+                this.lib.free_register_queue_response(response);
+                if (!result.success) {
+                    reject(new ClientError(result.error));
+                    return;
+                }
+                queuename = result.queuename;
+                this.queues[id] = { queuename, event_callback };
+                resolve(queuename);
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+    // register_queue_async({ queuename }, callback) {
+    //     this.trace('register_queue_async invoked');
+    //     return new Promise((resolve, reject) => {
+    //         const req = { queuename: queuename };
+    //         const id = this.uniqeid();
+    //         const event_callback = koffi.register((eventPtr) => {
+    //             try {
+    //                 const result = koffi.decode(eventPtr, QueueEventWrapper);
+    //                 let data = result.data;
+    //                 if (data != null && data !== "") {
+    //                     try { data = JSON.parse(data); } catch (e) {}
+    //                 }
+    //                 let event = {
+    //                     queuename: result.queuename,
+    //                     correlation_id: result.correlation_id,
+    //                     replyto: result.replyto,
+    //                     routingkey: result.routingkey,
+    //                     exchangename: result.exchangename,
+    //                     data: data,
+    //                 };
+    //                 let cbresult;
+    //                 try {
+    //                     cbresult = callback(event);
+    //                 } catch (err) {
+    //                     this.error('register_queue_async user callback error', err);
+    //                     return null;
+    //                 }
+    //                 // If callback returns a Promise (async), handle it
+    //                 if (cbresult && typeof cbresult.then === 'function') {
+    //                     cbresult.then(resolved => {
+    //                         if (resolved != null && resolved !== "" && event.replyto) {
+    //                             let msg = resolved;
+    //                             if (typeof msg === 'object') msg = JSON.stringify(msg);
+    //                             // Call queue_message asynchronously
+    //                             this.queue_message({
+    //                                 queuename: event.replyto,
+    //                                 correlation_id: event.correlation_id,
+    //                                 striptoken: true,
+    //                                 data: msg
+    //                             });
+    //                         }
+    //                     }).catch(err => {
+    //                         this.error('register_queue_async async callback error', err);
+    //                     });
+    //                     return null; // Return null to native immediately
+    //                 } else {
+    //                     if (cbresult != null && cbresult !== "" && event.replyto) {
+    //                         if (typeof cbresult === 'object') cbresult = JSON.stringify(cbresult);
+    //                         return cbresult;
+    //                     }
+    //                     return null;
+    //                 }
+    //             } catch (err) {
+    //                 this.error('register_queue_async event_callback error', err);
+    //                 return null;
+    //             }
+    //         }, koffi.pointer(this.lib.QueueEventCallback));
+    //         try {
+    //             const response = this.lib.register_queue_async(this.client, req, event_callback);
+    //             const result = koffi.decode(response, RegisterQueueResponseWrapper);
+    //             this.lib.free_register_queue_response(response);
+    //             if (!result.success) {
+    //                 reject(new ClientError(result.error));
+    //                 return;
+    //             }
+    //             queuename = result.queuename;
+    //             this.queues[id] = { queuename, event_callback };
+    //             resolve(queuename);
+    //         } catch (err) {
+    //             reject(err);
+    //         }
+    //     });
+    // }
+
 /**
  * @typedef {object} RegisterExchangeOptions
  * @property {string} exchangename    The exchange to bind.

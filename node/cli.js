@@ -351,7 +351,10 @@ async function doit() {
                     break;
                 case "r":
                     try {
-                        const response = await client.register_queue({
+                        // const response = await client.register_queue({
+                        //     queuename: "test2queue"
+                        // }, onqueue);
+                        const response = await client.register_queue_async({
                             queuename: "test2queue"
                         }, onqueue);
                         client.info(`Registered queue as ${response}`);

@@ -450,44 +450,51 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("st3") {
             input = "".to_string();
             let client = b.clone();
+            let num_workers = 2; // Number of concurrent RPCs
             if sthandle.is_some() {
                 println!("Stopping nonstop");
                 sthandle.unwrap().abort();
                 sthandle = None;
             } else {
-                sthandle = Some(
-                    // tokio::task::Builder::new().name("NonStop").spawn(async move {
-                    tokio::task::spawn(async move {
-                        println!("Task started, begin loop...");
-                        loop {
-                            // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                            // tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
-                            // tokio::time::sleep(tokio::time::Duration::from_micros(500)).await;
-                            tokio::time::sleep(tokio::time::Duration::from_millis(40)).await;
-                            let client = client.clone();
-                            tokio::task::spawn(async move {
+                sthandle = Some(tokio::task::spawn(async move {
+                    println!("Starting {} concurrent RPC workers...", num_workers);
+                    let mut handles = Vec::new();
+                    for _ in 0..num_workers {
+                        let client = client.clone();
+                        handles.push(tokio::spawn(async move {
+                            let mut x: u64 = 0;
+                            loop {
+                                tokio::time::sleep(tokio::time::Duration::from_millis(40)).await;
+                                let starttime = std::time::SystemTime::now();
                                 let result = client
-                                    .rpc(QueueMessageRequest::byqueuename(
-                                        "test2queue",
-                                        "{\"name\":\"Allan\"}",
-                                        true,
-                                    ), 
-                                    tokio::time::Duration::from_secs(1)
-                                )
+                                    .rpc(
+                                        QueueMessageRequest::byqueuename(
+                                            "test2queue",
+                                            "{\"name\":\"Allan\"}",
+                                            true,
+                                        ),
+                                        tokio::time::Duration::from_secs(1),
+                                    )
                                     .await;
+                                let endtime = std::time::SystemTime::now();
+                                let ms = endtime
+                                    .duration_since(starttime)
+                                    .unwrap()
+                                    .as_millis();
                                 match result {
-                                    Ok(response) => println!("Received RPC response {:?}", response),
-                                    Err(e) => println!("Failed to send RPC message: {:?}", e),
+                                    Ok(response) => println!("Worker {:?}: Received RPC response {:?} in {:?}", tokio::task::id(), response, ms),
+                                    Err(e) => println!("Worker {:?}: Failed to send RPC message: {:?} in {:?}", tokio::task::id(), e, ms),
                                 }
-                            });
-
-                            x = x + 1;
-                            if x % 500 == 0 {
-                                println!("RPC messages sent {:?}", x);
+                                x += 1;
+                                if x % 500 == 0 {
+                                    println!("Worker {:?}: RPC messages sent {:?}", tokio::task::id(), x);
+                                }
                             }
-                        }
-                    }),
-                );
+                        }));
+                    }
+                    // Optionally: await all handles if you want to join them (not needed for infinite loop)
+                    futures::future::join_all(handles).await;
+                }));
             }
         }
         if input.eq_ignore_ascii_case("dis") {

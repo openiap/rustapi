@@ -1,7 +1,7 @@
 .PHONY: clean build build-all package package-all publish publish-all
 
 # Variables
-VERSION = 0.0.31
+VERSION = 0.0.32
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
 
@@ -61,10 +61,20 @@ build-linux:
 	mkdir -p target/lib target/cli
 	cross build --target x86_64-unknown-linux-gnu --release
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-x64.so
+	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.a target/lib/libopeniap-linux-x64.a
 	cp target/x86_64-unknown-linux-gnu/release/openiap target/cli/linux-x64-openiap
 	cross build --target aarch64-unknown-linux-gnu --release
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
+	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.a target/lib/libopeniap-linux-arm64.a
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
+
+	cross build --target x86_64-unknown-linux-musl --release
+	cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-x64-musl.a
+	cp target/x86_64-unknown-linux-musl/release/openiap target/cli/linux-x64-musl-openiap
+	cross build --target aarch64-unknown-linux-musl --release
+	cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-arm64-musl.a
+	cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-arm64-musl-openiap
+	
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
 	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
 	cp crates/clib/clib_openiap.h c/clib_openiap.h
@@ -94,12 +104,12 @@ build-go:
 	(cd go && go build -o cli ./cmd/cli)
 
 copy-lib:
-	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib
-	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/lib/* dotnet/lib
-	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib
-	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
-	rm -rf c/lib && mkdir -p c/lib && cp target/lib/* c/lib
-	rm -rf go/lib && mkdir -p go/lib && cp target/lib/* go/lib
+	rm -rf node/lib && mkdir -p node/lib && cp target/lib/* node/lib && rm -rf node/lib/*.a
+	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/lib/* dotnet/lib && rm -rf dotnet/lib/*.a
+	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib && rm -rf python/openiap/lib/*.a
+	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib && rm -rf java/lib/*.a
+	rm -rf c/lib && mkdir -p c/lib && cp target/lib/* c/lib 
+	rm -rf go/lib && mkdir -p go/lib && cp target/lib/* go/lib && rm -rf go/lib/*.a
 
 # Package language bindings
 package-node:
@@ -109,18 +119,15 @@ package-node:
 
 package-dotnet:
 	@echo "Building .NET package"
-	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/lib/* dotnet/lib
 	(cd dotnet && dotnet build --configuration Release openiap.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap.csproj)
 	(cd dotnet && dotnet build --configuration Release openiap-slim.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap-slim.csproj)
 
 package-python:
 	@echo "Building Python package"
-	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/lib/* python/openiap/lib
 	(cd python && python setup.py sdist)
 
 package-java:
 	@echo "Building java jar"
-	rm -rf java/lib && mkdir -p java/lib && cp target/lib/* java/lib
 	(cd java && mvn clean package)
 
 package-c:
@@ -155,9 +162,9 @@ publish-cargo:
 	cargo publish -p openiap-clib --allow-dirty --no-verify
 
 # Combined tasks
-build-all: clean prepare build-linux build-macos build-windows build-java copy-lib
-package-all: package-node package-dotnet package-python package-java
-publish-all: publish-node publish-dotnet publish-python publish-java publish-cargo
+build-all: clean prepare build-linux build-macos build-windows build-java
+package-all: copy-lib package-node package-dotnet package-python package-java
+publish-all: copy-lib publish-node publish-dotnet publish-python publish-java publish-cargo
 
 build-and-package-all: build-all package-all
 build-and-publish-all: build-all package-all publish-all

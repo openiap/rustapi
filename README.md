@@ -47,7 +47,7 @@ node test.js
 python
 ```bash
 cd python
-pip uninstall openiap -y && pip install dist/openiap-0.0.31-py3-none-any.whl && python test.py
+pip uninstall openiap -y && pip install dist/openiap-0.0.32-py3-none-any.whl && python test.py
 
 ```
 dotnet

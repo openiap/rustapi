@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.31";
+const VERSION: &str = "0.0.32";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -100,6 +100,9 @@ pub struct Client {
     event_receiver: async_channel::Receiver<ClientEvent>,
     out_envelope_sender: async_channel::Sender<Envelope>,
     out_envelope_receiver: async_channel::Receiver<Envelope>,
+    rpc_reply_queue: Arc<tokio::sync::Mutex<Option<String>>>,
+    rpc_callback: Arc<tokio::sync::Mutex<Option<QueueCallbackFn>>>,
+
     /// The client connection state.
     pub state: Arc<std::sync::Mutex<ClientState>>,
     /// Inceasing message count, used as unique id for messages.
@@ -306,6 +309,8 @@ impl Client {
             runtime: Arc::new(std::sync::Mutex::new(None)),
             msgcount: Arc::new(std::sync::Mutex::new(-1)),
             reconnect_ms: Arc::new(std::sync::Mutex::new(1000)),
+            rpc_reply_queue: Arc::new(tokio::sync::Mutex::new(None)),
+            rpc_callback: Arc::new(tokio::sync::Mutex::new(None)),
             inner: Arc::new(Mutex::new(ClientInner {
                 queries: Arc::new(Mutex::new(std::collections::HashMap::new())),
                 streams: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -789,7 +794,16 @@ impl Client {
                 self.set_state(ClientState::Signedin);
             } else {
                 self.set_state(state.clone());
-            }            
+            }
+            if state == ClientState::Disconnected && !current.eq(&state) {
+                let me = self.clone();
+                tokio::task::spawn(async move {
+                    let mut reply_queue_guard = me.rpc_reply_queue.lock().await;
+                    let mut callback_guard = me.rpc_callback.lock().await;
+                    *reply_queue_guard = None;
+                    *callback_guard = None;
+                });
+            }
             if state == ClientState::Connecting && !current.eq(&state) {
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     self.stats.lock().unwrap().connection_attempts += 1;
@@ -2955,23 +2969,43 @@ impl Client {
         let (tx, rx) = oneshot::channel::<String>();
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
-        let q = self
-            .register_queue(
-                RegisterQueueRequest {
-                    queuename: "".to_string(),
-                },
-                Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
-                    if let Some(tx) = tx.lock().unwrap().take() {
-                        let _ = tx.send(event.data);
-                    } else {
-                        debug!("Queue already closed");
-                    }
-                    Box::pin(async { None })
-                }),
-            )
-            .await
-            .unwrap();
+        // Prepare the callback
+        let callback: QueueCallbackFn = Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
+            if let Some(tx) = tx.lock().unwrap().take() {
+                let _ = tx.send(event.data);
+            } else {
+                debug!("Queue already closed");
+            }
+            Box::pin(async { None })
+        });
 
+        // Check if we already have a reply queue and callback registered
+        let mut reply_queue_guard = self.rpc_reply_queue.lock().await;
+        let mut callback_guard = self.rpc_callback.lock().await;
+
+        // If not registered, or if connection state is not Connected/Signedin, re-register
+        let state = self.get_state();
+        if reply_queue_guard.is_none() || !(state == ClientState::Connected || state == ClientState::Signedin) {
+            // Register a new reply queue
+            let q = self
+                .register_queue(
+                    RegisterQueueRequest {
+                        queuename: "".to_string(),
+                    },
+                    callback.clone(),
+                )
+                .await?;
+            *reply_queue_guard = Some(q.clone());
+            *callback_guard = Some(callback.clone());
+        } else {
+            // Already registered, but need to update the callback for this call
+            if let Some(qname) = reply_queue_guard.as_ref() {
+                let inner = self.inner.lock().await;
+                inner.queues.lock().await.insert(qname.clone(), callback.clone());
+            }
+        }
+
+        let q = reply_queue_guard.as_ref().unwrap().clone();
         config.replyto = q.clone();
         let envelope = config.to_envelope();
 
@@ -2993,28 +3027,94 @@ impl Client {
                 match tokio::time::timeout(timeout, rx).await {
                     Ok(Ok(val)) => Ok(val),
                     Ok(Err(e)) => Err(OpenIAPError::CustomError(e.to_string())),
-                    Err(_) => Err(OpenIAPError::ClientError("RPC request timed out".to_string())),
+                    Err(_) => {
+                        // Timeout: clear the cached queue so it will be re-registered next time
+                        *reply_queue_guard = None;
+                        *callback_guard = None;
+                        Err(OpenIAPError::ClientError("RPC request timed out".to_string()))
+                    },
                 }
             }
             Err(e) => {
-                let unregister_err = self.unregister_queue(&q).await.err();
-                if unregister_err.is_some() {
-                    error!("Failed to unregister Response Queue: {:?}", unregister_err);
-                }
+                // If we get an error, clear the cached queue so it will be re-registered next time
+                *reply_queue_guard = None;
+                *callback_guard = None;
                 Err(OpenIAPError::ClientError(e.to_string()))
             }
         };
 
-        if let Err(e) = self.unregister_queue(&q).await {
-            error!("Failed to unregister Response Queue: {:?}", e);
-        } else {
-            debug!("Unregistered Response Queue: {:?}", q);
-        }
-        match rpc_result {
-            Ok(val) => Ok(val),
-            Err(e) => Err(e),
-        }
+        rpc_result
     }
+    // pub async fn rpc2(&self, mut config: QueueMessageRequest, timeout: tokio::time::Duration) -> Result<String, OpenIAPError> {
+    //     if config.queuename.is_empty() && config.exchangename.is_empty() {
+    //         return Err(OpenIAPError::ClientError(
+    //             "No queue or exchange name provided".to_string(),
+    //         ));
+    //     }
+
+    //     let (tx, rx) = oneshot::channel::<String>();
+    //     let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+
+    //     let q = self
+    //         .register_queue(
+    //             RegisterQueueRequest {
+    //                 queuename: "".to_string(),
+    //             },
+    //             Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
+    //                 if let Some(tx) = tx.lock().unwrap().take() {
+    //                     let _ = tx.send(event.data);
+    //                 } else {
+    //                     debug!("Queue already closed");
+    //                 }
+    //                 Box::pin(async { None })
+    //             }),
+    //         )
+    //         .await
+    //         .unwrap();
+
+    //     config.replyto = q.clone();
+    //     let envelope = config.to_envelope();
+
+    //     let result = self.send(envelope, None).await;
+    //     let rpc_result = match result {
+    //         Ok(m) => {
+    //             let data = match m.data {
+    //                 Some(d) => d,
+    //                 None => {
+    //                     return Err(OpenIAPError::ClientError("No data in response".to_string()))
+    //                 }
+    //             };
+    //             if m.command == "error" {
+    //                 let e: ErrorResponse = prost::Message::decode(data.value.as_ref())
+    //                     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
+    //                 return Err(OpenIAPError::ServerError(format!("{:?}", e.message)));
+    //             }
+
+    //             match tokio::time::timeout(timeout, rx).await {
+    //                 Ok(Ok(val)) => Ok(val),
+    //                 Ok(Err(e)) => Err(OpenIAPError::CustomError(e.to_string())),
+    //                 Err(_) => Err(OpenIAPError::ClientError("RPC request timed out".to_string())),
+    //             }
+    //         }
+    //         Err(e) => {
+    //             let unregister_err = self.unregister_queue(&q).await.err();
+    //             if unregister_err.is_some() {
+    //                 error!("Failed to unregister Response Queue: {:?}", unregister_err);
+    //             }
+    //             Err(OpenIAPError::ClientError(e.to_string()))
+    //         }
+    //     };
+
+    //     if let Err(e) = self.unregister_queue(&q).await {
+    //         error!("Failed to unregister Response Queue: {:?}", e);
+    //     } else {
+    //         debug!("Unregistered Response Queue: {:?}", q);
+    //     }
+    //     match rpc_result {
+    //         Ok(val) => Ok(val),
+    //         Err(e) => Err(e),
+    //     }
+    // }
     /// Push a new workitem to a workitem queue
     /// If the file is less than 5 megabytes it will be attached to the workitem
     /// If the file is larger than 5 megabytes it will be uploaded to the database and attached to the workitem
