@@ -538,6 +538,13 @@ export class Client {
         striptoken?: boolean;
         expiration?: number;
     }): void;
+    invoke_openrpa({ robotid, workflowid, payload, rpc, timeout }: {
+        robotid: any;
+        workflowid: any;
+        payload: any;
+        rpc?: boolean;
+        timeout?: number;
+    }): any;
 }
 export class ClientError extends Error {
     constructor(message: any);
