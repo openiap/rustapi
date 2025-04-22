@@ -1981,6 +1981,59 @@ class Client:
         result = response.result.decode('utf-8') if response.result else None
         self.lib.free_custom_command_response(ref)
         return result
+    def invoke_openrpa(self, robotid, workflowid, data=None, timeout=-1, rpc=False):
+        """
+        Invoke OpenRPA workflow via native invoke_openrpa FFI call.
+        :param robotid: str
+        :param workflowid: str
+        :param data: dict or None
+        :param timeout: int
+        :param rpc: bool
+        :return: str (result)
+        :raises: ClientError
+        """
+        class InvokeOpenRPARequestWrapper(ctypes.Structure):
+            _fields_ = [
+                ("robotid", c_char_p),
+                ("workflowid", c_char_p),
+                ("payload", c_char_p),
+                ("rpc", c_bool),
+                ("request_id", c_int)
+            ]
+        class InvokeOpenRPAResponseWrapper(ctypes.Structure):
+            _fields_ = [
+                ("success", c_bool),
+                ("result", c_char_p),
+                ("error", c_char_p),
+                ("request_id", c_int)
+            ]
+
+        # Prepare request
+        payload = json.dumps(data if data is not None else {})
+        req = InvokeOpenRPARequestWrapper(
+            robotid=robotid.encode("utf-8"),
+            workflowid=workflowid.encode("utf-8"),
+            payload=payload.encode("utf-8"),
+            rpc=rpc,
+            request_id=0
+        )
+
+        # Set argtypes/restype
+        self.lib.invoke_openrpa.argtypes = [c_void_p, ctypes.POINTER(InvokeOpenRPARequestWrapper), c_int]
+        self.lib.invoke_openrpa.restype = ctypes.POINTER(InvokeOpenRPAResponseWrapper)
+
+        # Call native function
+        ref = self.lib.invoke_openrpa(self.client, ctypes.byref(req), timeout)
+        response = ref.contents
+
+        if not response.success:
+            error_message = response.error.decode("utf-8") if response.error else "Unknown error"
+            self.lib.free_invoke_openrpa_response(ref)
+            raise ClientError(f"invoke_openrpa failed: {error_message}")
+
+        result = response.result.decode("utf-8") if response.result else None
+        self.lib.free_invoke_openrpa_response(ref)
+        return result
 
     def __del__(self):
         if hasattr(self, 'lib'):

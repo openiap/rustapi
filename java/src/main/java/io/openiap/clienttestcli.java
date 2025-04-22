@@ -127,6 +127,9 @@ public class clienttestcli {
             case "quit":
                 running = false;
                 break;
+            case "rpa":
+                handleInvokeOpenRPA();
+                break;
             default:
                 System.out.println("Unknown command. Type ? for help.");
                 break;
@@ -154,6 +157,7 @@ public class clienttestcli {
         System.out.println("  o    - Toggle f64 observable gauge");
         System.out.println("  o2   - Toggle u64 observable gauge");
         System.out.println("  o3   - Toggle i64 observable gauge");
+        System.out.println("  rpa  - Invoke \"Who am I\" on robot \"allan5\"");
         System.out.println("  quit - Exit program");
     }
 
@@ -622,6 +626,22 @@ public class clienttestcli {
             // System.out.println("Client count: " + clients.size());
         } catch (Exception e) {
             System.out.println("CustomCommand error: " + e.getMessage());
+        }
+    }
+    private static void handleInvokeOpenRPA() {
+        try {
+            String result = client.invokeOpenRPA(
+                new InvokeOpenRPAParameters.Builder()
+                    .robotid("5ce94386320b9ce0bc2c3d07")
+                    .workflowid("5e0b52194f910e30ce9e3e49")
+                    .payload("{\"test\":\"test\"}")
+                    .rpc(false)
+                    .build(),
+                    10
+            );
+            System.out.println("InvokeOpenRPA result: " + result);
+        } catch (Exception e) {
+            System.out.println("InvokeOpenRPA error: " + e.getMessage());
         }
     }
 

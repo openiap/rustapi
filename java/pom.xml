@@ -6,7 +6,7 @@
 
     <groupId>io.openiap</groupId>
     <artifactId>client</artifactId>
-    <version>0.0.32</version>
+    <version>0.0.33</version>
     <url>https://github.com/openiap/rustapi/tree/main/java</url>
     <description>Java SDK for OpenIAP core</description>
     <scm>

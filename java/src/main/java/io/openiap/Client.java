@@ -110,6 +110,8 @@ interface CLib extends Library {
     void rpc_async(Pointer client, QueueMessageParameters options, RpcResponseWrapper.RpcResponseCallback callback, int timeout);
     Pointer custom_command(Pointer client, CustomCommandParameters options, int timeout);
     void free_custom_command_response(Pointer response);
+    Pointer invoke_openrpa(Pointer client, InvokeOpenRPAParameters options, int timeout);
+    void free_invoke_openrpa_response(Pointer response);
 }
 
 public class Client implements AutoCloseable {
@@ -1189,6 +1191,26 @@ public class Client implements AutoCloseable {
             return response.result;
         } finally {
             clibInstance.free_custom_command_response(responsePtr);
+        }
+    }
+
+    public String invokeOpenRPA(InvokeOpenRPAParameters options, int timeout) {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer responsePtr = clibInstance.invoke_openrpa(clientPtr, options, timeout);
+        if (responsePtr == null) {
+            throw new RuntimeException("invoke_openrpa returned null response");
+        }
+        InvokeOpenRPAResponseWrapper.Response response = new InvokeOpenRPAResponseWrapper.Response(responsePtr);
+        try {
+            if (!response.getSuccess() || response.error != null) {
+                String errorMsg = response.error != null ? response.error : "Unknown error";
+                throw new RuntimeException(errorMsg);
+            }
+            return response.result;
+        } finally {
+            clibInstance.free_invoke_openrpa_response(responsePtr);
         }
     }
 

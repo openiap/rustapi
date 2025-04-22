@@ -608,6 +608,27 @@ typedef struct RpcResponseWrapper {
 
 typedef void (*RpcResponseCallback)(struct RpcResponseWrapper*);
 
+/**
+ * InvokeOpenRPAResponseWrapper is a wrapper for the InvokeOpenRpaRequest struct.
+ */
+typedef struct InvokeOpenRPAResponseWrapper {
+  bool success;
+  const char *result;
+  const char *error;
+  int32_t request_id;
+} InvokeOpenRPAResponseWrapper;
+
+/**
+ * InvokeOpenRPARequestWrapper is a wrapper for the QuQueryResponseWrappereryRequest struct.
+ */
+typedef struct InvokeOpenRPARequestWrapper {
+  const char *robotid;
+  const char *workflowid;
+  const char *payload;
+  bool rpc;
+  int32_t request_id;
+} InvokeOpenRPARequestWrapper;
+
 void error(const char *message);
 
 void info(const char *message);
@@ -978,3 +999,9 @@ void rpc_async(struct ClientWrapper *client,
                int32_t timeout);
 
 void free_rpc_response(struct RpcResponseWrapper *response);
+
+struct InvokeOpenRPAResponseWrapper *invoke_openrpa(struct ClientWrapper *client,
+                                                    struct InvokeOpenRPARequestWrapper *options,
+                                                    int32_t timeout);
+
+void free_invoke_openrpa_response(struct InvokeOpenRPAResponseWrapper *response);

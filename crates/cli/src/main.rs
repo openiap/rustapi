@@ -4,6 +4,7 @@
 use std::ops::Add;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
+use std::time::Duration;
 use tracing::{error, info};
 
 #[allow(unused_imports)]
@@ -12,7 +13,7 @@ use openiap_client::{
     set_i64_observable_gauge, set_otel_url, set_u64_observable_gauge, Client, InsertManyRequest,
     PopWorkitemRequest, RegisterExchangeRequest, RegisterQueueRequest, UpdateWorkitemRequest,
 };
-use openiap_client::{CustomCommandRequest, PushWorkitemRequest, QueueMessageRequest};
+use openiap_client::{CustomCommandRequest, InvokeOpenRpaRequest, PushWorkitemRequest, QueueMessageRequest};
 
 use openiap_client::protos::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
@@ -450,7 +451,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("st3") {
             input = "".to_string();
             let client = b.clone();
-            let num_workers = 2; // Number of concurrent RPCs
+            let num_workers = 3; // Number of concurrent RPCs
             if sthandle.is_some() {
                 println!("Stopping nonstop");
                 sthandle.unwrap().abort();
@@ -887,6 +888,19 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => println!("Failed to run Custom Command: {:?}", e),
                 }
             });
+        }
+        if input.eq_ignore_ascii_case("rpa") {
+            let config = InvokeOpenRpaRequest {
+                robotid: "5ce94386320b9ce0bc2c3d07".to_string(),
+                workflowid: "5e0b52194f910e30ce9e3e49".to_string(),
+                payload: "{\"test\":\"test\"}".to_string(),
+                rpc: true,
+            };
+            let result = b.invoke_openrpa(config, Some(Duration::from_secs(10))).await;
+            match result {
+                Ok(response) => println!("Result: {:?}", response),
+                Err(e) => println!("Failed to run Custom Command: {:?}", e),
+            }
         }
         if input.eq_ignore_ascii_case("me") {
             let client = b.clone();

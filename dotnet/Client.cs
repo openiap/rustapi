@@ -803,6 +803,27 @@ namespace OpenIAP
         }
 
         public delegate void RpcResponseCallback(IntPtr responsePtr);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct InvokeOpenRPARequestWrapper
+        {
+            public IntPtr robotid;
+            public IntPtr workflowid;
+            public IntPtr payload;
+            [MarshalAs(UnmanagedType.I1)]
+            public bool rpc;
+            public int request_id;
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        public struct InvokeOpenRPAResponseWrapper
+        {
+            [MarshalAs(UnmanagedType.I1)]
+            public bool success;
+            public IntPtr result;
+            public IntPtr error;
+            public int request_id;
+        }
+
         #endregion
 
         #region dll imports
@@ -1119,10 +1140,16 @@ namespace OpenIAP
         public static extern void free_rpc_response(IntPtr response);
 
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void custom_command_async(IntPtr client, ref CustomCommandRequestWrapper request, CustomCommandCallback callback);
+        public static extern void custom_command_async(IntPtr client, ref CustomCommandRequestWrapper request, CustomCommandCallback callback, int timeout);
 
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void free_custom_command_response(IntPtr response);
+
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr invoke_openrpa(IntPtr client, ref InvokeOpenRPARequestWrapper request, int timeout);
+
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void free_invoke_openrpa_response(IntPtr response);
 
         #endregion
         public Client(string libPath = "")
@@ -3831,7 +3858,58 @@ namespace OpenIAP
             return await tcs.Task;
         }
 
+       /// <summary>
+        /// Invokes an OpenRPA workflow on a robot.
+        /// </summary>
+        /// <param name="robotid">The robot ID to invoke.</param>
+        /// <param name="workflowid">The workflow ID to invoke.</param>
+        /// <param name="payload">The payload to send (as JSON string).</param>
+        /// <param name="rpc">Whether to use RPC (wait for result).</param>
+        /// <returns>The result as a string if rpc=true, otherwise an empty string.</returns>
+        public string InvokeOpenRPA(string robotid, string workflowid, string payload = "{}", bool rpc = true, int timeout = -1)
+        {
+            var tcs = new TaskCompletionSource<string>();
 
+            IntPtr robotidPtr = Marshal.StringToHGlobalAnsi(robotid);
+            IntPtr workflowidPtr = Marshal.StringToHGlobalAnsi(workflowid);
+            IntPtr payloadPtr = Marshal.StringToHGlobalAnsi(payload);
+
+            try
+            {
+                int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
+
+                var request = new InvokeOpenRPARequestWrapper
+                {
+                    robotid = robotidPtr,
+                    workflowid = workflowidPtr,
+                    payload = payloadPtr,
+                    rpc = rpc,
+                    request_id = requestId
+                };
+
+                IntPtr responsePtr = invoke_openrpa(clientPtr, ref request, timeout);
+                var response = Marshal.PtrToStructure<InvokeOpenRPAResponseWrapper>(responsePtr);
+
+                string error = Marshal.PtrToStringAnsi(response.error) ?? string.Empty;
+                string result = Marshal.PtrToStringAnsi(response.result) ?? string.Empty;
+                bool success = response.success;
+
+                free_invoke_openrpa_response(responsePtr);
+
+                if (!success)
+                {
+                    throw new ClientError(error);
+                }
+
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(robotidPtr);
+                Marshal.FreeHGlobal(workflowidPtr);
+                Marshal.FreeHGlobal(payloadPtr);
+            }
+        }
         private void _DeleteWorkitemCallback(IntPtr responsePtr)
         {
             this.trace("DeleteWorkitem callback to dotnet");
@@ -4005,7 +4083,7 @@ namespace OpenIAP
             }
         }
 
-        public Task<T> custom_command<T>(string command, string id = "", string data = "", string name = "")
+        public Task<T> custom_command<T>(string command, string id = "", string data = "", string name = "", int timeout = -1)
         {
             var tcs = new TaskCompletionSource<string>();
 
@@ -4026,7 +4104,7 @@ namespace OpenIAP
                     request_id = requestId
                 };
                 CallbackRegistry.TryAddCallback(requestId, tcs);
-                custom_command_async(clientPtr, ref request, _CustomCommandCallbackDelegate);
+                custom_command_async(clientPtr, ref request, _CustomCommandCallbackDelegate, timeout);
             }
             finally
             {

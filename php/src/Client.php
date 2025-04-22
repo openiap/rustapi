@@ -1965,6 +1965,52 @@ class Client {
         $this->ffi->free_custom_command_response($response);
         return $result;
     }
+    /**
+     * Invoke OpenRPA workflow via native invoke_openrpa FFI call.
+     * @param string $robotid
+     * @param string $workflowid
+     * @param array $data
+     * @param int $timeout
+     * @return mixed
+     * @throws Exception
+     */
+    public function invoke_openrpa($robotid, $workflowid, $data = [], $timeout = -1) {
+        $request = $this->ffi->new('struct InvokeOpenRPARequestWrapper');
+        // Set robotid
+        $robotid_str = $this->ffi->new("char[" . strlen($robotid) + 1 . "]", false);
+        FFI::memcpy($robotid_str, $robotid, strlen($robotid));
+        $request->robotid = FFI::cast("char *", FFI::addr($robotid_str));
+        // Set workflowid
+        $workflowid_str = $this->ffi->new("char[" . strlen($workflowid) + 1 . "]", false);
+        FFI::memcpy($workflowid_str, $workflowid, strlen($workflowid));
+        $request->workflowid = FFI::cast("char *", FFI::addr($workflowid_str));
+        // Set payload
+        $payload = json_encode($data);
+        $payload_str = $this->ffi->new("char[" . strlen($payload) + 1 . "]", false);
+        FFI::memcpy($payload_str, $payload, strlen($payload));
+        $request->payload = FFI::cast("char *", FFI::addr($payload_str));
+        // Set rpc to false (or true if you want RPC behavior)
+        $request->rpc = false;
+        $request->request_id = 0;
 
+        $response = $this->ffi->invoke_openrpa($this->client, FFI::addr($request), $timeout);
+
+        // Free allocated memory
+        FFI::free($robotid_str);
+        FFI::free($workflowid_str);
+        FFI::free($payload_str);
+
+        if (!$response->success) {
+            $error_message = FFI::string($response->error);
+            $this->ffi->free_invoke_openrpa_response($response);
+            throw new Exception($error_message);
+        }
+        $result = null;
+        if ($response->result) {
+            $result = FFI::string($response->result);
+        }
+        $this->ffi->free_invoke_openrpa_response($response);
+        return $result;
+    }
 }
 

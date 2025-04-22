@@ -24,6 +24,7 @@ void print_help() {
     printf("  r         : Register queue 'test2queue'\n");
     printf("  m         : Send message to queue 'test2queue'\n");
     printf("  cc        : Call custom_command 'getclients'\n");
+    printf("  rpa       : Invoke \"Who am I\" on robot \"allan5\" \n");
     printf("  quit      : Exit the CLI\n");
 }
 
@@ -335,6 +336,23 @@ int main(void) {
                 }
                 free_custom_command_response(resp);
             }
+        } else if (strcmp(input, "rpa") == 0) {
+            struct InvokeOpenRPARequestWrapper req;
+            req.robotid = "5ce94386320b9ce0bc2c3d07";
+            req.workflowid = "5e0b52194f910e30ce9e3e49";
+            req.payload = "{\"test\":\"test\"}";
+            req.rpc = true;
+            struct InvokeOpenRPAResponseWrapper *resp = invoke_openrpa(client, &req, 10);
+            if (resp == NULL) {
+                printf("Error: invoke_openrpa returned NULL.\n");
+            } else {
+                if (!resp->success) {
+                    printf("Invoke OpenRPA failed: %s\n", resp->error);
+                } else {
+                    printf("Invoke OpenRPA result: %s\n", resp->result);
+                }
+                free_invoke_openrpa_response(resp);
+            }            
         } else {
             printf("Unknown command: '%s'\n", input);
         }

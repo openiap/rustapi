@@ -148,6 +148,19 @@ try {
                     print("Custom command error: " . $e->getMessage() . "\n");
                 }
                 break;
+            case 'rpa':
+                try {
+                    $result = $client->invoke_openrpa(
+                        "5ce94386320b9ce0bc2c3d07",
+                        "5e0b52194f910e30ce9e3e49",
+                        ["test" => "test"],
+                        10
+                    );
+                    print("OpenRPA result: " . $result . "\n");
+                } catch (Exception $e) {
+                    print("OpenRPA error: " . $e->getMessage() . "\n");
+                }
+                break;
             case 'quit':
                 // Cancel any active gauge handlers
                 if ($f64_handler) Loop::cancelTimer($f64_handler);

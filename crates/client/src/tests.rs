@@ -1655,7 +1655,7 @@ mod tests {
                 workflowid: workflowid.to_string(),
                 payload: "{\"test\": \"message\"}".to_string(),
                 ..Default::default()
-            })
+            }, None)
             .await;
         assert!(
             response.is_ok(),

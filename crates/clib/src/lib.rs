@@ -6,7 +6,7 @@ use openiap_client::protos::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
-use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, InvokeOpenRpaRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
 
 #[cfg(all(test, not(windows)))]
 mod tests;
@@ -7627,6 +7627,140 @@ pub extern "C" fn rpc_async(
 #[no_mangle]
 #[tracing::instrument(skip_all)]
 pub extern "C" fn free_rpc_response(response: *mut RpcResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).result.is_null() {
+            let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/// InvokeOpenRPARequestWrapper is a wrapper for the QuQueryResponseWrappereryRequest struct.
+#[repr(C)]
+pub struct InvokeOpenRPARequestWrapper {
+    robotid: *const c_char,
+    workflowid: *const c_char,
+    payload: *const c_char,
+    rpc: bool,
+    request_id: i32,
+}
+/// InvokeOpenRPAResponseWrapper is a wrapper for the InvokeOpenRpaRequest struct.
+#[repr(C)]
+pub struct InvokeOpenRPAResponseWrapper {
+    success: bool,
+    result: *const c_char,
+    error: *const c_char,
+    request_id: i32,
+}
+// run query syncronously
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn invoke_openrpa(
+    client: *mut ClientWrapper,
+    options: *mut InvokeOpenRPARequestWrapper,
+    timeout: i32,
+) -> *mut InvokeOpenRPAResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = InvokeOpenRPAResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: 0,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = InvokeOpenRPAResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let request = InvokeOpenRpaRequest {
+        payload: c_char_to_str(options.payload),
+        robotid: c_char_to_str(options.robotid),
+        workflowid: c_char_to_str(options.workflowid),
+        rpc: options.rpc
+    };
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = InvokeOpenRPAResponseWrapper {
+            success: false,
+            result: std::ptr::null(),
+            error: error_msg,
+            request_id: options.request_id,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+    let mut _timeout = client.get_default_timeout();
+    if timeout >= 0 {
+        _timeout = tokio::time::Duration::from_secs(timeout as u64);
+    }
+
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.invoke_openrpa(request, Some(_timeout)))
+    });
+    Box::into_raw(Box::new(match result {
+        Ok(data) => {
+            let result: *const c_char = CString::new(data).unwrap().into_raw();
+            InvokeOpenRPAResponseWrapper {
+                success: true,
+                result,
+                error: std::ptr::null(),
+                request_id: options.request_id,
+            }
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Query failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            InvokeOpenRPAResponseWrapper {
+                success: false,
+                result: std::ptr::null(),
+                error: error_msg,
+                request_id: options.request_id,
+            }
+        }
+    }))
+}
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_invoke_openrpa_response(response: *mut InvokeOpenRPAResponseWrapper) {
     if response.is_null() {
         return;
     }

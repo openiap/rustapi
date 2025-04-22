@@ -7,19 +7,19 @@ mvn clean package
 
 in pom.xml, add:
 ```
-io.openiap:client:0.0.32
+io.openiap:client:0.0.33
 ```
 
 or for Gradle uses, add:
 ```bash
 dependencies {
-    implementation 'io.openiap:client:0.0.32'
+    implementation 'io.openiap:client:0.0.33'
 }
 ```
 
 To run the test application:
 ```bash
 mvn package
-java -jar target/client-0.0.32-jar-with-dependencies.jar
+java -jar target/client-0.0.33-jar-with-dependencies.jar
 ```
 

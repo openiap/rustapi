@@ -152,6 +152,8 @@ async def main():
             o: Toggle f64 observable gauge
             o2: Toggle u64 observable gauge
             o3: Toggle i64 observable gauge
+            cc: CustomCommand get users
+            rpa: Invoke openrpa workflow "whoami" on "allan5"
             """)
         elif input_command == "0":
             client.disable_tracing()
@@ -350,6 +352,17 @@ async def main():
                 print(f"Custom command result: {result}")
             except ClientError as e:
                 print(f"Custom command failed: {e}")
+        elif input_command == "rpa":
+            try:
+                result = client.invoke_openrpa(
+                    "5ce94386320b9ce0bc2c3d07",
+                    "5e0b52194f910e30ce9e3e49",
+                    {"test": "test"},
+                    timeout=10
+                )
+                print("Invoke OpenRPA result:", result)
+            except Exception as e:
+                print(f"Invoke OpenRPA failed: {e}")
 
     # Make sure to clean up threads before exiting
     stop_threads = True

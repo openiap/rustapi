@@ -207,6 +207,22 @@ async function doit() {
                     client.info("memoryUsage", client.formatBytes(mem.heapUsed), "heapTotal", client.formatBytes(mem.heapTotal), "rss", client.formatBytes(mem.rss), "external", client.formatBytes(mem.external));
 
                     break;
+                case "rpa":
+                    client.info(`Calling OpenRPA workflow whoami on robot allan5`);
+                    try {
+                        let rpa_response = client.invoke_openrpa({
+                            robotid: "5ce94386320b9ce0bc2c3d07",
+                            workflowid: "5e0b52194f910e30ce9e3e49",
+                            data: {
+                                test: "test"
+                            },
+                            timeout: 10
+                        });
+                        client.info("OpenRPA response", JSON.stringify(rpa_response));
+                    } catch (error) {
+                        client.error("OpenRPA error", error);                        
+                    }
+                    break;
                 case "st":
                     input = "";
                     if (do_st_func === true) {
@@ -393,7 +409,7 @@ async function doit() {
                     break;
                 case "cc":
                     try {
-                        const clients = await client.custom_command({ command: "getclients" });
+                        const clients = await client.custom_command({ command: "getclients", timeout: 10 });
                         client.info("Client count ", clients.length);
                         for (let i = 0; i < clients.length; i++) {
                             let c = clients[i];

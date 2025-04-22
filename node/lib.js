@@ -551,6 +551,23 @@ const RpcResponseWrapper = koffi.struct('RpcResponseWrapper', {
 });
 const RpcResponseWrapperPtr  = koffi.pointer(RpcResponseWrapper);
 
+
+const InvokeOpenRPARequestWrapper = koffi.struct('InvokeOpenRPARequestWrapper', {
+    robotid: CString,
+    workflowid: CString,
+    payload: CString,
+    rpc: bool,
+    request_id: int,
+});
+const InvokeOpenRPARequestWrapperPtr = koffi.pointer(InvokeOpenRPARequestWrapper);
+const InvokeOpenRPAResponseWrapper = koffi.struct('InvokeOpenRPAResponseWrapper', {
+    success: bool,
+    result: CString,
+    error: CString,
+    request_id: int,
+});
+const InvokeOpenRPAResponseWrapperPtr = koffi.pointer(InvokeOpenRPAResponseWrapper);
+
 function isMusl() {
     // For Node 10
     if (!process.report || typeof process.report.getReport !== 'function') {
@@ -819,6 +836,9 @@ function loadLibrary() {
         lib.free_unregister_queue_response = lib.func('free_unregister_queue_response', 'void', [UnRegisterQueueResponseWrapperPtr]);
         lib.queue_message = lib.func('queue_message', QueueMessageResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
         lib.free_queue_message_response = lib.func('free_queue_message_response', 'void', [QueueMessageResponseWrapperPtr]);
+
+        lib.invoke_openrpa = lib.func('invoke_openrpa', InvokeOpenRPAResponseWrapperPtr, [ClientWrapperPtr, InvokeOpenRPARequestWrapperPtr, 'int']);
+        lib.free_invoke_openrpa_response = lib.func('free_invoke_openrpa_response', 'void', [InvokeOpenRPAResponseWrapperPtr]);
 
         return lib;
     } catch (e) {
@@ -3226,6 +3246,40 @@ class Client {
             const errorMsg = result.error;
             throw new ClientError(errorMsg);
         }
+    }
+
+    invoke_openrpa({ robotid, workflowid, payload, rpc = true, timeout = -1 }) {
+        this.trace('invoke_openrpa invoked');
+        if (robotid == null || robotid == "") {
+            throw new ClientError('robotid is required');
+        }
+        if (workflowid == null || workflowid == "") {
+            throw new ClientError('workflowid is required');
+        }
+        if (payload == null) payload = {};
+        if (rpc == null) rpc = true;
+        const req = {
+            robotid: robotid,
+            workflowid: workflowid,
+            payload: this.stringify(payload),
+            rpc: rpc
+        };
+        this.trace('call invoke_openrpa');
+        const response = this.lib.invoke_openrpa(this.client, req, timeout);
+        this.trace('decode response');
+        const result = koffi.decode(response, InvokeOpenRPAResponseWrapper);
+        this.trace('free_invoke_openrpa_response');
+        this.lib.free_invoke_openrpa_response(response);
+        if (!result.success) {
+            const errorMsg = result.error;
+            throw new ClientError(errorMsg);
+        }
+        let rparesult = result.result || "{}";
+        try {
+            rparesult = JSON.parse(rparesult);
+        } catch (error) {            
+        }
+        return rparesult;
     }
 }
 

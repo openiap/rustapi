@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.32";
+const VERSION: &str = "0.0.33";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -3871,6 +3871,7 @@ impl Client {
     pub async fn invoke_openrpa(
         &self,
         config: InvokeOpenRpaRequest,
+        timeout: Option<tokio::time::Duration>,
     ) -> Result<String, OpenIAPError> {
         if config.robotid.is_empty() {
             return Err(OpenIAPError::ClientError(
@@ -3940,7 +3941,7 @@ impl Client {
 
         let envelope = config.to_envelope();
 
-        let result = self.send(envelope, None).await;
+        let result = self.send(envelope, timeout).await;
         match result {
             Ok(m) => {
                 let data = match m.data {
@@ -3957,7 +3958,23 @@ impl Client {
                 // prost::Message::decode(data.value.as_ref())
                 //     .map_err(|e| OpenIAPError::CustomError(e.to_string()))?;
 
-                let json = rx.await.unwrap();
+                let duration = timeout.unwrap_or_else(|| self.get_default_timeout());
+                // let json = rx.await.unwrap();
+                let json = match tokio::time::timeout(duration, rx).await {
+                    Ok(Ok(val)) => {
+                        // Success, unregister queue before returning
+                        let _ = self.unregister_queue(&q).await;
+                        val
+                    },
+                    Ok(Err(e)) => {
+                        let _ = self.unregister_queue(&q).await;
+                        return Err(OpenIAPError::CustomError(e.to_string()));
+                    },
+                    Err(_) => {
+                        let _ = self.unregister_queue(&q).await;
+                        return Err(OpenIAPError::ServerError("Timeout".to_string()));
+                    },
+                };
                 debug!("Received json result: {:?}", json);
                 let obj = serde_json::from_str::<serde_json::Value>(&json).unwrap();
                 let command: String = obj["command"].as_str().unwrap().to_string();
@@ -3979,15 +3996,15 @@ impl Client {
                         return Err(OpenIAPError::ServerError(data));
                     }
                 }
-                let response = self.unregister_queue(&q).await;
-                match response {
-                    Ok(_) => {
-                        debug!("Unregistered Response Queue: {:?}", q);
-                    }
-                    Err(e) => {
-                        error!("Failed to unregister Response Queue: {:?}", e);
-                    }
-                }
+                // let response = self.unregister_queue(&q).await;
+                // match response {
+                //     Ok(_) => {
+                //         debug!("Unregistered Response Queue: {:?}", q);
+                //     }
+                //     Err(e) => {
+                //         error!("Failed to unregister Response Queue: {:?}", e);
+                //     }
+                // }
                 Ok(data)
             }
             Err(e) => Err(OpenIAPError::ClientError(e.to_string())),
