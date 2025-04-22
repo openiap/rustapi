@@ -157,6 +157,7 @@ public class clienttestcli {
         System.out.println("  o    - Toggle f64 observable gauge");
         System.out.println("  o2   - Toggle u64 observable gauge");
         System.out.println("  o3   - Toggle i64 observable gauge");
+        System.out.println("  cc   - Get Clients using custom_command");
         System.out.println("  rpa  - Invoke \"Who am I\" on robot \"allan5\"");
         System.out.println("  quit - Exit program");
     }

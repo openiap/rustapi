@@ -166,9 +166,9 @@ async def main():
         elif input_command == "dis":
             try:
                 query_result = client.disconnect()
-                print(query_result)
+                client.info(query_result)
             except ClientError as e:
-                print(f"Failed to query: {e}")
+                client.error(f"Failed to query: {e}")
         elif input_command == "st":
             if sthandle is None:
                 sthandle = asyncio.create_task(st_func(client))
@@ -178,39 +178,39 @@ async def main():
         elif input_command == "q":
             try:
                 query_result = client.query(collectionname="entities", query="{}", projection="{\"name\":1}")
-                print(query_result)
+                client.info(query_result)
             except ClientError as e:
-                print(f"Failed to query: {e}")
+                client.error(f"Failed to query: {e}")
         elif input_command == "qq":
             try:
                 query_result = client.query(collectionname="entities", query="{}")
-                print(query_result)
+                client.info(query_result)
             except ClientError as e:
-                print(f"Failed to query: {e}")
+                client.error(f"Failed to query: {e}")
         elif input_command == "di":
             try:
                 distinct_result = client.distinct(collectionname="entities", field="_type", query="{}")
-                print(distinct_result)
+                client.info(distinct_result)
             except ClientError as e:
-                print(f"Failed to query distinct: {e}")
+                client.error(f"Failed to query distinct: {e}")
         elif input_command in ["s", "s1"]:
             try:
                 signin_result = client.signin(username="guest", password="password")
-                print(f"Signed in as {signin_result.get('user').get('username')}")
+                client.info(f"Signed in as {signin_result.get('user').get('username')}")
             except ClientError as e:
-                print(f"Failed to sign in: {e}")
+                client.error(f"Failed to sign in: {e}")
         elif input_command in ["s2", "ss"]:
             try:
                 signin_result = client.signin(username="testuser", password="badpassword")
-                print(f"Signed in as {signin_result.get('user').get('username')}")
+                client.info(f"Signed in as {signin_result.get('user').get('username')}")
             except ClientError as e:
-                print(f"Failed to sign in: {e}")
+                client.error(f"Failed to sign in: {e}")
         elif input_command == "i":
             try:
                 insert_one_result = client.insert_one(collectionname="entities", item=json.dumps({"name": "Allan", "_type": "test"}))
-                print(f"Inserted as {insert_one_result}")
+                client.info(f"Inserted as {insert_one_result}")
             except ClientError as e:
-                print(f"Failed to insert: {e}")
+                client.error(f"Failed to insert: {e}")
         elif input_command == "im":
             try:
                 items = [
@@ -218,78 +218,79 @@ async def main():
                     {"name": "Allan2", "_type": "test"}
                 ]
                 insert_many_result = client.insert_many(collectionname="entities", items=json.dumps(items))
-                print(f"Inserted as {insert_many_result}")
+                client.info(f"Inserted as {insert_many_result}")
             except ClientError as e:
-                print(f"Failed to insert: {e}")
+                client.error(f"Failed to insert: {e}")
         elif input_command == "d":
             try:
                 download_result = client.download(collectionname="fs.files", id="65a3aaf66d52b8c15131aebd")
-                print(f"Downloaded as {download_result}")
+                client.info(f"Downloaded as {download_result}")
             except ClientError as e:
-                print(f"Failed to download: {e}")
+                client.error(f"Failed to download: {e}")
         elif input_command == "u":
             filepath = "train.csv"
             if not os.path.exists(filepath):
                 filepath = "../" + filepath
             try:
                 upload_result = client.upload(filepath=filepath, filename="train.csv")
-                print(f"Uploaded as {upload_result}")
+                client.info(f"Uploaded as {upload_result}")
             except ClientError as e:
-                print(f"Failed to upload: {e}")
+                client.error(f"Failed to upload: {e}")
         elif input_command == "r":
             try:
                 register_result = client.register_queue(queuename="test2queue", callback=on_queue)
-                print(f"Registered queue with id {register_result}")
+                client.info(f"Registered queue with id {register_result}")
             except ClientError as e:
-                print(f"Failed to register queue: {e}")
+                client.error(f"Failed to register queue: {e}")
         elif input_command == "r2":
             try:
-                result = client.rpc_async('{"some": "data"}', queuename="test2queue", striptoken=True,timeout=2)
-                print(f"RPC REPLY1: {result}")
-                result = client.rpc_async({"cmd": "getpackages"}, queuename="test2queue", striptoken=True,timeout=2)
-                print(f"RPC REPLY2: {result}")
+                result = client.rpc_async('{"some": "data"}', queuename="test2queue", striptoken=True)
+                client.info(result)  # Prints the RPC response
+                result = client.rpc_async({"cmd": "getpackages"}, queuename="test2queue", striptoken=True)
+                client.info(result)  # Prints the RPC response
+                
             except ClientError as e:
-                print(f"Failed to to RPC call: {e}")
+                client.error(f"Failed to to RPC call: {e}")
         elif input_command == "m":
             try:
                 client.queue_message( data="{\"message\": \"Hello, World as string!\"}", queuename="test2queue", striptoken=True)
                 client.queue_message( data={"message": "Hello, World as object!"}, queuename="test2queue", striptoken=True)
             except ClientError as e:
-                print(f"Failed to send message: {e}")
+                client.error(f"Failed to register queue: {e}")
         elif input_command == "w":
             try:
                 watch_id = client.watch(collectionname="entities", callback=on_watch)
-                print(f"Watch created with id {watch_id}")
+                client.info(f"Watch created with id {watch_id}")
             except ClientError as e:
-                print(f"Failed to watch: {e}")
+                client.error(f"Failed to watch: {e}")
         elif input_command == "uw":
             try:
                 if watch_id == "":
-                    print("No watch to unwatch")
+                    client.info("No watch to unwatch")
                     continue
                 unwatch_result = client.unwatch(watch_id)
-                print(f"Unwatched successfully: {unwatch_result}")
+                client.info(f"Unwatched successfully: {unwatch_result}")
             except ClientError as e:
-                print(f"Failed to unwatch: {e}")
+                client.error(f"Failed to unwatch: {e}")
         elif input_command == "c":
             try:
                 client.create_collection("pythoncollection")
-                print(f"Collection pythoncollection created")
+                client.info(f"Collection pythoncollection created")
             except ClientError as e:
-                print(f"Failed to create collection: {e}")
+                client.error(f"Failed to create collection: {e}")
         elif input_command == "c2":
             try:
                 ts = ColTimeseriesWrapper(time_field=c_char_p("ts".encode('utf-8')))
                 client.create_collection("pythontscollection", timeseries=ts)
-                print(f"Collection pythontscollection created")
+                client.info(f"Collection pythontscollection created")
             except ClientError as e:
-                print(f"Failed to unwatch: {e}")
+                client.error(f"Failed to unwatch: {e}")
         elif input_command == "gi":
             try:
                 result = client.get_indexes("entities")
-                print(f"indexes: {result}")
+                client.info(f"indexes: {result}")
             except ClientError as e:
-                print(f"Failed to get indexes: {e}")
+                client.error(f"Failed to get indexes: {e}")
         elif input_command == "c" or input_command == "cpu":
             num_calcs = 100000
             available_cores = os.cpu_count() // 2
@@ -352,6 +353,7 @@ async def main():
                 print(f"Custom command result: {result}")
             except ClientError as e:
                 print(f"Custom command failed: {e}")
+
         elif input_command == "rpa":
             try:
                 result = client.invoke_openrpa(
@@ -374,9 +376,9 @@ async def main():
         sthandle.cancel()
         sthandle = None
 
-    print("*********************************")
-    print("done, free client")
-    print("*********************************")
+    client.info("*********************************")
+    client.info("done, free client")
+    client.info("*********************************")
     client.free()
 
 if __name__ == "__main__":
