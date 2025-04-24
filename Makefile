@@ -1,8 +1,8 @@
 .PHONY: clean build build-all package package-all publish publish-all
-
 # Variables
 VERSION = 0.0.33
 NUGET_API_KEY ?= $(NUGET_API_KEY)
+PS_API_KEY := $(PS_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
 
 export CROSS_CONTAINER_ENGINE_NO_BUILDKIT = 1
@@ -142,6 +142,10 @@ publish-node:
 publish-dotnet:
 	dotnet nuget push dotnet/bin/Release/openiap.$(VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
 	dotnet nuget push dotnet/bin/Release/openiap-slim.$(VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
+
+publish-pwsh:
+	rm -rf pwsh/openiap/lib
+	@(pwsh -Command "Publish-Module -Path ./pwsh/openiap -NuGetApiKey $(PS_API_KEY)")
 
 publish-python:
 	(cd python && python3 -m twine upload dist/*)
