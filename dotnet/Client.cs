@@ -861,6 +861,9 @@ namespace OpenIAP
                 default:
                     throw new PlatformNotSupportedException("Unsupported OS platform");
             }
+            bool dumpLoadingPaths = false;
+            if(dumpLoadingPaths) Console.WriteLine("****************************");
+            if(dumpLoadingPaths) Console.WriteLine($"Loading library {libfile} for {Environment.OSVersion.Platform} ({arc})");
 
             // Assembly.GetEntryAssembly()     //gives you the entrypoint assembly for the process.
             // Assembly.GetCallingAssembly()   // gives you the assembly from which the current method was called.
@@ -869,29 +872,38 @@ namespace OpenIAP
 
             string libDir = Assembly.GetEntryAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location;
             string libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
-            libDir = Assembly.GetCallingAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location;
+            libDir =  Path.GetDirectoryName(Assembly.GetCallingAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location) ?? string.Empty;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libDir = Assembly.GetExecutingAssembly().Location;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             libDir = AppDomain.CurrentDomain.BaseDirectory;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             // Development environment
             libDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../lib");
             libPath = System.IO.Path.Combine(libDir, libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
 
             if (System.IO.File.Exists(libPath)) return libPath;
 
@@ -909,6 +921,7 @@ namespace OpenIAP
                     break;
             }
             libPath = System.IO.Path.Combine(libDir, libfile);
+            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
@@ -1152,20 +1165,30 @@ namespace OpenIAP
         public static extern void free_invoke_openrpa_response(IntPtr response);
 
         #endregion
+        private bool hasResolverBeenAdded = false;
         public Client(string libPath = "")
         {
             if (string.IsNullOrEmpty(libPath))
             {
                 libPath = GetLibraryPath();
             }
-            NativeLibrary.SetDllImportResolver(typeof(Client).Assembly, (name, assembly, path) =>
-            {
-                if (name == "libopeniap")
+            if (this.hasResolverBeenAdded == false) {
+                try
                 {
-                    return NativeLibrary.Load(libPath);
+                    NativeLibrary.SetDllImportResolver(typeof(Client).Assembly, (name, assembly, path) =>
+                    {
+                        if (name == "libopeniap")
+                        {
+                            return NativeLibrary.Load(libPath);
+                        }
+                        return IntPtr.Zero;
+                    });
                 }
-                return IntPtr.Zero;
-            });
+                catch (System.Exception)
+                {
+                }
+                this.hasResolverBeenAdded = true;
+            }
             clientPtr = create_client();
             var clientWrapper = Marshal.PtrToStructure<ClientWrapper>(clientPtr);
             if (!clientWrapper.success)
@@ -1556,7 +1579,7 @@ namespace OpenIAP
             // Allocate unmanaged memory for the strings
             IntPtr collectionnamePtr = Marshal.StringToHGlobalAnsi(collectionname);
             CallbackRegistry.TryAddCallback(requestId, tcs);
-            drop_collection_async(clientPtr, collectionname, 0, _DropCollectionCallbackDelegate);
+            drop_collection_async(clientPtr, collectionname, requestId, _DropCollectionCallbackDelegate);
 
             return tcs.Task;
         }
@@ -1795,7 +1818,7 @@ namespace OpenIAP
                 free_signin_response(responsePtr);
             }
         }
-        public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "")
+        public Task<(string jwt, string error, bool success)> Signin(string username = "", string password = "", bool longtoken = false, bool validateonly = false)
         {
             var tcs = new TaskCompletionSource<(string jwt, string error, bool success)>();
 
@@ -1815,8 +1838,8 @@ namespace OpenIAP
                     jwt = jwtPtr,
                     agent = agentPtr,
                     version = versionPtr,
-                    longtoken = false,
-                    validateonly = false,
+                    longtoken = longtoken,
+                    validateonly = validateonly,
                     ping = false,
                     request_id = requestId
                 };
@@ -3868,8 +3891,6 @@ namespace OpenIAP
         /// <returns>The result as a string if rpc=true, otherwise an empty string.</returns>
         public string InvokeOpenRPA(string robotid, string workflowid, string payload = "{}", bool rpc = true, int timeout = -1)
         {
-            var tcs = new TaskCompletionSource<string>();
-
             IntPtr robotidPtr = Marshal.StringToHGlobalAnsi(robotid);
             IntPtr workflowidPtr = Marshal.StringToHGlobalAnsi(workflowid);
             IntPtr payloadPtr = Marshal.StringToHGlobalAnsi(payload);
