@@ -1,6 +1,13 @@
-# Import-Module ./ps/openiap.psd1 -Force -Verbose && Invoke-Aggregate entities []
+# pwsh -NoExit -Command "Import-Module -DisableNameChecking ./pwsh/openiap"
 Write-Host "Testing OpenIAP PowerShell module..."
 
+
+$state = Get-State
+$timeout = Get-DefaultTimeout
+Write-Host "State: $state default timeout: $timeout"
+Set-DefaultTimeout 2
+$timeout = Get-DefaultTimeout
+Write-Host "New default timeout: $timeout"
 # Query
 Write-Host "`nInvoke-Query:"
 $result = Invoke-Query -Collection "entities" -Top 10 -Projection '{"name":1}'
@@ -98,30 +105,14 @@ Write-Host "`nInvoke-Download:"
 $filename = Invoke-Download -Collection "fs.files" -Id $uploadId -Filename "train.csv"
 Write-Host "Downloaded file: $filename"
 
-# Watch/UnWatch (event handler not supported in PS, just test registration)
-Write-Host "`nInvoke-Watch:"
-$watchid = Invoke-Watch -Collection "entities" -Paths "[]"
-Write-Host "Watch id: $watchid"
-Write-Host "`nInvoke-UnWatch:"
-Invoke-UnWatch -WatchId $watchid
-Write-Host "Unwatched $watchid"
-
-# RegisterQueue/UnRegisterQueue (event handler not supported in PS, just test registration)
-Write-Host "`nInvoke-RegisterQueue:"
-Invoke-RegisterQueue -QueueName "testpsqueue"
-Write-Host "Registered queue testpsqueue"
-Write-Host "`nInvoke-UnRegisterQueue:"
-Invoke-UnRegisterQueue -QueueName "testpsqueue"
-Write-Host "Unregistered queue testpsqueue"
-
 # QueueMessage
 Write-Host "`nInvoke-QueueMessage:"
-Invoke-QueueMessage -Data '{"message":"Hello from ps"}' -QueueName "testpsqueue"
+Invoke-QueueMessage -Data '{"message":"Hello from ps"}' -QueueName "test2queue"
 Write-Host "Queued message"
 
 # Rpc
 Write-Host "`nInvoke-Rpc:"
-Invoke-Rpc -Data '{"message":"Hello from ps"}' -QueueName "testpsqueue"
+Invoke-Rpc -Data '{"message":"Hello from ps"}' -QueueName "test2queue"
 Write-Host "RPC message sent"
 
 # CustomCommand
@@ -152,14 +143,6 @@ if ($popwi -and $popwi.id) {
     Invoke-DeleteWorkitem -Id $popwi.id
     Write-Host "Deleted workitem"
 }
-
-# OnClientEvent/OffClientEvent (event handler not supported in PS, just test registration)
-Write-Host "`nInvoke-OnClientEvent:"
-$eventid = Invoke-OnClientEvent
-Write-Host "Registered client event: $eventid"
-Write-Host "`nInvoke-OffClientEvent:"
-Invoke-OffClientEvent -EventId $eventid
-Write-Host "Unregistered client event: $eventid"
 
 # OpenRPA
 Write-Host "`nInvoke-OpenRPA:"

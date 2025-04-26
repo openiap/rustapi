@@ -8,7 +8,7 @@
 RootModule = 'openiap.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.5'
+ModuleVersion = '0.0.6'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -30,6 +30,9 @@ Description = 'Interact and manage OpenIAP OpenCore installation from PowerShell
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @(
+    'Get-DefaultTimeout',
+    'Set-DefaultTimeout',
+    'Get-State',
     'Invoke-Query',
     'Invoke-Aggregate',
     'Invoke-OpenRPA',
@@ -48,10 +51,6 @@ FunctionsToExport = @(
     'Invoke-DropIndex',
     'Invoke-Upload',
     'Invoke-Download',
-    'Invoke-Watch',
-    'Invoke-UnWatch',
-    'Invoke-RegisterQueue',
-    'Invoke-UnRegisterQueue',
     'Invoke-QueueMessage',
     'Invoke-Rpc',
     'Invoke-CustomCommand',
@@ -59,9 +58,7 @@ FunctionsToExport = @(
     'Invoke-PopWorkitem',
     'Invoke-UpdateWorkitem',
     'Invoke-DeleteWorkitem',
-    'Invoke-Signin',
-    'Invoke-OnClientEvent',
-    'Invoke-OffClientEvent'
+    'Invoke-Signin'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.

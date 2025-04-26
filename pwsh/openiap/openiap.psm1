@@ -3,7 +3,7 @@ $NativeFolder = Join-Path $ModuleRoot 'lib'
 Write-Verbose "Loading OpenIap module from $ModuleRoot"
 Write-Verbose "Native library folder: $NativeFolder"
 # version of your native libraries on GitHub
-$OpenIapVersion = '0.0.33'
+$OpenIapVersion = '0.0.34'
 $user = $null;
 function Get-NativeLibFile {
     [CmdletBinding()] param()
@@ -62,10 +62,10 @@ function Get-NativeLibFile {
 }
 Get-NativeLibFile
 $ClientInstance = [OpenIap.Client]::new()
-$Clientconnected = $false;
+$firstCheck = $false;
 
 function Ensure-Connected {
-    if ($script:Clientconnected -eq $false) {
+    if ($script:firstCheck -eq $false) {
         # You can prompt for URL or use a default/config value
         $url = $env:apiurl
         if (-not $url) { 
@@ -79,9 +79,27 @@ function Ensure-Connected {
         }
         [OpenIap.Client]::client_set_agent_name($ClientInstance.clientPtr, "powershell")
         $user = $ClientInstance.connect($url)
-        $script:Clientconnected = $true
+        $script:firstCheck = $true
     } 
     return $user
+}
+function Get-State {
+    Ensure-Connected | Out-Null
+    $state = $ClientInstance.get_state();
+    return $state
+}
+function Get-DefaultTimeout {
+    Ensure-Connected | Out-Null
+    $timeout = $ClientInstance.get_default_timeout();
+    return $timeout
+}
+function Set-DefaultTimeout {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$timeout
+    )
+    Ensure-Connected | Out-Null
+    $ClientInstance.set_default_timeout($timeout);
 }
 function Invoke-Query {
     [CmdletBinding()]
@@ -129,7 +147,7 @@ function Invoke-OpenRPA {
         [Parameter(Mandatory)][string]$WorkflowId,
         [Parameter()][string]$Payload = '{}',
         [Parameter()][bool]$Rpc = $true,
-        [Parameter()][int]$Timeout = 10
+        [Parameter()][int]$Timeout = -1
     )
     Ensure-Connected | Out-Null
     $json = $ClientInstance.InvokeOpenRPA($RobotId, $WorkflowId, $Payload, $Rpc, $Timeout)
@@ -364,45 +382,6 @@ function Invoke-Download {
     $ClientInstance.download($Collection, $Id, $Folder, $FileName).GetAwaiter().GetResult()
 }
 
-function Invoke-Watch {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Collection,
-        [Parameter(Mandatory)][string]$Paths
-        # EventHandler omitted for PowerShell
-    )
-    Ensure-Connected | Out-Null
-    $ClientInstance.watch($Collection, $Paths, $null).GetAwaiter().GetResult()
-}
-
-function Invoke-UnWatch {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$WatchId
-    )
-    Ensure-Connected | Out-Null
-    $ClientInstance.UnWatch($WatchId)
-}
-
-function Invoke-RegisterQueue {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$QueueName
-        # EventHandler omitted for PowerShell
-    )
-    Ensure-Connected | Out-Null
-    $ClientInstance.RegisterQueue($QueueName, $null)
-}
-
-function Invoke-UnRegisterQueue {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$QueueName
-    )
-    Ensure-Connected | Out-Null
-    $ClientInstance.UnRegisterQueue($QueueName)
-}
-
 function Invoke-QueueMessage {
     [CmdletBinding()]
     param(
@@ -416,7 +395,7 @@ function Invoke-QueueMessage {
         [Parameter()][int]$Expiration = 0
     )
     Ensure-Connected | Out-Null
-    $ClientInstance.QueueMessage($Data, $QueueName, $ExchangeName, $ReplyTo, $RoutingKey, $CorrelationId, $StripToken, $Expiration).GetAwaiter().GetResult()
+    $ClientInstance.QueueMessage($Data, $QueueName, $ExchangeName, $ReplyTo, $RoutingKey, $CorrelationId, $StripToken, $Expiration).GetAwaiter().GetResult()  | Out-Null
 }
 
 function Invoke-Rpc {
@@ -427,10 +406,11 @@ function Invoke-Rpc {
         [Parameter()][string]$ExchangeName = "",
         [Parameter()][string]$RoutingKey = "",
         [Parameter()][bool]$StripToken = $false,
-        [Parameter()][int]$Expiration = 0
+        [Parameter()][int]$Expiration = 0,
+        [Parameter()][int]$timeout = -1
     )
     Ensure-Connected | Out-Null
-    $ClientInstance.Rpc($Data, $QueueName, $ExchangeName, $RoutingKey, $StripToken, $Expiration).GetAwaiter().GetResult()
+    $ClientInstance.Rpc($Data, $QueueName, $ExchangeName, $RoutingKey, $StripToken, $Expiration, $timeout).GetAwaiter().GetResult()
 }
 
 function Invoke-CustomCommand {
@@ -511,23 +491,4 @@ function Invoke-Signin {
     } else {
         throw "Signin failed, unknown error"
     }
-}
-
-function Invoke-OnClientEvent {
-    [CmdletBinding()]
-    param(
-        [Parameter()][scriptblock]$EventHandler
-    )
-    Ensure-Connected | Out-Null
-    # EventHandler is not supported in PowerShell, so just call and return eventid
-    $ClientInstance.on_client_event($null)
-}
-
-function Invoke-OffClientEvent {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$EventId
-    )
-    Ensure-Connected | Out-Null
-    $ClientInstance.off_client_event($EventId)
 }
