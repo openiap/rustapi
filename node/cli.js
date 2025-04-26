@@ -367,9 +367,6 @@ async function doit() {
                     break;
                 case "r":
                     try {
-                        // const response = await client.register_queue({
-                        //     queuename: "test2queue"
-                        // }, onqueue);
                         const response = await client.register_queue_async({
                             queuename: "test2queue"
                         }, onqueue);
@@ -380,11 +377,6 @@ async function doit() {
                     break;
                 case "r2":
                     try {
-                        // const response = await client.rpc({
-                        //     queuename: "test2queue",
-                        //     striptoken: true,
-                        //     data: "{\"message\":\"Test message\"}"
-                        // }, onqueue);
                         const response = await client.rpc_async({
                             queuename: "test2queue",
                             striptoken: true,
@@ -417,6 +409,23 @@ async function doit() {
                         }
                     } catch (e) {
                         client.error('Failed to get clients:', e);
+                    }
+                    break;
+                case "g":
+                    try {
+                        const state = client.get_state();
+                        client.info("State:", state);
+                        let timeout = client.get_default_timeout();
+                        client.info("Default timeout", timeout, "seconds");
+                        client.set_default_timeout(2);
+                        timeout = client.get_default_timeout();
+                        if (timeout != null && timeout == 2) {
+                            client.info("Default timeout set to 2 seconds");
+                        } else {
+                            client.error("Failed to set default timeout", timeout);
+                        }
+                    } catch (e) {
+                        client.error('Failed to get state:', e);
                     }
                     break;
                 default:

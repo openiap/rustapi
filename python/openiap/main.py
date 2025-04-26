@@ -616,6 +616,37 @@ class Client:
     def enable_tracing(self, rust_log="", tracing=""):
         self.debug("Calling enable_tracing " , rust_log, tracing)
         self.lib.enable_tracing(rust_log.encode('utf-8'), tracing.encode('utf-8'))
+    def get_state(self):
+        self.lib.client_get_state.argtypes = [POINTER(ClientWrapper)]
+        self.lib.client_get_state.restype = c_char_p
+        self.trace("Calling client_get_state")
+        state = self.lib.client_get_state(self.client)
+        self.trace("client_get_state called")
+        if state:
+            state = state.decode('utf-8')
+            self.trace("client_get_state returned", state)
+            return state
+        else:
+            self.trace("client_get_state returned None")
+            return None
+    def get_default_timeout(self):
+        self.lib.client_get_default_timeout.argtypes = [POINTER(ClientWrapper)]
+        self.lib.client_get_default_timeout.restype = c_int
+        self.trace("Calling client_get_default_timeout")
+        timeout = self.lib.client_get_default_timeout(self.client)
+        self.trace("client_get_default_timeout called")
+        if timeout:
+            self.trace("client_get_default_timeout returned", timeout)
+            return timeout
+        else:
+            self.trace("client_get_default_timeout returned None")
+            return None
+    def set_default_timeout(self, timeout):
+        self.lib.client_set_default_timeout.argtypes = [POINTER(ClientWrapper), c_int]
+        self.lib.client_set_default_timeout.restype = None
+        self.trace("Calling client_set_default_timeout")
+        self.lib.client_set_default_timeout(self.client, timeout)
+        self.trace("client_set_default_timeout called")
     def on_client_event(self, callback = None):
         self.trace("Inside on_client_event")
         result = {"success": None, "eventid": None, "error": None}

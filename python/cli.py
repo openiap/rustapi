@@ -366,6 +366,21 @@ async def main():
             except Exception as e:
                 print(f"Invoke OpenRPA failed: {e}")
 
+        elif input_command == "g":
+            try:
+                state = client.get_state()
+                client.info(f"State: {state}")
+                timeout = client.get_default_timeout()
+                client.info(f"Default timeout: {timeout} seconds")
+                client.set_default_timeout(2)
+                timeout = client.get_default_timeout()
+                if timeout is not None and timeout == 2:
+                    client.info("Default timeout set to 2 seconds")
+                else:
+                    client.error(f"Failed to set default timeout: {timeout}")
+            except ClientError as e:
+                client.error(f"Failed to get state: {e}")
+
     # Make sure to clean up threads before exiting
     stop_threads = True
     for thread in [f64_thread, u64_thread, i64_thread]:

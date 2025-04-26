@@ -230,9 +230,24 @@ class Client {
     private function set_agent_name($agent_name) {
         $this->ffi->client_set_agent_name($this->client, $agent_name);
     }
-    private function set_default_timeout($timeout) {
+    public function set_default_timeout($timeout) {
         $this->ffi->client_set_default_timeout($this->client, $timeout);
     }
+    public function get_default_timeout() {
+        $timeout = $this->ffi->client_get_default_timeout($this->client);
+        if ($timeout === null) {
+            throw new Exception("Failed to get default timeout");
+        }
+        return $timeout;
+    }
+    public function get_state() {
+        $state = $this->ffi->client_get_state($this->client);
+        if ($state === null) {
+            throw new Exception("Failed to get client state");
+        }
+        return $state;
+    }
+
     private function set_agent_version($agent_version) {
         $this->ffi->client_set_agent_version($this->client, $agent_version);
     }

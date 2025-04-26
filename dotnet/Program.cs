@@ -89,6 +89,28 @@ class Program
           Console.WriteLine("o2 - Toggle u64 observable gauge");
           Console.WriteLine("o3 - Toggle i64 observable gauge");
           Console.WriteLine("cc - Custom command example");
+          Console.WriteLine("g - Get client state");
+          Console.WriteLine("l - List collections");
+          Console.WriteLine("c - Count entities");
+          Console.WriteLine("dd - Distinct entities");
+          Console.WriteLine("cc2 - Create a timeseries collection");
+          Console.WriteLine("cc3 - Create a collection, index, and insert an entity");
+          Console.WriteLine("dc - Drop collections");
+          Console.WriteLine("gi - Get indexes");
+          Console.WriteLine("im - Insert many entities");
+          Console.WriteLine("u1 - Update an entity");
+          Console.WriteLine("d - Download a file");
+          Console.WriteLine("u - Upload a file");
+          Console.WriteLine("m - Send a message to a queue");
+          Console.WriteLine("r - Register a queue");
+          Console.WriteLine("r2 - Send a message to a queue and wait for a response");
+          Console.WriteLine("p - Pop a workitem from the queue");
+          Console.WriteLine("pp - Push a workitem to the queue");
+          Console.WriteLine("st - Start a task to pop workitems");
+          Console.WriteLine("st2 - Start a task to run a test");
+          Console.WriteLine("gc - Force garbage collection");
+          Console.WriteLine("dis - Disconnect from the server");
+          Console.WriteLine("0-4 - Disable or Enable tracing level");
           break;
         case "0":
           client.disabletracing();
@@ -104,6 +126,21 @@ class Program
           break;
         case "4":
           client.enabletracing("trace", "new");
+          break;
+        case "info":
+          client.info("Info message from dotnet client.");
+          break;
+        case "warn":
+          client.warn("Warning message from dotnet client.");
+          break;          
+        case "error":
+          client.error("Error message from dotnet client.");
+          break;
+        case "debug":
+          client.debug("Debug message from dotnet client.");
+          break;
+        case "trace":
+          client.trace("Trace message from dotnet client.");
           break;
         case "pp":
           var pushwi = new Workitem { name = "test from dotnet", payload = "{\"_type\": \"test\"}" };
@@ -153,7 +190,7 @@ class Program
         case "t":
           var res = Task.Run(async () =>
           {
-            await test.Test(client);
+            await TestClass.Test(client);
           });
           break;
         case "st":
@@ -219,7 +256,7 @@ class Program
               {
                 x2++;
                 Thread.Sleep(1);
-                await test.Test(client);
+                await TestClass.Test(client);
                 if (x2 % 500 == 0)
                 {
                   Console.WriteLine("No new workitem", DateTime.Now);
@@ -571,7 +608,7 @@ class Program
           }
           catch (Exception e)
           {
-            Console.WriteLine("Error disconnecting: " + e.Message);
+            Console.WriteLine("Error uploading file: " + e.Message);
           }
           break;
         case "w":
@@ -622,7 +659,7 @@ class Program
           }
           catch (Exception e)
           {
-            Console.WriteLine("Error disconnecting: " + e.Message);
+            Console.WriteLine("Error registering queue: " + e.Message);
           }
           break;
         case "r2":
@@ -634,7 +671,7 @@ class Program
           }
           catch (Exception e)
           {
-            Console.WriteLine("Error disconnecting: " + e.Message);
+            Console.WriteLine("Error doing rcp: " + e.Message);
           }
           break;
         case "m":
@@ -645,7 +682,7 @@ class Program
           }
           catch (Exception e)
           {
-            Console.WriteLine("Error disconnecting: " + e.Message);
+            Console.WriteLine("Error sending message: " + e.Message);
           }
           break;
         case "o":
@@ -719,6 +756,30 @@ class Program
             var rparesult = client.InvokeOpenRPA("5ce94386320b9ce0bc2c3d07",
                 "5e0b52194f910e30ce9e3e49", "{\"test\":\"test\"}", true, 10);
             client.info("rpa result " + rparesult);
+          }
+          catch (System.Exception ex)
+          {
+            client.error("Client connection error: " + ex.Message);
+          }
+          break;
+        case "g":
+          try
+          {
+            var state = client.get_state();
+            Console.WriteLine("Client state: " + state);
+            var timeout = client.get_default_timeout();
+            Console.WriteLine("Client default timeout " + timeout + " seconds.");
+            client.set_default_timeout(2);
+            Console.WriteLine("Updated client default timeout to 2 seconds.");
+            timeout = client.get_default_timeout();
+            if (timeout == 2)
+            {
+              Console.WriteLine("Client default timeout is now " + timeout + " seconds.");
+            }
+            else
+            {
+              Console.WriteLine("Client default timeout is not 2 seconds, it is " + timeout + " seconds.");
+            }
           }
           catch (System.Exception ex)
           {

@@ -127,6 +127,9 @@ public class clienttestcli {
             case "quit":
                 running = false;
                 break;
+            case "g":
+                System.out.println("Client state: " + client.getState());
+                break;
             case "rpa":
                 handleInvokeOpenRPA();
                 break;

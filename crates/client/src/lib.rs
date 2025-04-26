@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.33";
+const VERSION: &str = "0.0.34";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.

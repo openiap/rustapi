@@ -693,6 +693,8 @@ function loadLibrary() {
 
         lib.set_agent_name = lib.func('client_set_agent_name', 'void', [ClientWrapperPtr, 'str']);
         lib.client_set_default_timeout = lib.func('client_set_default_timeout', 'void', [ClientWrapperPtr, 'int']);
+        lib.client_get_default_timeout = lib.func('client_get_default_timeout', 'int', [ClientWrapperPtr]);
+        lib.client_get_state = lib.func('client_get_state', 'str', [ClientWrapperPtr]);
         lib.set_agent_version = lib.func('client_set_agent_version', 'void', [ClientWrapperPtr, 'str']);
 
         lib.disable_tracing = lib.func('void disable_tracing()');
@@ -950,6 +952,16 @@ class Client {
     set_default_timeout(timeout) {
         this.trace('set_default_timeout invoked', timeout);
         this.lib.client_set_default_timeout(this.client, timeout);
+    }
+    get_default_timeout() {
+        this.trace('get_default_timeout invoked');
+        let timeout = this.lib.client_get_default_timeout(this.client);
+        return timeout;
+    }
+    get_state() {
+        this.trace('get_state invoked');
+        let state = this.lib.client_get_state(this.client);
+        return state;
     }
     set_agent_version(version) {
         this.trace('set_agent_version invoked', version);

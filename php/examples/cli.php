@@ -161,6 +161,23 @@ try {
                     print("OpenRPA error: " . $e->getMessage() . "\n");
                 }
                 break;
+            case 'g':
+                try {
+                    $state = $client->get_state();
+                    print("state: " . $state . "\n");
+                    $timeout = $client->get_default_timeout();
+                    print("timeout: " . $timeout . "\n");
+                    $client->set_default_timeout(2);
+                    $timeout = $client->get_default_timeout();
+                    if ($timeout != 2) {
+                        print("Error: timeout not set to 2\n");
+                    } else {
+                        print("timeout set to 2\n");
+                    }
+                } catch (Exception $e) {
+                    print("Get error: " . $e->getMessage() . "\n");
+                }
+                break;
             case 'quit':
                 // Cancel any active gauge handlers
                 if ($f64_handler) Loop::cancelTimer($f64_handler);

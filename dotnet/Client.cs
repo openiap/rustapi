@@ -971,7 +971,11 @@ namespace OpenIAP
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void client_set_agent_name(IntPtr client, string agentname);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int client_get_default_timeout(IntPtr client);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void client_set_default_timeout(IntPtr client, int timeout);
+        [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
+        public static extern string client_get_state(IntPtr client);
         public delegate void ConnectCallback(IntPtr ConnectResponseWrapperPtr);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void connect_async(IntPtr client, string url, int request_id, ConnectCallback callback);
@@ -1148,7 +1152,7 @@ namespace OpenIAP
         public static extern void free_delete_workitem_response(IntPtr response);
 
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void rpc_async(IntPtr client, ref QueueMessageRequestWrapper options, RpcResponseCallback response_callback);
+        public static extern void rpc_async(IntPtr client, ref QueueMessageRequestWrapper options, RpcResponseCallback response_callback, int timeout);
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern void free_rpc_response(IntPtr response);
 
@@ -1236,6 +1240,19 @@ namespace OpenIAP
         public void disabletracing()
         {
             disable_tracing();
+        }
+        public int get_default_timeout()
+        {
+            return client_get_default_timeout(clientPtr);
+        }
+        public void set_default_timeout(int timeout)
+        {
+            client_set_default_timeout(clientPtr, timeout);
+        }
+        public string get_state()
+        {
+            return client_get_state(clientPtr);
+
         }
         public void error(params object[] objs)
         {
@@ -3145,7 +3162,7 @@ namespace OpenIAP
         }
 
         // Keep the existing RegisterQueue with Action<QueueEvent> for backward compatibility
-        public string RegisterQueue(string queuename, Action<QueueEvent> eventHandler)
+        public string RegisterQueueAction(string queuename, Action<QueueEvent> eventHandler)
         {
             return RegisterQueue(queuename, (queueEvent) => {
                 eventHandler(queueEvent);
@@ -4021,7 +4038,7 @@ namespace OpenIAP
             }
         }
 
-        public Task<string> Rpc(string data, string queuename = "", string exchangename = "", string routingkey = "", bool striptoken = false, int expiration = 0)
+        public Task<string> Rpc(string data, string queuename = "", string exchangename = "", string routingkey = "", bool striptoken = false, int expiration = 0, int timeout = -1) 
         {
             var tcs = new TaskCompletionSource<string>();
 
@@ -4050,7 +4067,7 @@ namespace OpenIAP
                 };
 
                 CallbackRegistry.TryAddCallback(requestId, tcs);
-                rpc_async(clientPtr, ref request, _RpcResponseCallbackDelegate);
+                rpc_async(clientPtr, ref request, _RpcResponseCallbackDelegate, timeout);
             }
             finally 
             {

@@ -24,7 +24,9 @@ interface CLib extends Library {
     Pointer create_client();
     Pointer client_connect(Pointer client, String serverUrl);
     void client_set_agent_name(Pointer client, String agentName);
+    int client_get_default_timeout(Pointer client);
     void client_set_default_timeout(Pointer client, int timeout);
+    Pointer client_get_state(Pointer client);
     void free_connect_response(Pointer response);
     void client_disconnect(Pointer client);
     void free_client(Pointer client);
@@ -153,11 +155,29 @@ public class Client implements AutoCloseable {
         }
         clibInstance.client_set_agent_name(clientPtr, agentName);
     }
+    public int GetDefaultTimeout() {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        return clibInstance.client_get_default_timeout(clientPtr);
+    }
     public void SetDefaultTimeout(int timeout) {
         if (clientPtr == null) {
             throw new RuntimeException("Client not initialized");
         }
         clibInstance.client_set_default_timeout(clientPtr, timeout);
+    }
+    public String getState() {
+        if (clientPtr == null) {
+            throw new RuntimeException("Client not initialized");
+        }
+        Pointer statePtr = clibInstance.client_get_state(clientPtr);
+        if (statePtr == null) {
+            throw new RuntimeException("Failed to get client state");
+        }
+        String state = statePtr.getString(0);
+        Native.free(Pointer.nativeValue(statePtr)); // Free the allocated memory
+        return state;
     }
     public void connect(String serverUrl) {
         setAgentName("java");

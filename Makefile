@@ -1,6 +1,6 @@
 .PHONY: clean build build-all package package-all publish publish-all
 # Variables
-VERSION = 0.0.33
+VERSION = 0.0.34
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 PS_API_KEY := $(PS_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
@@ -36,12 +36,15 @@ bump:
 	# Clean up backup files created by sed
 	@find . -name "*.bak" -type f -delete
 
-	# Update version in pom.xml files (C# project files)
+	# Update version in pom.xml files (java project files)
 	# @find java -name "pom.xml" -exec sed -i 's/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>$(VERSION)<\/version>/' {} \;
 	@find java -name "pom.xml" -exec sed -i '/<artifactId>client<\/artifactId>/{n;s/<version>[0-9]\+\.[0-9]\+\.[0-9]\+<\/version>/<version>${VERSION}<\/version>/}' {} \;
 
 	# Update version in conanfile.py (conan package manager)
 	@find c -name "*.py" -exec sed -i 's/version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
+
+	# Update version in openiap.psd1 (powershell module)
+	@find c -name "*.psd1" -exec sed -i "s/\$OpenIapVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/\$OpenIapVersion = '$(VERSION)'/" {} \;
 
 	@echo "Version bump completed to $(VERSION)"
 
@@ -76,8 +79,7 @@ build-linux:
 	cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-arm64-musl-openiap
 	
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
-	cp crates/clib/clib_openiap.h java/src/main/java/io/openiap/clib_openiap.h
-	cp crates/clib/clib_openiap.h c/clib_openiap.h
+	cp crates/clib/clib_openiap.h c/include/clib_openiap.h
 	cp crates/clib/clib_openiap.h go/clib_openiap.h
 
 build-macos:
