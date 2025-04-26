@@ -1,5 +1,3 @@
-https://learn.microsoft.com/en-us/powershell/gallery/how-to/publishing-packages/publishing-a-package?view=powershellget-3.x
-
 Requires PowerShell Core, to download go to the official PowerShell GitHub releases page:
 https://github.com/PowerShell/PowerShell/releases
 To install
