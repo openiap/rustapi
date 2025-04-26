@@ -691,7 +691,11 @@ void connect_async(struct ClientWrapper *client,
                    int32_t request_id,
                    ConnectCallback callback);
 
+int32_t client_get_default_timeout(struct ClientWrapper *client_wrap);
+
 void client_set_default_timeout(struct ClientWrapper *client_wrap, int32_t timeout);
+
+const char *client_get_state(struct ClientWrapper *client_wrap);
 
 void client_set_agent_name(struct ClientWrapper *client_wrap, const char *agent_name);
 

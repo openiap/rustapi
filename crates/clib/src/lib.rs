@@ -781,6 +781,17 @@ pub extern "C" fn connect_async(client: *mut ClientWrapper, server_address: *con
     });
 }
 #[no_mangle]
+pub extern "C" fn client_get_default_timeout(client_wrap: *mut ClientWrapper) -> i32 {
+    debug!("get_default_timeout");
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    client.get_default_timeout().as_secs() as i32
+}
+#[no_mangle]
 pub extern "C" fn client_set_default_timeout(client_wrap: *mut ClientWrapper, timeout: i32) {
     debug!("set_default_timeout = {:?}", timeout);
     let client = match safe_wrapper( client_wrap ) {
@@ -794,6 +805,19 @@ pub extern "C" fn client_set_default_timeout(client_wrap: *mut ClientWrapper, ti
         _timeout = tokio::time::Duration::from_secs(timeout as u64);
     }
     client.set_default_timeout(_timeout);
+}
+#[no_mangle]
+pub extern "C" fn client_get_state(client_wrap: *mut ClientWrapper) -> *const c_char {
+    debug!("get_state");
+    let client = match safe_wrapper( client_wrap ) {
+        Some( wrap ) => wrap.client.clone().unwrap(),
+        None => {
+            Client::new()
+        }
+    };
+    let state = client.get_state().to_string();
+    let state_str = CString::new(state).unwrap().into_raw();
+    state_str
 }
 #[no_mangle]
 pub extern "C" fn client_set_agent_name(client_wrap: *mut ClientWrapper, agent_name: *const c_char) {

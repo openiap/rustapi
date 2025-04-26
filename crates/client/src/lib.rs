@@ -27,7 +27,7 @@ pub use openiap_proto::*;
 pub use prost_types::Timestamp;
 pub use protos::flow_service_client::FlowServiceClient;
 use sqids::Sqids;
-
+use std::fmt::{Display,Formatter};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::WebSocketStream;
 use tracing::{debug, error, info, trace};
@@ -227,6 +227,17 @@ pub enum ClientState {
     /// The client is signed in and connected
     Signedin
 }
+impl Display for ClientState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientState::Disconnected => write!(f, "Disconnected"),
+            ClientState::Connecting => write!(f, "Connecting"),
+            ClientState::Connected => write!(f, "Connected"),
+            ClientState::Signedin => write!(f, "Signedin"),
+        }
+    }
+}
+
 /// The `Config` struct provides the configuration for the OpenIAP service we are connecting to.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[allow(dead_code)]
@@ -797,12 +808,14 @@ impl Client {
             }
             if state == ClientState::Disconnected && !current.eq(&state) {
                 let me = self.clone();
-                tokio::task::spawn(async move {
-                    let mut reply_queue_guard = me.rpc_reply_queue.lock().await;
-                    let mut callback_guard = me.rpc_callback.lock().await;
-                    *reply_queue_guard = None;
-                    *callback_guard = None;
-                });
+                if let Ok(_handle) = tokio::runtime::Handle::try_current() {
+                    tokio::task::spawn(async move {
+                        let mut reply_queue_guard = me.rpc_reply_queue.lock().await;
+                        let mut callback_guard = me.rpc_callback.lock().await;
+                        *reply_queue_guard = None;
+                        *callback_guard = None;
+                    });
+                }
             }
             if state == ClientState::Connecting && !current.eq(&state) {
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
@@ -811,14 +824,6 @@ impl Client {
                     tokio::task::spawn(async move {
                         me.event_sender.send(crate::ClientEvent::Connecting).await.unwrap();
                     });
-                    // match tokio::task::Builder::new().name("setconnected-notify-connecting").spawn(async move {
-                    //     me.event_sender.send(crate::ClientEvent::Connecting).await.unwrap();
-                    // }) {
-                    //     Ok(_) => (),
-                    //     Err(e) => {
-                    //         error!("Failed to spawn setconnected-notify-connecting task: {:?}", e);
-                    //     }
-                    // }
                 }
 
             }
@@ -829,14 +834,6 @@ impl Client {
                     tokio::task::spawn(async move {
                         me.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
                     });
-                    // match tokio::task::Builder::new().name("setconnected-notify-connected").spawn(async move {
-                    //     me.event_sender.send(crate::ClientEvent::Connected).await.unwrap();
-                    // }) {
-                    //     Ok(_) => (),
-                    //     Err(e) => {
-                    //         error!("Failed to spawn setconnected-notify-connected task: {:?}", e);
-                    //     }
-                    // }
                 }
             }
             if state == ClientState::Signedin && current != ClientState::Signedin {
@@ -845,14 +842,6 @@ impl Client {
                     tokio::task::spawn(async move {
                         me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
                     });
-                    // match tokio::task::Builder::new().name("set_signedin-notify-connected").spawn(async move {
-                    //     me.event_sender.send(crate::ClientEvent::SignedIn).await.unwrap();
-                    // }) {
-                    //     Ok(_) => (),
-                    //     Err(e) => {
-                    //         error!("Failed to spawn set_signedin-notify-connected task: {:?}", e);
-                    //     }
-                    // };
                 }
             }
             if state == ClientState::Disconnected && !current.eq(&state) {
@@ -867,26 +856,14 @@ impl Client {
                         Some(message) => message.to_string(),
                         None => "".to_string(),
                     };
-                    //if current != ClientState::Connecting {
                         tokio::task::spawn(async move {
                             me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
                         });
-                        // match tokio::task::Builder::new().name("setconnected-notify-disconnected").spawn(async move {
-                        //     trace!("Disconnected: {}", message);
-                        //     me.event_sender.send(crate::ClientEvent::Disconnected(message)).await.unwrap();
-                        // }) {
-                        //     Ok(_) => (),
-                        //     Err(e) => {
-                        //         error!("Failed to spawn setconnected-notify-disconnected task: {:?}", e);
-                        //     }
-                        // }
-                    //}
                 }
 
                 self.kill_handles();
                 if let Ok(_handle) = tokio::runtime::Handle::try_current() {
                     let client = self.clone();
-                    // match tokio::task::Builder::new().name("kill_handles").spawn(async move {
                         tokio::task::spawn(async move {
                         {
                             let inner = client.inner.lock().await;
@@ -941,12 +918,6 @@ impl Client {
                             debug!("Reconnecting disabled, stop now");
                         }
                     });
-                    //  {
-                    //     Ok(_) => (),
-                    //     Err(e) => {
-                    //         error!("Failed to spawn kill_handles task: {:?}", e);
-                    //     }
-                    // }
                 }
     
             }
