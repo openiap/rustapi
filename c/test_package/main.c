@@ -61,7 +61,7 @@ const char *queue_event_callback(struct QueueEventWrapper *event) {
     printf("> ");
     fflush(stdout);
     // No reply
-    return "{}";
+    return "{\"status\":\"ok\"}";
 }
 
 int main(void) {
@@ -295,6 +295,25 @@ int main(void) {
                 }
                 free_register_queue_response(resp);
             }
+        } else if (strcmp(input, "r2") == 0) {
+            struct QueueMessageRequestWrapper req = {
+                .queuename = "test2queue",
+                .striptoken = true,
+                .data = "{\"message\":\"Test message\"}",
+                .request_id = 1
+            };
+
+            struct RpcResponseWrapper *response = rpc(client, &req, 5);
+            if (response == NULL) {
+                error("RPC test failed: response is NULL.");
+            } else if (!response->success) {
+                error("RPC test failed:");
+                error(response->error);
+            } else {
+                info("Received reply:");
+                info(response->result);
+            }
+            free_rpc_response(response);
         } else if (strcmp(input, "m") == 0) {
             struct QueueMessageRequestWrapper req = {
                 .queuename = "test2queue",
@@ -352,7 +371,27 @@ int main(void) {
                     printf("Invoke OpenRPA result: %s\n", resp->result);
                 }
                 free_invoke_openrpa_response(resp);
-            }            
+            }
+        } else if (strcmp(input, "g") == 0) {
+            const char *state = client_get_state(client);
+            if (state != NULL) {
+                info("State:");
+                info(state);
+            } else {
+                error("Failed to get state.");
+            }
+
+            int32_t timeout = client_get_default_timeout(client);
+            info("Default timeout:");
+            printf("%d seconds\n", timeout);
+
+            client_set_default_timeout(client, 2);
+            timeout = client_get_default_timeout(client);
+            if (timeout == 2) {
+                info("Default timeout set to 2 seconds.");
+            } else {
+                error("Failed to set default timeout.");
+            }
         } else {
             printf("Unknown command: '%s'\n", input);
         }
