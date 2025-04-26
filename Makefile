@@ -169,7 +169,7 @@ publish-cargo:
 # Combined tasks
 build-all: clean prepare build-linux build-macos build-windows build-java
 package-all: copy-lib package-node package-dotnet package-python package-java
-publish-all: copy-lib publish-node publish-dotnet publish-python publish-java publish-cargo
+publish-all: copy-lib publish-node publish-dotnet publish-pwsh publish-python publish-java publish-cargo
 
 build-and-package-all: build-all package-all
 build-and-publish-all: build-all package-all publish-all
