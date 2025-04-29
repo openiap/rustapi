@@ -4,7 +4,7 @@ import os
 
 class OpenIAPConan(ConanFile):
     name = "openiap"
-    version = "0.0.35"
+    version = "0.0.36"
     license = "MPL-2.0"
     url = "https://github.com/openiap/rustapi"
     homepage = "https://openiap.io"
