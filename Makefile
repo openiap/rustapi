@@ -44,7 +44,8 @@ bump:
 	@find c -name "*.py" -exec sed -i 's/version = "[0-9]\+\.[0-9]\+\.[0-9]\+"/version = "$(VERSION)"/' {} \;
 
 	# Update version in openiap.psd1 (powershell module)
-	@find c -name "*.psd1" -exec sed -i "s/\$OpenIapVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/\$OpenIapVersion = '$(VERSION)'/" {} \;
+	@find pwsh -name "*.psm1" -exec sed -i "s/\$OpenIapVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/\$OpenIapVersion = '$(VERSION)'/" {} \;
+	@find pwsh -name "*.psd1" -exec sed -i "s/ModuleVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/ModuleVersion = '$(VERSION)'/" {} \;
 
 	@echo "Version bump completed to $(VERSION)"
 
