@@ -1235,7 +1235,7 @@ namespace OpenIAP
             _WatchCallbackDelegate = _WatchCallback;
             _WatchEventCallbackDelegate = _WatchEventCallback;
             _DropCollectionCallbackDelegate = _DropCollectionCallback;
-            _QueueEventCallbackDelegate = _QueueEventCallback;
+            _QueueEventCallbackDelegate = _QueueEventCallbackWrapper;
             _ExchangeEventCallbackDelegate = _ExchangeEventCallback;
             _RpcResponseCallbackDelegate = _RpcResponseCallback;
             _CustomCommandCallbackDelegate = _CustomCommandCallback;
@@ -3086,7 +3086,11 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(watchidPtr);
             }
         }
-        IntPtr _QueueEventCallback(IntPtr QueueEventWrapperptr)
+        private IntPtr _QueueEventCallbackWrapper(IntPtr QueueEventWrapperptr)
+        {
+            return _QueueEventCallback(QueueEventWrapperptr).GetAwaiter().GetResult();
+        }
+        private async Task<IntPtr> _QueueEventCallback(IntPtr QueueEventWrapperptr)
         {
             try
             {
@@ -3115,6 +3119,26 @@ namespace OpenIAP
                     {
                         return Marshal.StringToHGlobalAnsi(result);
                     }
+                } else if (QueueFuncRegistry.TryGetCallback<QueueEvent, Task<string>>(eventObj.request_id, out var asyncFuncHandler))
+                {
+                    if (asyncFuncHandler == null)
+                    {
+                        return IntPtr.Zero;
+                    }
+                    var queueEvent = new QueueEvent
+                    {
+                        queuename = Marshal.PtrToStringAnsi(eventObj.queuename) ?? string.Empty,
+                        correlation_id = Marshal.PtrToStringAnsi(eventObj.correlation_id) ?? string.Empty,
+                        replyto = Marshal.PtrToStringAnsi(eventObj.replyto) ?? string.Empty,
+                        routingkey = Marshal.PtrToStringAnsi(eventObj.routingkey) ?? string.Empty,
+                        exchangename = Marshal.PtrToStringAnsi(eventObj.exchangename) ?? string.Empty,
+                        data = Marshal.PtrToStringAnsi(eventObj.data) ?? string.Empty,
+                    };
+                    var result = await asyncFuncHandler(queueEvent);
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        return Marshal.StringToHGlobalAnsi(result);
+                    }
                 }
                 return IntPtr.Zero;
             }
@@ -3129,7 +3153,7 @@ namespace OpenIAP
             }
         }
 
-        public string RegisterQueue(string queuename, Func<QueueEvent, string> eventHandler)
+        public string RegisterQueue(string queuename, Func<QueueEvent, Task<string>> eventHandler)
         {
             if (eventHandler == null) throw new ArgumentNullException(nameof(eventHandler));
             IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
@@ -3172,7 +3196,7 @@ namespace OpenIAP
         {
             return RegisterQueue(queuename, (queueEvent) => {
                 eventHandler(queueEvent);
-                return string.Empty;
+                return Task.FromResult(string.Empty);
             });
         }
         

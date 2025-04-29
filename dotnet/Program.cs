@@ -647,13 +647,8 @@ class Program
             var queueId = client.RegisterQueue("test2queue", e =>
             {
               Console.WriteLine("Queue event received from " + e.queuename + " with data: " + e.data);
-              // if(!string.IsNullOrEmpty(e.replyto)) {
-              //     var t = System.Threading.Tasks.Task.Run(() => {
-              //         var message = "{\"payload\": \"Bettina\"}";
-              //         _ = client.QueueMessage(message, e.replyto, striptoken: true, correlation_id: e.correlation_id);
-              //     });
-              // }
-              return "{\"payload\": \"Bettina\"}";
+              //return "{\"payload\": \"Bettina\"}";
+              return Task.FromResult("{\"payload\": \"Bettina\"}");
             });
             Console.WriteLine("Queue registered with id: " + queueId);
           }

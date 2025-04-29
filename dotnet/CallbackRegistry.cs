@@ -23,10 +23,14 @@ public class CallbackRegistry
                 tcs = typedTcs;
                 return true;
             } else {
+                #if DEBUG
                 Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(TaskCompletionSource<T>));
+                #endif
             }
         } else {
+            #if DEBUG
             Console.WriteLine("Failed to get callback for id: " + id);
+            #endif
         }
         tcs = null;
         return false;
@@ -39,10 +43,14 @@ public class CallbackRegistry
                 tcs = typedTcs;
                 return true;
             } else {
+                #if DEBUG
                 Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(TaskCompletionSource));
+                #endif
             }
         } else {
+            #if DEBUG
             Console.WriteLine("Failed to get callback for id: " + id);
+            #endif
         }
         tcs = null;
         return false;
@@ -128,10 +136,14 @@ public class ActionRegistry
                 tcs = typedTcs;
                 return true;
             } else {
+                #if DEBUG
                 Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(Action<T>));
+                #endif
             }
         } else {
+            #if DEBUG
             Console.WriteLine("Failed to get callback for id: " + id);
+            #endif
         }
         tcs = null;
         return false;
@@ -145,10 +157,14 @@ public class ActionRegistry
                 tcs = typedTcs;
                 return true;
             } else {
+                #if DEBUG
                 Console.WriteLine("Failed to get callback for id: " + id + " is of wrong type " + obj.GetType() + " expected " + typeof(Action));
+                #endif
             }
         } else {
+            #if DEBUG
             Console.WriteLine("Failed to get callback for id: " + id);
+            #endif
         }
         tcs = null;
         return false;
@@ -214,7 +230,9 @@ public class FuncRegistry
                 func = typedFunc;
                 return true;
             }
+            #if DEBUG
             Console.WriteLine($"Failed to get callback for id: {id} is of wrong type {obj.GetType()} expected {typeof(Func<TIn, TOut>)}");
+            #endif
         }
         func = null;
         return false;
