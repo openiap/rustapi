@@ -23,75 +23,114 @@ class Client {
     private $events = array();
 
     private function loadLibrary() {
-        $platform = PHP_OS_FAMILY;
-        $arch = php_uname('m');
+        $osFamily = PHP_OS_FAMILY;           // "Windows", "Linux" or "Darwin"
+        $machine  = php_uname('m');          // e.g. "AMD64", "x86_64", "i386", "aarch64"
         $libDir = __DIR__ . '/../lib';
-        $libPath = null;
-        print_r("libDir: $libDir\n");
-
-        print_r("Platform: $platform, Arch: $arch\n");
-
-        switch (strtolower($platform)) {
-            case 'windows':
-                switch ($arch) {
-                    case 'x86_64':
-                        $libPath = $libDir . '/openiap-windows-x64.dll';
-                        break;
-                    case 'x86':
-                        $libPath = $libDir . '/openiap-windows-i686.dll';
-                        break;
-                    case 'aarch64':
-                        $libPath = $libDir . '/openiap-windows-arm64.dll';
-                        break;
-                    default:
-                        throw new Exception("Unsupported architecture on Windows: $arch");
-                }
-                break;
-            case 'darwin':
-                switch ($arch) {
-                    case 'x86_64':
-                        $libPath = $libDir . '/libopeniap-macos-x64.dylib';
-                        break;
-                    case 'arm64':
-                        $libPath = $libDir . '/libopeniap-macos-arm64.dylib';
-                        break;
-                    default:
-                        throw new Exception("Unsupported architecture on Darwin: $arch");
-                }
-                break;
-            case 'linux':
-                switch ($arch) {
-                    case 'x86_64':
-                        $libPath = $libDir . '/libopeniap-linux-x64.so';
-                        break;
-                    case 'aarch64':
-                        $libPath = $libDir . '/libopeniap-linux-arm64.so';
-                        break;
-                    default:
-                        throw new Exception("Unsupported architecture on Linux: $arch");
-                }
-                break;
-            case 'freebsd':
-                switch ($arch) {
-                    case 'x86_64':
-                        $libPath = $libDir . '/libopeniap-freebsd-x64.so';
-                        break;
-                    default:
-                        throw new Exception("Unsupported architecture on FreeBSD: $arch");
-                }
-                break;
-            default:
-                throw new Exception("Unsupported platform: $platform");
+        
+        // Map OS → (tag, dynamic extension, prefix)
+        $osMap = [
+            'Windows' => ['windows', '.dll', ''],           // no prefix on Windows
+            'Linux'   => ['linux',   '.so',  'lib'],        // libraries named lib*
+            'Darwin'  => ['macos',   '.dylib','lib'],
+        ];
+        if (!isset($osMap[$osFamily])) {
+            throw new Exception("Unsupported OS: {$osFamily}");
         }
+        list($tagOs, $ext, $prefix) = $osMap[$osFamily];
+        
+        // Normalize common machine strings
+        switch (strtolower($machine)) {
+            case 'amd64':
+            case 'x86_64':
+                $tagArch = 'x64';
+                break;
+        
+            case 'x86':
+            case 'i386':
+                $tagArch = 'i686';
+                break;
+        
+            case 'arm64':
+            case 'aarch64':
+                $tagArch = 'arm64';
+                break;
+        
+            default:
+                throw new Exception("Unsupported architecture on {$osFamily}: {$machine}");
+        }
+        
+        // Build the expected dynamic‐lib filename:
+        $filename = sprintf(
+            '%sopeniap-%s-%s%s',
+            $prefix,   // '' on Windows, 'lib' on Linux/macOS
+            $tagOs,    // windows, linux, macos
+            $tagArch,  // x64, i686, arm64
+            $ext       // .dll, .so, .dylib
+        );
+        $libPath = $libDir . DIRECTORY_SEPARATOR . $filename;
+
+
+        // switch (strtolower($platform)) {
+        //     case 'windows':
+        //         switch ($arch) {
+        //             case 'x86_64':
+        //                 $libPath = $libDir . '/openiap-windows-x64.dll';
+        //                 break;
+        //             case 'x86':
+        //                 $libPath = $libDir . '/openiap-windows-i686.dll';
+        //                 break;
+        //             case 'aarch64':
+        //                 $libPath = $libDir . '/openiap-windows-arm64.dll';
+        //                 break;
+        //             default:
+        //                 throw new Exception("Unsupported architecture on Windows: $arch");
+        //         }
+        //         break;
+        //     case 'darwin':
+        //         switch ($arch) {
+        //             case 'x86_64':
+        //                 $libPath = $libDir . '/libopeniap-macos-x64.dylib';
+        //                 break;
+        //             case 'arm64':
+        //                 $libPath = $libDir . '/libopeniap-macos-arm64.dylib';
+        //                 break;
+        //             default:
+        //                 throw new Exception("Unsupported architecture on Darwin: $arch");
+        //         }
+        //         break;
+        //     case 'linux':
+        //         switch ($arch) {
+        //             case 'x86_64':
+        //                 $libPath = $libDir . '/libopeniap-linux-x64.so';
+        //                 break;
+        //             case 'aarch64':
+        //                 $libPath = $libDir . '/libopeniap-linux-arm64.so';
+        //                 break;
+        //             default:
+        //                 throw new Exception("Unsupported architecture on Linux: $arch");
+        //         }
+        //         break;
+        //     case 'freebsd':
+        //         switch ($arch) {
+        //             case 'x86_64':
+        //                 $libPath = $libDir . '/libopeniap-freebsd-x64.so';
+        //                 break;
+        //             default:
+        //                 throw new Exception("Unsupported architecture on FreeBSD: $arch");
+        //         }
+        //         break;
+        //     default:
+        //         throw new Exception("Unsupported platform: $platform");
+        // }
 
         // If library not found in standard location, check debug location
         if (!file_exists($libPath)) {
             $libDir = __DIR__ . '/../../target/debug/';
-            switch (strtolower($platform)) {
-                case 'windows':
+            switch (strtolower($osFamily)) {
+                case 'Windows':
                     $libPath = $libDir . 'openiap_clib.dll';
                     break;
-                case 'darwin':
+                case 'Darwin':
                     $libPath = $libDir . 'libopeniap_clib.dylib';
                     break;
                 default:
