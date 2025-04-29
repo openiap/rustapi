@@ -21,6 +21,7 @@ func startGauge(name string, setValue func()) *handler {
 		ticker: time.NewTicker(30 * time.Second),
 		done:   make(chan bool),
 	}
+	println("Starting observable gauge", name)
 
 	go func() {
 		setValue() // Initial set
