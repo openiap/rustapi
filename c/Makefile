@@ -98,10 +98,12 @@ $(TARGET): $(OBJS) prepare_lib
 	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS) -lopeniap_clib
 ifeq ($(OS_SUFFIX),macos)
 	@if [ -f $(TARGET) ]; then \
+		echo "Patching $(TARGET) for macOS..."; \
 		install_name_tool -add_rpath @executable_path/lib $(TARGET); \
 	fi
 else ifeq ($(OS_SUFFIX),linux)
 	@if [ -f $(TARGET) ]; then \
+		echo "Patching $(TARGET) for Linux..."; \
 		patchelf --set-rpath '$$ORIGIN/lib' $(TARGET); \
 	fi
 endif
