@@ -831,37 +831,44 @@ namespace OpenIAP
         {
             string libfile;
             var arc = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
-            switch (Environment.OSVersion.Platform)
+            bool dumpLoadingPaths = Environment.GetEnvironmentVariable("DEBUG") != null ? true : false;
+            if(dumpLoadingPaths) Console.WriteLine("***************");
+            if(dumpLoadingPaths) Console.WriteLine($"Architecture: {arc}");
+            if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                case PlatformID.Win32NT:
-                    if (Environment.Is64BitProcess)
-                    {
-                        libfile = arc == Architecture.X64 ? "openiap-windows-x64.dll" : "openiap-windows-arm64.dll";
-                    }
-                    else
-                    {
-                        libfile = "openiap-windows-i686.dll";
-                    }
-                    break;
-                case PlatformID.MacOSX:
-                    if (!Environment.Is64BitProcess) throw new LibraryLoadError("macOS requires a 64-bit process");
-                    libfile = arc == Architecture.Arm64 ? "libopeniap-macos-arm64.dylib" : "libopeniap-macos-x64.dylib";
-                    break;
-                case PlatformID.Unix:
-                    if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
-                    if (System.IO.File.Exists("/etc/alpine-release"))
-                    {
-                        libfile = arc == Architecture.Arm64 ? "libopeniap-linux-musl-arm64.a" : "libopeniap-linux-musl-x64.a";
-                    }
-                    else
-                    {
-                        libfile = arc == Architecture.Arm64 ? "libopeniap-linux-arm64.so" : "libopeniap-linux-x64.so";
-                    }
-                    break;
-                default:
-                    throw new PlatformNotSupportedException("Unsupported OS platform");
+                if(dumpLoadingPaths) Console.WriteLine("OS: Windows");
+                if (Environment.Is64BitProcess)
+                {
+                    libfile = arc == Architecture.X64 ? "openiap-windows-x64.dll" : "openiap-windows-arm64.dll";
+                }
+                else
+                {
+                    libfile = "openiap-windows-i686.dll";
+                }
             }
-            bool dumpLoadingPaths = false;
+            else if(RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if(dumpLoadingPaths) Console.WriteLine("OS: Linux");
+                if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
+                if (System.IO.File.Exists("/etc/alpine-release"))
+                {
+                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-musl-arm64.a" : "libopeniap-linux-musl-x64.a";
+                }
+                else
+                {
+                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-arm64.so" : "libopeniap-linux-x64.so";
+                }
+            }
+            else if(RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                if(dumpLoadingPaths) Console.WriteLine("OS: macOS");
+                if (!Environment.Is64BitProcess) throw new LibraryLoadError("macOS requires a 64-bit process");
+                libfile = arc == Architecture.Arm64 ? "libopeniap-macos-arm64.dylib" : "libopeniap-macos-x64.dylib";
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("Unsupported OS platform");
+            }
             if(dumpLoadingPaths) Console.WriteLine("****************************");
             if(dumpLoadingPaths) Console.WriteLine($"Loading library {libfile} for {Environment.OSVersion.Platform} ({arc})");
 
@@ -3269,7 +3276,7 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(queuenamePtr);
             }
         }
-                        public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
+        public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
         {
             var tcs = new TaskCompletionSource<string>();
             IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
