@@ -6,6 +6,7 @@
   "java.project.sourcePaths": [
   ],
   "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
+  "C_Cpp.default.compilerPath": "/home/allan/.nix-profile/bin/gcc",
   // "terminal.integrated.env.linux": {
   //   "PATH": "${env:PATH}"
   // },

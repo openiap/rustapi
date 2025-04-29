@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include "clib_openiap.h"
+#include "include/clib_openiap.h"
 
 #define INPUT_SIZE 256
 
