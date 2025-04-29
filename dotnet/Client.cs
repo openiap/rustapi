@@ -3069,7 +3069,6 @@ namespace OpenIAP
                 string error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? string.Empty;
                 bool success = responseWrapper.success;
                 free_unwatch_response(response);
-                DelegateRegistry.TryRemoveCallback<WatchEvent>(watchid, out var eventHandler);
                 if (!success)
                 {
                     throw new ClientError(error);
@@ -3260,7 +3259,6 @@ namespace OpenIAP
                 var error = Marshal.PtrToStringAnsi(responseWrapper.error) ?? "Unknown error";
                 var success = responseWrapper.success;
                 free_unregister_queue_response(response);
-                DelegateRegistry.TryRemoveCallback<QueueEvent>(queuename, out var eventHandler);
                 if (!success)
                 {
                     throw new ClientError(error);
@@ -3271,15 +3269,15 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(queuenamePtr);
             }
         }
-        public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string replyto = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
+                        public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
         {
             var tcs = new TaskCompletionSource<string>();
             IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
             IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
-            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
-            IntPtr replytoPtr = Marshal.StringToHGlobalAnsi(replyto);
+            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename); 
             IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
-            IntPtr correlation_idPtr = Marshal.StringToHGlobalAnsi(correlation_id);
+            IntPtr replytoPtr = IntPtr.Zero;
+            IntPtr correlation_idPtr = IntPtr.Zero;
 
             try
             {
@@ -3333,11 +3331,10 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(dataPtr);
                 Marshal.FreeHGlobal(queuenamePtr);
                 Marshal.FreeHGlobal(exchangenamePtr);
-                Marshal.FreeHGlobal(replytoPtr);
                 Marshal.FreeHGlobal(routingkeyPtr);
-                Marshal.FreeHGlobal(correlation_idPtr);
+                if (replytoPtr != IntPtr.Zero) Marshal.FreeHGlobal(replytoPtr);
+                if (correlation_idPtr != IntPtr.Zero) Marshal.FreeHGlobal(correlation_idPtr);
             }
-            await tcs.Task;
         }
 
 
