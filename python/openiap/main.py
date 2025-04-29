@@ -566,7 +566,7 @@ class Client:
             if architecture == 'x86_64':
                 lib_file = 'libopeniap-macos-x64.dylib'
             elif architecture == 'arm64':
-                lib_file = 'libopeniap-macos-armx64.dylib'
+                lib_file = 'libopeniap-macos-arm64.dylib'
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'linux':
@@ -580,9 +580,9 @@ class Client:
             elif architecture == 'aarch64':
                 # is Musl ?
                 if os.path.exists('/lib/libc.musl-aarch64.so.1'):
-                    lib_file = 'libopeniap-linux-musl-armx64.a'
+                    lib_file = 'libopeniap-linux-musl-arm64.a'
                 else:
-                    lib_file = 'libopeniap-linux-armx64.so'
+                    lib_file = 'libopeniap-linux-arm64.so'
             else:
                 raise LibraryLoadError("Unsupported architecture " + architecture)
         elif sys.platform == 'freebsd':
