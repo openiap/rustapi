@@ -1,6 +1,6 @@
 {
   "name": "openiap",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "description": "",
   "main": "lib.js",
   "types": "lib.d.ts",
