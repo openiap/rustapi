@@ -64,6 +64,9 @@ public class clienttestcli {
             case "q":
                 handleQuery();
                 break;
+            case "m":
+                handleQueueMessage();
+                break;
             case "r2":
                 handleRPCMessage();
                 break;
@@ -160,6 +163,9 @@ public class clienttestcli {
         System.out.println("  o    - Toggle f64 observable gauge");
         System.out.println("  o2   - Toggle u64 observable gauge");
         System.out.println("  o3   - Toggle i64 observable gauge");
+        System.out.println("  r    - Register queue");
+        System.out.println("  m    - Send message to queue");
+        System.out.println("  r2   - Send RPC message");
         System.out.println("  cc   - Get Clients using custom_command");
         System.out.println("  rpa  - Invoke \"Who am I\" on robot \"allan5\"");
         System.out.println("  quit - Exit program");
@@ -180,6 +186,19 @@ public class clienttestcli {
             }
         } catch (Exception e) {
             System.out.println("Query error: " + e.getMessage());
+        }
+    }
+    private static void handleQueueMessage() {
+        try {
+            client.queueMessage(
+                new QueueMessageParameters.Builder()
+                    .queuename("test2queue")
+                    .striptoken(true)
+                    .message("{\"find\":\"Allan\"}")
+                    .build()
+            );
+        } catch (Exception e) {
+            System.out.println("QueueMessage error: " + e.getMessage());
         }
     }
     private static void handleRPCMessage() {
