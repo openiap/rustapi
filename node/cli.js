@@ -392,6 +392,7 @@ async function doit() {
                     try {
                         await client.queue_message({
                             queuename: "test2queue",
+                            striptoken: true,
                             data: "{\"message\":\"Test message\"}"
                         });
                         client.info("Queued message to test2queue");
