@@ -3,7 +3,7 @@ $NativeFolder = Join-Path $ModuleRoot 'lib'
 Write-Verbose "Loading OpenIap module from $ModuleRoot"
 Write-Verbose "Native library folder: $NativeFolder"
 # version of your native libraries on GitHub
-$OpenIapVersion = '0.0.37'
+$OpenIapVersion = '0.0.38'
 $user = $null;
 function Get-NativeLibFile {
     [CmdletBinding()] param()
