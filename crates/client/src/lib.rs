@@ -1443,7 +1443,7 @@ impl Client {
                             queuename,
                             correlation_id,
                             data: result,
-                            // striptoken: true,
+                            striptoken: true,
                             ..Default::default()
                         };
                         let e = q.to_envelope();
