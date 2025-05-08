@@ -8,7 +8,7 @@
 RootModule = 'openiap.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.36'
+ModuleVersion = '0.0.37'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()

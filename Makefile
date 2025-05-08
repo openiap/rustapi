@@ -1,6 +1,6 @@
 .PHONY: clean build build-all package package-all publish publish-all
 # Variables
-VERSION = 0.0.36
+VERSION = 0.0.37
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 PS_API_KEY := $(PS_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
