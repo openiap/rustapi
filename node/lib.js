@@ -2894,6 +2894,8 @@ class Client {
                                 replyto: result.replyto,
                                 routingkey: result.routingkey,
                                 exchangename: result.exchangename,
+                                jwt: jwt,
+                                user: user,
                                 data: data,
                             }
                             this.trace('call next had result', event);
