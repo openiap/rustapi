@@ -78,5 +78,9 @@ image = "ghcr.io/cross-rs/aarch64-apple-darwin-cross:local"
 
 [target.i686-apple-darwin]
 image = "ghcr.io/cross-rs/i686-apple-darwin-cross:local"
-build-std = ["std"]
-# build-std = true
+# build-std = ["std"]
+build-std = true
+
+
+# protoc --proto_path=. --rust_out=experimental-codegen=enabled,kernel=cpp:. google/protobuf/any.proto google/protobuf/timestamp.proto base.proto ace.proto querys.proto queues.proto watch.proto workitems.proto stripe.proto agent.proto && rm -rf *.cc *.h out
+# 
