@@ -22,6 +22,7 @@ in pkgs.mkShell {
     goEnv.packages ++
     [
       # pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
+      pkgs.protobuf
     ];
   shellHook = ''
     ${phpEnv.shellHook}
