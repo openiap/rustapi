@@ -55,3 +55,8 @@ dotnet
 cd dotnet
 dotnet run
 ```
+
+on nixos, in /etc/nixos/configuration.nix you need to enable for rust and c debugging to work with lldb
+```
+programs.nix-ld.enable = true;
+```

@@ -20,3 +20,8 @@ CGO_ENABLED=1 go build ./cmd/openiap
 export CGO_ENABLED=1
 export LD_LIBRARY_PATH=./lib:$LD_LIBRARY_PATH
 ```
+on nixos, also add
+```
+mkdir -p ~/go/bin
+ln -sf "$(command -v dlv)" ~/go/bin/dlv
+```

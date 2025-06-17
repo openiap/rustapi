@@ -51,9 +51,9 @@ bump:
 
 # Clean up
 clean:
-	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj go/lib 
-	rm -rf python/openiap/lib python/*.csv python/build python/dist
-	# rm -rf target/lib target/cli
+	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj go/lib c/lib
+	rm -rf python/openiap/lib python/*.csv python/build python/dist java/jars
+	# rm -rf target/lib target/cli php/vendor
 	rm -rf java/lib java/target
 
 # Create target directories
@@ -122,7 +122,7 @@ package-node:
 package-dotnet:
 	@echo "Building .NET package"
 	(cd dotnet && dotnet build --configuration Release openiap.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap.csproj)
-	(cd dotnet && dotnet build --configuration Release openiap-slim.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap-slim.csproj)
+	#(cd dotnet && dotnet build --configuration Release openiap-slim.csproj && dotnet pack -p:NuspecFile=openiap.nuspec --configuration Release openiap-slim.csproj)
 
 package-python:
 	@echo "Building Python package"
@@ -144,7 +144,7 @@ publish-node:
 
 publish-dotnet:
 	dotnet nuget push dotnet/bin/Release/openiap.$(VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
-	dotnet nuget push dotnet/bin/Release/openiap-slim.$(VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
+	# dotnet nuget push dotnet/bin/Release/openiap-slim.$(VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
 
 publish-pwsh:
 	rm -rf pwsh/openiap/lib

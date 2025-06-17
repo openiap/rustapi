@@ -1,5 +1,6 @@
 {
     "name": "openiap/client",
+    "description": "OpenIAP Client for PHP",
     "keywords": ["log","logging"],
     "autoload": {
         "psr-4": {
