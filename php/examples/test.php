@@ -19,7 +19,8 @@ try {
     $client = new Client();
     
     // Enable tracing for debugging
-    $client->enable_tracing("openiap=info", "new");
+    # $client->enable_tracing("openiap=info", "new");
+    $client->enable_tracing("openiap=info", "");
 
     
     // Connect and then signin
@@ -60,7 +61,7 @@ try {
     }
 
     // Disable tracing when done debugging
-    $client->disable_tracing();
+    # $client->disable_tracing();
     // $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php without file");
     $workitemfile = [__DIR__ . "/../../testfile.csv"];
     $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php with file", null, $workitemfile);

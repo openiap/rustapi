@@ -51,9 +51,9 @@ bump:
 
 # Clean up
 clean:
-	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj
+	rm -rf node/lib node/*.tgz node/*.csv dotnet/lib dotnet/runtime dotnet/*.csv dotnet/bin dotnet/obj go/lib 
 	rm -rf python/openiap/lib python/*.csv python/build python/dist
-	rm -rf target/lib target/cli
+	# rm -rf target/lib target/cli
 	rm -rf java/lib java/target
 
 # Create target directories

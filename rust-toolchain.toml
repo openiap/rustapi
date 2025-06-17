@@ -1,5 +1,5 @@
 [toolchain]
-channel = "1.81.0"
+channel = "1.82.0"
 components = ["rust-src"]
 targets = [
     "x86_64-unknown-linux-gnu",
@@ -10,3 +10,6 @@ targets = [
     "aarch64-unknown-linux-gnu"
 ]
 profile = "minimal"
+
+#rustup toolchain install 1.82.0
+#rustup override set 1.82.0
