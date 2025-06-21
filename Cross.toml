@@ -1,86 +1,25 @@
 [build]
 default-target = "x86_64-unknown-linux-gnu"
 pre-build = [
-    "apt-get update && apt-get install --assume-yes protobuf-compiler curl",
-    "curl https://sh.rustup.rs -sSf | sh -s -- -y",
-    ". $HOME/.cargo/env",    "rustup install 1.81.0",
-    "rustup default 1.81.0"
+    "apt-get update && apt-get install --assume-yes protobuf-compiler curl"
 ]
+
+#pre-build = [
+#    "apt-get update && apt-get install --assume-yes protobuf-compiler curl",
+#    "curl https://sh.rustup.rs -sSf | sh -s -- -y",
+#    ". $HOME/.cargo/env",    "rustup install 1.82.0",
+#    "rustup default 1.82.0"
+#]
+#cross-util run -i -v  --target target.aarch64-apple-darwin -- bash
+#cross-util run -i -v  --target target.x86_64-apple-darwin -- bash
 
 [target.x86_64-unknown-linux-gnu]
 # image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5-centos"
 # image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
 image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:edge"
 
-#pre-build = [
-#    "apt-get update && apt-get install --assume-yes protobuf-compiler curl",
-#    "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
-#    "apt-get install --assume-yes nodejs",
-#    "mkdir -p /.npm && chown -R 1000:100 /.npm",
-#    "npm install -g @napi-rs/cli",
-#    "curl -fsSL https://sh.rustup.rs -o rustup.sh",
-#    "bash rustup.sh -y"
-#]
-
-# export PATH=/usr/local/node:$PATH
-#[build.env]
-#volumes = [ 
-#    "NODE=/mnt/data/vscode/config/workspace/code/rust/openiap/NODE", 
-#    "onecore=/mnt/data/vscode/config/workspace/code/rust/openiap/onecore/x64", 
-#    "node.exe=/mnt/data/vscode/config/workspace/code/rust/openiap/NODE/node.exe", 
-#    "PROTOC=/nix/store/8r4nc675zkrqn6axbgp14w0lcg9gp4lm-user-environment/bin/protoc"
-#]
-
-#[target.x86_64-pc-windows-gnu]
-#pre-build = [
-#    "touch /root/.bashrc",
-#    "echo 'export PATH=/usr/local/node:$PATH' >> /root/.bashrc",
-#    "apt-get update && apt-get install --assume-yes protobuf-compiler nodejs libuv1",
-#    "curl -O https://nodejs.org/dist/v14.17.0/node-v14.17.0-win-x64.zip",
-#    "unzip node-v14.17.0-win-x64.zip -d /usr/local/",
-#    "mv /usr/local/node-v14.17.0-win-x64 /usr/local/node",
-#    "export PATH=$PATH:/usr/local/node"
-# ]
-#pre-build = [
-#    "apt-get update",
-#    "apt-get install --assume-yes mingw-w64 mingw-w64-tools mingw-w64-x86-64-dev protobuf-compiler libuv1 curl unzip",
-#    "curl -O https://nodejs.org/dist/v14.17.0/node-v14.17.0-win-x64.zip",
-#    "unzip -o node-v14.17.0-win-x64.zip -d /usr/local/",
-#    "mv /usr/local/node-v14.17.0-win-x64 /usr/local/node",
-#    "export PATH=$PATH:/usr/local/node",
-#    "mkdir -p /usr/local/mingw64/lib",
-#    "cp /usr/x86_64-w64-mingw32/lib/delayimp.lib /usr/local/mingw64/lib/"
-#]
-
-# cross build --target x86_64-unknown-linux-gnu
-# cross build --target aarch64-unknown-linux-gnu
-
-# cross build --target x86_64-pc-windows-gnu
-# cross build --target i686-pc-windows-gnu
-
-# cross build --target aarch64-apple-darwin
-# cross build --target x86_64-apple-darwin
-
-
-
-
-# cargo install cross --git https://github.com/cross-rs/cross
-# https://github.com/cross-rs/cross-toolchains
-# if it breaks, a backup can be used by
-# cargo install cross --git https://github.com/skadefro/cross
-
 [target.x86_64-apple-darwin]
-image = "ghcr.io/cross-rs/x86_64-apple-darwin-cross:local"
+image = "registry.demo.openiap.io/x86_64-apple-darwin"
 
-# apple silicon
 [target.aarch64-apple-darwin]
-image = "ghcr.io/cross-rs/aarch64-apple-darwin-cross:local"
-
-[target.i686-apple-darwin]
-image = "ghcr.io/cross-rs/i686-apple-darwin-cross:local"
-# build-std = ["std"]
-build-std = true
-
-
-# protoc --proto_path=. --rust_out=experimental-codegen=enabled,kernel=cpp:. google/protobuf/any.proto google/protobuf/timestamp.proto base.proto ace.proto querys.proto queues.proto watch.proto workitems.proto stripe.proto agent.proto && rm -rf *.cc *.h out
-# 
+image = "registry.demo.openiap.io/aarch64-apple-darwin"
