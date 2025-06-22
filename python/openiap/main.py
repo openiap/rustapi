@@ -2,6 +2,7 @@ import ctypes
 import json
 import os, platform
 import sys
+import subprocess
 from ctypes import (CDLL, Structure, c_char_p, c_void_p, c_bool, c_int, 
                    c_uint64, c_int64, c_double, CFUNCTYPE, POINTER, byref, pointer)
 import threading
@@ -595,6 +596,11 @@ class Client:
             raise LibraryLoadError("Unsupported platform " + sys.platform)
         
         lib_path = os.path.join(lib_dir, lib_file)
+        if not os.path.exists(lib_path):
+            try:
+                subprocess.run(["openiap-bootstrap", "--dir", lib_dir], check=True)
+            except Exception as e:
+                print("openiap-bootstrap failed", e)
         if not os.path.exists(lib_path):
             lib_dir = os.path.join(os.path.dirname(__file__), '..', 'lib')
             lib_path = os.path.join(lib_dir, lib_file)

@@ -1,4 +1,6 @@
 from setuptools import setup, find_packages
+import subprocess
+import os
 
 setup(
     name="openiap",
@@ -22,3 +24,10 @@ setup(
             ]
     },
 )
+
+lib_dir = os.path.join(os.path.dirname(__file__), 'openiap', 'lib')
+os.makedirs(lib_dir, exist_ok=True)
+try:
+    subprocess.run(['openiap-bootstrap', '--dir', lib_dir], check=False)
+except Exception:
+    pass

@@ -652,6 +652,13 @@ function loadLibrary() {
             throw new Error(`Unsupported platform ${platform}`)
     }
     if (!fs.existsSync(libPath)) {
+        try {
+            require('child_process').execFileSync('openiap-bootstrap', ['--dir', libDir], { stdio: 'inherit' });
+        } catch (e) {
+            console.warn('openiap-bootstrap failed', e);
+        }
+    }
+    if (!fs.existsSync(libPath)) {
         libDir = path.join(__dirname, '../target/debug/');
         switch (process.platform) {
             case 'win32':

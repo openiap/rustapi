@@ -5,7 +5,8 @@
   "main": "lib.js",
   "types": "lib.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "postinstall": "node install.js"
   },
   "keywords": [
     "openiap",
