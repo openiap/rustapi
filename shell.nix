@@ -23,6 +23,8 @@ in pkgs.mkShell {
     [
       # pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
       pkgs.protobuf
+      pkgs.openssl
+      pkgs.pkg-config
     ];
   shellHook = ''
     ${phpEnv.shellHook}
