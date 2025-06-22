@@ -869,6 +869,16 @@ namespace OpenIAP
             {
                 throw new PlatformNotSupportedException("Unsupported OS platform");
             }
+            try
+            {
+                var dir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lib");
+                if(!System.IO.File.Exists(System.IO.Path.Combine(dir, libfile)))
+                {
+                    var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("openiap-bootstrap", "--dir " + dir) { RedirectStandardOutput = false, RedirectStandardError = false });
+                    p?.WaitForExit();
+                }
+            }
+            catch { }
             if(dumpLoadingPaths) Console.WriteLine("****************************");
             if(dumpLoadingPaths) Console.WriteLine($"Loading library {libfile} for {Environment.OSVersion.Platform} ({arc})");
 

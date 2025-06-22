@@ -1,0 +1,10 @@
+[package]
+name = "openiap-bootstrap"
+version = "0.1.0"
+edition = "2021"
+description = "Bootstrap helper for downloading OpenIAP shared library"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+reqwest = { version = "0.11", features = ["blocking", "rustls-tls"] }
+anyhow = "1.0"

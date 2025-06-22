@@ -25,6 +25,14 @@ cp target/x86_64-pc-windows-gnu/release/openiap.exe target/cli/windows-x64-openi
 cross build --target i686-pc-windows-gnu -v --release && cp target/i686-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-i686.dll
 cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openiap.exe
 
+# build bootstrap helper for each target
+cross build --target x86_64-unknown-linux-gnu --release -p openiap-bootstrap && cp target/x86_64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-x64-bootstrap
+cross build --target aarch64-unknown-linux-gnu --release -p openiap-bootstrap && cp target/aarch64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-arm64-bootstrap
+cross build --target x86_64-apple-darwin --release -p openiap-bootstrap && cp target/x86_64-apple-darwin/release/openiap-bootstrap target/cli/macos-x64-bootstrap
+cross build --target aarch64-apple-darwin --release -p openiap-bootstrap && cp target/aarch64-apple-darwin/release/openiap-bootstrap target/cli/macos-arm64-bootstrap
+cross build --target x86_64-pc-windows-gnu --release -p openiap-bootstrap && cp target/x86_64-pc-windows-gnu/release/openiap-bootstrap.exe target/cli/windows-x64-bootstrap.exe
+cross build --target i686-pc-windows-gnu --release -p openiap-bootstrap && cp target/i686-pc-windows-gnu/release/openiap-bootstrap.exe target/cli/windows-i686-bootstrap.exe
+
 echo "done"
 # cross build --target aarch64-pc-windows-msvc --release && cp target/aarch64-pc-windows-msvc/release/openiap.dll target/lib/openiap-windows-arm64.dll
 
