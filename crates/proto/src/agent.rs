@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{
+use super::openiap::{
     Envelope, DeletePackageRequest, 
     StartAgentRequest, StopAgentRequest, GetAgentLogRequest, GetAgentPodsRequest, DeleteAgentPodRequest, DeleteAgentRequest
 };

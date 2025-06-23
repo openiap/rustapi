@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 use std::fmt;
-use super::protos::Envelope;
-impl super::protos::ErrorResponse {
+use super::openiap::Envelope;
+impl super::openiap::ErrorResponse {
     /// Creates a new `ErrorResponse` with the given `message` and `code`.
     pub fn new(message: &str, code: i32) -> Self {
         Self {

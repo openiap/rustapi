@@ -11,6 +11,3 @@ prost =             { version = "0.13.3" }
 prost-types =       { version = "0.13.3" }
 tracing =           { version = "0.1.40", features = ["attributes"] }
 # serde =             { version = "1.0.214" }
-
-[build-dependencies]
-tonic-build =       { version = "0.12.3" }

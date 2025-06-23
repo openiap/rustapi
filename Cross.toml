@@ -1,22 +1,5 @@
 [build]
 default-target = "x86_64-unknown-linux-gnu"
-pre-build = [
-    "apt-get update && apt-get install --assume-yes protobuf-compiler curl"
-]
-
-#pre-build = [
-#    "apt-get update && apt-get install --assume-yes protobuf-compiler curl",
-#    "curl https://sh.rustup.rs -sSf | sh -s -- -y",
-#    ". $HOME/.cargo/env",    "rustup install 1.82.0",
-#    "rustup default 1.82.0"
-#]
-#cross-util run -i -v  --target target.aarch64-apple-darwin -- bash
-#cross-util run -i -v  --target target.x86_64-apple-darwin -- bash
-
-[target.x86_64-unknown-linux-gnu]
-# image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5-centos"
-# image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
-image="ghcr.io/cross-rs/x86_64-unknown-linux-gnu:edge"
 
 [target.x86_64-apple-darwin]
 image = "registry.demo.openiap.io/x86_64-apple-darwin"

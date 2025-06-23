@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{Envelope, DownloadRequest};
+use super::openiap::{Envelope, DownloadRequest};
 impl DownloadRequest {
     /// Creates a new `DownloadRequest` with the given `id`.
     #[tracing::instrument(skip_all)]

@@ -15,7 +15,7 @@ use openiap_client::{
 };
 use openiap_client::{CustomCommandRequest, InvokeOpenRpaRequest, PushWorkitemRequest, QueueMessageRequest};
 
-use openiap_client::protos::{
+use openiap_client::openiap::{
     DistinctRequest, DownloadRequest, InsertOneRequest, QueryRequest, SigninRequest, UploadRequest,
     WatchEvent, WatchRequest,
 };

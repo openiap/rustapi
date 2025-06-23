@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, RegisterExchangeRequest, 
+use super::openiap::{Envelope, RegisterQueueRequest, UnRegisterQueueRequest, RegisterExchangeRequest, 
     WatchRequest, UnWatchRequest, QueueMessageRequest
 };
 

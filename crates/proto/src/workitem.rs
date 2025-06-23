@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{
+use super::openiap::{
     Envelope, PushWorkitemRequest, PushWorkitemsRequest, PopWorkitemRequest, UpdateWorkitemRequest, DeleteWorkitemRequest,
     AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest
 };

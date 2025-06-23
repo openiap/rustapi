@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{Envelope, SigninRequest};
+use super::openiap::{Envelope, SigninRequest};
 
 impl SigninRequest {
     /// Creates a new `SigninRequest` with the given `username` and `password`.

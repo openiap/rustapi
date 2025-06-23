@@ -2,7 +2,7 @@
 //! FFI bindings for the OpenIAP client library.
 //! used by the OpenIAP client library for other programming languages to interact with the client library.
 //! For now, nodejs, python and dotnet 6
-use openiap_client::protos::{
+use openiap_client::openiap::{
     AggregateRequest, CountRequest, DistinctRequest, DownloadRequest, Envelope, InsertOneRequest,
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
@@ -1364,7 +1364,7 @@ pub extern "C" fn create_collection(
         collectionname: c_char_to_str(options.collectionname),
         collation: match safe_wrapper(options.collation) {
             Some(collation) => {
-                Some(openiap_client::protos::ColCollation {
+                Some(openiap_client::openiap::ColCollation {
                     locale: c_char_to_str(collation.locale),
                     case_level: collation.case_level,
                     case_first: c_char_to_str(collation.case_first),
@@ -1379,7 +1379,7 @@ pub extern "C" fn create_collection(
         },
         timeseries: match safe_wrapper(options.timeseries) {
             Some(timeseries) => {
-                Some(openiap_client::protos::ColTimeseries {
+                Some(openiap_client::openiap::ColTimeseries {
                     time_field: c_char_to_str(timeseries.time_field),
                     meta_field: c_char_to_str(timeseries.meta_field),
                     granularity: c_char_to_str(timeseries.granularity),
@@ -1466,7 +1466,7 @@ pub extern "C" fn create_collection_async(
         collectionname: c_char_to_str(options.collectionname),
         collation: match safe_wrapper(options.collation) {
             Some(collation) => {
-                Some(openiap_client::protos::ColCollation {
+                Some(openiap_client::openiap::ColCollation {
                     locale: c_char_to_str(collation.locale),
                     case_level: collation.case_level,
                     case_first: c_char_to_str(collation.case_first),
@@ -1481,7 +1481,7 @@ pub extern "C" fn create_collection_async(
         },
         timeseries: match safe_wrapper(options.timeseries) {
             Some(timeseries) => {
-                Some(openiap_client::protos::ColTimeseries {
+                Some(openiap_client::openiap::ColTimeseries {
                     time_field: c_char_to_str(timeseries.time_field),
                     meta_field: c_char_to_str(timeseries.meta_field),
                     granularity: c_char_to_str(timeseries.granularity),

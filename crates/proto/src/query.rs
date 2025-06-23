@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{AggregateRequest, CountRequest, Envelope, InsertManyRequest, InsertOneRequest, UpdateOneRequest, InsertOrUpdateOneRequest, QueryRequest, DistinctRequest,
+use super::openiap::{AggregateRequest, CountRequest, Envelope, InsertManyRequest, InsertOneRequest, UpdateOneRequest, InsertOrUpdateOneRequest, QueryRequest, DistinctRequest,
     DeleteOneRequest, DeleteManyRequest, InsertOrUpdateManyRequest, UpdateDocumentRequest
     };
     impl QueryRequest {

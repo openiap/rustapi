@@ -1,10 +1,8 @@
 // #![warn(missing_docs)]
 //! The `proto` crate provides the `protos` used by the OpenIAP client(s).
 
-/// The `protos` module provides the `Envelope`, `ErrorResponse`, `SigninRequest`, `SigninResponse`, `RegisterQueueRequest`, `UnRegisterQueueRequest`, `RegisterExchangeRequest`, `WatchRequest`, `UnWatchRequest`, `QueueMessageRequest`, `QueryRequest`, `QueryResponse`, `UploadRequest`, `UploadResponse`, `DownloadRequest`, `DownloadResponse`, `WorkItem`, and `WorkItemResponse` structs and their methods.
-pub mod protos {
-    tonic::include_proto!("openiap");
-}
+// Instead of using tonic::include_proto!("openiap"), directly include the generated file.
+pub mod openiap;
 /// The `base` module provides the `CustomCommandRequest` struct and its methods.
 pub mod base;
 /// The `download` module provides the `Download` struct and its methods.

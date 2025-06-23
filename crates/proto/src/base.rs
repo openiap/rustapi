@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 
-use super::protos::{
+use super::openiap::{
     Envelope, GetDocumentVersionRequest, CustomCommandRequest, ListCollectionsRequest, DropCollectionRequest, CreateCollectionRequest,
     GetIndexesRequest, CreateIndexRequest, DropIndexRequest, EnsureCustomerRequest, InvokeOpenRpaRequest, CreateWorkflowInstanceRequest,
     Customer, StripeCustomer
@@ -148,7 +148,7 @@ impl CreateCollectionRequest {
         Self {
             collectionname: collectionname.to_string(),
             timeseries: Some(
-                crate::protos::ColTimeseries {
+                crate::openiap::ColTimeseries {
                     time_field: timefield.to_string(),
                     granularity: granularity.to_string(),
                     meta_field: "".to_string(),
@@ -162,7 +162,7 @@ impl CreateCollectionRequest {
         Self {
             collectionname: collectionname.to_string(),
             timeseries: Some(
-                crate::protos::ColTimeseries {
+                crate::openiap::ColTimeseries {
                     time_field: timefield.to_string(),
                     granularity: granularity.to_string(),
                     meta_field: meta_field.to_string(),

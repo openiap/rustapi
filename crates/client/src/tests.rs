@@ -9,7 +9,7 @@ fn is_normal<T: Sized + Send + Sync + Unpin + Clone>() {}
 mod tests {
     use errors::OpenIAPError;
     use futures::stream::FuturesUnordered;
-    use protos::*;
+    use openiap::*;
     // use tokio_tungstenite::tungstenite::handshake::client;
     use std::{env, future::Future, pin::Pin};
     use std::sync::Arc;

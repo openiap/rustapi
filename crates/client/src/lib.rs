@@ -22,10 +22,10 @@
 //! ```
 
 pub use openiap_proto::errors::*;
-pub use openiap_proto::protos::*;
+pub use openiap_proto::openiap::*;
 pub use openiap_proto::*;
 pub use prost_types::Timestamp;
-pub use protos::flow_service_client::FlowServiceClient;
+pub use openiap::flow_service_client::FlowServiceClient;
 use sqids::Sqids;
 use std::fmt::{Display,Formatter};
 use tokio::task::JoinHandle;

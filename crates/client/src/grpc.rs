@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 use tonic::transport::Channel;
 pub use openiap_proto::*;
-pub use protos::flow_service_client::FlowServiceClient;
+pub use openiap::flow_service_client::FlowServiceClient;
 impl Client {
     /// Connect to the server using gRPC protocol.
     pub async fn connect_grpc(url: String) -> Result<FlowServiceClient<Channel>, Box<dyn std::error::Error>> {

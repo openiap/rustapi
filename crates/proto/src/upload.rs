@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-use super::protos::{Envelope, UploadRequest, BeginStream, EndStream, Stream};
+use super::openiap::{Envelope, UploadRequest, BeginStream, EndStream, Stream};
 impl UploadRequest {
     /// Creates a new `UploadRequest` with the given `workitem`.
     pub fn filename(filename: &str) -> Self {
