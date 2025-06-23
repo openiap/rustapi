@@ -831,16 +831,16 @@ namespace OpenIAP
         #endregion
 
         #region dll imports
-           private static string GetBootstrapPath()
+        private static string GetBootstrapPath()
         {
             string libfile;
             var arc = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
             bool dumpLoadingPaths = Environment.GetEnvironmentVariable("DEBUG") != null ? true : false;
-            if(dumpLoadingPaths) Console.WriteLine("***************");
-            if(dumpLoadingPaths) Console.WriteLine($"Architecture: {arc}");
-            if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (dumpLoadingPaths) Console.WriteLine("***************");
+            if (dumpLoadingPaths) Console.WriteLine($"Architecture: {arc}");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                if(dumpLoadingPaths) Console.WriteLine("OS: Windows");
+                if (dumpLoadingPaths) Console.WriteLine("OS: Windows");
                 if (Environment.Is64BitProcess)
                 {
                     libfile = arc == Architecture.X64 ? "bootstrap-windows-x64.dll" : "bootstrap-windows-arm64.dll";
@@ -850,9 +850,9 @@ namespace OpenIAP
                     libfile = "bootstrap-windows-i686.dll";
                 }
             }
-            else if(RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                if(dumpLoadingPaths) Console.WriteLine("OS: Linux");
+                if (dumpLoadingPaths) Console.WriteLine("OS: Linux");
                 if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
                 if (System.IO.File.Exists("/etc/alpine-release"))
                 {
@@ -863,9 +863,9 @@ namespace OpenIAP
                     libfile = arc == Architecture.Arm64 ? "bootstrap-linux-arm64.so" : "bootstrap-linux-x64.so";
                 }
             }
-            else if(RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                if(dumpLoadingPaths) Console.WriteLine("OS: macOS");
+                if (dumpLoadingPaths) Console.WriteLine("OS: macOS");
                 if (!Environment.Is64BitProcess) throw new LibraryLoadError("macOS requires a 64-bit process");
                 libfile = arc == Architecture.Arm64 ? "bootstrap-macos-arm64.dylib" : "bootstrap-macos-x64.dylib";
             }
@@ -873,8 +873,8 @@ namespace OpenIAP
             {
                 throw new PlatformNotSupportedException("Unsupported OS platform");
             }
-            if(dumpLoadingPaths) Console.WriteLine("****************************");
-            if(dumpLoadingPaths) Console.WriteLine($"Loading library {libfile} for {Environment.OSVersion.Platform} ({arc})");
+            if (dumpLoadingPaths) Console.WriteLine("****************************");
+            if (dumpLoadingPaths) Console.WriteLine($"Loading library {libfile} for {Environment.OSVersion.Platform} ({arc})");
 
             // Assembly.GetEntryAssembly()     //gives you the entrypoint assembly for the process.
             // Assembly.GetCallingAssembly()   // gives you the assembly from which the current method was called.
@@ -883,61 +883,61 @@ namespace OpenIAP
 
             string libDir = Assembly.GetEntryAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location;
             string libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
-            libDir =  Path.GetDirectoryName(Assembly.GetCallingAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location) ?? string.Empty;
+            libDir = Path.GetDirectoryName(Assembly.GetCallingAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location) ?? string.Empty;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libDir = Assembly.GetExecutingAssembly().Location;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             libDir = AppDomain.CurrentDomain.BaseDirectory;
             libPath = System.IO.Path.Combine(libDir, "runtimes", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
             libPath = System.IO.Path.Combine(libDir, "lib", libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             // Development environment
             libDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../lib");
             libPath = System.IO.Path.Combine(libDir, libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
 
             if (System.IO.File.Exists(libPath)) return libPath;
 
             libDir = AppDomain.CurrentDomain.BaseDirectory + "../../../../target/debug/";
-            switch (Environment.OSVersion.Platform)
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                case PlatformID.Win32NT:
-                    libfile = "openiap_bootstrap.dll";
-                    break;
-                case PlatformID.MacOSX:
-                    libfile = "libopeniap_bootstrap.dylib";
-                    break;
-                default:
-                    libfile = "libopeniap_bootstrap.so";
-                    break;
+                libfile = "openiap_bootstrap.dll";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                libfile = "libopeniap_bootstrap.dylib";
+            }
+            else
+            {
+                libfile = "libopeniap_bootstrap.so";
             }
             libPath = System.IO.Path.Combine(libDir, libfile);
-            if(dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
+            if (dumpLoadingPaths) Console.WriteLine($"Testing libPath {libPath}");
             if (System.IO.File.Exists(libPath)) return libPath;
 
             throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
         }
-      
+
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_client();
 
@@ -1214,7 +1214,8 @@ namespace OpenIAP
             {
                 throw new LibraryLoadError("Failed to get library path from bootstrap");
             }
-            if (libPath.Contains("Error")) {
+            if (libPath.Contains("Error"))
+            {
                 throw new LibraryLoadError($"Bootstrap error: {libPath}");
             }
             clientPtr = create_client();
