@@ -47,6 +47,9 @@ bump:
 	@find pwsh -name "*.psm1" -exec sed -i "s/\$OpenIapVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/\$OpenIapVersion = '$(VERSION)'/" {} \;
 	@find pwsh -name "*.psd1" -exec sed -i "s/ModuleVersion = '[0-9]\+\.[0-9]\+\.[0-9]\+'/ModuleVersion = '$(VERSION)'/" {} \;
 
+	# Update OPENIAP_VERSION in c/Makefile
+	@sed -i 's/^OPENIAP_VERSION := [0-9]\+\.[0-9]\+\.[0-9]\+/OPENIAP_VERSION := $(VERSION)/' c/Makefile
+
 	@echo "Version bump completed to $(VERSION)"
 
 # Clean up
