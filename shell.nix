@@ -23,8 +23,10 @@ in pkgs.mkShell {
     [
       # pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
       pkgs.protobuf
+      pkgs.icu
     ];
   shellHook = ''
+    export LD_LIBRARY_PATH=${pkgs.icu}/lib:$LD_LIBRARY_PATH
     ${phpEnv.shellHook}
     ${javaEnv.shellHook}
     ${dotnetEnv.shellHook}

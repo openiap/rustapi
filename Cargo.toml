@@ -4,7 +4,8 @@ members = [
     "./crates/proto",
     "./crates/client",
     "./crates/clib",
-    "./crates/cli"
+    "./crates/cli",
+    "./crates/bootstrap",
 ]
 
 # [profile.release]

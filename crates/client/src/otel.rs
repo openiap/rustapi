@@ -205,7 +205,7 @@ pub fn register_metrics(meter: Meter, ofid: &str, stats: &Arc<std::sync::Mutex<C
         .u64_observable_counter(CLIENT_CONNECTIONS)
         .with_description("Client Connections")
         .with_callback({
-            let stats = Arc::clone(&stats);
+            let stats = Arc::clone(stats);
             move |counter| {
                 let stats = stats.lock().unwrap();
                 if stats.connections > 0 {

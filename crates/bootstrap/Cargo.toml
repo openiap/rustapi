@@ -1,0 +1,15 @@
+[package]
+name = "openiap-bootstrap"
+version = "0.0.38"
+edition = "2021"
+description = "Bootstrap helper for downloading OpenIAP shared library"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib2.rs"
+
+[[bin]]
+name = "openiap-bootstrap"
+
+[dependencies]
+reqwest = { version = "0.12.15", features = ["blocking", "rustls-tls"], default-features = false }

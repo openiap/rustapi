@@ -46,6 +46,26 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            "name": "Rust: debug bootstrap",
+            "type": "lldb",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "terminal": "integrated",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=openiap-bootstrap",
+                    "--package=openiap-bootstrap"
+                ],
+                "filter": {
+                    "name": "openiap-bootstrap",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
             "name": "C: debug cli",
             "type": "cppdbg",
             "request": "launch",
@@ -77,21 +97,19 @@
             ]
         },
         {
-            "name": "C#: debug Program (dotnet)",
-            "type": "dotnet",                              
-            "request": "launch",
-            "envFile": "${workspaceFolder}/.env",
-            "console": "integratedTerminal",
-            "projectPath": "${workspaceFolder}/dotnet/openiap.csproj"
-          },
-        {
-            "name": "C#: debug Program (coreclr)",
+            "name": "C#: run Program",
             "type": "coreclr",
             "request": "launch",
+            "preLaunchTask": "Build .NET",
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}/dotnet",
-            "program": "${workspaceFolder}/dotnet/bin/Debug/net9.0/openiap.dll"
+            "program": "${workspaceFolder}/dotnet/bin/Debug/net9.0/openiap.dll",
+            "logging": {
+                "diagnosticsLog": {
+                    "protocolMessages": true
+                }
+            }
         },
         {
             "name": "Java: run cli.java",

@@ -69,18 +69,28 @@ build-linux:
 	cross build --target x86_64-unknown-linux-gnu --release
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-x64.so
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.a target/lib/libopeniap-linux-x64.a
+	cp target/x86_64-unknown-linux-gnu/release/libopeniap_bootstrap.so target/lib/bootstrap-linux-x64.so
+	cp target/x86_64-unknown-linux-gnu/release/libopeniap_bootstrap.a target/lib/bootstrap-linux-x64.a
 	cp target/x86_64-unknown-linux-gnu/release/openiap target/cli/linux-x64-openiap
+	cp target/x86_64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-x64-openiap-bootstrap
 	cross build --target aarch64-unknown-linux-gnu --release
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.a target/lib/libopeniap-linux-arm64.a
+	cp target/aarch64-unknown-linux-gnu/release/libopeniap_bootstrap.so target/lib/bootstrap-linux-arm64.so
+	cp target/aarch64-unknown-linux-gnu/release/libopeniap_bootstrap.a target/lib/bootstrap-linux-arm64.a
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
+	cp target/aarch64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-arm64-openiap-bootstrap
 
 	cross build --target x86_64-unknown-linux-musl --release
 	cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-x64-musl.a
+	cp target/x86_64-unknown-linux-musl/release/libopeniap_bootstrap.a target/lib/bootstrap-linux-x64-musl.a
 	cp target/x86_64-unknown-linux-musl/release/openiap target/cli/linux-x64-musl-openiap
+	cp target/x86_64-unknown-linux-musl/release/openiap-bootstrap target/cli/linux-x64-musl-openiap-bootstrap
 	cross build --target aarch64-unknown-linux-musl --release
 	cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-arm64-musl.a
+	cp target/aarch64-unknown-linux-musl/release/libopeniap_bootstrap.a target/lib/bootstrap-linux-arm64-musl.a
 	cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-arm64-musl-openiap
+	cp target/aarch64-unknown-linux-musl/release/openiap-bootstrap target/cli/linux-arm64-musl-openiap-bootstrap
 	
 	cp crates/clib/clib_openiap.h php/src/clib_openiap.h
 	cp crates/clib/clib_openiap.h c/include/clib_openiap.h
@@ -90,19 +100,27 @@ build-macos:
 	mkdir -p target/lib target/cli
 	cross build --target aarch64-apple-darwin --release
 	cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
+	cp target/aarch64-apple-darwin/release/libopeniap_bootstrap.dylib target/lib/bootstrap-macos-arm64.dylib
 	cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap
+	cp target/aarch64-apple-darwin/release/openiap-bootstrap target/cli/macos-arm64-openiap-bootstrap
 	cross build --target x86_64-apple-darwin --release
 	cp target/x86_64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-x64.dylib
+	cp target/x86_64-apple-darwin/release/libopeniap_bootstrap.dylib target/lib/bootstrap-macos-x64.dylib
 	cp target/x86_64-apple-darwin/release/openiap target/cli/macos-x64-openiap
+	cp target/x86_64-apple-darwin/release/openiap-bootstrap target/cli/macos-x64-openiap-bootstrap
 
 build-windows:
 	mkdir -p target/lib target/cli
 	cross build --target x86_64-pc-windows-gnu --release
 	cp target/x86_64-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-x64.dll
+	cp target/x86_64-pc-windows-gnu/release/openiap_bootstrap.dll target/lib/bootstrap-windows-x64.dll
 	cp target/x86_64-pc-windows-gnu/release/openiap.exe target/cli/windows-x64-openiap.exe
+	cp target/x86_64-pc-windows-gnu/release/openiap-bootstrap.exe target/cli/windows-x64-openiap-bootstrap.exe
 	cross build --target i686-pc-windows-gnu --release
 	cp target/i686-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-i686.dll
+	cp target/i686-pc-windows-gnu/release/openiap_bootstrap.dll target/lib/bootstrap-windows-i686.dll
 	cp target/i686-pc-windows-gnu/release/openiap.exe target/cli/windows-i686-openiap.exe
+	cp target/i686-pc-windows-gnu/release/openiap-bootstrap.exe target/cli/windows-i686-openiap-bootstrap.exe
 
 build-java:
 	# (cd java && mvn clean package)

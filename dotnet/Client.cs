@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+
 namespace OpenIAP
 {
     public partial class Client : IDisposable
@@ -46,6 +47,9 @@ namespace OpenIAP
         private readonly QueueEventCallback _QueueEventCallbackDelegate;
         private readonly ExchangeEventCallback _ExchangeEventCallbackDelegate;
         private readonly RpcResponseCallback _RpcResponseCallbackDelegate;
+        [DllImport("libopeniap_bootstrap", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr bootstrap();
+
         public IntPtr clientPtr;
         ClientWrapper client;
         #region Structs
@@ -799,7 +803,7 @@ namespace OpenIAP
             public bool success;
             public IntPtr result;
             public IntPtr error;
-            public int request_id; 
+            public int request_id;
         }
 
         public delegate void RpcResponseCallback(IntPtr responsePtr);
@@ -827,7 +831,7 @@ namespace OpenIAP
         #endregion
 
         #region dll imports
-        private static string GetLibraryPath()
+           private static string GetBootstrapPath()
         {
             string libfile;
             var arc = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
@@ -839,11 +843,11 @@ namespace OpenIAP
                 if(dumpLoadingPaths) Console.WriteLine("OS: Windows");
                 if (Environment.Is64BitProcess)
                 {
-                    libfile = arc == Architecture.X64 ? "openiap-windows-x64.dll" : "openiap-windows-arm64.dll";
+                    libfile = arc == Architecture.X64 ? "bootstrap-windows-x64.dll" : "bootstrap-windows-arm64.dll";
                 }
                 else
                 {
-                    libfile = "openiap-windows-i686.dll";
+                    libfile = "bootstrap-windows-i686.dll";
                 }
             }
             else if(RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -852,18 +856,18 @@ namespace OpenIAP
                 if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
                 if (System.IO.File.Exists("/etc/alpine-release"))
                 {
-                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-musl-arm64.a" : "libopeniap-linux-musl-x64.a";
+                    libfile = arc == Architecture.Arm64 ? "bootstrap-linux-musl-arm64.a" : "bootstrap-linux-musl-x64.a";
                 }
                 else
                 {
-                    libfile = arc == Architecture.Arm64 ? "libopeniap-linux-arm64.so" : "libopeniap-linux-x64.so";
+                    libfile = arc == Architecture.Arm64 ? "bootstrap-linux-arm64.so" : "bootstrap-linux-x64.so";
                 }
             }
             else if(RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 if(dumpLoadingPaths) Console.WriteLine("OS: macOS");
                 if (!Environment.Is64BitProcess) throw new LibraryLoadError("macOS requires a 64-bit process");
-                libfile = arc == Architecture.Arm64 ? "libopeniap-macos-arm64.dylib" : "libopeniap-macos-x64.dylib";
+                libfile = arc == Architecture.Arm64 ? "bootstrap-macos-arm64.dylib" : "bootstrap-macos-x64.dylib";
             }
             else
             {
@@ -918,13 +922,13 @@ namespace OpenIAP
             switch (Environment.OSVersion.Platform)
             {
                 case PlatformID.Win32NT:
-                    libfile = "openiap_clib.dll";
+                    libfile = "openiap_bootstrap.dll";
                     break;
                 case PlatformID.MacOSX:
-                    libfile = "libopeniap_clib.dylib";
+                    libfile = "libopeniap_bootstrap.dylib";
                     break;
                 default:
-                    libfile = "libopeniap_clib.so";
+                    libfile = "libopeniap_bootstrap.so";
                     break;
             }
             libPath = System.IO.Path.Combine(libDir, libfile);
@@ -933,6 +937,7 @@ namespace OpenIAP
 
             throw new LibraryLoadError($"Library {libfile} not found in runtimes directory.");
         }
+      
         [DllImport("libopeniap", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr create_client();
 
@@ -1177,17 +1182,20 @@ namespace OpenIAP
 
         #endregion
         private bool hasResolverBeenAdded = false;
-        public Client(string libPath = "")
+        public Client()
         {
-            if (string.IsNullOrEmpty(libPath))
+            var libPath = "";
+            var bootstrapPath = GetBootstrapPath();
+            if (this.hasResolverBeenAdded == false)
             {
-                libPath = GetLibraryPath();
-            }
-            if (this.hasResolverBeenAdded == false) {
                 try
                 {
                     NativeLibrary.SetDllImportResolver(typeof(Client).Assembly, (name, assembly, path) =>
                     {
+                        if (name == "libopeniap_bootstrap")
+                        {
+                            return NativeLibrary.Load(bootstrapPath);
+                        }
                         if (name == "libopeniap")
                         {
                             return NativeLibrary.Load(libPath);
@@ -1199,6 +1207,15 @@ namespace OpenIAP
                 {
                 }
                 this.hasResolverBeenAdded = true;
+            }
+            IntPtr pathPtr = bootstrap(); // returns string pointer to the library path
+            libPath = Marshal.PtrToStringAnsi(pathPtr);
+            if (string.IsNullOrEmpty(libPath))
+            {
+                throw new LibraryLoadError("Failed to get library path from bootstrap");
+            }
+            if (libPath.Contains("Error")) {
+                throw new LibraryLoadError($"Bootstrap error: {libPath}");
             }
             clientPtr = create_client();
             var clientWrapper = Marshal.PtrToStructure<ClientWrapper>(clientPtr);
@@ -1263,51 +1280,56 @@ namespace OpenIAP
         }
         public void error(params object[] objs)
         {
-            for(int i = 0; i < objs.Length; i++)
+            for (int i = 0; i < objs.Length; i++)
             {
-                if(objs[i] != null) {
+                if (objs[i] != null)
+                {
                     var message = objs[i].ToString();
-                    if(!string.IsNullOrEmpty(message)) Client.error(message);
+                    if (!string.IsNullOrEmpty(message)) Client.error(message);
                 }
             }
         }
         public void info(params object[] objs)
         {
-            for(int i = 0; i < objs.Length; i++)
+            for (int i = 0; i < objs.Length; i++)
             {
-                if(objs[i] != null) {
+                if (objs[i] != null)
+                {
                     var message = objs[i].ToString();
-                    if(!string.IsNullOrEmpty(message)) Client.info(message);
+                    if (!string.IsNullOrEmpty(message)) Client.info(message);
                 }
             }
         }
         public void warn(params object[] objs)
         {
-            for(int i = 0; i < objs.Length; i++)
+            for (int i = 0; i < objs.Length; i++)
             {
-                if(objs[i] != null) {
+                if (objs[i] != null)
+                {
                     var message = objs[i].ToString();
-                    if(!string.IsNullOrEmpty(message)) Client.warn(message);
+                    if (!string.IsNullOrEmpty(message)) Client.warn(message);
                 }
             }
         }
         public void debug(params object[] objs)
         {
-            for(int i = 0; i < objs.Length; i++)
+            for (int i = 0; i < objs.Length; i++)
             {
-                if(objs[i] != null) {
+                if (objs[i] != null)
+                {
                     var message = objs[i].ToString();
-                    if(!string.IsNullOrEmpty(message)) Client.debug(message);
+                    if (!string.IsNullOrEmpty(message)) Client.debug(message);
                 }
             }
         }
         public void trace(params object[] objs)
         {
-            for(int i = 0; i < objs.Length; i++)
+            for (int i = 0; i < objs.Length; i++)
             {
-                if(objs[i] != null) {
+                if (objs[i] != null)
+                {
                     var message = objs[i].ToString();
-                    if(!string.IsNullOrEmpty(message)) Client.trace(message);
+                    if (!string.IsNullOrEmpty(message)) Client.trace(message);
                 }
             }
         }
@@ -3119,7 +3141,8 @@ namespace OpenIAP
                     {
                         return Marshal.StringToHGlobalAnsi(result);
                     }
-                } else if (QueueFuncRegistry.TryGetCallback<QueueEvent, Task<string>>(eventObj.request_id, out var asyncFuncHandler))
+                }
+                else if (QueueFuncRegistry.TryGetCallback<QueueEvent, Task<string>>(eventObj.request_id, out var asyncFuncHandler))
                 {
                     if (asyncFuncHandler == null)
                     {
@@ -3194,12 +3217,13 @@ namespace OpenIAP
         // Keep the existing RegisterQueue with Action<QueueEvent> for backward compatibility
         public string RegisterQueueAction(string queuename, Action<QueueEvent> eventHandler)
         {
-            return RegisterQueue(queuename, (queueEvent) => {
+            return RegisterQueue(queuename, (queueEvent) =>
+            {
                 eventHandler(queueEvent);
                 return Task.FromResult(string.Empty);
             });
         }
-        
+
         void _ExchangeEventCallback(IntPtr QueueEventWrapperptr)
         {
             try
@@ -3300,12 +3324,14 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(queuenamePtr);
             }
         }
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         public async Task QueueMessage(string data, string queuename = "", string exchangename = "", string routingkey = "", string correlation_id = "", bool striptoken = false, int expiration = 0)
+#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
             var tcs = new TaskCompletionSource<string>();
             IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
             IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
-            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename); 
+            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
             IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
             IntPtr replytoPtr = IntPtr.Zero;
             IntPtr correlation_idPtr = IntPtr.Zero;
@@ -3926,7 +3952,7 @@ namespace OpenIAP
             return await tcs.Task;
         }
 
-       /// <summary>
+        /// <summary>
         /// Invokes an OpenRPA workflow on a robot.
         /// </summary>
         /// <param name="robotid">The robot ID to invoke.</param>
@@ -4066,13 +4092,13 @@ namespace OpenIAP
             }
         }
 
-        public Task<string> Rpc(string data, string queuename = "", string exchangename = "", string routingkey = "", bool striptoken = false, int expiration = 0, int timeout = -1) 
+        public Task<string> Rpc(string data, string queuename = "", string exchangename = "", string routingkey = "", bool striptoken = false, int expiration = 0, int timeout = -1)
         {
             var tcs = new TaskCompletionSource<string>();
 
             IntPtr dataPtr = Marshal.StringToHGlobalAnsi(data);
             IntPtr queuenamePtr = Marshal.StringToHGlobalAnsi(queuename);
-            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename); 
+            IntPtr exchangenamePtr = Marshal.StringToHGlobalAnsi(exchangename);
             IntPtr routingkeyPtr = Marshal.StringToHGlobalAnsi(routingkey);
             IntPtr replytoPtr = IntPtr.Zero;
             IntPtr correlation_idPtr = IntPtr.Zero;
@@ -4080,7 +4106,7 @@ namespace OpenIAP
             try
             {
                 int requestId = Interlocked.Increment(ref CallbackRegistryNextRequestId);
-                
+
                 var request = new QueueMessageRequestWrapper
                 {
                     data = dataPtr,
@@ -4097,7 +4123,7 @@ namespace OpenIAP
                 CallbackRegistry.TryAddCallback(requestId, tcs);
                 rpc_async(clientPtr, ref request, _RpcResponseCallbackDelegate, timeout);
             }
-            finally 
+            finally
             {
                 Marshal.FreeHGlobal(dataPtr);
                 Marshal.FreeHGlobal(queuenamePtr);
@@ -4177,7 +4203,7 @@ namespace OpenIAP
                 Marshal.FreeHGlobal(commandPtr);
                 Marshal.FreeHGlobal(idPtr);
                 Marshal.FreeHGlobal(dataPtr);
-                Marshal.FreeHGlobal(namePtr);                
+                Marshal.FreeHGlobal(namePtr);
             }
 
             // Use the helper to handle continuation
