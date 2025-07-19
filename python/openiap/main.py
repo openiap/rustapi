@@ -549,8 +549,40 @@ class Client:
         if(self.client != None):
             self.trace("Freeing client")
             self.lib.free_client(self.client)
-            self.client = None    
+            self.client = None
+    def find_bootstrap_path(self):
+        # Use the actual filename produced by your build
+        libfile = "libopeniap_bootstrap.so"
+        search_dirs = [
+            "target/debug", "target/release",
+            ".", "..", "../..", "../../..",
+            "runtimes", "lib"
+        ]
+        for base in search_dirs:
+            candidate = os.path.abspath(os.path.join(base, libfile))
+            if os.path.exists(candidate):
+                return candidate
+        dev_candidate = os.path.abspath(os.path.join("../../../lib", libfile))
+        if os.path.exists(dev_candidate):
+            return dev_candidate
+        raise Exception("Bootstrap library not found: " + libfile)
+
     def _load_library(self):
+        bootstrap_path = self.find_bootstrap_path()
+        bootstrap_lib = ctypes.CDLL(bootstrap_path)
+        # Define the bootstrap() function signature
+        bootstrap_func = bootstrap_lib.bootstrap
+        bootstrap_func.restype = ctypes.c_char_p
+        main_lib_path = bootstrap_func()
+        if not main_lib_path:
+            raise Exception("Failed to get main library path from bootstrap")
+        main_lib_path = main_lib_path.decode("utf-8")
+        if not os.path.exists(main_lib_path):
+            raise Exception("Main library not found: " + main_lib_path)
+        main_lib = ctypes.CDLL(main_lib_path)
+        return main_lib
+
+    def _load_library_old(self):
         # Determine the path to the shared library
         lib_dir = os.path.join(os.path.dirname(__file__), 'lib')
         if sys.platform == 'win32':
