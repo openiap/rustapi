@@ -55,7 +55,7 @@ public class clienttestclass {
 
     public static void RunAll() {
         // System.out.println("CLI initializing...");
-        String libpath = NativeLoader.loadLibrary("openiap");
+        String libpath = NativeLoader.loadLibrary();
 
         client = new Client(libpath);
         try {

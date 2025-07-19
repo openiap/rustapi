@@ -22,7 +22,9 @@ in pkgs.mkShell {
     goEnv.packages ++
     [
       # pkgs.vscode-extensions.vadimcn.vscode-lldb.adapter
+      pkgs.cmake
       pkgs.protobuf
+      pkgs.unionfs-fuse
       pkgs.icu
     ];
   shellHook = ''

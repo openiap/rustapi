@@ -26,7 +26,7 @@ public class clienttestcli {
 
     public static void main(String[] args) {
         // System.out.println("CLI initializing...");
-        String libpath = NativeLoader.loadLibrary("openiap");
+        String libpath = NativeLoader.loadLibrary();
         client = new Client(libpath);
         scanner = new Scanner(System.in);
         executor = Executors.newSingleThreadExecutor();
