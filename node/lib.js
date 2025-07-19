@@ -617,7 +617,6 @@ function findBootstrapPath() {
     for (const base of baseDirs) {
         for (const target of targets) {
             const candidate = path.resolve(base, target, libfile);
-            console.log('Checking:', candidate);
             if (fs.existsSync(candidate)) return candidate;
         }
     }
@@ -626,14 +625,12 @@ function findBootstrapPath() {
     for (const base of baseDirs) {
         for (const folder of libFolders) {
             const candidate = path.resolve(base, folder, libfile);
-            console.log('Checking:', candidate);
             if (fs.existsSync(candidate)) return candidate;
         }
     }
 
     // 3. Development environment: ../../../lib
     const devCandidate = path.resolve('../../../lib', libfile);
-    console.log('Checking:', devCandidate);
     if (fs.existsSync(devCandidate)) return devCandidate;
 
     // 4. Fallback: search for libopeniap_bootstrap.so (like C#/Java)
@@ -645,7 +642,6 @@ function findBootstrapPath() {
     } else {
         fallback = path.resolve('target/debug', 'libopeniap_bootstrap.so');
     }
-    console.log('Checking fallback:', fallback);
     if (fs.existsSync(fallback)) return fallback;
 
     throw new Error(`Bootstrap library not found: ${libfile}`);
