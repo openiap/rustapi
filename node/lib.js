@@ -582,9 +582,282 @@ function isMusl() {
         return !glibcVersionRuntime
     }
 }
+// Find the correct bootstrap library filename for platform/arch
+function getBootstrapLibName() {
+    const platform = process.platform;
+    const arch = process.arch;
+    if (platform === 'win32') {
+        if (arch === 'x64') return 'bootstrap-windows-x64.dll';
+        if (arch === 'arm64') return 'bootstrap-windows-arm64.dll';
+        return 'bootstrap-windows-i686.dll';
+    }
+    if (platform === 'darwin') {
+        return arch === 'arm64' ? 'bootstrap-macos-arm64.dylib' : 'bootstrap-macos-x64.dylib';
+    }
+    if (platform === 'linux') {
+        if (isMusl()) {
+            return arch === 'arm64' ? 'bootstrap-linux-musl-arm64.a' : 'bootstrap-linux-musl-x64.a';
+        } else {
+            return arch === 'arm64' ? 'bootstrap-linux-arm64.so' : 'bootstrap-linux-x64.so';
+        }
+    }
+    throw new Error(`Unsupported platform: ${platform}`);
+}
+
+// Search for the bootstrap library in multiple locations
+function findBootstrapPath() {
+    const libfile = getBootstrapLibName();
+    const baseDirs = [
+        '.', '..', '../..', '../../..'
+    ];
+    const targets = ['target/debug', 'target/release'];
+    const libFolders = ['runtimes', 'lib'];
+
+    // 1. Search for debug/release builds up to 3 parent directories
+    for (const base of baseDirs) {
+        for (const target of targets) {
+            const candidate = path.resolve(base, target, libfile);
+            console.log('Checking:', candidate);
+            if (fs.existsSync(candidate)) return candidate;
+        }
+    }
+
+    // 2. Search for runtimes/lib folders up to 3 parent directories
+    for (const base of baseDirs) {
+        for (const folder of libFolders) {
+            const candidate = path.resolve(base, folder, libfile);
+            console.log('Checking:', candidate);
+            if (fs.existsSync(candidate)) return candidate;
+        }
+    }
+
+    // 3. Development environment: ../../../lib
+    const devCandidate = path.resolve('../../../lib', libfile);
+    console.log('Checking:', devCandidate);
+    if (fs.existsSync(devCandidate)) return devCandidate;
+
+    // 4. Fallback: search for libopeniap_bootstrap.so (like C#/Java)
+    let fallback;
+    if (process.platform === 'win32') {
+        fallback = path.resolve('target/debug', 'openiap_bootstrap.dll');
+    } else if (process.platform === 'darwin') {
+        fallback = path.resolve('target/debug', 'libopeniap_bootstrap.dylib');
+    } else {
+        fallback = path.resolve('target/debug', 'libopeniap_bootstrap.so');
+    }
+    console.log('Checking fallback:', fallback);
+    if (fs.existsSync(fallback)) return fallback;
+
+    throw new Error(`Bootstrap library not found: ${libfile}`);
+}
+// Load bootstrap library and call bootstrap() to get main library path
+function getMainLibraryPath() {
+    const bootstrapPath = findBootstrapPath();
+    const bootstrapLib = koffi.load(bootstrapPath);
+    bootstrapLib.bootstrap = bootstrapLib.func('char * bootstrap()');
+    const mainLibPath = bootstrapLib.bootstrap();
+    if (!mainLibPath || mainLibPath.length === 0) {
+        throw new Error('Failed to get main library path from bootstrap');
+    }
+    return mainLibPath;
+}
 
 // Function to load the correct library file based on the operating system
 function loadLibrary() {
+    const bootstrapPath = findBootstrapPath();
+    const bootstrapLib = koffi.load(bootstrapPath);
+    bootstrapLib.bootstrap = bootstrapLib.func('char * bootstrap()');
+    const mainLibPath = bootstrapLib.bootstrap();
+
+    if (!mainLibPath || mainLibPath.length === 0) {
+        throw new Error('Failed to get main library path from bootstrap');
+    }
+    if (!fs.existsSync(mainLibPath)) {
+        throw new Error(`Main library not found: ${mainLibPath}`);
+    }
+
+    try {
+        const lib = koffi.load(mainLibPath);
+
+        lib.enable_tracing = lib.func('void enable_tracing(const char* rust_log, const char* tracing)');
+
+        lib.error = lib.func('void error(const char* message)');
+        lib.info = lib.func('void info(const char* message)');
+        lib.warn = lib.func('void warn(const char* message)');
+        lib.debug = lib.func('void debug(const char* message)');
+        lib.trace = lib.func('void trace(const char* message)');
+
+        lib.set_f64_observable_gauge = lib.func('void set_f64_observable_gauge(const char* name, double value, const char* description);');
+        lib.set_u64_observable_gauge = lib.func('void set_u64_observable_gauge(const char* name, uint64_t value, const char* description);');
+        lib.set_i64_observable_gauge = lib.func('void set_i64_observable_gauge(const char* name, int64_t value, const char* description);');
+        lib.disable_observable_gauge = lib.func('void disable_observable_gauge(const char* name);');
+
+        lib.create_client = lib.func('create_client', ClientWrapperPtr, []);
+        lib.on_client_event = lib.func('on_client_event', ClientEventResponseWrapperPtr, [ClientWrapperPtr]);
+        lib.next_client_event = lib.func('next_client_event', ClientEventWrapperPtr, [CString]);
+        lib.off_client_event = lib.func('off_client_event', OffClientEventResponseWrapperPtr, [CString]);
+        lib.free_off_event_response = lib.func('free_off_event_response', 'void', [OffClientEventResponseWrapperPtr]);
+        lib.free_event_response = lib.func('free_event_response', 'void', [ClientEventResponseWrapperPtr]);
+        lib.free_client_event = lib.func('free_client_event', 'void', [ClientEventWrapperPtr]);
+
+        lib.set_agent_name = lib.func('client_set_agent_name', 'void', [ClientWrapperPtr, 'str']);
+        lib.client_set_default_timeout = lib.func('client_set_default_timeout', 'void', [ClientWrapperPtr, 'int']);
+        lib.client_get_default_timeout = lib.func('client_get_default_timeout', 'int', [ClientWrapperPtr]);
+        lib.client_get_state = lib.func('client_get_state', 'str', [ClientWrapperPtr]);
+        lib.set_agent_version = lib.func('client_set_agent_version', 'void', [ClientWrapperPtr, 'str']);
+
+        lib.disable_tracing = lib.func('void disable_tracing()');
+        lib.connect = lib.func('client_connect', ConnectResponseWrapperPtr, [ClientWrapperPtr, 'str']);
+        lib.ConnectCallback = koffi.proto('void ConnectCallback(ConnectResponseWrapper*)');
+        lib.connect_async = lib.func('connect_async', 'void', [ClientWrapperPtr, 'str', 'int', koffi.pointer(lib.ConnectCallback)]);
+        lib.free_client = lib.func('void free_client(ClientWrapper*)');
+        lib.signin = lib.func('signin', SigninResponseWrapperPtr, [ClientWrapperPtr, SigninRequestWrapperPtr]);
+        lib.signinCallback = koffi.proto('void signinCallback(SigninResponseWrapper*)');
+        lib.signin_async = lib.func('signin_async', 'void', [ClientWrapperPtr, SigninRequestWrapperPtr, koffi.pointer(lib.signinCallback)]);
+        lib.free_signin_response = lib.func('free_signin_response', 'void', [SigninResponseWrapperPtr]);
+
+        lib.disconnect = lib.func('client_disconnect', 'void', [ClientWrapperPtr]);
+
+        lib.list_collections = lib.func('list_collections', ListCollectionsResponseWrapperPtr, [ClientWrapperPtr, 'bool']);
+        lib.listCollectionsCallback = koffi.proto('void ListCollectionsCallback(ListCollectionsResponseWrapper*)');
+        lib.list_collections_async = lib.func('list_collections_async', 'void', [ClientWrapperPtr, 'bool', 'int', koffi.pointer(lib.listCollectionsCallback)]);
+        lib.free_list_collections_response = lib.func('free_list_collections_response', 'void', [ListCollectionsResponseWrapperPtr]);
+
+        lib.create_collection = lib.func('create_collection', CreateCollectionResponseWrapperPtr, [ClientWrapperPtr, CreateCollectionRequestWrapperPtr]);
+        lib.create_collectionCallback = koffi.proto('void create_collectionCallback(CreateCollectionResponseWrapper*)');
+        lib.create_collection_async = lib.func('create_collection_async', 'void', [ClientWrapperPtr, CreateCollectionRequestWrapperPtr, koffi.pointer(lib.create_collectionCallback)]);
+        lib.free_create_collection_response = lib.func('free_create_collection_response', 'void', [CreateCollectionResponseWrapperPtr]);
+
+        lib.drop_collection = lib.func('drop_collection', DropCollectionResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.dropCollectionCallback = koffi.proto('void dropCollectionCallback(DropCollectionResponseWrapper*)');
+        lib.drop_collection_async = lib.func('drop_collection_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.dropCollectionCallback)]);
+        lib.free_drop_collection_response = lib.func('free_drop_collection_response', 'void', [DropCollectionResponseWrapperPtr]);
+
+        lib.get_indexes = lib.func('get_indexes', GetIndexesResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.get_indexesCallback = koffi.proto('void get_indexesCallback(GetIndexesResponseWrapper*)');
+        lib.get_indexes_async = lib.func('get_indexes_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.get_indexesCallback)]);
+        lib.free_get_indexes_response = lib.func('free_get_indexes_response', 'void', [GetIndexesResponseWrapperPtr]);
+
+        lib.create_index = lib.func('create_index', CreateIndexResponseWrapperPtr, [ClientWrapperPtr, CreateIndexRequestWrapperPtr]);
+        lib.create_indexCallback = koffi.proto('void create_indexCallback(CreateIndexResponseWrapper*)');
+        lib.create_index_async = lib.func('create_index_async', 'void', [ClientWrapperPtr, CreateIndexRequestWrapperPtr, koffi.pointer(lib.create_indexCallback)]);
+        lib.free_create_index_response = lib.func('free_create_index_response', 'void', [CreateIndexResponseWrapperPtr]);
+
+        lib.drop_index = lib.func('drop_index', DropIndexResponseWrapperPtr, [ClientWrapperPtr, CString, CString]);
+        lib.drop_indexCallback = koffi.proto('void drop_indexCallback(DropIndexResponseWrapper*)');
+        lib.drop_index_async = lib.func('drop_index_async', 'void', [ClientWrapperPtr, CString, CString, 'int', koffi.pointer(lib.drop_indexCallback)]);
+        lib.free_drop_index_response = lib.func('free_drop_index_response', 'void', [DropIndexResponseWrapperPtr]);
+
+        lib.custom_command = lib.func('custom_command', CustomCommandResponseWrapperPtr, [ClientWrapperPtr, CustomCommandRequestWrapperPtr, 'int']);
+        lib.custom_commandCallback = koffi.proto('void CustomCommandCallback(CustomCommandResponseWrapper*)');
+        lib.custom_command_async = lib.func('custom_command_async', 'void', [ClientWrapperPtr, CustomCommandRequestWrapperPtr, koffi.pointer(lib.custom_commandCallback), 'int']);
+        lib.free_custom_command_response = lib.func('free_custom_command_response', 'void', [CustomCommandResponseWrapperPtr]);
+
+        lib.query = lib.func('query', QueryResponseWrapperPtr, [ClientWrapperPtr, QueryRequestWrapperPtr]);
+        lib.queryCallback = koffi.proto('void queryCallback(QueryResponseWrapper*)');
+        lib.query_async = lib.func('query_async', 'void', [ClientWrapperPtr, QueryRequestWrapperPtr, koffi.pointer(lib.queryCallback)]);
+        lib.free_query_response = lib.func('free_query_response', 'void', [QueryResponseWrapperPtr]);
+        lib.count = lib.func('count', CountResponseWrapperPtr, [ClientWrapperPtr, CountRequestWrapperPtr]);
+        lib.countCallback = koffi.proto('void countCallback(CountResponseWrapper*)');
+        lib.count_async = lib.func('count_async', 'void', [ClientWrapperPtr, CountRequestWrapperPtr, koffi.pointer(lib.countCallback)]);
+        lib.free_count_response = lib.func('free_count_response', 'void', [CountResponseWrapperPtr]);
+        lib.distinct = lib.func('distinct', DistinctResponseWrapperPtr, [ClientWrapperPtr, DistinctRequestWrapperPtr]);
+        lib.distinctCallback = koffi.proto('void distinctCallback(DistinctResponseWrapper*)');
+        lib.distinct_async = lib.func('distinct_async', 'void', [ClientWrapperPtr, DistinctRequestWrapperPtr, koffi.pointer(lib.distinctCallback)]);
+        lib.free_distinct_response = lib.func('free_distinct_response', 'void', [DistinctResponseWrapperPtr]);
+        lib.aggregate = lib.func('aggregate', AggregateResponseWrapperPtr, [ClientWrapperPtr, AggregateRequestWrapperPtr]);
+        lib.aggregateCallback = koffi.proto('void aggregateCallback(AggregateResponseWrapper*)');
+        lib.aggregate_async = lib.func('aggregate_async', 'void', [ClientWrapperPtr, AggregateRequestWrapperPtr, koffi.pointer(lib.aggregateCallback)]);
+        lib.free_aggregate_response = lib.func('free_aggregate_response', 'void', [AggregateResponseWrapperPtr]);
+        lib.insert_one = lib.func('insert_one', InsertOneResponseWrapperPtr, [ClientWrapperPtr, InsertOneRequestWrapperPtr]);
+        lib.insert_oneCallback = koffi.proto('void insert_oneCallback(InsertOneResponseWrapper*)');
+        lib.insert_one_async = lib.func('insert_one_async', 'void', [ClientWrapperPtr, InsertOneRequestWrapperPtr, koffi.pointer(lib.insert_oneCallback)]);
+        lib.free_insert_one_response = lib.func('free_insert_one_response', 'void', [InsertOneResponseWrapperPtr]);
+        lib.insert_many = lib.func('insert_many', InsertManyResponseWrapperPtr, [ClientWrapperPtr, InsertManyRequestWrapperPtr]);
+        lib.insert_manyCallback = koffi.proto('void insert_manyCallback(InsertManyResponseWrapper*)');
+        lib.insert_many_async = lib.func('insert_many_async', 'void', [ClientWrapperPtr, InsertManyRequestWrapperPtr, koffi.pointer(lib.insert_manyCallback)]);
+        lib.free_insert_many_response = lib.func('free_insert_many_response', 'void', [InsertManyResponseWrapperPtr]);
+        lib.update_one = lib.func('update_one', UpdateOneResponseWrapperPtr, [ClientWrapperPtr, UpdateOneRequestWrapperPtr]);
+        lib.update_oneCallback = koffi.proto('void update_oneCallback(UpdateOneResponseWrapper*)');
+        lib.update_one_async = lib.func('update_one_async', 'void', [ClientWrapperPtr, UpdateOneRequestWrapperPtr, koffi.pointer(lib.update_oneCallback)]);
+        lib.free_update_one_response = lib.func('free_update_one_response', 'void', [UpdateOneResponseWrapperPtr]);
+        lib.insert_or_update_one = lib.func('insert_or_update_one', InsertOrUpdateOneResponseWrapperPtr, [ClientWrapperPtr, InsertOrUpdateOneRequestWrapperPtr]);
+        lib.insert_or_update_oneCallback = koffi.proto('void insert_or_update_oneCallback(InsertOrUpdateOneResponseWrapper*)');
+        lib.insert_or_update_one_async = lib.func('insert_or_update_one_async', 'void', [ClientWrapperPtr, InsertOrUpdateOneRequestWrapperPtr, koffi.pointer(lib.insert_or_update_oneCallback)]);
+        lib.free_insert_or_update_one_response = lib.func('free_insert_or_update_one_response', 'void', [InsertOrUpdateOneResponseWrapperPtr]);
+        lib.delete_one = lib.func('delete_one', DeleteOneResponseWrapperPtr, [ClientWrapperPtr, DeleteOneRequestWrapperPtr]);
+        lib.delete_oneCallback = koffi.proto('void delete_oneCallback(DeleteOneResponseWrapper*)');
+        lib.delete_one_async = lib.func('delete_one_async', 'void', [ClientWrapperPtr, DeleteOneRequestWrapperPtr, koffi.pointer(lib.delete_oneCallback)]);
+        lib.free_delete_one_response = lib.func('free_delete_one_response', 'void', [DeleteOneResponseWrapperPtr]);
+        lib.delete_many = lib.func('delete_many', DeleteManyResponseWrapperPtr, [ClientWrapperPtr, DeleteManyRequestWrapperPtr]);
+        lib.delete_manyCallback = koffi.proto('void delete_manyCallback(DeleteManyResponseWrapper*)');
+        lib.delete_many_async = lib.func('delete_many_async', 'void', [ClientWrapperPtr, DeleteManyRequestWrapperPtr, koffi.pointer(lib.delete_manyCallback)]);
+        lib.free_delete_many_response = lib.func('free_delete_many_response', 'void', [DeleteManyResponseWrapperPtr]);
+        lib.download = lib.func('download', DownloadResponseWrapperPtr, [ClientWrapperPtr, DownloadRequestWrapperPtr]);
+        lib.downloadCallback = koffi.proto('void downloadCallback(DownloadResponseWrapper*)');
+        lib.download_async = lib.func('download_async', 'void', [ClientWrapperPtr, DownloadRequestWrapperPtr, koffi.pointer(lib.downloadCallback)]);
+        lib.free_download_response = lib.func('free_download_response', 'void', [DownloadResponseWrapperPtr]);
+        lib.upload = lib.func('upload', UploadResponseWrapperPtr, [ClientWrapperPtr, UploadRequestWrapperPtr]);
+        lib.uploadCallback = koffi.proto('void uploadCallback(UploadResponseWrapper*)');
+        lib.upload_async = lib.func('upload_async', 'void', [ClientWrapperPtr, UploadRequestWrapperPtr, koffi.pointer(lib.uploadCallback)]);
+        lib.free_upload_response = lib.func('free_upload_response', 'void', [UploadResponseWrapperPtr]);
+        lib.push_workitem = lib.func('push_workitem', PushWorkitemResponseWrapperPtr, [ClientWrapperPtr, PushWorkitemRequestWrapperPtr]);
+        lib.push_workitemCallback = koffi.proto('void push_workitemCallback(PushWorkitemResponseWrapper*)');
+        lib.push_workitem_async = lib.func('push_workitem_async', 'void', [ClientWrapperPtr, PushWorkitemRequestWrapperPtr, koffi.pointer(lib.push_workitemCallback)]);
+        lib.free_push_workitem_response = lib.func('free_push_workitem_response', 'void', [PushWorkitemResponseWrapperPtr]);
+        lib.pop_workitem = lib.func('pop_workitem', PopWorkitemResponseWrapperPtr, [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString]);
+        lib.pop_workitemCallback = koffi.proto('void pop_workitemCallback(PopWorkitemResponseWrapper*)');
+        lib.pop_workitem_async = lib.func('pop_workitem_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, koffi.pointer(lib.pop_workitemCallback)]);
+        lib.pop_workitem2_async = lib.func('pop_workitem2_async', 'void', [ClientWrapperPtr, PopWorkitemRequestWrapperPtr, CString, 'int', koffi.pointer(lib.pop_workitemCallback)]);
+
+        lib.free_pop_workitem_response = lib.func('free_pop_workitem_response', 'void', [PopWorkitemResponseWrapperPtr]);
+        lib.update_workitem = lib.func('update_workitem', UpdateWorkitemResponseWrapperPtr, [ClientWrapperPtr, UpdateWorkitemRequestWrapperPtr]);
+        lib.update_workitemCallback = koffi.proto('void update_workitemCallback(UpdateWorkitemResponseWrapper*)');
+        lib.update_workitem_async = lib.func('update_workitem_async', 'void', [ClientWrapperPtr, UpdateWorkitemRequestWrapperPtr, koffi.pointer(lib.update_workitemCallback)]);
+        lib.free_update_workitem_response = lib.func('free_update_workitem_response', 'void', [UpdateWorkitemResponseWrapperPtr]);
+        lib.delete_workitem = lib.func('delete_workitem', DeleteWorkitemResponseWrapperPtr, [ClientWrapperPtr, DeleteWorkitemRequestWrapperPtr]);
+        lib.delete_workitemCallback = koffi.proto('void delete_workitemCallback(DeleteWorkitemResponseWrapper*)');
+        lib.delete_workitem_async = lib.func('delete_workitem_async', 'void', [ClientWrapperPtr, DeleteWorkitemRequestWrapperPtr, koffi.pointer(lib.delete_workitemCallback)]);
+        lib.free_delete_workitem_response = lib.func('free_delete_workitem_response', 'void', [DeleteWorkitemResponseWrapperPtr]);
+        lib.watch = lib.func('watch', WatchResponseWrapperPtr, [ClientWrapperPtr, WatchRequestWrapperPtr]);
+        lib.next_watch_event = lib.func('next_watch_event', WatchEventWrapperPtr, [CString]);
+        lib.WatchEventCallback = koffi.proto('void WatchEventCallback(WatchEventWrapper*)');
+        lib.watchCallback = koffi.proto('void watchCallback(WatchResponseWrapper*)');
+        lib.watch_async_async = lib.func('watch_async_async', 'void', [ClientWrapperPtr, WatchRequestWrapperPtr, koffi.pointer(lib.watchCallback), koffi.pointer(lib.WatchEventCallback)]);
+        lib.free_watch_event = lib.func('free_watch_event', 'void', [WatchEventWrapperPtr]);
+        lib.free_watch_response = lib.func('free_watch_response', 'void', [WatchResponseWrapperPtr]);
+        lib.unwatch = lib.func('unwatch', UnwatchResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.unwatchCallback = koffi.proto('void unwatchCallback(UnwatchResponseWrapper*)');
+        lib.unwatch_async = lib.func('unwatch_async', 'void', [ClientWrapperPtr, CString, 'int', koffi.pointer(lib.unwatchCallback)]);
+        lib.free_unwatch_response = lib.func('free_unwatch_response', 'void', [UnwatchResponseWrapperPtr]);
+
+        lib.register_queue = lib.func('register_queue', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr]);
+        lib.QueueEventCallback = koffi.proto('const char * QueueEventCallback(QueueEventWrapper*)');
+        lib.register_queue_async = lib.func('register_queue_async', RegisterQueueResponseWrapperPtr, [ClientWrapperPtr, RegisterQueueRequestWrapperPtr, koffi.pointer(lib.QueueEventCallback)]);
+        lib.free_register_queue_response = lib.func('free_register_queue_response', 'void', [RegisterQueueResponseWrapperPtr]);
+        lib.register_exchange = lib.func('register_exchange', RegisterExchangeResponseWrapperPtr, [ClientWrapperPtr, RegisterExchangeRequestWrapperPtr]);
+        lib.free_register_exchange_response = lib.func('free_register_exchange_response', 'void', [RegisterExchangeResponseWrapperPtr]);
+        lib.rpc = lib.func('rpc', RpcResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr, 'int']);
+        lib.rpcCallback = koffi.proto('void rpcCallback(RpcResponseWrapper*)');
+        lib.rpc_async = lib.func('rpc_async', 'void', [ClientWrapperPtr, QueueMessageRequestWrapperPtr, koffi.pointer(lib.rpcCallback), 'int']);
+        lib.free_rpc_response = lib.func('free_rpc_response', 'void', [RpcResponseWrapperPtr]);
+        lib.next_queue_event = lib.func('next_queue_event', QueueEventPtr, [CString]);
+        lib.free_queue_event = lib.func('free_queue_event', 'void', [QueueEventPtr]);
+        lib.unregister_queue = lib.func('unregister_queue', UnRegisterQueueResponseWrapperPtr, [ClientWrapperPtr, CString]);
+        lib.free_unregister_queue_response = lib.func('free_unregister_queue_response', 'void', [UnRegisterQueueResponseWrapperPtr]);
+        lib.queue_message = lib.func('queue_message', QueueMessageResponseWrapperPtr, [ClientWrapperPtr, QueueMessageRequestWrapperPtr]);
+        lib.free_queue_message_response = lib.func('free_queue_message_response', 'void', [QueueMessageResponseWrapperPtr]);
+
+        lib.invoke_openrpa = lib.func('invoke_openrpa', InvokeOpenRPAResponseWrapperPtr, [ClientWrapperPtr, InvokeOpenRPARequestWrapperPtr, 'int']);
+        lib.free_invoke_openrpa_response = lib.func('free_invoke_openrpa_response', 'void', [InvokeOpenRPAResponseWrapperPtr]);
+
+        return lib;
+    } catch (e) {
+        throw new LibraryLoadError(`Failed to load library: ${e.message}`);
+    }
+}
+// Function to load the correct library file based on the operating system
+function loadLibrary_old() {
     const { platform, arch } = process
     let libDir = path.join(__dirname, 'lib');
     let libPath;
