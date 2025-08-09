@@ -59,7 +59,7 @@ type StreamSender = mpsc::Sender<Vec<u8>>;
 type Sock = WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 use futures::StreamExt;
 use async_channel::unbounded;
-const VERSION: &str = "0.0.38";
+// const VERSION: &str = "0.0.39";
 
 
 /// The `Client` struct provides the client for the OpenIAP service.
@@ -311,6 +311,7 @@ impl Client {
     pub fn new() -> Self {
         let (ces, cer) = unbounded::<ClientEvent>();
         let (out_es, out_er) = unbounded::<Envelope>();
+        let version = env!("CARGO_PKG_VERSION");
         Self {
             task_handles: Arc::new(std::sync::Mutex::new(Vec::new())),
             stats: Arc::new(std::sync::Mutex::new(ClientStatistics::default())),
@@ -336,7 +337,7 @@ impl Client {
             jwt: Arc::new(std::sync::Mutex::new("".to_string())),
             service_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
             agent_name: Arc::new(std::sync::Mutex::new("rust".to_string())),
-            agent_version: Arc::new(std::sync::Mutex::new(VERSION.to_string())),
+            agent_version: Arc::new(std::sync::Mutex::new(version.to_string())),
             event_sender: ces,
             event_receiver: cer,
             out_envelope_sender: out_es,
@@ -457,8 +458,9 @@ impl Client {
             let service_name = self.get_service_name();
             let agent_name = self.get_agent_name();
             let agent_version = self.get_agent_version();
-            match otel::init_telemetry(&service_name, &agent_name, &agent_version, VERSION, &apihostname, _otel_metric_url.as_str(), 
-            _otel_trace_url.as_str(),  _otel_log_url.as_str(), 
+            let version = env!("CARGO_PKG_VERSION");
+            match otel::init_telemetry(&service_name, &agent_name, &agent_version, &version, &apihostname, _otel_metric_url.as_str(),
+            _otel_trace_url.as_str(),  _otel_log_url.as_str(),
             &self.stats) {
                 Ok(_) => (),
                 Err(e) => {
@@ -3898,7 +3900,7 @@ impl Client {
             .unwrap();
         debug!("Registered Response Queue: {:?}", q);
         let data = format!(
-            "{{\"command\":\"invoke\",\"workflowid\":\"{}\",\"payload\": {}}}",
+            "{{\"command\":\"invoke\",\"workflowid\":\"{}\",\"data\": {}}}",
             config.workflowid, config.payload
         );
         debug!("Send Data: {}", data);

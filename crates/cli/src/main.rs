@@ -892,8 +892,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
         if input.eq_ignore_ascii_case("rpa") {
             let config = InvokeOpenRpaRequest {
                 robotid: "5ce94386320b9ce0bc2c3d07".to_string(),
-                workflowid: "5e0b52194f910e30ce9e3e49".to_string(),
-                payload: "{\"test\":\"test\"}".to_string(),
+                workflowid: "61a1b281-648e-4c40-bb40-2c9db71efef6".to_string(),
+                payload: "{\"test\":\"test\", \"num\":7}".to_string(),
                 rpc: true,
             };
             let result = b.invoke_openrpa(config, Some(Duration::from_secs(10))).await;

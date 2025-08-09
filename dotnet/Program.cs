@@ -749,7 +749,7 @@ class Program
           try
           {
             var rparesult = client.InvokeOpenRPA("5ce94386320b9ce0bc2c3d07",
-                "5e0b52194f910e30ce9e3e49", "{\"test\":\"test\"}", true, 10);
+                "61a1b281-648e-4c40-bb40-2c9db71efef6", "{\"test\":\"test\", \"num\":7}", true, 10);
             client.info("rpa result " + rparesult);
           }
           catch (System.Exception ex)

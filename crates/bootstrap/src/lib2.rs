@@ -62,7 +62,12 @@ pub extern "C" fn bootstrap() -> *const c_char {
         }
     };
     if libdir.join(debug_lib).exists() {
-        let state = format!("{}", libdir.join(debug_lib).display());
+        let debug_path = libdir.join(debug_lib);
+        let absolute_path = match debug_path.canonicalize() {
+            Ok(path) => path,
+            Err(_) => debug_path.clone(),
+        };
+        let state = format!("{}", absolute_path.display());
         let state_str = CString::new(state).unwrap().into_raw();
         return state_str;
     }
@@ -73,14 +78,14 @@ pub extern "C" fn bootstrap() -> *const c_char {
         ("windows", "aarch64") => "openiap-windows-arm64.dll",
         ("linux", "x86_64") => {
             if std::path::Path::new("/etc/alpine-release").exists() {
-                "libopeniap-linux-musl-x64.so"
+                "libopeniap-linux-musl-x64.a"
             } else {
                 "libopeniap-linux-x64.so"
             }
         },
         ("linux", "aarch64") => {
             if std::path::Path::new("/etc/alpine-release").exists() {
-                "libopeniap-linux-musl-arm64.so"
+                "libopeniap-linux-musl-arm64.a"
             } else {
                 "libopeniap-linux-arm64.so"
             }
@@ -94,12 +99,21 @@ pub extern "C" fn bootstrap() -> *const c_char {
             return state_str;
         }
     };
+    let version = env!("CARGO_PKG_VERSION");
+    if !debug.is_empty() { println!("Using library: {} version {}", lib_name, version); }
 
     let url = format!(
-        "https://github.com/openiap/rustapi/releases/latest/download/{}",
+        "https://github.com/openiap/rustapi/releases/{}/download/{}",
+        version,
         lib_name
     );
-    let libdir = std::path::PathBuf::from("lib");
+
+    // Use system temp directory for cross-platform compatibility
+    let libdir = std::env::temp_dir().join("openiap");
+    if !debug.is_empty() { 
+        println!("Using temp directory for lib: {}", libdir.display()); 
+    }
+    
 
     match fs::create_dir_all(&libdir) {
         Ok(_) => {}
@@ -111,13 +125,17 @@ pub extern "C" fn bootstrap() -> *const c_char {
     };
     let dest = libdir.join(lib_name);
     if dest.exists() {
-        let state = format!("{}", dest.display());
+        let absolute_dest = match dest.canonicalize() {
+            Ok(path) => path,
+            Err(_) => dest.clone(),
+        };
+        let state = format!("{}", absolute_dest.display());
         let state_str = CString::new(state).unwrap().into_raw();
         return state_str;
     }
 
     if !debug.is_empty() { println!("downloading {} to {}", url, dest.display()); }
-    let response = match reqwest::blocking::get(&url) {
+    let mut response = match reqwest::blocking::get(&url) {
         Ok(resp) => resp,
         Err(e) => {
             let state = format!("Error: failed to download {}: {}", url, e);
@@ -125,6 +143,22 @@ pub extern "C" fn bootstrap() -> *const c_char {
             return state_str;
         }
     };
+    if !response.status().is_success() {
+        let url = format!(
+            "https://github.com/openiap/rustapi/releases/latest/download/{}",
+            lib_name
+        );
+        if !debug.is_empty() { println!("downloading {} to {}", url, dest.display()); }
+        response = match reqwest::blocking::get(&url) {
+            Ok(resp) => resp,
+            Err(e) => {
+                let state = format!("Error: failed to download {}: {}", url, e);
+                let state_str = CString::new(state).unwrap().into_raw();
+                return state_str;
+            }
+        };
+
+    }
     if !response.status().is_success() {
         let state = format!("Error: failed downloading: {}", response.status());
         let state_str = CString::new(state).unwrap().into_raw();
@@ -147,7 +181,11 @@ pub extern "C" fn bootstrap() -> *const c_char {
         }
     }
     //let state = format!("downloaded {} bytes", bytes.len());
-    let state = format!("{}", dest.display());
+    let absolute_dest = match dest.canonicalize() {
+        Ok(path) => path,
+        Err(_) => dest.clone(),
+    };
+    let state = format!("{}", absolute_dest.display());
     let state_str = CString::new(state).unwrap().into_raw();
     state_str
 }

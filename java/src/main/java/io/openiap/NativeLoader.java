@@ -1,6 +1,9 @@
 package io.openiap;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class NativeLoader {
 
@@ -52,7 +55,42 @@ public class NativeLoader {
         if (dumpLoadingPaths)
             System.out.println("Loading library " + libfile + " for " + os + " (" + arch + ")");
 
-        // Search for debug/release libraries first if DEBUG env is set
+        // 1. First try to load from JAR resources (production/Maven installation)
+        try {
+            String resourcePath = "/lib/" + libfile;
+            if (dumpLoadingPaths)
+                System.out.println("Testing resource path: " + resourcePath);
+            
+            InputStream resourceStream = NativeLoader.class.getResourceAsStream(resourcePath);
+            if (resourceStream != null) {
+                if (dumpLoadingPaths)
+                    System.out.println("Found bootstrap library in JAR resources");
+                
+                // Create temp file with proper extension
+                String extension = libfile.substring(libfile.lastIndexOf('.'));
+                Path tempFile = Files.createTempFile("openiap_bootstrap", extension);
+                
+                // Copy resource to temp file
+                Files.copy(resourceStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                resourceStream.close();
+                
+                // Make executable on Unix systems
+                if (!os.contains("win")) {
+                    tempFile.toFile().setExecutable(true);
+                }
+                
+                String tempPath = tempFile.toAbsolutePath().toString();
+                if (dumpLoadingPaths)
+                    System.out.println("Extracted bootstrap library to: " + tempPath);
+                
+                return tempPath;
+            }
+        } catch (IOException e) {
+            if (dumpLoadingPaths)
+                System.out.println("Failed to extract from JAR: " + e.getMessage());
+        }
+
+        // 2. Fall back to file system search for development environment
         String[] searchDirs = {
                 ".", "..", "../..", "../../.."
         };
@@ -69,7 +107,7 @@ public class NativeLoader {
             releaseLibName = "libopeniap_bootstrap.so";
         }
 
-        // 1. Search for debug/release builds up to 3 parent directories
+        // Search for debug/release builds up to 3 parent directories
         for (String dir : searchDirs) {
             for (String target : targets) {
                 File debugLib = new File(dir + "/" + target, debugLibName);
@@ -86,7 +124,7 @@ public class NativeLoader {
             }
         }
 
-        // 2. Search for runtime/lib folders up to 3 parent directories
+        // Search for runtime/lib folders up to 3 parent directories
         String[] libFolders = { "runtimes", "lib" };
         for (String dir : searchDirs) {
             for (String folder : libFolders) {
@@ -98,16 +136,22 @@ public class NativeLoader {
             }
         }
 
-        // 3. Development environment: ../../../lib
+        // Development environment: ../../../lib
         File devLib = new File("./../../../lib", libfile);
         if (dumpLoadingPaths)
             System.out.println("Testing libPath " + devLib.getAbsolutePath());
         if (devLib.exists())
             return devLib.getAbsolutePath();
 
-        throw new RuntimeException("Library " + libfile + " not found in any known directory.");
+        throw new RuntimeException("Library " + libfile + " not found in JAR resources or any known directory.");
     }
 
+    // ...existing code...
+    public static String loadLibrary(String dummy) {
+        // This method is kept for compatibility with previous versions
+        return loadLibrary();
+    }
+    
     public static String loadLibrary() {
         // 1. Load bootstrap library
         String bootstrapPath = getBootstrapPath();

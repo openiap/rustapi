@@ -1,4 +1,5 @@
 /target
+/target2
 bin
 train.csv
 .env
@@ -10,3 +11,4 @@ package-lock.json
 test.txt
 .aider*
 downloads
+/lib

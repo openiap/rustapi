@@ -607,33 +607,55 @@ function getBootstrapLibName() {
 // Search for the bootstrap library in multiple locations
 function findBootstrapPath() {
     const libfile = getBootstrapLibName();
+    
+    // 1. First check the lib directory relative to this module (production environment)
+    const moduleLibDir = path.join(__dirname, 'lib', libfile);
+    if (fs.existsSync(moduleLibDir)) return moduleLibDir;
+    
+    // 2. Check the parent lib directory (for npm packages)
+    const parentLibDir = path.join(__dirname, '..', 'lib', libfile);
+    if (fs.existsSync(parentLibDir)) return parentLibDir;
+    
+    // 3. Check for node_modules installation
+    const nodeModulesLib = path.join(__dirname, '..', '..', '..', 'lib', libfile);
+    if (fs.existsSync(nodeModulesLib)) return nodeModulesLib;
+
     const baseDirs = [
         '.', '..', '../..', '../../..'
     ];
     const targets = ['target/debug', 'target/release'];
     const libFolders = ['runtimes', 'lib'];
 
-    // 1. Search for debug/release builds up to 3 parent directories
+    // 4. Search for debug/release builds up to 3 parent directories (development)
     for (const base of baseDirs) {
         for (const target of targets) {
             const candidate = path.resolve(base, target, libfile);
+            if (process.env.DEBUG && process.env.DEBUG != "") {
+                console.log(`Checking for ${candidate}`);
+            }
             if (fs.existsSync(candidate)) return candidate;
         }
     }
 
-    // 2. Search for runtimes/lib folders up to 3 parent directories
+    // 5. Search for runtimes/lib folders up to 3 parent directories
     for (const base of baseDirs) {
         for (const folder of libFolders) {
             const candidate = path.resolve(base, folder, libfile);
+            if (process.env.DEBUG && process.env.DEBUG != "") {
+                console.log(`Checking for ${candidate}`);
+            }
             if (fs.existsSync(candidate)) return candidate;
         }
     }
 
-    // 3. Development environment: ../../../lib
+    // 6. Development environment: ../../../lib
     const devCandidate = path.resolve('../../../lib', libfile);
+    if (process.env.DEBUG && process.env.DEBUG != "") {
+        console.log(`Checking for ${devCandidate}`);
+    }
     if (fs.existsSync(devCandidate)) return devCandidate;
 
-    // 4. Fallback: search for libopeniap_bootstrap.so (like C#/Java)
+    // 7. Fallback: search for libopeniap_bootstrap.so (like C#/Java)
     let fallback;
     if (process.platform === 'win32') {
         fallback = path.resolve('target/debug', 'openiap_bootstrap.dll');
@@ -644,7 +666,14 @@ function findBootstrapPath() {
     }
     if (fs.existsSync(fallback)) return fallback;
 
-    throw new Error(`Bootstrap library not found: ${libfile}`);
+    throw new Error(`Bootstrap library not found: ${libfile}. 
+Searched locations:
+- Module lib dir: ${path.join(__dirname, 'lib', libfile)}
+- Parent lib dir: ${path.join(__dirname, '..', 'lib', libfile)}
+- Node modules lib: ${path.join(__dirname, '..', '..', '..', 'lib', libfile)}
+- Development paths and fallbacks
+Current working directory: ${process.cwd()}
+__dirname: ${__dirname}`);
 }
 // Load bootstrap library and call bootstrap() to get main library path
 function getMainLibraryPath() {

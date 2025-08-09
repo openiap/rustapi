@@ -551,21 +551,77 @@ class Client:
             self.lib.free_client(self.client)
             self.client = None
     def find_bootstrap_path(self):
-        # Use the actual filename produced by your build
-        libfile = "libopeniap_bootstrap.so"
+        # Determine platform-specific bootstrap library name
+        if sys.platform == 'win32':
+            architecture = platform.machine()
+            if architecture == 'x86_64' or architecture == 'AMD64':
+                libfile = "bootstrap-windows-x64.dll"
+            elif architecture == 'x86':
+                libfile = "bootstrap-windows-i686.dll"
+            elif 'arm' in architecture.lower():
+                libfile = "bootstrap-windows-arm64.dll"
+            else:
+                libfile = "bootstrap-windows-x64.dll"  # Default fallback
+        elif sys.platform == 'darwin':
+            architecture = os.uname().machine
+            if architecture == 'arm64' or 'aarch64' in architecture:
+                libfile = "bootstrap-macos-arm64.dylib"
+            else:
+                libfile = "bootstrap-macos-x64.dylib"
+        elif sys.platform == 'linux':
+            architecture = os.uname().machine
+            # Check if it's Alpine/musl
+            is_alpine = os.path.exists('/etc/alpine-release')
+            if architecture == 'aarch64' or 'arm64' in architecture:
+                libfile = "bootstrap-linux-musl-arm64.a" if is_alpine else "bootstrap-linux-arm64.so"
+            else:
+                libfile = "bootstrap-linux-musl-x64.a" if is_alpine else "bootstrap-linux-x64.so"
+        elif sys.platform == 'freebsd':
+            libfile = "bootstrap-freebsd-x64.so"
+        else:
+            libfile = "libopeniap_bootstrap.so"  # Fallback
+
+        # 1. First try to load from package resources (production/pip installation)
+        try:
+            # Get the directory where this Python file is located
+            package_dir = os.path.dirname(__file__)
+            lib_dir = os.path.join(package_dir, 'lib')
+            candidate = os.path.join(lib_dir, libfile)
+            
+            if os.path.exists(candidate):
+                return os.path.abspath(candidate)
+        except Exception as e:
+            if os.getenv("DEBUG"):
+                print(f"Failed to find bootstrap in package lib: {e}")
+
+        # 2. Fall back to development environment search
         search_dirs = [
             "target/debug", "target/release",
             ".", "..", "../..", "../../..",
             "runtimes", "lib"
         ]
+        
+        # Development library names
+        dev_libfile = "libopeniap_bootstrap.so"
+        if sys.platform == 'win32':
+            dev_libfile = "openiap_bootstrap.dll"
+        elif sys.platform == 'darwin':
+            dev_libfile = "libopeniap_bootstrap.dylib"
+        
         for base in search_dirs:
-            candidate = os.path.abspath(os.path.join(base, libfile))
-            if os.path.exists(candidate):
-                return candidate
-        dev_candidate = os.path.abspath(os.path.join("../../../lib", libfile))
-        if os.path.exists(dev_candidate):
-            return dev_candidate
-        raise Exception("Bootstrap library not found: " + libfile)
+            # Try both the platform-specific name and the development name
+            for filename in [libfile, dev_libfile]:
+                candidate = os.path.abspath(os.path.join(base, filename))
+                if os.path.exists(candidate):
+                    return candidate
+        
+        # 3. Development environment: ../../../lib
+        for filename in [libfile, dev_libfile]:
+            dev_candidate = os.path.abspath(os.path.join("../../../lib", filename))
+            if os.path.exists(dev_candidate):
+                return dev_candidate
+
+        raise Exception(f"Bootstrap library not found: {libfile}. Searched in package lib directory and development paths.")
 
     def _load_library(self):
         bootstrap_path = self.find_bootstrap_path()
