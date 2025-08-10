@@ -53,16 +53,16 @@ public class clienttestclass {
         System.out.println("Registered queue as: " + queuename);
     }
 
-    public static void RunAll() {
+    public static void RunAll(Client c) {
         // System.out.println("CLI initializing...");
-        String libpath = NativeLoader.loadLibrary();
-
-        client = new Client(libpath);
+        // String libpath = NativeLoader.loadLibrary();
+        // client = new Client(libpath);
+        client = c; // Use the provided client instance
         try {
             client.enableTracing("openiap=trace", "");
             client.enableTracing("openiap=info", "");
-            client.start();
-            client.connect("");
+            // client.start();
+            // client.connect("");
 
             client.onClientEventAsync(
                     (event) -> {
@@ -532,7 +532,7 @@ public class clienttestclass {
             if (exctimer != null) {
                 exctimer.cancel();
             }
-            client.close();
+            // client.close();
             System.out.println("CLI executed successfully!");
         }
     }

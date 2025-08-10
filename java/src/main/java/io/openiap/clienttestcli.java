@@ -59,7 +59,7 @@ public class clienttestcli {
                 showHelp();
                 break;
             case "t":
-                clienttestclass.RunAll();
+                clienttestclass.RunAll(client);
                 break;
             case "q":
                 handleQuery();
@@ -492,7 +492,7 @@ public class clienttestcli {
                 try {
                     x++;
                     Thread.sleep(1);
-                    clienttestclass.RunAll();
+                    clienttestclass.RunAll(client);
                     if (x % 500 == 0) {
                         System.out.println("No new workitem " + new java.util.Date());
                         System.gc();
