@@ -2191,14 +2191,17 @@ class Client {
     }
     delete_many({ collectionname, query, recursive = false }) {
         this.trace('delete_many invoked');
+        if(typeof query !== 'string') {
+            query = JSON.stringify(query);
+        }
         const req = {
             collectionname: collectionname,
-            query: JSON.stringify(query),
-            ids: null,
+            query: query,
+            ids: [null],
             recursive: recursive
         };
-        ids.push(null); // terminate array
-        req.ids = ids;
+        // ids.push(null); // terminate array
+        // req.ids = ids;
         this.trace('call delete_many');
         const response = this.lib.delete_many(this.client, req);
         this.trace('decode response');
@@ -2214,14 +2217,17 @@ class Client {
     delete_many_async({ collectionname, query, recursive = false }) {
         this.trace('delete_many_async invoked');
         return new Promise((resolve, reject) => {
+            if(typeof query !== 'string') {
+                query = JSON.stringify(query);
+            }
             const req = {
                 collectionname: collectionname,
                 query: query,
-                ids: null,
+                ids: [null],
                 recursive: recursive
             };
-            ids.push(null); // terminate array
-            req.ids = ids;
+            // ids.push(null); // terminate array
+            // req.ids = ids;
             const callback = (responsePtr) => {
                 this.trace('delete_many_async callback');
                 this.trace('decode response');
