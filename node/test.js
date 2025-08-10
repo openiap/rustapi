@@ -292,8 +292,8 @@ const fs = require("fs");
                 const insert_or_update_one_async_result2 = await client.insert_or_update_one_async({ collectionname: "entities", item: `{"name":"test insert_or_update one async from nodejs", "age": 22 }`, uniqeness: "name" });
                 client.info("insert_or_update_one success2", insert_or_update_one_async_result2._id, insert_or_update_one_async_result2.age);
 
-                // const delete_many_ids_async_result = await client.delete_many_async({ collectionname: "entities", ids: [insert_or_update_one_async_result._id, insert_or_update_one_async_result2._id] });
-                // client.info("delete_many success", delete_many_ids_async_result);
+                const delete_many_ids_async_result = await client.delete_many_async({ collectionname: "entities", ids: [insert_or_update_one_async_result._id, insert_or_update_one_async_result2._id] });
+                client.info("delete_many success", delete_many_ids_async_result);
 
                 const insert_many_async_result = await client.insert_many_async({ collectionname: "entities", items: `[{"name":"test insert many async from nodejs", "_type": "test"}, {"name":"test insert many async from nodejs", "_type": "test"}]` });
                 client.info("insert_many_async_result success", insert_many_async_result.map(result => result._id));
@@ -308,8 +308,8 @@ const fs = require("fs");
                 const insert_or_update_one_result2 = client.insert_or_update_one({ collectionname: "entities", item: `{"name":"test insert_or_update one from nodejs", "age": 22 }`, uniqeness: "name" });
                 client.info("insert_or_update_one success2", insert_or_update_one_result2._id, insert_or_update_one_result2.age);
     
-                // const delete_many_ids_result = client.delete_many({ collectionname: "entities", ids: [insert_or_update_one_result._id, insert_or_update_one_result2._id] });
-                // client.info("delete_many success", delete_many_ids_result);
+                const delete_many_ids_result = client.delete_many({ collectionname: "entities", ids: [insert_or_update_one_result._id, insert_or_update_one_result2._id] });
+                client.info("delete_many success", delete_many_ids_result);
 
                 const insert_many_result = client.insert_many({ collectionname: "entities", items: `[{"name":"test insert many from nodejs", "_type": "test"}, {"name":"test insert many from nodejs", "_type": "test"}]` });
                 client.info("insert_many success", insert_many_result.map(result => result._id));
