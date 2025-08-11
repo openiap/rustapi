@@ -33,8 +33,8 @@ public class NativeLoader {
                 throw new RuntimeException("Linux requires a 64-bit process");
             boolean isAlpine = new File("/etc/alpine-release").exists();
             if (isAlpine) {
-                libfile = arch.contains("aarch64") || arch.contains("arm64") ? "bootstrap-linux-musl-arm64.a"
-                        : "bootstrap-linux-musl-x64.a";
+                libfile = arch.contains("aarch64") || arch.contains("arm64") ? "bootstrap-linux-musl-arm64.so"
+                        : "bootstrap-linux-musl-x64.so";
             } else {
                 libfile = arch.contains("aarch64") || arch.contains("arm64") ? "bootstrap-linux-arm64.so"
                         : "bootstrap-linux-x64.so";

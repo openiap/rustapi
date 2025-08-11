@@ -573,9 +573,9 @@ class Client:
             # Check if it's Alpine/musl
             is_alpine = os.path.exists('/etc/alpine-release')
             if architecture == 'aarch64' or 'arm64' in architecture:
-                libfile = "bootstrap-linux-musl-arm64.a" if is_alpine else "bootstrap-linux-arm64.so"
+                libfile = "bootstrap-linux-musl-arm64.so" if is_alpine else "bootstrap-linux-arm64.so"
             else:
-                libfile = "bootstrap-linux-musl-x64.a" if is_alpine else "bootstrap-linux-x64.so"
+                libfile = "bootstrap-linux-musl-x64.so" if is_alpine else "bootstrap-linux-x64.so"
         elif sys.platform == 'freebsd':
             libfile = "bootstrap-freebsd-x64.so"
         else:
@@ -662,13 +662,13 @@ class Client:
             if architecture == 'x86_64':
                 # is Musl ?
                 if os.path.exists('/lib/libc.musl-x86_64.so'):
-                    lib_file = 'libopeniap-linux-musl-x64.a'
+                    lib_file = 'libopeniap-linux-musl-x64.so'
                 else:
                     lib_file = 'libopeniap-linux-x64.so'
             elif architecture == 'aarch64':
                 # is Musl ?
                 if os.path.exists('/lib/libc.musl-aarch64.so.1'):
-                    lib_file = 'libopeniap-linux-musl-arm64.a'
+                    lib_file = 'libopeniap-linux-musl-arm64.so'
                 else:
                     lib_file = 'libopeniap-linux-arm64.so'
             else:

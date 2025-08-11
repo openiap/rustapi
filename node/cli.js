@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const { Client, ClientError } = require('./lib');
 const client = new Client();
 const readline = require("readline");
@@ -47,6 +48,15 @@ target = "_new" > function addOneLoop(numLoops) {
 
 // Main function
 async function doit() {
+    // print arguments
+    let args = process.argv.slice(2);
+    // console.log("Arguments (" + args.length + "):", args.join(" "));
+    // console.log(process.env.npm_execpath);
+    if (process.env.npm_execpath && process.env.npm_execpath.includes("npm") && args.length === 0) {
+        console.log("Running with npm and no args, so exiting.");
+        return;
+    }
+
     if (global.gc) {
         global.gc();
     } else {

@@ -1,6 +1,6 @@
 .PHONY: clean build build-all package package-all publish publish-all
 # Variables
-VERSION = 0.0.39
+VERSION = 0.0.40
 NUGET_API_KEY ?= $(NUGET_API_KEY)
 PS_API_KEY := $(PS_API_KEY)
 MAVEN_AUTH := $(shell echo "$(MAVEN_USERNAME):$(MAVEN_PASSWORD)" | base64)
@@ -59,6 +59,7 @@ clean:
 	# rm -rf target/lib target/cli php/vendor
 	rm -rf java/lib java/target
 	rm -rf lib
+	cargo clean
 
 # Create target directories
 prepare:
@@ -67,25 +68,29 @@ prepare:
 # Build Rust binaries
 build-linux:
 	mkdir -p target/lib target/bootstrap target/cli lib
+	rm -rf target/release/
 	cross build --target x86_64-unknown-linux-gnu --release
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-x64.so
 	cp target/x86_64-unknown-linux-gnu/release/libopeniap_bootstrap.so target/bootstrap/bootstrap-linux-x64.so
 	cp target/x86_64-unknown-linux-gnu/release/openiap target/cli/linux-x64-openiap
 	cp target/x86_64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-x64-openiap-bootstrap
+	rm -rf target/release/
 	cross build --target aarch64-unknown-linux-gnu --release
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_clib.so target/lib/libopeniap-linux-arm64.so
 	cp target/aarch64-unknown-linux-gnu/release/libopeniap_bootstrap.so target/bootstrap/bootstrap-linux-arm64.so
 	cp target/aarch64-unknown-linux-gnu/release/openiap target/cli/linux-arm64-openiap
 	cp target/aarch64-unknown-linux-gnu/release/openiap-bootstrap target/cli/linux-arm64-openiap-bootstrap
 
+	rm -rf target/release/
 	cross build --target x86_64-unknown-linux-musl --release
-	cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-x64.a
-	cp target/x86_64-unknown-linux-musl/release/libopeniap_bootstrap.a target/bootstrap/bootstrap-linux-musl-x64.a
+	cp target/x86_64-unknown-linux-musl/release/libopeniap_clib.so target/lib/libopeniap-linux-musl-x64.so
+	cp target/x86_64-unknown-linux-musl/release/libopeniap_bootstrap.so target/bootstrap/bootstrap-linux-musl-x64.so
 	cp target/x86_64-unknown-linux-musl/release/openiap target/cli/linux-x64-musl-openiap
 	cp target/x86_64-unknown-linux-musl/release/openiap-bootstrap target/cli/linux-x64-musl-openiap-bootstrap
+	rm -rf target/release/
 	cross build --target aarch64-unknown-linux-musl --release
-	cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.a target/lib/libopeniap-linux-musl-arm64.a
-	cp target/aarch64-unknown-linux-musl/release/libopeniap_bootstrap.a target/bootstrap/bootstrap-linux-musl-arm64.a
+	cp target/aarch64-unknown-linux-musl/release/libopeniap_clib.so target/lib/libopeniap-linux-musl-arm64.so
+	cp target/aarch64-unknown-linux-musl/release/libopeniap_bootstrap.so target/bootstrap/bootstrap-linux-musl-arm64.so
 	cp target/aarch64-unknown-linux-musl/release/openiap target/cli/linux-arm64-musl-openiap
 	cp target/aarch64-unknown-linux-musl/release/openiap-bootstrap target/cli/linux-arm64-musl-openiap-bootstrap
 	
@@ -96,11 +101,13 @@ build-linux:
 
 build-macos:
 	mkdir -p target/lib target/cli target/bootstrap target/cli lib
+	rm -rf target/release/
 	cross build --target aarch64-apple-darwin --release
 	cp target/aarch64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-arm64.dylib
 	cp target/aarch64-apple-darwin/release/libopeniap_bootstrap.dylib target/bootstrap/bootstrap-macos-arm64.dylib
 	cp target/aarch64-apple-darwin/release/openiap target/cli/macos-arm64-openiap
 	cp target/aarch64-apple-darwin/release/openiap-bootstrap target/cli/macos-arm64-openiap-bootstrap
+	rm -rf target/release/
 	cross build --target x86_64-apple-darwin --release
 	cp target/x86_64-apple-darwin/release/libopeniap_clib.dylib target/lib/libopeniap-macos-x64.dylib
 	cp target/x86_64-apple-darwin/release/libopeniap_bootstrap.dylib target/bootstrap/bootstrap-macos-x64.dylib
@@ -109,11 +116,13 @@ build-macos:
 
 build-windows:
 	mkdir -p target/lib target/cli target/bootstrap target/cli lib
+	rm -rf target/release/
 	cross build --target x86_64-pc-windows-gnu --release
 	cp target/x86_64-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-x64.dll
 	cp target/x86_64-pc-windows-gnu/release/openiap_bootstrap.dll target/bootstrap/bootstrap-windows-x64.dll
 	cp target/x86_64-pc-windows-gnu/release/openiap.exe target/cli/windows-x64-openiap.exe
 	cp target/x86_64-pc-windows-gnu/release/openiap-bootstrap.exe target/cli/windows-x64-openiap-bootstrap.exe
+	rm -rf target/release/
 	cross build --target i686-pc-windows-gnu --release
 	cp target/i686-pc-windows-gnu/release/openiap_clib.dll target/lib/openiap-windows-i686.dll
 	cp target/i686-pc-windows-gnu/release/openiap_bootstrap.dll target/bootstrap/bootstrap-windows-i686.dll
@@ -126,10 +135,10 @@ build-go:
 	(cd go && go build -o cli ./cmd/cli)
 
 copy-lib:
-	rm -rf node/lib && mkdir -p node/lib && cp target/bootstrap/* node/lib && rm -rf node/lib/*.a
-	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/bootstrap/* dotnet/lib && rm -rf dotnet/lib/*.a
-	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/bootstrap/* python/openiap/lib && rm -rf python/openiap/lib/*.a
-	rm -rf java/lib && mkdir -p java/lib && cp target/bootstrap/* java/lib && rm -rf java/lib/*.a
+	rm -rf node/lib && mkdir -p node/lib && cp target/bootstrap/* node/lib 
+	rm -rf dotnet/lib && mkdir -p dotnet/lib && cp target/bootstrap/* dotnet/lib 
+	rm -rf python/openiap/lib && mkdir -p python/openiap/lib && cp target/bootstrap/* python/openiap/lib 
+	rm -rf java/lib && mkdir -p java/lib && cp target/bootstrap/* java/lib 
 	rm -rf c/lib && mkdir -p c/lib && cp target/lib/* c/lib 
 	rm -rf go/lib && mkdir -p go/lib && cp target/lib/* go/lib && rm -rf go/lib/*.a
 

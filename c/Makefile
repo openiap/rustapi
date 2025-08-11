@@ -1,6 +1,6 @@
 TARGET          := client_cli
 SRCS            := main.c
-OPENIAP_VERSION := 0.0.39
+OPENIAP_VERSION := 0.0.40
 INCLUDE_DIR     := include
 OBJS            := $(SRCS:.c=.o)
 

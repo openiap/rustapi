@@ -1,6 +1,6 @@
 [package]
 name = "openiap-bootstrap"
-version = "0.0.39"
+version = "0.0.40"
 edition = "2021"
 description = "Bootstrap helper for downloading OpenIAP shared library"
 

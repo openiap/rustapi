@@ -225,14 +225,16 @@ export class Client {
         id: any;
         recursive?: boolean;
     }): any;
-    delete_many({ collectionname, query, recursive }: {
+    delete_many({ collectionname, query, ids, recursive }: {
         collectionname: any;
         query: any;
+        ids?: any[];
         recursive?: boolean;
     }): any;
-    delete_many_async({ collectionname, query, recursive }: {
+    delete_many_async({ collectionname, query, ids, recursive }: {
         collectionname: any;
         query: any;
+        ids?: any[];
         recursive?: boolean;
     }): any;
     download({ collectionname, id, folder, filename }: {

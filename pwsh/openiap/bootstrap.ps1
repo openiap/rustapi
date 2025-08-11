@@ -87,13 +87,13 @@ if (-not $found) {
         $libName = "openiap-windows-arm64.dll"
     } elseif ($os -eq "linux" -and $arch -eq "x86_64") {
         if (Test-Path "/etc/alpine-release") {
-            $libName = "libopeniap-linux-musl-x64.a"
+            $libName = "libopeniap-linux-musl-x64.so"
         } else {
             $libName = "libopeniap-linux-x64.so"
         }
     } elseif ($os -eq "linux" -and $arch -eq "aarch64") {
         if (Test-Path "/etc/alpine-release") {
-            $libName = "libopeniap-linux-musl-arm64.a"
+            $libName = "libopeniap-linux-musl-arm64.so"
         } else {
             $libName = "libopeniap-linux-arm64.so"
         }

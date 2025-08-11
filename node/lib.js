@@ -596,7 +596,7 @@ function getBootstrapLibName() {
     }
     if (platform === 'linux') {
         if (isMusl()) {
-            return arch === 'arm64' ? 'bootstrap-linux-musl-arm64.a' : 'bootstrap-linux-musl-x64.a';
+            return arch === 'arm64' ? 'bootstrap-linux-musl-arm64.so' : 'bootstrap-linux-musl-x64.so';
         } else {
             return arch === 'arm64' ? 'bootstrap-linux-arm64.so' : 'bootstrap-linux-x64.so';
         }
@@ -684,6 +684,12 @@ function getMainLibraryPath() {
     if (!mainLibPath || mainLibPath.length === 0) {
         throw new Error('Failed to get main library path from bootstrap');
     }
+    
+    // Check if bootstrap returned an error message
+    if (mainLibPath.startsWith('Error:')) {
+        throw new Error(`Bootstrap failed: ${mainLibPath}`);
+    }
+    
     return mainLibPath;
 }
 
@@ -697,8 +703,14 @@ function loadLibrary() {
     if (!mainLibPath || mainLibPath.length === 0) {
         throw new Error('Failed to get main library path from bootstrap');
     }
+    
+    // Check if bootstrap returned an error message
+    if (mainLibPath.startsWith('Error:')) {
+        throw new Error(`Bootstrap failed: ${mainLibPath}`);
+    }
+    
     if (!fs.existsSync(mainLibPath)) {
-        throw new Error(`Main library not found: ${mainLibPath}`);
+        throw new Error(`Main library not found: ` + mainLibPath);
     }
 
     try {
@@ -932,13 +944,13 @@ function loadLibrary_old() {
             switch (arch) {
                 case 'x64':
                     if (isMusl()) {
-                        libPath = path.join(libDir, 'libopeniap-linux-musl-x64.a'); break;
+                        libPath = path.join(libDir, 'libopeniap-linux-musl-x64.so'); break;
                     } else {
                         libPath = path.join(libDir, 'libopeniap-linux-x64.so'); break;
                     }
                 case 'arm64':
                     if (isMusl()) {
-                        libPath = path.join(libDir, 'libopeniap-linux-musl-arm64.a'); break;
+                        libPath = path.join(libDir, 'libopeniap-linux-musl-arm64.so'); break;
                     } else {
                         libPath = path.join(libDir, 'libopeniap-linux-arm64.so'); break;
                     }

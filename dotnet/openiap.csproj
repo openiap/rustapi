@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>openiap</PackageId>
     <id>openiap</id>
-    <version>0.0.39</version>
+    <version>0.0.40</version>
     <title>OpenIAP API Wrapper</title>
     <authors>OpenIAP ApS / Allan Zimmermann</authors>
     <owners>OpenIAP ApS</owners>
@@ -48,6 +48,11 @@
   <None Include="runtimes/win-x86/native/openiap_clib.dll" Pack="true" PackagePath="runtimes/win-x86/native/openiap_clib.dll" />
   <None Include="runtimes/win-x64/native/openiap_clib.dll" Pack="true" PackagePath="runtimes/win-x64/native/openiap_clib.dll" /> -->
 
+  <Content Include="lib/*.a">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <PackageCopyToOutput>true</PackageCopyToOutput>
+    <pack>true</pack>
+  </Content>
   <Content Include="lib/*.so">
     <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     <PackageCopyToOutput>true</PackageCopyToOutput>

@@ -856,7 +856,7 @@ namespace OpenIAP
                 if (!Environment.Is64BitProcess) throw new LibraryLoadError("Linux requires a 64-bit process");
                 if (System.IO.File.Exists("/etc/alpine-release"))
                 {
-                    libfile = arc == Architecture.Arm64 ? "bootstrap-linux-musl-arm64.a" : "bootstrap-linux-musl-x64.a";
+                    libfile = arc == Architecture.Arm64 ? "bootstrap-linux-musl-arm64.so" : "bootstrap-linux-musl-x64.so";
                 }
                 else
                 {

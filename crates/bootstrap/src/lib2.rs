@@ -78,14 +78,14 @@ pub extern "C" fn bootstrap() -> *const c_char {
         ("windows", "aarch64") => "openiap-windows-arm64.dll",
         ("linux", "x86_64") => {
             if std::path::Path::new("/etc/alpine-release").exists() {
-                "libopeniap-linux-musl-x64.a"
+                "libopeniap-linux-musl-x64.so"
             } else {
                 "libopeniap-linux-x64.so"
             }
         },
         ("linux", "aarch64") => {
             if std::path::Path::new("/etc/alpine-release").exists() {
-                "libopeniap-linux-musl-arm64.a"
+                "libopeniap-linux-musl-arm64.so"
             } else {
                 "libopeniap-linux-arm64.so"
             }
