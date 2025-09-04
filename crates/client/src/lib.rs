@@ -494,6 +494,12 @@ impl Client {
                 strurl = std::env::var("grpcapiurl").unwrap_or("".to_string());
             }
             if strurl.is_empty() {
+                strurl = std::env::var("OPENIAP_URL").unwrap_or("".to_string());
+            }
+            if strurl.is_empty() {
+                strurl = std::env::var("OPENIAP_APIURL").unwrap_or("".to_string());
+            }
+            if strurl.is_empty() {
                 strurl = std::env::var("wsapiurl").unwrap_or("".to_string());
             }
         }
