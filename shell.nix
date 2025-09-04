@@ -26,6 +26,7 @@ in pkgs.mkShell {
       pkgs.protobuf
       pkgs.unionfs-fuse
       pkgs.icu
+      pkgs.linuxPackages.perf
     ];
   shellHook = ''
     export LD_LIBRARY_PATH=${pkgs.icu}/lib:$LD_LIBRARY_PATH
