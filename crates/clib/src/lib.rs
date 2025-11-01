@@ -299,7 +299,7 @@ pub extern "C" fn query(
 
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.query(request))
+        handle.block_on(client.query(request, openiap_client::EnvConfig::new()))
     });
     Box::into_raw(Box::new(match result {
         Ok(data) => {
@@ -401,7 +401,7 @@ pub extern "C" fn query_async(
     let _guard = handle.enter();
     handle.spawn(async move {
         debug!("Rust: client.query");
-        let result = client.query(request).await;
+        let result = client.query(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(data) => {
@@ -524,7 +524,7 @@ pub extern "C" fn custom_command(
     }
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.custom_command(request, Some(_timeout)))
+        handle.block_on(client.custom_command(request, openiap_client::EnvConfig::new(), Some(_timeout)))
     });
 
     Box::into_raw(Box::new(match result {
@@ -617,7 +617,7 @@ pub extern "C" fn custom_command_async(
     }
 
     handle.spawn(async move {
-        let result = client.custom_command(request, Some(_timeout)).await;
+        let result = client.custom_command(request, openiap_client::EnvConfig::new(), Some(_timeout)).await;
 
         let response = match result {
             Ok(data) => {
@@ -1185,7 +1185,7 @@ pub extern "C" fn list_collections(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.list_collections(includehist))
+        handle.block_on(client.list_collections(includehist, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -1249,7 +1249,7 @@ pub extern "C" fn list_collections_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let result = client.list_collections(includehist).await;
+        let result = client.list_collections(includehist, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(data) => {
@@ -1405,7 +1405,7 @@ pub extern "C" fn create_collection(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.create_collection(request))
+        handle.block_on(client.create_collection(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -1508,7 +1508,7 @@ pub extern "C" fn create_collection_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.create_collection(request).await;
+        let result = client.create_collection(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(_) => {
@@ -1587,7 +1587,7 @@ pub extern "C" fn drop_collection(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.drop_collection(request))
+        handle.block_on(client.drop_collection(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -1649,7 +1649,7 @@ pub extern "C" fn drop_collection_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let result = client.drop_collection(request).await;
+        let result = client.drop_collection(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(_) => {
@@ -1731,7 +1731,7 @@ pub extern "C" fn get_indexes(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.get_indexes(request))
+        handle.block_on(client.get_indexes(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -1798,7 +1798,7 @@ pub extern "C" fn get_indexes_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let result = client.get_indexes(request).await;
+        let result = client.get_indexes(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(data) => {
@@ -1907,7 +1907,7 @@ pub extern "C" fn create_index(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.create_index(request))
+        handle.block_on(client.create_index(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -1984,7 +1984,7 @@ pub extern "C" fn create_index_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.create_index(request).await;
+        let result = client.create_index(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(_) => {
@@ -2065,7 +2065,7 @@ pub extern "C" fn drop_index(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.drop_index(request))
+        handle.block_on(client.drop_index(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -2129,7 +2129,7 @@ pub extern "C" fn drop_index_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let result = client.drop_index(request).await;
+        let result = client.drop_index(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(_) => {
@@ -2237,7 +2237,7 @@ pub extern "C" fn aggregate(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.aggregate(request))
+        handle.block_on(client.aggregate(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -2326,7 +2326,7 @@ pub extern "C" fn aggregate_async(
     debug!("Rust: runtime.spawn");
     handle.spawn(async move {
         debug!("Rust: client.aggregate");
-        let result = client.aggregate(request).await;
+        let result = client.aggregate(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let results = CString::new(data.results).unwrap().into_raw();
@@ -2438,7 +2438,7 @@ pub extern "C" fn count(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.count(request))
+        handle.block_on(client.count(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -2522,7 +2522,8 @@ pub extern "C" fn count_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.count(request).await;
+        let result = client.count(request, 
+            openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let result = data.result;
@@ -2638,7 +2639,7 @@ pub extern "C" fn distinct(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.distinct(request))
+        handle.block_on( client.distinct(request, openiap_client::EnvConfig::new()) )
     });
 
     let response = match result {
@@ -2740,7 +2741,7 @@ pub extern "C" fn distinct_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.distinct(request).await;
+        let result = client.distinct(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let results_cstrings: Vec<CString> = data
@@ -2877,7 +2878,7 @@ pub extern "C" fn insert_one(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.insert_one(request))
+        handle.block_on( client.insert_one(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -2962,7 +2963,7 @@ pub extern "C" fn insert_one_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.insert_one(request).await;
+        let result = client.insert_one(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let result = CString::new(data.result).unwrap().into_raw();
@@ -3074,7 +3075,7 @@ pub extern "C" fn insert_many(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.insert_many(request))
+        handle.block_on( client.insert_many(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -3160,7 +3161,7 @@ pub extern "C" fn insert_many_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.insert_many(request).await;
+        let result = client.insert_many(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let results = CString::new(data.results.clone()).unwrap().into_raw();
@@ -3269,7 +3270,7 @@ pub extern "C" fn update_one(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.update_one(request))
+        handle.block_on( client.update_one(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -3354,7 +3355,7 @@ pub extern "C" fn update_one_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.update_one(request).await;
+        let result = client.update_one(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let result = CString::new(data.result).unwrap().into_raw();
@@ -3481,7 +3482,7 @@ pub extern "C" fn insert_or_update_one(
     debug!("Rust: run insert_or_update_one in runtime");
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.insert_or_update_one(request))
+        handle.block_on( client.insert_or_update_one(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -3567,7 +3568,7 @@ pub extern "C" fn insert_or_update_one_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.insert_or_update_one(request).await;
+        let result = client.insert_or_update_one(request, openiap_client::EnvConfig::new()).await;
 
         let response = match result {
             Ok(data) => {
@@ -3677,7 +3678,7 @@ pub extern "C" fn delete_one(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.delete_one(request))
+        handle.block_on( client.delete_one(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -3760,7 +3761,7 @@ pub extern "C" fn delete_one_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.delete_one(request).await;
+        let result = client.delete_one(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let affectedrows = data;
@@ -3882,7 +3883,7 @@ pub extern "C" fn delete_many(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.delete_many(request))
+        handle.block_on( client.delete_many(request, openiap_client::EnvConfig::new()))
     });
 
     let response = match result {
@@ -3978,7 +3979,7 @@ pub extern "C" fn delete_many_async(
     let handle = client.get_runtime_handle();
     let request_id = options.request_id;
     handle.spawn(async move {
-        let result = client.delete_many(request).await;
+        let result = client.delete_many(request, openiap_client::EnvConfig::new()).await;
         let response = match result {
             Ok(data) => {
                 let affectedrows = data;
@@ -4087,7 +4088,7 @@ pub extern "C" fn download(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-            handle.block_on( client.download(request, Some(&folder), Some(&filename)))
+            handle.block_on( client.download(request, openiap_client::EnvConfig::new(), Some(&folder), Some(&filename)))
     });
 
     let response = match result {
@@ -4173,7 +4174,7 @@ pub extern "C" fn download_async(
     let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
-            .download(request, Some(&folder), Some(&filename))
+            .download(request, openiap_client::EnvConfig::new(), Some(&folder), Some(&filename))
             .await;
 
         let response = match result {
@@ -4316,7 +4317,7 @@ pub extern "C" fn upload(
         // c.upload(request).await
         // client.as_mut().unwrap().upload(request, &filepath).await
         let handle = client.get_runtime_handle();
-        handle.block_on( client.upload(request, &filepath))
+        handle.block_on( client.upload(request, openiap_client::EnvConfig::new(), &filepath))
     });
 
     let response = match result {
@@ -4426,7 +4427,7 @@ pub extern "C" fn upload_async(
     let request_id = options.request_id;
     handle.spawn(async move {
         debug!("upload_async: call client.upload");
-        let result = client.upload(request, &filepath).await;
+        let result = client.upload(request, openiap_client::EnvConfig::new(), &filepath).await;
 
         debug!("upload_async: call client.upload done");
         let response = match result {
@@ -4543,6 +4544,7 @@ pub extern "C" fn watch(
         client
             .watch(
                 request,
+                openiap_client::EnvConfig::new(),
                 Box::new(move |event: WatchEvent| {
                     // convert event to json
                     // let event = serde_json::to_string(&event).unwrap();
@@ -4728,6 +4730,7 @@ pub extern "C" fn watch_async_async(
         let result = client
             .watch(
                 request,
+                openiap_client::EnvConfig::new(),
                 Box::new(move |_event: WatchEvent| {
                     debug!("watch_async: spawn new task, to call event_callback");
                     trace!("watch_async: call event_callback");
@@ -4839,7 +4842,7 @@ pub extern "C" fn unwatch(
     trace!("watchid: {:?}", watchid);
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on( client.unwatch(&watchid))
+        handle.block_on( client.unwatch(openiap_client::EnvConfig::new(), &watchid))
     });
     trace!("completed, parsing result");
     match result {
@@ -4900,7 +4903,7 @@ pub extern "C" fn unwatch_async(
     let client = client.unwrap();
     let handle = client.get_runtime_handle();
     handle.spawn(async move {
-        let result = client.unwatch(&watchid).await;
+        let result = client.unwatch(openiap_client::EnvConfig::new(), &watchid).await;
         match result {
             Ok(_) => {
                 let response = UnWatchResponseWrapper {
@@ -5006,6 +5009,7 @@ pub extern "C" fn register_queue(
         client
             .register_queue(
                 request,
+                openiap_client::EnvConfig::new(),
                 std::sync::Arc::new(move |_client, event: QueueEvent| {
                     trace!("queue: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
@@ -5121,6 +5125,7 @@ pub extern "C" fn register_queue_async(
         client
             .register_queue(
                 request,
+                openiap_client::EnvConfig::new(),
                 std::sync::Arc::new(move |_client, event: QueueEvent| {
                     debug!("register_queue_async: spawn new task, to call event_callback");
                     trace!("register_queue_async: call event_callback");
@@ -5268,6 +5273,7 @@ pub extern "C" fn register_exchange (
             handle.block_on(
         client
             .register_exchange(request,
+                openiap_client::EnvConfig::new(),
                 std::sync::Arc::new(move |_client, event: QueueEvent| {
                     trace!("exchange: event: {:?}", event);
                     let queuename = CString::new(event.queuename.clone())
@@ -5378,6 +5384,7 @@ pub extern "C" fn register_exchange_async(
             handle.block_on(
         client
             .register_exchange(request,
+                openiap_client::EnvConfig::new(),
                 std::sync::Arc::new(move |_client, event: QueueEvent| {
                     debug!("register_exchange_async: spawn new task, to call event_callback");
                     trace!("register_exchange_async: call event_callback");
@@ -5617,7 +5624,7 @@ pub extern "C" fn queue_message(
         let handle = client.get_runtime_handle();
             handle.block_on(
         client
-            .queue_message(request)
+            .queue_message(request, openiap_client::EnvConfig::new())
             )
     });
     match result {
@@ -5689,7 +5696,7 @@ pub extern "C" fn unregister_queue(
     let client = client.unwrap();
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-            handle.block_on( client.unregister_queue(&queuename))
+            handle.block_on( client.unregister_queue(openiap_client::EnvConfig::new(), &queuename))
     });
     match result {
         Ok(_) => {
@@ -6036,7 +6043,7 @@ pub extern "C" fn push_workitem(
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
             handle.block_on(client
-            .push_workitem(request)
+            .push_workitem(request, openiap_client::EnvConfig::new())
             )
     });
 
@@ -6175,7 +6182,7 @@ pub extern "C" fn push_workitem_async(
     let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
-            .push_workitem(request)
+            .push_workitem(request, openiap_client::EnvConfig::new())
             .await;
         let response = match result {
             Ok(resp) => {
@@ -6311,7 +6318,7 @@ pub extern "C" fn pop_workitem (
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
             handle.block_on(client
-            .pop_workitem(request, _downloadfolder)
+            .pop_workitem(request, openiap_client::EnvConfig::new(), _downloadfolder)
             )
     });
     debug!("pop_workitem completed, parse result");
@@ -6409,7 +6416,7 @@ pub extern "C" fn pop_workitem_async (
         }
     
         let result = client
-            .pop_workitem(request, _downloadfolder)
+            .pop_workitem(request, openiap_client::EnvConfig::new(), _downloadfolder)
             .await;
         let response = match result {
             Ok(data) => {
@@ -6666,7 +6673,7 @@ pub extern "C" fn update_workitem (
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
             handle.block_on(client
-            .update_workitem(request)
+            .update_workitem(request, openiap_client::EnvConfig::new())
             )
     });
 
@@ -6796,7 +6803,7 @@ pub extern "C" fn update_workitem_async (
     let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
-            .update_workitem(request)
+            .update_workitem(request, openiap_client::EnvConfig::new())
             .await;
         let response = match result {
             Ok(resp) => {
@@ -6914,7 +6921,7 @@ pub extern "C" fn delete_workitem(
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
             handle.block_on(client
-            .delete_workitem(request)
+            .delete_workitem(request, openiap_client::EnvConfig::new())
             )
     });
 
@@ -6991,7 +6998,7 @@ pub extern "C" fn delete_workitem_async(
     let request_id = options.request_id;
     handle.spawn(async move {
         let result = client
-            .delete_workitem(request)
+            .delete_workitem(request, openiap_client::EnvConfig::new())
             .await;
         let response = match result {
             Ok(_) => {
@@ -7402,7 +7409,7 @@ pub extern "C" fn rpc(
             striptoken: options.striptoken,
             expiration: options.expiration,
         };
-        handle.block_on(client.rpc(request, _timeout))
+        handle.block_on(client.rpc(request, openiap_client::EnvConfig::new(), _timeout))
     });
 
     match result {
@@ -7514,7 +7521,7 @@ pub extern "C" fn rpc_async(
     // Spawn an asynchronous task using the runtime.
     runtime_handle.spawn(async move {
         // Await the RPC call.
-        let result = client.rpc(request, _timeout).await;
+        let result = client.rpc(request, openiap_client::EnvConfig::new(), _timeout).await;
 
         // Build the response wrapper.
         let response = match result {
@@ -7757,7 +7764,7 @@ pub extern "C" fn invoke_openrpa(
 
     let result = tokio::task::block_in_place(|| {
         let handle = client.get_runtime_handle();
-        handle.block_on(client.invoke_openrpa(request, Some(_timeout)))
+        handle.block_on(client.invoke_openrpa(request, openiap_client::EnvConfig::new(), Some(_timeout)))
     });
     Box::into_raw(Box::new(match result {
         Ok(data) => {

@@ -289,7 +289,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                             // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                             tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
                             match client
-                                .pop_workitem(PopWorkitemRequest::bywiq("q2"), None)
+                                .pop_workitem(PopWorkitemRequest::bywiq("q2"), openiap_client::EnvConfig::new(), None)
                                 .await
                             {
                                 Ok(response) => match response.workitem {
@@ -303,7 +303,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                                 workitem: Some(workitem),
                                                 ignoremaxretries: false,
                                                 ..Default::default()
-                                            })
+                                            }, openiap_client::EnvConfig::new())
                                             .await
                                         {
                                             Ok(_response) => {
@@ -365,7 +365,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                     name: "test".to_string(),
                                     payload: "{}".to_string(),
                                     ..Default::default()
-                                })
+                                }, openiap_client::EnvConfig::new())
                                 .await
                             {
                                 Ok(response) => {
@@ -389,7 +389,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             match client
-                                .pop_workitem(PopWorkitemRequest::bywiq("rustqueue"), None)
+                                .pop_workitem(PopWorkitemRequest::bywiq("rustqueue"), openiap_client::EnvConfig::new(), None)
                                 .await
                             {
                                 Ok(response) => {
@@ -404,7 +404,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                                     workitem: Some(workitem),
                                                     ignoremaxretries: false,
                                                     ..Default::default()
-                                                })
+                                                }, openiap_client::EnvConfig::new())
                                                 .await
                                             {
                                                 Ok(_response) => {
@@ -469,13 +469,13 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                                 let starttime = std::time::SystemTime::now();
                                 let result = client
                                     .rpc(
-                                        QueueMessageRequest::byqueuename(
-                                            "test2queue",
-                                            "{\"name\":\"Allan\"}",
-                                            true,
-                                        ),
-                                        tokio::time::Duration::from_secs(1),
-                                    )
+                                            QueueMessageRequest::byqueuename(
+                                                "test2queue",
+                                                "{\"name\":\"Allan\"}",
+                                                true,
+                                            ), openiap_client::EnvConfig::new(),
+                                            tokio::time::Duration::from_secs(1),
+                                        )
                                     .await;
                                 let endtime = std::time::SystemTime::now();
                                 let ms = endtime
@@ -526,7 +526,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         "entities",
                         "{}",
                         "{\"name\":1}",
-                    ))
+                    ), openiap_client::EnvConfig::new() )
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -539,7 +539,8 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             // tokio::task::Builder::new().name("query").spawn(async move {
             tokio::task::spawn(async move {
                 let q = client
-                    .query(QueryRequest::with_query("entities", "{}"))
+                    .query(QueryRequest::with_query("entities", "{}"),
+                     openiap_client::EnvConfig::new() )
                     .await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
@@ -556,7 +557,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     field: "_type".to_string(),
                     ..Default::default()
                 };
-                let q = client.distinct(query).await;
+                let q = client.distinct(query, openiap_client::EnvConfig::new()).await;
                 match q {
                     Ok(response) => println!("{:?}", response.results),
                     Err(e) => println!("Failed to query: {:?}", e),
@@ -606,7 +607,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     item: "{\"name\":\"Allan\", \"_type\":\"test\"}".to_string(),
                     ..Default::default()
                 };
-                let s = client.insert_one(request).await;
+                let s = client.insert_one(request, openiap_client::EnvConfig::new()).await;
                 if let Err(e) = s {
                     println!("Failed to insert: {:?}", e);
                 } else {
@@ -623,7 +624,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                     items: "[{\"name\":\"Allan\", \"_type\":\"test\"}, {\"name\":\"Allan2\", \"_type\":\"test\"}]".to_string(),
                     ..Default::default()
                 };
-                let s = client.insert_many(request).await;
+                let s = client.insert_many(request, openiap_client::EnvConfig::new()).await;
                 if let Err(e) = s {
                     println!("Failed to insert: {:?}", e);
                 } else {
@@ -636,7 +637,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             // tokio::task::Builder::new().name("download").spawn(async move {
             tokio::task::spawn(async move {
                 let s = client
-                    .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
+                    .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), openiap_client::EnvConfig::new(), None, None)
                     .await;
                 if let Err(e) = s {
                     println!("Failed to download: {:?}", e);
@@ -650,7 +651,9 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             // tokio::task::Builder::new().name("upload").spawn(async move {
             tokio::task::spawn(async move {
                 let s = client
-                    .upload(UploadRequest::filename("train.csv"), "train.csv")
+                    .upload(UploadRequest::filename("train.csv"),
+                    openiap_client::EnvConfig::new(),
+                     "train.csv")
                     .await;
                 if let Err(e) = s {
                     println!("Failed to upload: {:?}", e);
@@ -666,6 +669,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let s = client
                     .upload(
                         UploadRequest::filename("assistant-linux-x86_64.AppImage"),
+                        openiap_client::EnvConfig::new(),
                         "/home/allan/Downloads/assistant-linux-x86_64.AppImage",
                     )
                     .await;
@@ -683,6 +687,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let s = client
                     .upload(
                         UploadRequest::filename("virtio-win-0.1.225.iso"),
+                        openiap_client::EnvConfig::new(),
                         "/home/allan/Downloads/virtio-win-0.1.225.iso",
                     )
                     .await;
@@ -701,6 +706,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let s = client
                     .watch(
                         WatchRequest::new("entities", vec!["".to_string()]),
+                        openiap_client::EnvConfig::new(),
                         Box::new(onwatch),
                     )
                     .await;
@@ -732,7 +738,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         let uw = w.to_string();
                         // tokio::task::Builder::new().name("unwatch").spawn(async move {
                         tokio::task::spawn(async move {
-                            let s = client.unwatch(&uw).await;
+                            let s = client.unwatch(openiap_client::EnvConfig::new(), &uw).await;
                             if let Err(e) = s {
                                 println!("Failed to watch: {:?}", e);
                             } else {
@@ -751,10 +757,10 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
             tokio::task::spawn(async move {
                 let result = client
                     .rpc(QueueMessageRequest::byqueuename(
-                        "test2queue",
-                        "{\"name\":\"Allan\"}",
-                        true,
-                    ), tokio::time::Duration::from_secs(1))
+                    "test2queue",
+                    "{\"name\":\"Allan\"}",
+                    true,
+                ), openiap_client::EnvConfig::new(), tokio::time::Duration::from_secs(1))
                     .await;
                 match result {
                     Ok(response) => println!("Received RPC response {:?}", response),
@@ -769,6 +775,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q: Result<String, openiap_client::OpenIAPError> = client
                     .register_queue(
                         RegisterQueueRequest::byqueuename("test2queue"),
+                        openiap_client::EnvConfig::new(),
                         std::sync::Arc::new(|_client, event| {
                             println!(
                                 "Received message queue from {:?} with reply to {:?}: {:?}",
@@ -811,7 +818,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         "test2queue",
                         "{\"name\":\"Allan\"}",
                         true,
-                    ))
+                    ), openiap_client::EnvConfig::new())
                     .await;
                 match q {
                     Ok(response) => println!(
@@ -834,7 +841,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                             "test2queue",
                             format!("{{\"name\":\"Allan {}\"}}", count).as_str(),
                             true,
-                        ))
+                        ), openiap_client::EnvConfig::new())
                         .await;
                     match q {
                         Ok(response) => println!(
@@ -856,6 +863,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 let q = client
                     .register_exchange(
                         RegisterExchangeRequest::byexchangename("test2exchange"),
+                        openiap_client::EnvConfig::new(),
                         Arc::new(|_client, event| {
                             println!(
                                 "Received exchange message to queue  {:?} with reply to {:?}: {:?}",
@@ -881,7 +889,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         data: "".to_string(),
                         id: "".to_string(),
                         name: "".to_string(),
-                    }, None)
+                    }, openiap_client::EnvConfig::new(), None)
                     .await;
                 match q {
                     Ok(response) => println!("Result: {:?}", response),
@@ -896,7 +904,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                 payload: "{\"test\":\"test\", \"num\":7}".to_string(),
                 rpc: true,
             };
-            let result = b.invoke_openrpa(config, Some(Duration::from_secs(10))).await;
+            let result = b.invoke_openrpa(config, openiap_client::EnvConfig::new(), Some(Duration::from_secs(10))).await;
             match result {
                 Ok(response) => println!("Result: {:?}", response),
                 Err(e) => println!("Failed to run Custom Command: {:?}", e),
@@ -911,7 +919,7 @@ async fn doit() -> Result<(), Box<dyn std::error::Error>> {
                         "test2exchange",
                         "{\"name\":\"Allan\"}",
                         true,
-                    ))
+                    ), openiap_client::EnvConfig::new())
                     .await;
                 match q {
                     Ok(response) => println!(

@@ -306,6 +306,38 @@ impl Default for Client {
     }
 }
 
+/// The `EnvConfig` struct provides the environment configuration for the OpenIAP service.
+/// to use Custom JWT for only this command, and to provide traceid and spanid for tracing.
+#[derive(Clone, PartialEq)]
+pub struct EnvConfig {
+    /// The JWT token to use for this command.
+    pub jwt: String,
+    /// The traceid to use for this command.
+    pub traceid: String,
+    /// The spanid to use for this command.
+    pub spanid: String,
+}
+impl EnvConfig {
+    /// Create a new EnvConfig.
+    #[tracing::instrument(skip_all)]
+    pub fn new() -> Self {
+        Self {
+            jwt: String::new(),
+            traceid: String::new(),
+            spanid: String::new(),
+        }
+    }
+    /// Create a new EnvConfig with a JWT.
+    #[tracing::instrument(skip_all)]
+    pub fn with_jwt(jwt: &str) -> Self {
+        Self {
+            jwt: jwt.to_string(),
+            traceid: String::new(),
+            spanid: String::new(),
+        }
+    }
+}
+
 impl Client {
     /// Create a new client.
     pub fn new() -> Self {
@@ -1601,9 +1633,18 @@ impl Client {
     /// - includehist: include historical collections, default is false.
     /// please see create_collection for examples on how to create collections.
     #[tracing::instrument(skip_all)]
-    pub async fn list_collections(&self, includehist: bool) -> Result<String, OpenIAPError> {
+    pub async fn list_collections(&self, includehist: bool, env: EnvConfig) -> Result<String, OpenIAPError> {
         let config = ListCollectionsRequest::new(includehist);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1680,13 +1721,23 @@ impl Client {
     pub async fn create_collection(
         &self,
         config: CreateCollectionRequest,
+        env: EnvConfig,
     ) -> Result<(), OpenIAPError> {
         if config.collectionname.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No collection name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1709,13 +1760,22 @@ impl Client {
     /// Drop a collection from the database, this will delete all data and indexes for the collection.
     /// See [Client::create_collection] for examples on how to create a collection.
     #[tracing::instrument(skip_all)]
-    pub async fn drop_collection(&self, config: DropCollectionRequest) -> Result<(), OpenIAPError> {
+    pub async fn drop_collection(&self, config: DropCollectionRequest, env: EnvConfig) -> Result<(), OpenIAPError> {
         if config.collectionname.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No collection name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1747,14 +1807,23 @@ impl Client {
     ///     Ok(())
     /// }
     /// ```
-    /// 
-    pub async fn get_indexes(&self, config: GetIndexesRequest) -> Result<String, OpenIAPError> {
+    ///
+    pub async fn get_indexes(&self, config: GetIndexesRequest, env: EnvConfig) -> Result<String, OpenIAPError> {
         if config.collectionname.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No collection name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1816,7 +1885,7 @@ impl Client {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn create_index(&self, config: CreateIndexRequest) -> Result<(), OpenIAPError> {
+    pub async fn create_index(&self, config: CreateIndexRequest, env: EnvConfig) -> Result<(), OpenIAPError> {
         if config.collectionname.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No collection name provided".to_string(),
@@ -1827,7 +1896,16 @@ impl Client {
                 "No index was provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1849,7 +1927,7 @@ impl Client {
     }
     /// Drop an index from the database
     /// See [Client::create_index] for an example on how to create and drop an index.
-    pub async fn drop_index(&self, config: DropIndexRequest) -> Result<(), OpenIAPError> {
+    pub async fn drop_index(&self, config: DropIndexRequest, env: EnvConfig) -> Result<(), OpenIAPError> {
         if config.collectionname.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No collection name provided".to_string(),
@@ -1860,7 +1938,16 @@ impl Client {
                 "No index name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1918,12 +2005,20 @@ impl Client {
     /// }
     /// ```
     #[tracing::instrument(skip_all)]
-    pub async fn query(&self, mut config: QueryRequest) -> Result<QueryResponse, OpenIAPError> {
+    pub async fn query(&self, mut config: QueryRequest, env: EnvConfig) -> Result<QueryResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
         }
-
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -1975,12 +2070,21 @@ impl Client {
     /// }
     /// ```
     #[tracing::instrument(skip_all)]
-    pub async fn get_one(&self, mut config: QueryRequest) -> Option<serde_json::Value> {
+    pub async fn get_one(&self, mut config: QueryRequest, env: EnvConfig) -> Option<serde_json::Value> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
         }
         config.top = 1;
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2118,6 +2222,7 @@ impl Client {
     pub async fn get_document_version(
         &self,
         mut config: GetDocumentVersionRequest,
+        env: EnvConfig,
     ) -> Result<String, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -2125,7 +2230,16 @@ impl Client {
         if config.id.is_empty() {
             return Err(OpenIAPError::ClientError("No id provided".to_string()));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2170,6 +2284,7 @@ impl Client {
     pub async fn aggregate(
         &self,
         mut config: AggregateRequest,
+        env: EnvConfig,
     ) -> Result<AggregateResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -2185,7 +2300,16 @@ impl Client {
                 "No aggregates provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2209,14 +2333,23 @@ impl Client {
     }
     /// Count the number of documents in a collection, with an optional query
     #[tracing::instrument(skip_all)]
-    pub async fn count(&self, mut config: CountRequest) -> Result<CountResponse, OpenIAPError> {
+    pub async fn count(&self, mut config: CountRequest, env: EnvConfig) -> Result<CountResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
         }
         if config.query.is_empty() {
             config.query = "{}".to_string();
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2243,6 +2376,7 @@ impl Client {
     pub async fn distinct(
         &self,
         mut config: DistinctRequest,
+        env: EnvConfig,
     ) -> Result<DistinctResponse, OpenIAPError> {
         if config.collectionname.is_empty() {
             config.collectionname = "entities".to_string();
@@ -2253,7 +2387,16 @@ impl Client {
         if config.field.is_empty() {
             return Err(OpenIAPError::ClientError("No field provided".to_string()));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2280,8 +2423,18 @@ impl Client {
     pub async fn insert_one(
         &self,
         config: InsertOneRequest,
+        env: EnvConfig,
     ) -> Result<InsertOneResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2308,8 +2461,18 @@ impl Client {
     pub async fn insert_many(
         &self,
         config: InsertManyRequest,
+        env: EnvConfig,
     ) -> Result<InsertManyResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2336,8 +2499,18 @@ impl Client {
     pub async fn update_one(
         &self,
         config: UpdateOneRequest,
+        env: EnvConfig,
     ) -> Result<UpdateOneResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2364,8 +2537,18 @@ impl Client {
     pub async fn insert_or_update_one(
         &self,
         config: InsertOrUpdateOneRequest,
+        env: EnvConfig,
     ) -> Result<String, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2393,8 +2576,18 @@ impl Client {
     pub async fn insert_or_update_many(
         &self,
         config: InsertOrUpdateManyRequest,
+        env: EnvConfig,
     ) -> Result<InsertOrUpdateManyResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2422,8 +2615,18 @@ impl Client {
     pub async fn update_document(
         &self,
         config: UpdateDocumentRequest,
+        env: EnvConfig,
     ) -> Result<UpdateDocumentResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2447,8 +2650,17 @@ impl Client {
     }
     /// Delete a document from a collection using a unique key
     #[tracing::instrument(skip_all)]
-    pub async fn delete_one(&self, config: DeleteOneRequest) -> Result<i32, OpenIAPError> {
-        let envelope = config.to_envelope();
+    pub async fn delete_one(&self, config: DeleteOneRequest, env: EnvConfig) -> Result<i32, OpenIAPError> {
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2472,8 +2684,17 @@ impl Client {
     }
     /// Delete many documents from a collection using a query or list of unique keys
     #[tracing::instrument(skip_all)]
-    pub async fn delete_many(&self, config: DeleteManyRequest) -> Result<i32, OpenIAPError> {
-        let envelope = config.to_envelope();
+    pub async fn delete_many(&self, config: DeleteManyRequest, env: EnvConfig) -> Result<i32, OpenIAPError> {
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2500,10 +2721,20 @@ impl Client {
     pub async fn download(
         &self,
         config: DownloadRequest,
+        env: EnvConfig,
         folder: Option<&str>,
         filename: Option<&str>,
     ) -> Result<DownloadResponse, OpenIAPError> {
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         match self.sendwithstream(envelope).await {
             Ok((response_rx, mut stream_rx)) => {
                 let temp_file_path = util::generate_unique_filename("openiap");
@@ -2587,6 +2818,7 @@ impl Client {
     pub async fn upload(
         &self,
         config: UploadRequest,
+        env: EnvConfig,
         filepath: &str,
     ) -> Result<UploadResponse, OpenIAPError> {
         // debug!("upload: Uploading file: {}", filepath);
@@ -2654,7 +2886,16 @@ impl Client {
         let mut buffer = vec![0; chunk_size];
     
         // Send the initial upload request
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let (response_rx, rid) = self.send_noawait(envelope).await?;
         
         // Send the BeginStream message
@@ -2728,6 +2969,7 @@ impl Client {
     pub async fn watch(
         &self,
         mut config: WatchRequest,
+        env: EnvConfig,
         callback: Box<dyn Fn(WatchEvent) + Send + Sync>,
     ) -> Result<String, OpenIAPError> {
         if config.collectionname.is_empty() {
@@ -2736,8 +2978,16 @@ impl Client {
         if config.paths.is_empty() {
             config.paths = vec!["".to_string()];
         }
-
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2769,9 +3019,18 @@ impl Client {
     }
     /// Cancel a watch ( change stream )
     #[tracing::instrument(skip_all)]
-    pub async fn unwatch(&self, id: &str) -> Result<(), OpenIAPError> {
+    pub async fn unwatch(&self, env: EnvConfig, id: &str) -> Result<(), OpenIAPError> {
         let config = UnWatchRequest::byid(id);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2796,13 +3055,22 @@ impl Client {
     pub async fn register_queue(
         &self,
         mut config: RegisterQueueRequest,
+        env: EnvConfig,
         callback: QueueCallbackFn,
     ) -> Result<String, OpenIAPError> {
         if config.queuename.is_empty() {
             config.queuename = "".to_string();
         }
-
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2835,9 +3103,18 @@ impl Client {
     }
     /// Unregister a queue or exchange for messaging ( amqp ) in the OpenIAP service
     #[tracing::instrument(skip_all)]
-    pub async fn unregister_queue(&self, queuename: &str) -> Result<(), OpenIAPError> {
+    pub async fn unregister_queue(&self, env: EnvConfig, queuename: &str) -> Result<(), OpenIAPError> {
         let config = UnRegisterQueueRequest::byqueuename(queuename);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2862,6 +3139,7 @@ impl Client {
     pub async fn register_exchange(
         &self,
         mut config: RegisterExchangeRequest,
+        env: EnvConfig,
         callback: QueueCallbackFn,
     ) -> Result<String, OpenIAPError> {
         if config.exchangename.is_empty() {
@@ -2872,7 +3150,16 @@ impl Client {
         if config.algorithm.is_empty() {
             config.algorithm = "fanout".to_string();
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2908,13 +3195,23 @@ impl Client {
     pub async fn queue_message(
         &self,
         config: QueueMessageRequest,
+        env: EnvConfig,
     ) -> Result<QueueMessageResponse, OpenIAPError> {
         if config.queuename.is_empty() && config.exchangename.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No queue or exchange name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -2938,7 +3235,7 @@ impl Client {
     }
     /// Send message to a queue or exchange in the OpenIAP service, and wait for a reply
     #[tracing::instrument(skip_all)]
-    pub async fn rpc(&self, mut config: QueueMessageRequest, timeout: tokio::time::Duration) -> Result<String, OpenIAPError> {
+    pub async fn rpc(&self, mut config: QueueMessageRequest, env: EnvConfig, timeout: tokio::time::Duration) -> Result<String, OpenIAPError> {
         if config.queuename.is_empty() && config.exchangename.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No queue or exchange name provided".to_string(),
@@ -2971,6 +3268,7 @@ impl Client {
                     RegisterQueueRequest {
                         queuename: "".to_string(),
                     },
+                    crate::EnvConfig::new(),
                     callback.clone(),
                 )
                 .await?;
@@ -2986,7 +3284,16 @@ impl Client {
 
         let q = reply_queue_guard.as_ref().unwrap().clone();
         config.replyto = q.clone();
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
 
         let result = self.send(envelope, None).await;
         let rpc_result = match result {
@@ -3101,6 +3408,7 @@ impl Client {
     pub async fn push_workitem(
         &self,
         mut config: PushWorkitemRequest,
+        env: EnvConfig,
     ) -> Result<PushWorkitemResponse, OpenIAPError> {
         if config.wiq.is_empty() && config.wiqid.is_empty() {
             return Err(OpenIAPError::ClientError(
@@ -3148,7 +3456,7 @@ impl Client {
                             collectionname: "fs.files".to_string(),
                             ..Default::default()
                         };
-                        let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
+                        let uploadresult = self.upload(uploadconfig, crate::EnvConfig::new(), &f.filename).await.unwrap();
                         trace!("File {} was upload as {}", filename, uploadresult.id);
                         // f.filename = "".to_string();
                         f.id = uploadresult.id.clone();
@@ -3159,7 +3467,16 @@ impl Client {
                 debug!("File {} is already uploaded", f.filename);
             }
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3188,6 +3505,7 @@ impl Client {
     pub async fn push_workitems(
         &self,
         mut config: PushWorkitemsRequest,
+        env: EnvConfig,
     ) -> Result<PushWorkitemsResponse, OpenIAPError> {
         if config.wiq.is_empty() && config.wiqid.is_empty() {
             return Err(OpenIAPError::ClientError(
@@ -3237,7 +3555,7 @@ impl Client {
                                 ..Default::default()
                             };
                             let uploadresult =
-                                self.upload(uploadconfig, &f.filename).await.unwrap();
+                                self.upload(uploadconfig, crate::EnvConfig::new(), &f.filename).await.unwrap();
                             trace!("File {} was upload as {}", filename, uploadresult.id);
                             // f.filename = "".to_string();
                             f.id = uploadresult.id.clone();
@@ -3249,7 +3567,16 @@ impl Client {
                 }
             }
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3278,6 +3605,7 @@ impl Client {
     pub async fn pop_workitem(
         &self,
         config: PopWorkitemRequest,
+        env: EnvConfig,
         downloadfolder: Option<&str>,
     ) -> Result<PopWorkitemResponse, OpenIAPError> {
         if config.wiq.is_empty() && config.wiqid.is_empty() {
@@ -3285,7 +3613,16 @@ impl Client {
                 "No queue name or id provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3313,7 +3650,9 @@ impl Client {
                                     ..Default::default()
                                 };
                                 let downloadresult =
-                                    match self.download(downloadconfig, downloadfolder, None).await
+                                    match self.download(downloadconfig,
+                                        crate::EnvConfig::new(),
+                                        downloadfolder, None).await
                                     {
                                         Ok(r) => r,
                                         Err(e) => {
@@ -3346,6 +3685,7 @@ impl Client {
     pub async fn update_workitem(
         &self,
         mut config: UpdateWorkitemRequest,
+        env: EnvConfig,
     ) -> Result<UpdateWorkitemResponse, OpenIAPError> {
         match &config.workitem {
             Some(wiq) => {
@@ -3379,7 +3719,7 @@ impl Client {
                         collectionname: "fs.files".to_string(),
                         ..Default::default()
                     };
-                    let uploadresult = self.upload(uploadconfig, &f.filename).await.unwrap();
+                    let uploadresult = self.upload(uploadconfig, crate::EnvConfig::new(), &f.filename).await.unwrap();
                     trace!("File {} was upload as {}", filename, uploadresult.id);
                     f.id = uploadresult.id.clone();
                     f.filename = filename.to_string();
@@ -3388,7 +3728,16 @@ impl Client {
                 debug!("Skipped file");
             }
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3415,13 +3764,23 @@ impl Client {
     pub async fn delete_workitem(
         &self,
         config: DeleteWorkitemRequest,
+        env: EnvConfig,
     ) -> Result<DeleteWorkitemResponse, OpenIAPError> {
         if config.id.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No workitem id provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3448,13 +3807,23 @@ impl Client {
     pub async fn add_workitem_queue(
         &self,
         config: AddWorkItemQueueRequest,
+        env: EnvConfig,
     ) -> Result<WorkItemQueue, OpenIAPError> {
         if config.workitemqueue.is_none() {
             return Err(OpenIAPError::ClientError(
                 "No workitem queue name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3489,13 +3858,23 @@ impl Client {
     pub async fn update_workitem_queue(
         &self,
         config: UpdateWorkItemQueueRequest,
+        env: EnvConfig,
     ) -> Result<WorkItemQueue, OpenIAPError> {
         if config.workitemqueue.is_none() {
             return Err(OpenIAPError::ClientError(
                 "No workitem queue name provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3530,13 +3909,23 @@ impl Client {
     pub async fn delete_workitem_queue(
         &self,
         config: DeleteWorkItemQueueRequest,
+        env: EnvConfig,
     ) -> Result<(), OpenIAPError> {
         if config.wiq.is_empty() && config.wiqid.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No workitem queue name or id provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3561,12 +3950,22 @@ impl Client {
     pub async fn custom_command(
         &self,
         config: CustomCommandRequest,
+        env: EnvConfig,
         timeout: Option<tokio::time::Duration>,
     ) -> Result<String, OpenIAPError> {
         if config.command.is_empty() {
             return Err(OpenIAPError::ClientError("No command provided".to_string()));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, timeout).await;
         match result {
             Ok(m) => {
@@ -3591,9 +3990,18 @@ impl Client {
     }
     /// Delete a package from the database, cleaning up all all files and data
     #[tracing::instrument(skip_all)]
-    pub async fn delete_package(&self, packageid: &str) -> Result<(), OpenIAPError> {
+    pub async fn delete_package(&self, env: EnvConfig, packageid: &str) -> Result<(), OpenIAPError> {
         let config = DeletePackageRequest::byid(packageid);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3617,9 +4025,18 @@ impl Client {
     }
     /// Start Agent
     #[tracing::instrument(skip_all)]
-    pub async fn start_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
+    pub async fn start_agent(&self, env: EnvConfig, agentid: &str) -> Result<(), OpenIAPError> {
         let config = StartAgentRequest::byid(agentid);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3643,9 +4060,18 @@ impl Client {
     }
     /// Stop an agent, this will cleanup all resources and stop the agent
     #[tracing::instrument(skip_all)]
-    pub async fn stop_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
+    pub async fn stop_agent(&self, env: EnvConfig, agentid: &str) -> Result<(), OpenIAPError> {
         let config = StopAgentRequest::byid(agentid);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3669,9 +4095,18 @@ impl Client {
     }
     /// Delete a pod from an agent, on kubernetes this will remove the pod and kubernetes will re-create it, on docker this will remove the pod. Then use start_agent to start the agent again
     #[tracing::instrument(skip_all)]
-    pub async fn delete_agent_pod(&self, agentid: &str, podname: &str) -> Result<(), OpenIAPError> {
+    pub async fn delete_agent_pod(&self, env: EnvConfig, agentid: &str, podname: &str) -> Result<(), OpenIAPError> {
         let config = DeleteAgentPodRequest::byid(agentid, podname);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3695,9 +4130,18 @@ impl Client {
     }
     /// Delete an agent, this will cleanup all resources and delete the agent
     #[tracing::instrument(skip_all)]
-    pub async fn delete_agent(&self, agentid: &str) -> Result<(), OpenIAPError> {
+    pub async fn delete_agent(&self, env: EnvConfig, agentid: &str) -> Result<(), OpenIAPError> {
         let config = DeleteAgentRequest::byid(agentid);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3721,9 +4165,18 @@ impl Client {
     }
     /// Get all pods associated with an agent, if stats is true, it will return memory and cpu usage for each pod
     #[tracing::instrument(skip_all)]
-    pub async fn get_agent_pods(&self, agentid: &str, stats: bool) -> Result<String, OpenIAPError> {
+    pub async fn get_agent_pods(&self, env: EnvConfig, agentid: &str, stats: bool) -> Result<String, OpenIAPError> {
         let config = GetAgentPodsRequest::byid(agentid, stats);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3749,11 +4202,21 @@ impl Client {
     #[tracing::instrument(skip_all)]
     pub async fn get_agent_pod_logs(
         &self,
+        env: EnvConfig,
         agentid: &str,
         podname: &str,
     ) -> Result<String, OpenIAPError> {
         let config = GetAgentLogRequest::new(agentid, podname);
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3782,13 +4245,23 @@ impl Client {
     pub async fn ensure_customer(
         &self,
         config: EnsureCustomerRequest,
+        env: EnvConfig,
     ) -> Result<EnsureCustomerResponse, OpenIAPError> {
         if config.customer.is_none() && config.stripe.is_none() {
             return Err(OpenIAPError::ClientError(
                 "No customer or stripe provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3815,13 +4288,23 @@ impl Client {
     pub async fn create_workflow_instance(
         &self,
         config: CreateWorkflowInstanceRequest,
+        env: EnvConfig,
     ) -> Result<String, OpenIAPError> {
         if config.workflowid.is_empty() {
             return Err(OpenIAPError::ClientError(
                 "No workflow id provided".to_string(),
             ));
         }
-        let envelope = config.to_envelope();
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, None).await;
         match result {
             Ok(m) => {
@@ -3850,6 +4333,7 @@ impl Client {
     pub async fn invoke_openrpa(
         &self,
         config: InvokeOpenRpaRequest,
+        env: EnvConfig,
         timeout: Option<tokio::time::Duration>,
     ) -> Result<String, OpenIAPError> {
         if config.robotid.is_empty() {
@@ -3871,6 +4355,7 @@ impl Client {
                 RegisterQueueRequest {
                     queuename: "".to_string(),
                 },
+                crate::EnvConfig::new(),
                 Arc::new(move |_client: Arc<Client>, event: QueueEvent| {
                     let tx = tx.clone();
                     Box::pin(async move {
@@ -3917,9 +4402,16 @@ impl Client {
             data,
             ..Default::default()
         };
-
-        let envelope = config.to_envelope();
-
+        let mut envelope = config.to_envelope();
+        if !env.jwt.is_empty() {
+            envelope.jwt = env.jwt;
+        }
+        if !env.spanid.is_empty() {
+            envelope.spanid = env.spanid;
+        }
+        if !env.traceid.is_empty() {
+            envelope.traceid = env.traceid;
+        }
         let result = self.send(envelope, timeout).await;
         match result {
             Ok(m) => {
@@ -3942,15 +4434,15 @@ impl Client {
                 let json = match tokio::time::timeout(duration, rx).await {
                     Ok(Ok(val)) => {
                         // Success, unregister queue before returning
-                        let _ = self.unregister_queue(&q).await;
+                        let _ = self.unregister_queue(crate::EnvConfig::new(), &q).await;
                         val
                     },
                     Ok(Err(e)) => {
-                        let _ = self.unregister_queue(&q).await;
+                        let _ = self.unregister_queue(crate::EnvConfig::new(), &q).await;
                         return Err(OpenIAPError::CustomError(e.to_string()));
                     },
                     Err(_) => {
-                        let _ = self.unregister_queue(&q).await;
+                        let _ = self.unregister_queue(crate::EnvConfig::new(), &q).await;
                         return Err(OpenIAPError::ServerError("Timeout".to_string()));
                     },
                 };

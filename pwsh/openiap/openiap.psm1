@@ -3,7 +3,7 @@ $NativeFolder = Join-Path $ModuleRoot 'lib'
 Write-Verbose "Loading OpenIap module from $ModuleRoot"
 Write-Verbose "Native library folder: $NativeFolder"
 # version of your native libraries on GitHub
-$OpenIapVersion = '0.0.38'
+$OpenIapVersion = '0.0.41'
 $user = $null;
 function Get-NativeLibFile {
     [CmdletBinding()] param()
@@ -26,7 +26,7 @@ function Get-NativeLibFile {
     else {
         # Linux: detect musl vs glibc
         $isMusl = Test-Path '/etc/alpine-release'
-        $ext    = if ($isMusl) { '.a' } else { '.so' }
+        $ext    = if ($isMusl) { '.so' } else { '.so' }
         if    ($arch -eq 'Arm64') { $base = 'openiap-linux-arm64' }
         else                      { $base = 'openiap-linux-x64' }
         $file = "lib$base$ext"

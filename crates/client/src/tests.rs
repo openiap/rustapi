@@ -50,7 +50,7 @@ mod tests {
             w: 2,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         let response = match response {
             Ok(r) => r,
             Err(e) => {
@@ -67,7 +67,7 @@ mod tests {
             item: item.to_string(),
             ..Default::default()
         };
-        let response = client.update_one(query).await;
+        let response = client.update_one(query, crate::EnvConfig::new()).await;
         _ = match response {
             Ok(r) => r,
             Err(e) => {
@@ -82,7 +82,7 @@ mod tests {
             version: 0,
             ..Default::default()
         };
-        let response = client.get_document_version(query).await;
+        let response = client.get_document_version(query, crate::EnvConfig::new()).await;
         let response = match response {
             Ok(r) => r,
             Err(e) => {
@@ -114,7 +114,7 @@ mod tests {
             version: 1,
             ..Default::default()
         };
-        let response = client.get_document_version(query).await;
+        let response = client.get_document_version(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_get_document_version failed with {:?}",
@@ -133,7 +133,7 @@ mod tests {
             version: -1,
             ..Default::default()
         };
-        let response = client.get_document_version(query).await;
+        let response = client.get_document_version(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_get_document_version failed with {:?}",
@@ -154,7 +154,7 @@ mod tests {
             projection: "{\"name\": 1}".to_string(),
             ..Default::default()
         };
-        let response = client.query(query).await;
+        let response = client.query(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -176,7 +176,7 @@ mod tests {
                 projection: "{\"name\": 1}".to_string(),
                 ..Default::default()
             };
-            tasks.push(Box::pin(client.query(query)));
+            tasks.push(Box::pin(client.query(query, crate::EnvConfig::new())));
         }
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
@@ -189,7 +189,7 @@ mod tests {
             aggregates: "[]".to_string(),
             ..Default::default()
         };
-        let response = client.aggregate(query).await;
+        let response = client.aggregate(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -210,7 +210,7 @@ mod tests {
                 aggregates: "[]".to_string(),
                 ..Default::default()
             };
-            tasks.push(Box::pin(client.aggregate(query)));
+            tasks.push(Box::pin(client.aggregate(query, crate::EnvConfig::new())));
         }
         let result = futures::future::join_all(tasks).await;
         println!("{:?}", result);
@@ -224,7 +224,7 @@ mod tests {
             query: "{}".to_string(),
             ..Default::default()
         };
-        let response = client.count(query).await;
+        let response = client.count(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -241,7 +241,7 @@ mod tests {
             field: "_type".to_string(),
             ..Default::default()
         };
-        let response = client.distinct(query).await;
+        let response = client.distinct(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -257,7 +257,7 @@ mod tests {
             item: "{\"name\": \"test from rust\", \"_type\": \"test\"}".to_string(),
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -273,7 +273,7 @@ mod tests {
             items: "[{\"name\": \"test many from rust 1\", \"_type\": \"test\"}, {\"name\": \"test many from rust 2\", \"_type\": \"test\"}]".to_string(),
             ..Default::default()
         };
-        let response = client.insert_many(query).await;
+        let response = client.insert_many(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -291,7 +291,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -309,7 +309,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.update_one(query).await;
+        let response = client.update_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -327,7 +327,7 @@ mod tests {
             uniqeness: "name".to_string(),
             ..Default::default()
         };
-        let response = client.insert_or_update_one(query).await;
+        let response = client.insert_or_update_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -353,7 +353,7 @@ mod tests {
             uniqeness: "name".to_string(),
             ..Default::default()
         };
-        let response = client.insert_or_update_one(query).await;
+        let response = client.insert_or_update_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -383,7 +383,7 @@ mod tests {
             uniqeness: "name".to_string(),
             ..Default::default()
         };
-        let response = client.insert_or_update_many(query).await;
+        let response = client.insert_or_update_many(query, crate::EnvConfig::new()).await;
 
         assert!(
             response.is_ok(),
@@ -409,7 +409,7 @@ mod tests {
             uniqeness: "name".to_string(),
             ..Default::default()
         };
-        let response = client.insert_or_update_many(query).await;
+        let response = client.insert_or_update_many(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -443,7 +443,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -460,7 +460,7 @@ mod tests {
             id: _id.to_string(),
             ..Default::default()
         };
-        let response = client.delete_one(query).await;
+        let response = client.delete_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -478,7 +478,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -495,7 +495,7 @@ mod tests {
             query: format!("{{\"_id\": \"{}\"}}", _id),
             ..Default::default()
         };
-        let response = client.delete_many(query).await;
+        let response = client.delete_many(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -513,7 +513,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -530,7 +530,7 @@ mod tests {
             ids: vec![_id.to_string()],
             ..Default::default()
         };
-        let response = client.delete_many(query).await;
+        let response = client.delete_many(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -563,6 +563,7 @@ mod tests {
         let response = client
             .upload(
                 UploadRequest::filename("rust-test.csv"),
+                    crate::EnvConfig::new(),
                 "../../testfile.csv",
             )
             .await;
@@ -585,6 +586,7 @@ mod tests {
         let response = client
             .upload(
                 UploadRequest::filename("rust-test-user.csv"),
+                    crate::EnvConfig::new(),
                 "../../testfile.csv",
             )
             .await;
@@ -602,7 +604,9 @@ mod tests {
     async fn test_download() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
         let response = client
-            .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
+            .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"),
+            crate::EnvConfig::new(),
+             None, None)
             .await;
         println!("Download response: {:?}", response);
         assert!(
@@ -620,7 +624,9 @@ mod tests {
             .unwrap();
         println!("Signin response: {:?}", response);
         let response = client
-            .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"), None, None)
+            .download(DownloadRequest::id("65a3aaf66d52b8c15131aebd"),
+            crate::EnvConfig::new(),
+             None, None)
             .await;
         println!("Download response: {:?}", response);
         assert!(
@@ -636,7 +642,9 @@ mod tests {
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
         let response: std::result::Result<String, OpenIAPError> = client
-            .watch(WatchRequest::new("entities", vec!["".to_string()]), {
+            .watch(WatchRequest::new("entities", vec!["".to_string()]),
+            crate::EnvConfig::new(),            
+             {
                 let tx = Arc::clone(&tx);
                 Box::new(move |event| {
                     println!("Watch event: {:?}", event);
@@ -662,7 +670,7 @@ mod tests {
             item: "{\"name\": \"testing watch from rust\", \"_type\": \"test\"}".to_string(),
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -674,7 +682,7 @@ mod tests {
         rx.await.unwrap();
         println!("Watch event received");
 
-        client.unwatch(&id).await.unwrap();
+        client.unwatch(crate::EnvConfig::new() ,&id).await.unwrap();
     }
     #[tokio::test]
     async fn test_register_queue() {
@@ -684,7 +692,9 @@ mod tests {
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
         let response: std::result::Result<String, OpenIAPError> = client
-            .register_queue(RegisterQueueRequest::byqueuename("secrettestqueue"), {
+            .register_queue(RegisterQueueRequest::byqueuename("secrettestqueue"), 
+            crate::EnvConfig::new(),
+            {
                 let tx = Arc::clone(&tx);
                 Arc::new(move |_client, event| {
                     println!("Queue event: {:?}", event);
@@ -713,7 +723,7 @@ mod tests {
             striptoken: true,
             ..Default::default()
         };
-        let response = client.queue_message(query).await;
+    let response = client.queue_message(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -724,7 +734,7 @@ mod tests {
         rx.await.unwrap();
         println!("Queue event received");
 
-        client.unregister_queue(&queuename).await.unwrap();
+        client.unregister_queue(crate::EnvConfig::new(), &queuename).await.unwrap();
     }
     #[tokio::test] // cargo test test_register_exchange -- --nocapture
     async fn test_register_exchange() {
@@ -750,7 +760,9 @@ mod tests {
             });
 
         let response = client
-            .register_exchange(RegisterExchangeRequest::byexchangename(exchangename), handler)
+            .register_exchange(RegisterExchangeRequest::byexchangename(exchangename),
+            crate::EnvConfig::new(),
+             handler)
             .await;
 
         println!("RegisterExchange response: {:?}", response);
@@ -770,7 +782,7 @@ mod tests {
             striptoken: true,
             ..Default::default()
         };
-        let response = client.queue_message(query).await;
+    let response = client.queue_message(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_exhange failed with {:?}",
@@ -781,14 +793,14 @@ mod tests {
         rx.await.unwrap();
         println!("Queue event received");
 
-        client.unregister_queue(&queuename).await.unwrap();
+        client.unregister_queue(crate::EnvConfig::new(), &queuename).await.unwrap();
     }
     #[tokio::test] // cargo test test_push_workitem -- --nocapture
     async fn test_push_workitem() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
-            .push_workitem(PushWorkitemRequest {
+                .push_workitem(PushWorkitemRequest {
                 wiq: "rustqueue".to_string(),
                 name: "test rust workitem".to_string(),
                 files: vec![WorkitemFile {
@@ -798,7 +810,7 @@ mod tests {
                 payload: "{\"test\": \"message\"}".to_string(),
                 // nextrun: Some(Timestamp::from(std::time::SystemTime::now() + std::time::Duration::from_secs(60))),
                 ..Default::default()
-            })
+                }, crate::EnvConfig::new())
             .await;
 
         assert!(
@@ -813,6 +825,7 @@ mod tests {
                     wiq: "rustqueue".to_string(),
                     ..Default::default()
                 },
+                crate::EnvConfig::new(),
                 Some(""),
             )
             .await;
@@ -852,7 +865,7 @@ mod tests {
                     },
                 ],
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         assert!(
             response.is_ok(),
@@ -864,7 +877,7 @@ mod tests {
             .delete_workitem(DeleteWorkitemRequest {
                 id,
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
 
         assert!(
@@ -901,7 +914,7 @@ mod tests {
                     },
                 ],
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
 
         assert!(
@@ -916,6 +929,7 @@ mod tests {
                     wiq: "rustqueue".to_string(),
                     ..Default::default()
                 },
+                crate::EnvConfig::new(),
                 Some(""),
             )
             .await;
@@ -955,7 +969,7 @@ mod tests {
                     },
                 ],
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         assert!(
             response.is_ok(),
@@ -967,7 +981,7 @@ mod tests {
             .delete_workitem(DeleteWorkitemRequest {
                 id,
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
 
         assert!(
@@ -982,6 +996,7 @@ mod tests {
                     wiq: "rustqueue".to_string(),
                     ..Default::default()
                 },
+                crate::EnvConfig::new(),
                 Some(""),
             )
             .await;
@@ -996,7 +1011,7 @@ mod tests {
             .delete_workitem(DeleteWorkitemRequest {
                 id: response.unwrap().workitem.unwrap().id,
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
 
         assert!(
@@ -1010,7 +1025,7 @@ mod tests {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
-            .custom_command(CustomCommandRequest::bycommand("getclients"), None)
+            .custom_command(CustomCommandRequest::bycommand("getclients"), crate::EnvConfig::new(), None)
             .await;
         println!("CustomCommand response: {:?}", response);
 
@@ -1024,7 +1039,7 @@ mod tests {
     async fn test_list_collections() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
-        let response = client.list_collections(false).await;
+        let response = client.list_collections(false, crate::EnvConfig::new()).await;
         println!("ListCollections response: {:?}", response);
 
         assert!(
@@ -1038,7 +1053,7 @@ mod tests {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
-            .create_collection(CreateCollectionRequest::byname("rusttestcollection"))
+            .create_collection(CreateCollectionRequest::byname("rusttestcollection"), crate::EnvConfig::new())
             .await;
         println!("CreateCollection response: {:?}", response);
 
@@ -1054,7 +1069,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -1062,7 +1077,7 @@ mod tests {
         );
 
         let response = client
-            .drop_collection(DropCollectionRequest::byname("rusttestcollection"))
+            .drop_collection(DropCollectionRequest::byname("rusttestcollection"), crate::EnvConfig::new())
             .await;
         println!("DropCollection response: {:?}", response);
 
@@ -1076,14 +1091,14 @@ mod tests {
     async fn test_create_drop_tscollections() {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
-        let collections_json = client.list_collections(false).await.unwrap();
+        let collections_json = client.list_collections(false, crate::EnvConfig::new()).await.unwrap();
         let collections: serde_json::Value = serde_json::from_str(&collections_json).unwrap();
         let collections = collections.as_array().unwrap();
         for collection in collections {
             let collectionname = collection["name"].as_str().unwrap();
             if collectionname.starts_with("rusttesttscollection") {
                 let response = client
-                    .drop_collection(DropCollectionRequest::byname(collectionname))
+                    .drop_collection(DropCollectionRequest::byname(collectionname), crate::EnvConfig::new())
                     .await;
                 println!("DropCollection response: {:?}", response);
 
@@ -1102,7 +1117,7 @@ mod tests {
             granularity: "minutes".to_string(), // seconds, minutes, hours
         });
 
-        let response = client.create_collection(request).await;
+        let response = client.create_collection(request, crate::EnvConfig::new()).await;
         println!("CreateCollection response: {:?}", response);
 
         assert!(
@@ -1117,7 +1132,7 @@ mod tests {
             item,
             ..Default::default()
         };
-        let response = client.insert_one(query).await;
+        let response = client.insert_one(query, crate::EnvConfig::new()).await;
         assert!(
             response.is_ok(),
             "test_query failed with {:?}",
@@ -1155,7 +1170,7 @@ mod tests {
         let client = Client::new_connect(TEST_URL).await.unwrap();
 
         let response = client
-            .create_collection(CreateCollectionRequest::byname("rustindextestcollection"))
+            .create_collection(CreateCollectionRequest::byname("rustindextestcollection"), crate::EnvConfig::new())
             .await;
         println!("CreateCollection response: {:?}", response);
 
@@ -1168,7 +1183,7 @@ mod tests {
         let response = client
             .get_indexes(GetIndexesRequest::bycollectionname(
                 "rustindextestcollection",
-            ))
+            ), crate::EnvConfig::new())
             .await;
         assert!(
             response.is_ok(),
@@ -1184,7 +1199,7 @@ mod tests {
                     .drop_index(DropIndexRequest::bycollectionname(
                         "rustindextestcollection",
                         indexname,
-                    ))
+                    ), crate::EnvConfig::new())
                     .await;
                 println!("DropIndex response: {:?}", response);
 
@@ -1202,7 +1217,7 @@ mod tests {
             .create_index(CreateIndexRequest::bycollectionname(
                 "rustindextestcollection",
                 "{\"name\": 1}",
-            ))
+            ), crate::EnvConfig::new())
             .await;
         println!("CreateIndex response: {:?}", response);
 
@@ -1215,7 +1230,7 @@ mod tests {
         let response = client
             .get_indexes(GetIndexesRequest::bycollectionname(
                 "rustindextestcollection",
-            ))
+            ), crate::EnvConfig::new())
             .await;
         assert!(
             response.is_ok(),
@@ -1248,7 +1263,7 @@ mod tests {
                 query: "{\"slug\": \"rusttestagent\"}".to_string(),
                 collectionname: "agents".to_string(),
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         let response = match response {
             Ok(response) => {
@@ -1261,7 +1276,7 @@ mod tests {
                         item: agent_json,
                         ..Default::default()
                     };
-                    let response = client.insert_one(query).await;
+                    let response = client.insert_one(query, crate::EnvConfig::new()).await;
                     assert!(
                         response.is_ok(),
                         "test_query failed with {:?}",
@@ -1283,8 +1298,8 @@ mod tests {
         let id = _obj["_id"].as_str().unwrap();
         println!("Agent ID: {:?}", id);
 
-        let mut podname = "".to_string();
-        let response = client.get_agent_pods(id, false).await;
+    let mut podname = "".to_string();
+    let response = client.get_agent_pods(crate::EnvConfig::new(), id, false).await;
         assert!(
             response.is_ok(),
             "GetAgentPods failed with {:?}",
@@ -1304,7 +1319,7 @@ mod tests {
             }
         }
         if podname.is_empty() {
-            let response = client.start_agent(id).await;
+            let response = client.start_agent(crate::EnvConfig::new(), id).await;
             assert!(
                 response.is_ok(),
                 "StartAgent failed with {:?}",
@@ -1312,7 +1327,7 @@ mod tests {
             );
             println!("Started rusttestagent");
             loop {
-                let response = client.get_agent_pods(id, false).await;
+                let response = client.get_agent_pods(crate::EnvConfig::new(), id, false).await;
                 assert!(
                     response.is_ok(),
                     "GetAgentPods failed with {:?}",
@@ -1339,7 +1354,7 @@ mod tests {
         }
 
         loop {
-            let response = client.get_agent_pod_logs(id, &podname).await;
+            let response = client.get_agent_pod_logs(crate::EnvConfig::new(),id, &podname).await;
             let is_ok = response.is_ok();
             let message = match response {
                 Ok(response) => response,
@@ -1355,14 +1370,14 @@ mod tests {
             }
         }
 
-        let response = client.get_agent_pods(id, false).await;
+    let response = client.get_agent_pods(crate::EnvConfig::new(), id, false).await;
         assert!(
             response.is_ok(),
             "GetAgentPods failed with {:?}",
             response.err().unwrap()
         );
 
-        let response = client.stop_agent(id).await;
+    let response = client.stop_agent(crate::EnvConfig::new(),id).await;
         assert!(
             response.is_ok(),
             "StopAgent failed with {:?}",
@@ -1370,7 +1385,7 @@ mod tests {
         );
         println!("Stopped rusttestagent");
 
-        let response = client.delete_agent(id).await;
+    let response = client.delete_agent(crate::EnvConfig::new(), id).await;
 
         assert!(
             response.is_ok(),
@@ -1386,7 +1401,7 @@ mod tests {
 
         let customer = Customer::byname("rusttestcustomer");
         let request = EnsureCustomerRequest::new(Some(customer), "", None);
-        let response = client.ensure_customer(request).await;
+    let response = client.ensure_customer(request, crate::EnvConfig::new()).await;
         let customer = match response {
             Ok(response) => {
                 
@@ -1416,7 +1431,7 @@ mod tests {
                 query: "{\"name\": \"updated rusttestqueue2\"}".to_string(),
                 collectionname: "mq".to_string(),
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         match response {
             Ok(response) => {
@@ -1431,7 +1446,7 @@ mod tests {
                             wiqid: wiqid.to_string(),
                             purge: true,
                             ..Default::default()
-                        })
+                        }, crate::EnvConfig::new())
                         .await
                         .unwrap();
                 }
@@ -1445,7 +1460,7 @@ mod tests {
                 query: "{\"name\": \"rusttestqueue2\"}".to_string(),
                 collectionname: "mq".to_string(),
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         let mut wiq = match response {
             Ok(response) => {
@@ -1460,7 +1475,7 @@ mod tests {
                         workitemqueue: Some(queue),
                         skiprole: true,
                     };
-                    let response = client.add_workitem_queue(request).await;
+                    let response = client.add_workitem_queue(request, crate::EnvConfig::new()).await;
                     match response {
                         Ok(response) => {
                             println!("workitem queue: {:?}", response);
@@ -1500,20 +1515,26 @@ mod tests {
         let wiqid = wiq.id.clone();
 
         client
-            .update_workitem_queue(UpdateWorkItemQueueRequest {
-                workitemqueue: Some(wiq),
-                purge: false,
-                skiprole: true,
-            })
+            .update_workitem_queue(
+                UpdateWorkItemQueueRequest {
+                    workitemqueue: Some(wiq),
+                    purge: false,
+                    skiprole: true,
+                },
+                crate::EnvConfig::new(),
+            )
             .await
             .unwrap();
 
         client
-            .delete_workitem_queue(DeleteWorkItemQueueRequest {
-                wiqid,
-                purge: true,
-                ..Default::default()
-            })
+            .delete_workitem_queue(
+                DeleteWorkItemQueueRequest {
+                    wiqid,
+                    purge: true,
+                    ..Default::default()
+                },
+                crate::EnvConfig::new(),
+            )
             .await
             .unwrap();
     }
@@ -1521,7 +1542,9 @@ mod tests {
     async fn test_rpc() {
         let client = Arc::new(Client::new_connect(TEST_URL).await.unwrap());
         let pingserver = client
-            .register_queue(RegisterQueueRequest::byqueuename("pingserver"), {
+            .register_queue(RegisterQueueRequest::byqueuename("pingserver"), 
+            crate::EnvConfig::new(),
+            {
                 let client = client.clone(); // Clone the Arc to move into the closure
                 Arc::new(move |_client, event| {
                     let client = client.clone(); // Clone here to move it into the spawn block
@@ -1532,7 +1555,7 @@ mod tests {
                                 data: "{\"command\": \"pong\"}".to_string(),
                                 striptoken: true,
                                 ..Default::default()
-                            })
+                            }, crate::EnvConfig::new())
                             .await
                             .unwrap();
                         None
@@ -1547,11 +1570,11 @@ mod tests {
                 data: "{\"command\": \"ping\"}".to_string(),
                 striptoken: true,
                 ..Default::default()
-            }, tokio::time::Duration::from_secs(5) )
+            }, crate::EnvConfig::new(), tokio::time::Duration::from_secs(5) )
             .await
             .unwrap();
         println!("RPC response: {:?}", response);
-        let response = client.unregister_queue(&pingserver).await;
+        let response = client.unregister_queue(crate::EnvConfig::new(), &pingserver).await;
         match response {
             Ok(response) => {
                 println!("{:?}", response);
@@ -1574,7 +1597,7 @@ mod tests {
                 collectionname: "workflow".to_string(),
                 query: "{\"name\": \"Mileage allowance\"}".to_string(),
                 ..Default::default()
-            })
+            }, crate::EnvConfig::new())
             .await;
         let wfid = match wf {
             Some(_wf) => _wf["_id"].as_str().unwrap().to_string(),
@@ -1583,16 +1606,20 @@ mod tests {
             }
         };
         let workflow_consumer = client
-            .register_queue(RegisterQueueRequest::byqueuename("workflow_consumer"), {
-                let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
-                std::sync::Arc::new(move |_client, event| {
-                    println!("Workflow event: {:?}", event);
-                    if let Some(tx) = tx.lock().unwrap().take() {
-                        let _ = tx.send(());
-                    }
-                    Box::pin(async { None })
-                })
-            })
+            .register_queue(
+                RegisterQueueRequest::byqueuename("workflow_consumer"),
+                crate::EnvConfig::new(),
+                {
+                    let tx: Arc<std::sync::Mutex<Option<oneshot::Sender<()>>>> = Arc::clone(&tx);
+                    std::sync::Arc::new(move |_client, event| {
+                        println!("Workflow event: {:?}", event);
+                        if let Some(tx) = tx.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                        Box::pin(async { None })
+                    })
+                }
+            )
             .await
             .unwrap();
 
@@ -1604,7 +1631,7 @@ mod tests {
                 name: "Rust initialed workflow".to_string(),
                 targetid: "5ce9422d320b9c09742c3ced".to_string(), // 6242d68a73057b27d277be88
                 resultqueue: workflow_consumer.clone(),
-            })
+            }, crate::EnvConfig::new())
             .await;
         assert!(
             response.is_ok(),
@@ -1616,7 +1643,7 @@ mod tests {
         rx.await.unwrap();
         println!("Workflow event received");
 
-        let response = client.unregister_queue(&workflow_consumer).await;
+        let response = client.unregister_queue(crate::EnvConfig::new(), &workflow_consumer).await;
         match response {
             Ok(response) => {
                 println!("{:?}", response);
@@ -1638,14 +1665,14 @@ mod tests {
             // query: "{\"username\": \"macuser\"}".to_string(),
             query: "{\"username\": \"allan5\"}".to_string(),
             ..Default::default()
-        }).await.unwrap();
+        }, crate::EnvConfig::new()).await.unwrap();
         let robotid = robot["_id"].as_str().unwrap();
 
         let workflow = client.get_one(QueryRequest{
             collectionname: "openrpa".to_string(),
             query: "{\"projectandname\": \"hdrobots/WhoAmI\"}".to_string(),
             ..Default::default()
-        }).await.unwrap();
+        }, crate::EnvConfig::new()).await.unwrap();
         let workflowid = workflow["_id"].as_str().unwrap();
 
 
@@ -1655,7 +1682,7 @@ mod tests {
                 workflowid: workflowid.to_string(),
                 payload: "{\"test\": \"message\"}".to_string(),
                 ..Default::default()
-            }, None)
+            }, crate::EnvConfig::new(), None)
             .await;
         assert!(
             response.is_ok(),

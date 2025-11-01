@@ -8,7 +8,7 @@
 RootModule = 'openiap.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.38'
+ModuleVersion = '0.0.41'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,8 +93,8 @@ PowerShellVersion = '7.0'
 
 # Script files (.ps1) that are run in the caller's environment prior to importing this module.
 # ScriptsToProcess = @()
-# ScriptsToProcess = 'scripts\bootstrap.ps1'
-RequiredAssemblies = @('openiap.dll')
+ScriptsToProcess = 'bootstrap.ps1'
+RequiredAssemblies = @('lib/openiap.dll')
 
 # Type files (.ps1xml) to be loaded when importing this module
 # TypesToProcess = @()
