@@ -2157,7 +2157,7 @@ class Client:
     def add_workitem_queue(self, name, workflowid="", robotqueue="", amqpqueue="", projectid="",
                            usersrole="", maxretries=3, retrydelay=0, initialdelay=0,
                            success_wiqid="", failed_wiqid="", success_wiq="", failed_wiq="",
-                           skiprole=False, packageid=""):
+                           skiprole=False, packageid="", acl=None):
         """
         Add a new workitem queue.
         :param name: str - Name of the workitem queue
@@ -2175,10 +2175,19 @@ class Client:
         :param failed_wiq: str - Failed workitem queue name
         :param skiprole: bool - Skip role creation
         :param packageid: str - Package ID
+        :param acl: list of dicts - Access Control List entries
+                    Example: [{"id": "role-id", "deny": False, "rights": 65}]
         :return: dict with workitem queue details
         :raises: ClientError
         """
         self.trace("Inside add_workitem_queue")
+
+        class AceWrapper(ctypes.Structure):
+            _fields_ = [
+                ("id", c_char_p),
+                ("deny", c_bool),
+                ("rights", c_int)
+            ]
 
         class WorkItemQueueWrapper(ctypes.Structure):
             _fields_ = [
@@ -2197,6 +2206,8 @@ class Client:
                 ("id", c_char_p),
                 ("name", c_char_p),
                 ("packageid", c_char_p),
+                ("acl", ctypes.POINTER(ctypes.POINTER(AceWrapper))),
+                ("acl_len", c_int),
                 ("request_id", c_int)
             ]
 
@@ -2215,6 +2226,22 @@ class Client:
                 ("request_id", c_int)
             ]
 
+        # Build ACL array if provided
+        acl_array = None
+        acl_pointers = []
+        acl_len = 0
+        if acl:
+            for ace_dict in acl:
+                ace = AceWrapper(
+                    id=ace_dict.get("id", "").encode('utf-8'),
+                    deny=ace_dict.get("deny", False),
+                    rights=ace_dict.get("rights", 0)
+                )
+                acl_pointers.append(ctypes.pointer(ace))
+            acl_len = len(acl_pointers)
+            AcePointerArray = ctypes.POINTER(AceWrapper) * acl_len
+            acl_array = AcePointerArray(*acl_pointers)
+
         wiq = WorkItemQueueWrapper(
             workflowid=workflowid.encode('utf-8'),
             robotqueue=robotqueue.encode('utf-8'),
@@ -2231,6 +2258,8 @@ class Client:
             id=b'',
             name=name.encode('utf-8'),
             packageid=packageid.encode('utf-8'),
+            acl=ctypes.cast(acl_array, ctypes.POINTER(ctypes.POINTER(AceWrapper))) if acl_array else None,
+            acl_len=acl_len,
             request_id=0
         )
 
@@ -2253,6 +2282,20 @@ class Client:
             raise ClientError(f"Add workitem queue failed: {error_message}")
 
         result_wiq = response.workitemqueue.contents
+
+        # Parse ACL from response
+        result_acl = []
+        if result_wiq.acl and result_wiq.acl_len > 0:
+            for i in range(result_wiq.acl_len):
+                ace_ptr = result_wiq.acl[i]
+                if ace_ptr:
+                    ace = ace_ptr.contents
+                    result_acl.append({
+                        "id": ace.id.decode('utf-8') if ace.id else "",
+                        "deny": ace.deny,
+                        "rights": ace.rights
+                    })
+
         result = {
             "id": result_wiq.id.decode('utf-8') if result_wiq.id else "",
             "name": result_wiq.name.decode('utf-8') if result_wiq.name else "",
@@ -2269,6 +2312,7 @@ class Client:
             "success_wiq": result_wiq.success_wiq.decode('utf-8') if result_wiq.success_wiq else "",
             "failed_wiq": result_wiq.failed_wiq.decode('utf-8') if result_wiq.failed_wiq else "",
             "packageid": result_wiq.packageid.decode('utf-8') if result_wiq.packageid else "",
+            "acl": result_acl,
         }
 
         self.lib.free_add_workitem_queue_response(ref)
@@ -2277,7 +2321,7 @@ class Client:
     def update_workitem_queue(self, id, name="", workflowid="", robotqueue="", amqpqueue="", projectid="",
                               usersrole="", maxretries=3, retrydelay=0, initialdelay=0,
                               success_wiqid="", failed_wiqid="", success_wiq="", failed_wiq="",
-                              skiprole=False, purge=False, packageid=""):
+                              skiprole=False, purge=False, packageid="", acl=None):
         """
         Update an existing workitem queue.
         :param id: str - ID of the workitem queue to update
@@ -2299,8 +2343,17 @@ class Client:
         :param packageid: str - Package ID
         :return: dict with workitem queue details
         :raises: ClientError
+        :param acl: list of dicts - Access Control List entries
+                    Example: [{"id": "role-id", "deny": False, "rights": 65}]
         """
         self.trace("Inside update_workitem_queue")
+
+        class AceWrapper(ctypes.Structure):
+            _fields_ = [
+                ("id", c_char_p),
+                ("deny", c_bool),
+                ("rights", c_int)
+            ]
 
         class WorkItemQueueWrapper(ctypes.Structure):
             _fields_ = [
@@ -2319,6 +2372,8 @@ class Client:
                 ("id", c_char_p),
                 ("name", c_char_p),
                 ("packageid", c_char_p),
+                ("acl", ctypes.POINTER(ctypes.POINTER(AceWrapper))),
+                ("acl_len", c_int),
                 ("request_id", c_int)
             ]
 
@@ -2338,6 +2393,22 @@ class Client:
                 ("request_id", c_int)
             ]
 
+        # Build ACL array if provided
+        acl_array = None
+        acl_pointers = []
+        acl_len = 0
+        if acl:
+            for ace_dict in acl:
+                ace = AceWrapper(
+                    id=ace_dict.get("id", "").encode('utf-8'),
+                    deny=ace_dict.get("deny", False),
+                    rights=ace_dict.get("rights", 0)
+                )
+                acl_pointers.append(ctypes.pointer(ace))
+            acl_len = len(acl_pointers)
+            AcePointerArray = ctypes.POINTER(AceWrapper) * acl_len
+            acl_array = AcePointerArray(*acl_pointers)
+
         wiq = WorkItemQueueWrapper(
             workflowid=workflowid.encode('utf-8'),
             robotqueue=robotqueue.encode('utf-8'),
@@ -2354,6 +2425,8 @@ class Client:
             id=id.encode('utf-8'),
             name=name.encode('utf-8'),
             packageid=packageid.encode('utf-8'),
+            acl=ctypes.cast(acl_array, ctypes.POINTER(ctypes.POINTER(AceWrapper))) if acl_array else None,
+            acl_len=acl_len,
             request_id=0
         )
 
@@ -2377,6 +2450,20 @@ class Client:
             raise ClientError(f"Update workitem queue failed: {error_message}")
 
         result_wiq = response.workitemqueue.contents
+
+        # Parse ACL from response
+        result_acl = []
+        if result_wiq.acl and result_wiq.acl_len > 0:
+            for i in range(result_wiq.acl_len):
+                ace_ptr = result_wiq.acl[i]
+                if ace_ptr:
+                    ace = ace_ptr.contents
+                    result_acl.append({
+                        "id": ace.id.decode('utf-8') if ace.id else "",
+                        "deny": ace.deny,
+                        "rights": ace.rights
+                    })
+
         result = {
             "id": result_wiq.id.decode('utf-8') if result_wiq.id else "",
             "name": result_wiq.name.decode('utf-8') if result_wiq.name else "",
@@ -2393,6 +2480,7 @@ class Client:
             "success_wiq": result_wiq.success_wiq.decode('utf-8') if result_wiq.success_wiq else "",
             "failed_wiq": result_wiq.failed_wiq.decode('utf-8') if result_wiq.failed_wiq else "",
             "packageid": result_wiq.packageid.decode('utf-8') if result_wiq.packageid else "",
+            "acl": result_acl,
         }
 
         self.lib.free_update_workitem_queue_response(ref)

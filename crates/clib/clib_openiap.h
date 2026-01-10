@@ -630,6 +630,15 @@ typedef struct InvokeOpenRPARequestWrapper {
 } InvokeOpenRPARequestWrapper;
 
 /**
+ * AceWrapper is a C-compatible wrapper for Access Control Entry (Ace)
+ */
+typedef struct AceWrapper {
+  const char *id;
+  bool deny;
+  int32_t rights;
+} AceWrapper;
+
+/**
  * WorkItemQueueWrapper is a C-compatible wrapper for WorkItemQueue
  */
 typedef struct WorkItemQueueWrapper {
@@ -648,6 +657,8 @@ typedef struct WorkItemQueueWrapper {
   const char *id;
   const char *name;
   const char *packageid;
+  const struct AceWrapper *const *acl;
+  int32_t acl_len;
   int32_t request_id;
 } WorkItemQueueWrapper;
 

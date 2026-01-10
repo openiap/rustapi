@@ -7,7 +7,7 @@ use openiap_client::openiap::{
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
 use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, InvokeOpenRpaRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
-use openiap_client::openiap::{AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest, WorkItemQueue};
+use openiap_client::openiap::{Ace, AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest, WorkItemQueue};
 
 #[cfg(all(test, not(windows)))]
 mod tests;
@@ -7811,13 +7811,13 @@ pub extern "C" fn free_invoke_openrpa_response(response: *mut InvokeOpenRPARespo
 // WorkItemQueue FFI Wrappers
 // ============================================================================
 
-/// AceWrapper is a C-compatible wrapper for Ace (Access Control Entry)
+/// AceWrapper is a C-compatible wrapper for Access Control Entry (Ace)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct AceWrapper {
     pub id: *const c_char,
-    pub name: *const c_char,
-    pub rights: i64,
+    pub deny: bool,
+    pub rights: i32,
 }
 
 /// WorkItemQueueWrapper is a C-compatible wrapper for WorkItemQueue
@@ -7839,10 +7839,31 @@ pub struct WorkItemQueueWrapper {
     pub id: *const c_char,
     pub name: *const c_char,
     pub packageid: *const c_char,
+    pub acl: *const *const AceWrapper,  // Array of ACE pointers
+    pub acl_len: i32,                   // Length of ACL array
     pub request_id: i32,
 }
 
 fn wrap_workitem_queue(wiq: WorkItemQueue) -> WorkItemQueueWrapper {
+    // Convert ACL entries to AceWrapper pointers
+    let acl_wrappers: Vec<*const AceWrapper> = wiq.acl.iter().map(|ace| {
+        Box::into_raw(Box::new(AceWrapper {
+            id: CString::new(ace.id.clone()).unwrap().into_raw(),
+            deny: ace.deny,
+            rights: ace.rights,
+        })) as *const AceWrapper
+    }).collect();
+
+    let acl_len = acl_wrappers.len() as i32;
+    let acl_ptr = if acl_wrappers.is_empty() {
+        std::ptr::null()
+    } else {
+        let boxed_slice = acl_wrappers.into_boxed_slice();
+        let ptr = boxed_slice.as_ptr();
+        std::mem::forget(boxed_slice);
+        ptr
+    };
+
     WorkItemQueueWrapper {
         workflowid: CString::new(wiq.workflowid).unwrap().into_raw(),
         robotqueue: CString::new(wiq.robotqueue).unwrap().into_raw(),
@@ -7859,11 +7880,34 @@ fn wrap_workitem_queue(wiq: WorkItemQueue) -> WorkItemQueueWrapper {
         id: CString::new(wiq.id).unwrap().into_raw(),
         name: CString::new(wiq.name).unwrap().into_raw(),
         packageid: CString::new(wiq.packageid).unwrap().into_raw(),
+        acl: acl_ptr,
+        acl_len,
         request_id: 0,
     }
 }
 
 fn unwrap_workitem_queue(wrapper: &WorkItemQueueWrapper) -> WorkItemQueue {
+    // Convert ACL from C to Rust
+    let acl = if wrapper.acl.is_null() || wrapper.acl_len <= 0 {
+        vec![]
+    } else {
+        let acl_slice = unsafe {
+            std::slice::from_raw_parts(wrapper.acl, wrapper.acl_len as usize)
+        };
+        acl_slice.iter().filter_map(|&ace_ptr| {
+            if ace_ptr.is_null() {
+                None
+            } else {
+                let ace = unsafe { &*ace_ptr };
+                Some(Ace {
+                    id: c_char_to_str(ace.id),
+                    deny: ace.deny,
+                    rights: ace.rights,
+                })
+            }
+        }).collect()
+    };
+
     WorkItemQueue {
         workflowid: c_char_to_str(wrapper.workflowid),
         robotqueue: c_char_to_str(wrapper.robotqueue),
@@ -7880,7 +7924,7 @@ fn unwrap_workitem_queue(wrapper: &WorkItemQueueWrapper) -> WorkItemQueue {
         id: c_char_to_str(wrapper.id),
         name: c_char_to_str(wrapper.name),
         packageid: c_char_to_str(wrapper.packageid),
-        acl: vec![],
+        acl,
         createdbyid: String::new(),
         createdby: String::new(),
         created: None,
@@ -8167,6 +8211,28 @@ pub extern "C" fn free_workitem_queue_wrapper(wrapper: *mut WorkItemQueueWrapper
         }
         if !(*wrapper).packageid.is_null() {
             let _ = CString::from_raw((*wrapper).packageid as *mut c_char);
+        }
+        // Free ACL array and its contents
+        if !(*wrapper).acl.is_null() && (*wrapper).acl_len > 0 {
+            let acl_slice = std::slice::from_raw_parts(
+                (*wrapper).acl as *mut *mut AceWrapper,
+                (*wrapper).acl_len as usize
+            );
+            for &ace_ptr in acl_slice {
+                if !ace_ptr.is_null() {
+                    // Free the id string in AceWrapper
+                    if !(*ace_ptr).id.is_null() {
+                        let _ = CString::from_raw((*ace_ptr).id as *mut c_char);
+                    }
+                    // Free the AceWrapper itself
+                    let _ = Box::from_raw(ace_ptr);
+                }
+            }
+            // Free the array of pointers
+            let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+                (*wrapper).acl as *mut *const AceWrapper,
+                (*wrapper).acl_len as usize
+            ).as_mut_ptr());
         }
         let _ = Box::from_raw(wrapper);
     }
