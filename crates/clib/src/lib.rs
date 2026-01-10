@@ -7,6 +7,7 @@ use openiap_client::openiap::{
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
 use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, InvokeOpenRpaRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
+use openiap_client::openiap::{AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest, WorkItemQueue, Ace};
 
 #[cfg(all(test, not(windows)))]
 mod tests;
@@ -7801,6 +7802,805 @@ pub extern "C" fn free_invoke_openrpa_response(response: *mut InvokeOpenRPARespo
         }
         if !(*response).result.is_null() {
             let _ = CString::from_raw((*response).result as *mut c_char);
+        }
+        let _ = Box::from_raw(response);
+    }
+}
+
+// ============================================================================
+// WorkItemQueue FFI Wrappers
+// ============================================================================
+
+/// AceWrapper is a C-compatible wrapper for Ace (Access Control Entry)
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct AceWrapper {
+    pub id: *const c_char,
+    pub name: *const c_char,
+    pub rights: i64,
+}
+
+/// WorkItemQueueWrapper is a C-compatible wrapper for WorkItemQueue
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct WorkItemQueueWrapper {
+    pub workflowid: *const c_char,
+    pub robotqueue: *const c_char,
+    pub amqpqueue: *const c_char,
+    pub projectid: *const c_char,
+    pub usersrole: *const c_char,
+    pub maxretries: i32,
+    pub retrydelay: i32,
+    pub initialdelay: i32,
+    pub success_wiqid: *const c_char,
+    pub failed_wiqid: *const c_char,
+    pub success_wiq: *const c_char,
+    pub failed_wiq: *const c_char,
+    pub id: *const c_char,
+    pub name: *const c_char,
+    pub packageid: *const c_char,
+    pub request_id: i32,
+}
+
+fn wrap_workitem_queue(wiq: WorkItemQueue) -> WorkItemQueueWrapper {
+    WorkItemQueueWrapper {
+        workflowid: CString::new(wiq.workflowid).unwrap().into_raw(),
+        robotqueue: CString::new(wiq.robotqueue).unwrap().into_raw(),
+        amqpqueue: CString::new(wiq.amqpqueue).unwrap().into_raw(),
+        projectid: CString::new(wiq.projectid).unwrap().into_raw(),
+        usersrole: CString::new(wiq.usersrole).unwrap().into_raw(),
+        maxretries: wiq.maxretries,
+        retrydelay: wiq.retrydelay,
+        initialdelay: wiq.initialdelay,
+        success_wiqid: CString::new(wiq.success_wiqid).unwrap().into_raw(),
+        failed_wiqid: CString::new(wiq.failed_wiqid).unwrap().into_raw(),
+        success_wiq: CString::new(wiq.success_wiq).unwrap().into_raw(),
+        failed_wiq: CString::new(wiq.failed_wiq).unwrap().into_raw(),
+        id: CString::new(wiq.id).unwrap().into_raw(),
+        name: CString::new(wiq.name).unwrap().into_raw(),
+        packageid: CString::new(wiq.packageid).unwrap().into_raw(),
+        request_id: 0,
+    }
+}
+
+fn unwrap_workitem_queue(wrapper: &WorkItemQueueWrapper) -> WorkItemQueue {
+    WorkItemQueue {
+        workflowid: c_char_to_str(wrapper.workflowid),
+        robotqueue: c_char_to_str(wrapper.robotqueue),
+        amqpqueue: c_char_to_str(wrapper.amqpqueue),
+        projectid: c_char_to_str(wrapper.projectid),
+        usersrole: c_char_to_str(wrapper.usersrole),
+        maxretries: wrapper.maxretries,
+        retrydelay: wrapper.retrydelay,
+        initialdelay: wrapper.initialdelay,
+        success_wiqid: c_char_to_str(wrapper.success_wiqid),
+        failed_wiqid: c_char_to_str(wrapper.failed_wiqid),
+        success_wiq: c_char_to_str(wrapper.success_wiq),
+        failed_wiq: c_char_to_str(wrapper.failed_wiq),
+        id: c_char_to_str(wrapper.id),
+        name: c_char_to_str(wrapper.name),
+        packageid: c_char_to_str(wrapper.packageid),
+        acl: vec![],
+        createdbyid: String::new(),
+        createdby: String::new(),
+        created: None,
+        modifiedbyid: String::new(),
+        modifiedby: String::new(),
+        modified: None,
+        version: 0,
+    }
+}
+
+/// AddWorkItemQueueRequestWrapper is a C-compatible wrapper for AddWorkItemQueueRequest
+#[repr(C)]
+pub struct AddWorkItemQueueRequestWrapper {
+    pub workitemqueue: *const WorkItemQueueWrapper,
+    pub skiprole: bool,
+    pub request_id: i32,
+}
+
+/// AddWorkItemQueueResponseWrapper is a C-compatible wrapper for AddWorkItemQueueResponse
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct AddWorkItemQueueResponseWrapper {
+    pub success: bool,
+    pub error: *const c_char,
+    pub workitemqueue: *const WorkItemQueueWrapper,
+    pub request_id: i32,
+}
+
+/// Synchronous add_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn add_workitem_queue(
+    client: *mut ClientWrapper,
+    options: *mut AddWorkItemQueueRequestWrapper,
+) -> *mut AddWorkItemQueueResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: 0,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    let wiq_wrapper = match safe_wrapper(options.workitemqueue as *mut WorkItemQueueWrapper) {
+        Some(w) => w,
+        None => {
+            let error_msg = CString::new("Invalid workitem queue").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    let wiq = unwrap_workitem_queue(wiq_wrapper);
+    let request = AddWorkItemQueueRequest {
+        workitemqueue: Some(wiq),
+        skiprole: options.skiprole,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = AddWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitemqueue: std::ptr::null(),
+            request_id: options.request_id,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.add_workitem_queue(request, openiap_client::EnvConfig::new()))
+    });
+
+    match result {
+        Ok(wiq) => {
+            let wrapped = wrap_workitem_queue(wiq);
+            Box::into_raw(Box::new(AddWorkItemQueueResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+                workitemqueue: Box::into_raw(Box::new(wrapped)),
+                request_id: options.request_id,
+            }))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Add workitem queue failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            Box::into_raw(Box::new(AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            }))
+        }
+    }
+}
+
+/// Callback type for add_workitem_queue_async
+type AddWorkItemQueueCallback = extern "C" fn(wrapper: *mut AddWorkItemQueueResponseWrapper);
+
+/// Asynchronous add_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn add_workitem_queue_async(
+    client: *mut ClientWrapper,
+    options: *mut AddWorkItemQueueRequestWrapper,
+    callback: AddWorkItemQueueCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: 0,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let wiq_wrapper = match safe_wrapper(options.workitemqueue as *mut WorkItemQueueWrapper) {
+        Some(w) => w,
+        None => {
+            let error_msg = CString::new("Invalid workitem queue").unwrap().into_raw();
+            let response = AddWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let wiq = unwrap_workitem_queue(wiq_wrapper);
+    let request = AddWorkItemQueueRequest {
+        workitemqueue: Some(wiq),
+        skiprole: options.skiprole,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = AddWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitemqueue: std::ptr::null(),
+            request_id: options.request_id,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+    let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
+
+    let _guard = handle.enter();
+    handle.spawn(async move {
+        let result = client.add_workitem_queue(request, openiap_client::EnvConfig::new()).await;
+
+        let response = match result {
+            Ok(wiq) => {
+                let wrapped = wrap_workitem_queue(wiq);
+                AddWorkItemQueueResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                    workitemqueue: Box::into_raw(Box::new(wrapped)),
+                    request_id,
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Add workitem queue failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                AddWorkItemQueueResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                    workitemqueue: std::ptr::null(),
+                    request_id,
+                }
+            }
+        };
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+/// Free AddWorkItemQueueResponseWrapper
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_add_workitem_queue_response(response: *mut AddWorkItemQueueResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).workitemqueue.is_null() {
+            free_workitem_queue_wrapper((*response).workitemqueue as *mut WorkItemQueueWrapper);
+        }
+        let _ = Box::from_raw(response);
+    }
+}
+
+/// Free WorkItemQueueWrapper
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_workitem_queue_wrapper(wrapper: *mut WorkItemQueueWrapper) {
+    if wrapper.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*wrapper).workflowid.is_null() {
+            let _ = CString::from_raw((*wrapper).workflowid as *mut c_char);
+        }
+        if !(*wrapper).robotqueue.is_null() {
+            let _ = CString::from_raw((*wrapper).robotqueue as *mut c_char);
+        }
+        if !(*wrapper).amqpqueue.is_null() {
+            let _ = CString::from_raw((*wrapper).amqpqueue as *mut c_char);
+        }
+        if !(*wrapper).projectid.is_null() {
+            let _ = CString::from_raw((*wrapper).projectid as *mut c_char);
+        }
+        if !(*wrapper).usersrole.is_null() {
+            let _ = CString::from_raw((*wrapper).usersrole as *mut c_char);
+        }
+        if !(*wrapper).success_wiqid.is_null() {
+            let _ = CString::from_raw((*wrapper).success_wiqid as *mut c_char);
+        }
+        if !(*wrapper).failed_wiqid.is_null() {
+            let _ = CString::from_raw((*wrapper).failed_wiqid as *mut c_char);
+        }
+        if !(*wrapper).success_wiq.is_null() {
+            let _ = CString::from_raw((*wrapper).success_wiq as *mut c_char);
+        }
+        if !(*wrapper).failed_wiq.is_null() {
+            let _ = CString::from_raw((*wrapper).failed_wiq as *mut c_char);
+        }
+        if !(*wrapper).id.is_null() {
+            let _ = CString::from_raw((*wrapper).id as *mut c_char);
+        }
+        if !(*wrapper).name.is_null() {
+            let _ = CString::from_raw((*wrapper).name as *mut c_char);
+        }
+        if !(*wrapper).packageid.is_null() {
+            let _ = CString::from_raw((*wrapper).packageid as *mut c_char);
+        }
+        let _ = Box::from_raw(wrapper);
+    }
+}
+
+// ============================================================================
+// UpdateWorkItemQueue FFI
+// ============================================================================
+
+/// UpdateWorkItemQueueRequestWrapper is a C-compatible wrapper for UpdateWorkItemQueueRequest
+#[repr(C)]
+pub struct UpdateWorkItemQueueRequestWrapper {
+    pub workitemqueue: *const WorkItemQueueWrapper,
+    pub skiprole: bool,
+    pub purge: bool,
+    pub request_id: i32,
+}
+
+/// UpdateWorkItemQueueResponseWrapper is a C-compatible wrapper for UpdateWorkItemQueueResponse
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct UpdateWorkItemQueueResponseWrapper {
+    pub success: bool,
+    pub error: *const c_char,
+    pub workitemqueue: *const WorkItemQueueWrapper,
+    pub request_id: i32,
+}
+
+/// Synchronous update_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_workitem_queue(
+    client: *mut ClientWrapper,
+    options: *mut UpdateWorkItemQueueRequestWrapper,
+) -> *mut UpdateWorkItemQueueResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: 0,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    let wiq_wrapper = match safe_wrapper(options.workitemqueue as *mut WorkItemQueueWrapper) {
+        Some(w) => w,
+        None => {
+            let error_msg = CString::new("Invalid workitem queue").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    let wiq = unwrap_workitem_queue(wiq_wrapper);
+    let request = UpdateWorkItemQueueRequest {
+        workitemqueue: Some(wiq),
+        skiprole: options.skiprole,
+        purge: options.purge,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitemqueue: std::ptr::null(),
+            request_id: options.request_id,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.update_workitem_queue(request, openiap_client::EnvConfig::new()))
+    });
+
+    match result {
+        Ok(wiq) => {
+            let wrapped = wrap_workitem_queue(wiq);
+            Box::into_raw(Box::new(UpdateWorkItemQueueResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+                workitemqueue: Box::into_raw(Box::new(wrapped)),
+                request_id: options.request_id,
+            }))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Update workitem queue failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            Box::into_raw(Box::new(UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            }))
+        }
+    }
+}
+
+/// Callback type for update_workitem_queue_async
+type UpdateWorkItemQueueCallback = extern "C" fn(wrapper: *mut UpdateWorkItemQueueResponseWrapper);
+
+/// Asynchronous update_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn update_workitem_queue_async(
+    client: *mut ClientWrapper,
+    options: *mut UpdateWorkItemQueueRequestWrapper,
+    callback: UpdateWorkItemQueueCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: 0,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let wiq_wrapper = match safe_wrapper(options.workitemqueue as *mut WorkItemQueueWrapper) {
+        Some(w) => w,
+        None => {
+            let error_msg = CString::new("Invalid workitem queue").unwrap().into_raw();
+            let response = UpdateWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                workitemqueue: std::ptr::null(),
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let wiq = unwrap_workitem_queue(wiq_wrapper);
+    let request = UpdateWorkItemQueueRequest {
+        workitemqueue: Some(wiq),
+        skiprole: options.skiprole,
+        purge: options.purge,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = UpdateWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            workitemqueue: std::ptr::null(),
+            request_id: options.request_id,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+    let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
+
+    let _guard = handle.enter();
+    handle.spawn(async move {
+        let result = client.update_workitem_queue(request, openiap_client::EnvConfig::new()).await;
+
+        let response = match result {
+            Ok(wiq) => {
+                let wrapped = wrap_workitem_queue(wiq);
+                UpdateWorkItemQueueResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                    workitemqueue: Box::into_raw(Box::new(wrapped)),
+                    request_id,
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Update workitem queue failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                UpdateWorkItemQueueResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                    workitemqueue: std::ptr::null(),
+                    request_id,
+                }
+            }
+        };
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+/// Free UpdateWorkItemQueueResponseWrapper
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_update_workitem_queue_response(response: *mut UpdateWorkItemQueueResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
+        }
+        if !(*response).workitemqueue.is_null() {
+            free_workitem_queue_wrapper((*response).workitemqueue as *mut WorkItemQueueWrapper);
+        }
+        let _ = Box::from_raw(response);
+    }
+}
+
+// ============================================================================
+// DeleteWorkItemQueue FFI
+// ============================================================================
+
+/// DeleteWorkItemQueueRequestWrapper is a C-compatible wrapper for DeleteWorkItemQueueRequest
+#[repr(C)]
+pub struct DeleteWorkItemQueueRequestWrapper {
+    pub wiq: *const c_char,
+    pub wiqid: *const c_char,
+    pub purge: bool,
+    pub request_id: i32,
+}
+
+/// DeleteWorkItemQueueResponseWrapper is a C-compatible wrapper for DeleteWorkItemQueueResponse
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct DeleteWorkItemQueueResponseWrapper {
+    pub success: bool,
+    pub error: *const c_char,
+    pub request_id: i32,
+}
+
+/// Synchronous delete_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_workitem_queue(
+    client: *mut ClientWrapper,
+    options: *mut DeleteWorkItemQueueRequestWrapper,
+) -> *mut DeleteWorkItemQueueResponseWrapper {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = DeleteWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                request_id: 0,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DeleteWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                request_id: options.request_id,
+            };
+            return Box::into_raw(Box::new(response));
+        }
+    };
+
+    let request = DeleteWorkItemQueueRequest {
+        wiq: c_char_to_str(options.wiq),
+        wiqid: c_char_to_str(options.wiqid),
+        purge: options.purge,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            request_id: options.request_id,
+        };
+        return Box::into_raw(Box::new(response));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+
+    let result = tokio::task::block_in_place(|| {
+        let handle = client.get_runtime_handle();
+        handle.block_on(client.delete_workitem_queue(request, openiap_client::EnvConfig::new()))
+    });
+
+    match result {
+        Ok(_) => {
+            Box::into_raw(Box::new(DeleteWorkItemQueueResponseWrapper {
+                success: true,
+                error: std::ptr::null(),
+                request_id: options.request_id,
+            }))
+        }
+        Err(e) => {
+            let error_msg = CString::new(format!("Delete workitem queue failed: {:?}", e))
+                .unwrap()
+                .into_raw();
+            Box::into_raw(Box::new(DeleteWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                request_id: options.request_id,
+            }))
+        }
+    }
+}
+
+/// Callback type for delete_workitem_queue_async
+type DeleteWorkItemQueueCallback = extern "C" fn(wrapper: *mut DeleteWorkItemQueueResponseWrapper);
+
+/// Asynchronous delete_workitem_queue FFI function
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn delete_workitem_queue_async(
+    client: *mut ClientWrapper,
+    options: *mut DeleteWorkItemQueueRequestWrapper,
+    callback: DeleteWorkItemQueueCallback,
+) {
+    let options = match safe_wrapper(options) {
+        Some(options) => options,
+        None => {
+            let error_msg = CString::new("Invalid options").unwrap().into_raw();
+            let response = DeleteWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                request_id: 0,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+    let client_wrapper = match safe_wrapper(client) {
+        Some(client) => client,
+        None => {
+            let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+            let response = DeleteWorkItemQueueResponseWrapper {
+                success: false,
+                error: error_msg,
+                request_id: options.request_id,
+            };
+            return callback(Box::into_raw(Box::new(response)));
+        }
+    };
+
+    let request = DeleteWorkItemQueueRequest {
+        wiq: c_char_to_str(options.wiq),
+        wiqid: c_char_to_str(options.wiqid),
+        purge: options.purge,
+    };
+
+    if client_wrapper.client.is_none() {
+        let error_msg = CString::new("Client is not connected").unwrap().into_raw();
+        let response = DeleteWorkItemQueueResponseWrapper {
+            success: false,
+            error: error_msg,
+            request_id: options.request_id,
+        };
+        return callback(Box::into_raw(Box::new(response)));
+    }
+    let client = client_wrapper.client.clone().unwrap();
+    let handle = client.get_runtime_handle();
+    let request_id = options.request_id;
+
+    let _guard = handle.enter();
+    handle.spawn(async move {
+        let result = client.delete_workitem_queue(request, openiap_client::EnvConfig::new()).await;
+
+        let response = match result {
+            Ok(_) => {
+                DeleteWorkItemQueueResponseWrapper {
+                    success: true,
+                    error: std::ptr::null(),
+                    request_id,
+                }
+            }
+            Err(e) => {
+                let error_msg = CString::new(format!("Delete workitem queue failed: {:?}", e))
+                    .unwrap()
+                    .into_raw();
+                DeleteWorkItemQueueResponseWrapper {
+                    success: false,
+                    error: error_msg,
+                    request_id,
+                }
+            }
+        };
+        callback(Box::into_raw(Box::new(response)));
+    });
+}
+
+/// Free DeleteWorkItemQueueResponseWrapper
+#[no_mangle]
+#[tracing::instrument(skip_all)]
+pub extern "C" fn free_delete_workitem_queue_response(response: *mut DeleteWorkItemQueueResponseWrapper) {
+    if response.is_null() {
+        return;
+    }
+    unsafe {
+        if !(*response).error.is_null() {
+            let _ = CString::from_raw((*response).error as *mut c_char);
         }
         let _ = Box::from_raw(response);
     }
