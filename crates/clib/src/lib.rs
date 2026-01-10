@@ -7,7 +7,7 @@ use openiap_client::openiap::{
     QueryRequest, SigninRequest, UploadRequest, WatchEvent, WatchRequest,
 };
 use openiap_client::{Client, ClientEvent, CreateCollectionRequest, CreateIndexRequest, CustomCommandRequest, DeleteManyRequest, DeleteOneRequest, DeleteWorkitemRequest, DropCollectionRequest, DropIndexRequest, GetIndexesRequest, InsertManyRequest, InsertOrUpdateOneRequest, InvokeOpenRpaRequest, PopWorkitemRequest, PushWorkitemRequest, QueueEvent, QueueMessageRequest, RegisterExchangeRequest, RegisterQueueRequest, Timestamp, UpdateOneRequest, UpdateWorkitemRequest, Workitem, WorkitemFile};
-use openiap_client::openiap::{AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest, WorkItemQueue, Ace};
+use openiap_client::openiap::{AddWorkItemQueueRequest, UpdateWorkItemQueueRequest, DeleteWorkItemQueueRequest, WorkItemQueue};
 
 #[cfg(all(test, not(windows)))]
 mod tests;

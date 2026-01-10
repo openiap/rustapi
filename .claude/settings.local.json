@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rustc --version:*)",
+      "Bash(cargo:*)",
+      "Bash(protoc:*)",
+      "Bash(cmd.exe /c \"rustc --version\")",
+      "Bash(cmd.exe /c \"cargo --version\")"
+    ]
+  }
+}

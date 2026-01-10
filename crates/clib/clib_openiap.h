@@ -629,6 +629,101 @@ typedef struct InvokeOpenRPARequestWrapper {
   int32_t request_id;
 } InvokeOpenRPARequestWrapper;
 
+/**
+ * WorkItemQueueWrapper is a C-compatible wrapper for WorkItemQueue
+ */
+typedef struct WorkItemQueueWrapper {
+  const char *workflowid;
+  const char *robotqueue;
+  const char *amqpqueue;
+  const char *projectid;
+  const char *usersrole;
+  int32_t maxretries;
+  int32_t retrydelay;
+  int32_t initialdelay;
+  const char *success_wiqid;
+  const char *failed_wiqid;
+  const char *success_wiq;
+  const char *failed_wiq;
+  const char *id;
+  const char *name;
+  const char *packageid;
+  int32_t request_id;
+} WorkItemQueueWrapper;
+
+/**
+ * AddWorkItemQueueResponseWrapper is a C-compatible wrapper for AddWorkItemQueueResponse
+ */
+typedef struct AddWorkItemQueueResponseWrapper {
+  bool success;
+  const char *error;
+  const struct WorkItemQueueWrapper *workitemqueue;
+  int32_t request_id;
+} AddWorkItemQueueResponseWrapper;
+
+/**
+ * AddWorkItemQueueRequestWrapper is a C-compatible wrapper for AddWorkItemQueueRequest
+ */
+typedef struct AddWorkItemQueueRequestWrapper {
+  const struct WorkItemQueueWrapper *workitemqueue;
+  bool skiprole;
+  int32_t request_id;
+} AddWorkItemQueueRequestWrapper;
+
+/**
+ * Callback type for add_workitem_queue_async
+ */
+typedef void (*AddWorkItemQueueCallback)(struct AddWorkItemQueueResponseWrapper *wrapper);
+
+/**
+ * UpdateWorkItemQueueResponseWrapper is a C-compatible wrapper for UpdateWorkItemQueueResponse
+ */
+typedef struct UpdateWorkItemQueueResponseWrapper {
+  bool success;
+  const char *error;
+  const struct WorkItemQueueWrapper *workitemqueue;
+  int32_t request_id;
+} UpdateWorkItemQueueResponseWrapper;
+
+/**
+ * UpdateWorkItemQueueRequestWrapper is a C-compatible wrapper for UpdateWorkItemQueueRequest
+ */
+typedef struct UpdateWorkItemQueueRequestWrapper {
+  const struct WorkItemQueueWrapper *workitemqueue;
+  bool skiprole;
+  bool purge;
+  int32_t request_id;
+} UpdateWorkItemQueueRequestWrapper;
+
+/**
+ * Callback type for update_workitem_queue_async
+ */
+typedef void (*UpdateWorkItemQueueCallback)(struct UpdateWorkItemQueueResponseWrapper *wrapper);
+
+/**
+ * DeleteWorkItemQueueResponseWrapper is a C-compatible wrapper for DeleteWorkItemQueueResponse
+ */
+typedef struct DeleteWorkItemQueueResponseWrapper {
+  bool success;
+  const char *error;
+  int32_t request_id;
+} DeleteWorkItemQueueResponseWrapper;
+
+/**
+ * DeleteWorkItemQueueRequestWrapper is a C-compatible wrapper for DeleteWorkItemQueueRequest
+ */
+typedef struct DeleteWorkItemQueueRequestWrapper {
+  const char *wiq;
+  const char *wiqid;
+  bool purge;
+  int32_t request_id;
+} DeleteWorkItemQueueRequestWrapper;
+
+/**
+ * Callback type for delete_workitem_queue_async
+ */
+typedef void (*DeleteWorkItemQueueCallback)(struct DeleteWorkItemQueueResponseWrapper *wrapper);
+
 void error(const char *message);
 
 void info(const char *message);
@@ -1009,3 +1104,62 @@ struct InvokeOpenRPAResponseWrapper *invoke_openrpa(struct ClientWrapper *client
                                                     int32_t timeout);
 
 void free_invoke_openrpa_response(struct InvokeOpenRPAResponseWrapper *response);
+
+/**
+ * Synchronous add_workitem_queue FFI function
+ */
+struct AddWorkItemQueueResponseWrapper *add_workitem_queue(struct ClientWrapper *client,
+                                                           struct AddWorkItemQueueRequestWrapper *options);
+
+/**
+ * Asynchronous add_workitem_queue FFI function
+ */
+void add_workitem_queue_async(struct ClientWrapper *client,
+                              struct AddWorkItemQueueRequestWrapper *options,
+                              AddWorkItemQueueCallback callback);
+
+/**
+ * Free AddWorkItemQueueResponseWrapper
+ */
+void free_add_workitem_queue_response(struct AddWorkItemQueueResponseWrapper *response);
+
+/**
+ * Free WorkItemQueueWrapper
+ */
+void free_workitem_queue_wrapper(struct WorkItemQueueWrapper *wrapper);
+
+/**
+ * Synchronous update_workitem_queue FFI function
+ */
+struct UpdateWorkItemQueueResponseWrapper *update_workitem_queue(struct ClientWrapper *client,
+                                                                 struct UpdateWorkItemQueueRequestWrapper *options);
+
+/**
+ * Asynchronous update_workitem_queue FFI function
+ */
+void update_workitem_queue_async(struct ClientWrapper *client,
+                                 struct UpdateWorkItemQueueRequestWrapper *options,
+                                 UpdateWorkItemQueueCallback callback);
+
+/**
+ * Free UpdateWorkItemQueueResponseWrapper
+ */
+void free_update_workitem_queue_response(struct UpdateWorkItemQueueResponseWrapper *response);
+
+/**
+ * Synchronous delete_workitem_queue FFI function
+ */
+struct DeleteWorkItemQueueResponseWrapper *delete_workitem_queue(struct ClientWrapper *client,
+                                                                 struct DeleteWorkItemQueueRequestWrapper *options);
+
+/**
+ * Asynchronous delete_workitem_queue FFI function
+ */
+void delete_workitem_queue_async(struct ClientWrapper *client,
+                                 struct DeleteWorkItemQueueRequestWrapper *options,
+                                 DeleteWorkItemQueueCallback callback);
+
+/**
+ * Free DeleteWorkItemQueueResponseWrapper
+ */
+void free_delete_workitem_queue_response(struct DeleteWorkItemQueueResponseWrapper *response);
