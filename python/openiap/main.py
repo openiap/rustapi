@@ -1669,7 +1669,7 @@ class Client:
                                         wiqid=c_char_p(wiqid.encode('utf-8')))
         
         self.trace("Calling pop_workitem_async")
-        self.lib.pop_workitem_async(self.client, byref(req), downloadfolder, cb)
+        self.lib.pop_workitem_async(self.client, byref(req), downloadfolder.encode('utf-8'), cb)
         self.trace("pop_workitem_async called")
 
         event.wait()
