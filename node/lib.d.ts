@@ -1,5 +1,5 @@
 export class Client {
-    lib: koffi.IKoffiLib;
+    lib: any;
     connected: boolean;
     client: any;
     formatBytes(bytes: any, decimals?: number): string;
@@ -557,5 +557,4 @@ export class LibraryLoadError extends ClientError {
 }
 export class ClientCreationError extends ClientError {
 }
-import koffi = require("koffi");
 //# sourceMappingURL=lib.d.ts.map
