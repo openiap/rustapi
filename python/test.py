@@ -83,6 +83,33 @@ if __name__ == "__main__":
         workitem["state"] = "successful"
         client.update_workitem(workitem, files)
 
+        # Test workitem queue CRUD operations
+        print("*********************************")
+        print("Testing workitem queue CRUD operations")
+        print("*********************************")
+
+        # Add a new workitem queue
+        wiq_result = client.add_workitem_queue(
+            name="python_test_wiq",
+            maxretries=5,
+            retrydelay=60,
+            initialdelay=0
+        )
+        print("Created workitem queue:", wiq_result)
+        wiq_id = wiq_result["id"]
+
+        # Update the workitem queue
+        updated_wiq = client.update_workitem_queue(
+            id=wiq_id,
+            name="python_test_wiq_updated",
+            maxretries=10,
+            retrydelay=120
+        )
+        print("Updated workitem queue:", updated_wiq)
+
+        # Delete the workitem queue
+        delete_result = client.delete_workitem_queue(wiqid=wiq_id, purge=True)
+        print("Deleted workitem queue:", delete_result)
 
         query_result = client.query(collectionname="entities", query="{}", projection="{\"name\": 1}", orderby="", queryas="", explain=False, skip=0, top=0)
         print(query_result)

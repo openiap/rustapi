@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rustc --version:*)",
+      "Bash(cargo:*)",
+      "Bash(protoc:*)",
+      "Bash(cmd.exe /c \"rustc --version\")",
+      "Bash(cmd.exe /c \"cargo --version\")",
+      "Bash(python -m build:*)",
+      "Bash(cmd.exe /c \"cd /d c:\\\\dev\\\\Customer\\\\openiap\\\\rustapi\\\\python && python -m build\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\dev\\\\Customer\\\\openiap\\\\rustapi\\\\python && python -m build 2>&1\")"
+    ]
+  }
+}
